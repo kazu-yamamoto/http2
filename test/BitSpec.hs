@@ -6,7 +6,7 @@ import Test.Hspec.QuickCheck
 
 spec :: Spec
 spec = do
-    describe "toInt" $ do
-        prop "decodes Bits converted by toBits" $ \n ->
+    describe "toBits and toInt" $ do
+        prop "duality" $ \n ->
             let i = n `mod` 256
             in  toInt (toBits i) == i
