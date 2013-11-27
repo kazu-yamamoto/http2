@@ -9,6 +9,7 @@ module Network.HPACK.Huffman (
 
 import Control.Arrow (second)
 import Data.Array (Array, (!), listArray)
+import Data.List (partition)
 import Network.HPACK.Bit
 
 ----------------------------------------------------------------
@@ -54,8 +55,9 @@ build :: [(Int,Bits)] -> Decoder
 build [(i,[])]    = Tip i
 build xs = Bin (build fs) (build ts)
   where
-    fs = map (second tail) $ filter ((==) F . head . snd) xs
-    ts = map (second tail) $ filter ((==) T . head . snd) xs
+    (fs',ts') = partition ((==) F . head . snd) xs
+    fs = map (second tail) fs'
+    ts = map (second tail) ts'
 
 decode :: Decoder -> [Int] -> [Int]
 decode decoder is = decodeBits decoder (concatMap toBits is)
