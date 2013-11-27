@@ -13,9 +13,21 @@ data B = F | T deriving (Eq,Ord,Enum,Show)
 
 type Bits = [B]
 
+-- |
+--
+-- >>> toInt [T,F,T,F,T,F,T,F]
+-- 170
+-- >>> toInt [F,T,F,T,F,T,F,T]
+-- 85
 toInt :: Bits -> Int
 toInt = foldl' (\x y -> x * 2 + y) 0 . map fromEnum
 
+-- |
+--
+-- >>> toBits 170
+-- [T,F,T,F,T,F,T,F]
+-- >>> toBits 85
+-- [F,T,F,T,F,T,F,T]
 toBits :: Int -> Bits
 toBits = toBits' [] 0
 
