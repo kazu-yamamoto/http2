@@ -1,6 +1,30 @@
-module Network.HPACK.HuffmanRequest where
+module Network.HPACK.HuffmanRequest (
+    encodeInRequest
+  , decodeInRequest
+  ) where
 
 import Network.HPACK.Bit
+import Network.HPACK.Huffman
+
+----------------------------------------------------------------
+
+encoderForRequest :: Encoder
+encoderForRequest = toEncoder huffmanRequest
+
+-- | Hoffman encoding in HTTP/2.0 request.
+encodeInRequest :: [Int] -> [Int]
+encodeInRequest = encode encoderForRequest
+
+----------------------------------------------------------------
+
+decoderForRequest :: Decoder
+decoderForRequest = toDecoder huffmanRequest
+
+-- | Hoffman decoding in HTTP/2.0 request.
+decodeInRequest :: [Int] -> [Int]
+decodeInRequest = decode decoderForRequest
+
+----------------------------------------------------------------
 
 huffmanRequest :: [Bits]
 huffmanRequest = [
