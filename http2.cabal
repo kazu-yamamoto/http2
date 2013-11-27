@@ -36,6 +36,7 @@ Test-Suite spec
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
   Other-Modules:        BitSpec
+                        HuffmanRequestSpec
   Build-Depends:        base
                       , array
                       , hspec >= 1.3
