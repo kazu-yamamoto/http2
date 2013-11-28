@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module StaticTable where
+module Network.HPACK.StaticTable where
 
 import Data.Array (listArray)
 import Network.HPACK.Types
