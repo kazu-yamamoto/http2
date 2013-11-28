@@ -34,9 +34,6 @@ removeIndex idx (ReferenceSet is) = ReferenceSet $ delete idx is
 emptyReferenceSet :: ReferenceSet
 emptyReferenceSet = ReferenceSet []
 
-staticTable :: StaticTable
-staticTable = undefined
-
 ----------------------------------------------------------------
 
 newContext :: Size -> Context
