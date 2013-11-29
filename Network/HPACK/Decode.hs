@@ -20,7 +20,7 @@ decode ctx [] = case allEntries oldref hdrtbl of
 emit :: Context -> HeaderSet -> Context
 emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
   where
-    hdrset' = notEmitted ++ hdrset
+    hdrset' = reverse $ notEmitted ++ hdrset
     oldref' = mergeReferenceSet newref oldref
     ctx = Context hdrtbl oldref' emptyReferenceSet hdrset'
 

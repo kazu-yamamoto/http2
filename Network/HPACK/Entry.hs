@@ -5,6 +5,7 @@ module Network.HPACK.Entry (
   , fromEntry
   , entrySize
   , entryHeaderName
+  , entryHeaderValue
   , headerSizeMagicNumber
   , dummyEntry
   ) where
@@ -31,6 +32,9 @@ entrySize = fst
 
 entryHeaderName :: Entry -> HeaderName
 entryHeaderName (_,(k,_)) = k
+
+entryHeaderValue :: Entry -> HeaderValue
+entryHeaderValue (_,(_,v)) = v
 
 dummyEntry :: Entry
 dummyEntry = (0,("",""))

@@ -1,14 +1,19 @@
 module Network.HPACK.Types where
 
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as BS
 import Data.Array
 
-type Index = Int
+----------------------------------------------------------------
+
 type HeaderName = ByteString
 type HeaderValue = ByteString
 type Header = (HeaderName, HeaderValue)
-
 type HeaderSet = [Header]
+
+----------------------------------------------------------------
+
+type Index = Int
 
 data Indexing = Add | NotAdd deriving Show
 
@@ -20,12 +25,16 @@ data Representation = Indexed Index
                     | Literal Indexing Naming HeaderValue
                     deriving Show
 
+----------------------------------------------------------------
+
+type Size = Int
+
 -- Size is len of name + len of value + 32
 type Entry = (Size,Header)
 
 type Table = Array Index Entry
 
-type Size = Int
+----------------------------------------------------------------
 
 data StaticTable = StaticTable Size Table deriving Show
 
@@ -36,7 +45,7 @@ data HeaderTable = HeaderTable {
   , circularTable :: Table
   , headerTableSize :: Size
   , maxHeaderTableSize :: Size
-  } deriving Show
+  }
 
 data ReferenceSet = ReferenceSet [Index] deriving Show
 
@@ -45,11 +54,37 @@ data Context = Context {
   , oldReferenceSet :: ReferenceSet -- not emitted
   , newReferenceSet :: ReferenceSet -- emitted
   , headerSet :: HeaderSet
-  } deriving Show
+  }
 
-data DecodeError = IndexOverrun deriving Show
+----------------------------------------------------------------
 
 data WhichTable = InHeaderTable Entry
                 | InStaticTable Entry
                 | IndexError
                 deriving Eq
+
+data DecodeError = IndexOverrun deriving Show
+
+----------------------------------------------------------------
+
+instance Show HeaderTable where
+    show (HeaderTable _ off num tbl tblsiz _) =
+        showArray tbl (off+1) num ++ "\n"
+     ++ "      Table size: " ++ show tblsiz
+
+showArray :: Table -> Index -> Int -> String
+showArray tbl off num = showArray' tbl off num 1
+
+showArray' :: Table -> Index -> Int -> Int -> String
+showArray' tbl off num cnt
+  | cnt > num = ""
+  | otherwise = "[ " ++ show cnt ++ "] " ++ keyval ++ "\n"
+             ++ showArray' tbl (off+1) num (cnt+1)
+  where
+    (s,(k,v)) = tbl ! off
+    keyval = "(s = " ++ show s ++ ")" ++ BS.unpack k ++ ": " ++ BS.unpack v
+
+instance Show Context where
+  show (Context hdrtbl oldref _ hdrset) = show hdrtbl ++ "\n"
+                                       ++ show oldref ++ "\n"
+                                       ++ show hdrset
