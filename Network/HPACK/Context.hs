@@ -56,11 +56,11 @@ insertEntry e hdrtbl = hdrtbl'
         return arr
     len = numOfEntries hdrtbl + 1
     hdrtbl' = hdrtbl {
-         offset = off
-        , numOfEntries = len
-        , circularTable = tbl
-        , headerTableSize = tsize
-        }
+        offset = off
+      , numOfEntries = len
+      , circularTable = tbl
+      , headerTableSize = tsize
+      }
 
 magicalIndex :: Index -> HeaderTable -> WhichTable
 magicalIndex idx (HeaderTable siz off len tbl _ _)
