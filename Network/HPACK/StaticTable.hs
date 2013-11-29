@@ -4,11 +4,12 @@ module Network.HPACK.StaticTable where
 
 import Data.Array (listArray)
 import Network.HPACK.Types
+import Network.HPACK.Entry
 
 staticTable :: StaticTable
-staticTable = StaticTable 60 $ listArray (1,60) staticTableList
+staticTable = StaticTable 60 $ listArray (1,60) $ map toEntry staticTableList
 
-staticTableList :: [(HeaderName, HeaderValue)]
+staticTableList :: [Header]
 staticTableList = [
     (":authority","")
   , (":method","GET")
