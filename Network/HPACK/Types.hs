@@ -69,7 +69,7 @@ data DecodeError = IndexOverrun deriving Show
 
 instance Show HeaderTable where
     show (HeaderTable _ off num tbl tblsiz _) =
-        showArray tbl (off+1) num ++ "\n"
+        showArray tbl (off+1) num
      ++ "      Table size: " ++ show tblsiz
 
 showArray :: Table -> Index -> Int -> String
@@ -82,7 +82,7 @@ showArray' tbl off num cnt
              ++ showArray' tbl (off+1) num (cnt+1)
   where
     (s,(k,v)) = tbl ! off
-    keyval = "(s = " ++ show s ++ ")" ++ BS.unpack k ++ ": " ++ BS.unpack v
+    keyval = "(s = " ++ show s ++ ") " ++ BS.unpack k ++ ": " ++ BS.unpack v
 
 instance Show Context where
   show (Context hdrtbl oldref _ hdrset) = show hdrtbl ++ "\n"
