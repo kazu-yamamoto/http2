@@ -1,6 +1,8 @@
 module Network.HPACK.Context where
 
-import Data.Array (array, (!))
+import Data.Array (listArray, (!))
+import Data.Array.ST (runSTArray, writeArray)
+import Data.Array.Unsafe (unsafeThaw)
 import Data.List (delete, partition)
 import Network.HPACK.Entry
 import Network.HPACK.StaticTable
@@ -41,30 +43,52 @@ emitOnly h (Context hdrtbl oldref newref hdrset) = ctx
 
 ----------------------------------------------------------------
 
+-- FIXME
 insertEntry :: Entry -> HeaderTable -> HeaderTable
-insertEntry = undefined
-{-
+insertEntry e hdrtbl = hdrtbl'
   where
-    hdrtbl' = undefined
-    refset' = adjustIndex refset
--}
+    tsize = headerTableSize hdrtbl + entrySize e
+    off' = offset hdrtbl
+    off = off' - 1
+    tbl = runSTArray $ do
+        arr <- unsafeThaw $ circularTable hdrtbl
+        writeArray arr off' e
+        return arr
+    len = numOfEntries hdrtbl + 1
+    hdrtbl' = hdrtbl {
+         offset = off
+        , numOfEntries = len
+        , circularTable = tbl
+        , headerTableSize = tsize
+        }
 
--- FIXME: not implemented yet
 magicalIndex :: Index -> HeaderTable -> WhichTable
-magicalIndex idx (HeaderTable siz off len tbl)
+magicalIndex idx (HeaderTable siz off len tbl _ _)
   | idx <= len                      = InHeaderTable $ tbl ! ajtidx
   | 1 <= stcidx && stcidx <= stcsiz = InStaticTable $ stctbl ! stcidx
   | otherwise                       = IndexError
   where
     StaticTable stcsiz stctbl = staticTable
     stcidx = idx - len
-    pidx = off + idx - 1
+    pidx = off + idx
     ajtidx
       | pidx <= siz = pidx
-      | otherwise   = idx - siz + off - 1
+      | otherwise   = idx - pidx
 
+-- maxHeaderTableSize is 4096 bytes,
+-- an array has 128 entries, resulting 1024 bytes in 64bit machine
 newHeaderTable :: Size -> HeaderTable
-newHeaderTable siz = HeaderTable siz 1 0 $ array (1,siz) [] -- FIXME
+newHeaderTable maxsiz = HeaderTable {
+    maxNumOfEntries = maxNum
+  , offset = end
+  , numOfEntries = 0
+  , circularTable = listArray (0, end) $ replicate maxNum dummyEntry
+  , headerTableSize = 0
+  , maxHeaderTableSize = maxsiz
+  }
+  where
+    maxNum = maxsiz `div` headerSizeMagicNumber
+    end = maxNum - 1
 
 ----------------------------------------------------------------
 
@@ -106,7 +130,7 @@ emptyHeaderSet = []
 ----------------------------------------------------------------
 
 newContext :: Size -> Context
-newContext siz = Context (newHeaderTable siz)
-                         emptyReferenceSet
-                         emptyReferenceSet
-                         emptyHeaderSet
+newContext maxsiz = Context (newHeaderTable maxsiz)
+                            emptyReferenceSet
+                            emptyReferenceSet
+                            emptyHeaderSet

@@ -6,7 +6,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-decode :: Context -> [Representation] -> Either DecodeError Context
+decode :: Context -> HeaderBlock -> Either DecodeError Context
 decode ctx (r:rs) = case decodeStep ctx r of
     Left  err  -> Left err
     Right ctx' -> decode ctx' rs
