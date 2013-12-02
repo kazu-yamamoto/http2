@@ -68,20 +68,20 @@ data DecodeError = IndexOverrun deriving Show
 ----------------------------------------------------------------
 
 instance Show HeaderTable where
-    show (HeaderTable _ off num tbl tblsiz _) =
-        showArray tbl (off+1) num
+    show (HeaderTable maxN off n tbl tblsiz _) =
+        showArray tbl (\x -> (x + maxN) `mod` maxN) (off+1) n
      ++ "      Table size: " ++ show tblsiz
 
-showArray :: Table -> Index -> Int -> String
-showArray tbl off num = showArray' tbl off num 1
+showArray :: Table -> (Index -> Index) -> Index -> Int -> String
+showArray tbl adj off n = showArray' tbl adj off n 1
 
-showArray' :: Table -> Index -> Int -> Int -> String
-showArray' tbl off num cnt
-  | cnt > num = ""
+showArray' :: Table -> (Index -> Index) -> Index -> Int -> Int -> String
+showArray' tbl adj off n cnt
+  | cnt > n   = ""
   | otherwise = "[ " ++ show cnt ++ "] " ++ keyval ++ "\n"
-             ++ showArray' tbl (off+1) num (cnt+1)
+             ++ showArray' tbl adj (off+1) n (cnt+1)
   where
-    (s,(k,v)) = tbl ! off
+    (s,(k,v)) = tbl ! (adj off)
     keyval = "(s = " ++ show s ++ ") " ++ BS.unpack k ++ ": " ++ BS.unpack v
 
 instance Show Context where

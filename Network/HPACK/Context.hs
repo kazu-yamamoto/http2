@@ -3,7 +3,7 @@ module Network.HPACK.Context where
 import Data.Array (listArray, (!))
 import Data.Array.ST (runSTArray, writeArray)
 import Data.Array.Unsafe (unsafeThaw)
-import Data.List (delete, partition)
+import Data.List (delete, partition, (\\))
 import Network.HPACK.Entry
 import Network.HPACK.StaticTable
 import Network.HPACK.Types
@@ -22,9 +22,9 @@ fromNaming (Idx idx) hdrtbl = case magicalIndex idx hdrtbl of
 newEntry :: Entry -> Context -> Context
 newEntry e (Context hdrtbl oldref newref hdrset) = ctx
   where
-    hdrtbl' = insertEntry e hdrtbl
-    oldref' = adjustIndex oldref
-    newref' = addIndex 1 $ adjustIndex newref
+    (hdrtbl', is) = insertEntry e hdrtbl
+    oldref' = adjustIndex $ removeIndices is oldref
+    newref' = addIndex 1 $ adjustIndex $ removeIndices is newref
     hdrset' = fromEntry e : hdrset
     ctx = Context hdrtbl' oldref' newref' hdrset'
 
@@ -43,52 +43,78 @@ emitOnly h (Context hdrtbl oldref newref hdrset) = ctx
 
 ----------------------------------------------------------------
 
--- FIXME
-insertEntry :: Entry -> HeaderTable -> HeaderTable
-insertEntry e hdrtbl = hdrtbl'
+insertEntry :: Entry -> HeaderTable -> (HeaderTable,[Index])
+insertEntry e hdrtbl = adjustTableSize $ insertOne e hdrtbl
+
+insertOne :: Entry -> HeaderTable -> HeaderTable
+insertOne e hdrtbl@(HeaderTable maxN off n tbl tsize _) = hdrtbl'
   where
-    tsize = headerTableSize hdrtbl + entrySize e
-    off' = offset hdrtbl
-    off = off' - 1
-    tbl = runSTArray $ do
-        arr <- unsafeThaw $ circularTable hdrtbl
-        writeArray arr off' e
-        return arr
-    len = numOfEntries hdrtbl + 1
+    i = off
+    tbl' = modifyTable tbl i e
+    tsize' = tsize + entrySize e
+    off' = (off - 1 + maxN) `mod` maxN
     hdrtbl' = hdrtbl {
-        offset = off
-      , numOfEntries = len
-      , circularTable = tbl
-      , headerTableSize = tsize
+        offset = off'
+      , numOfEntries = n + 1
+      , circularTable = tbl'
+      , headerTableSize = tsize'
       }
 
+adjustTableSize :: HeaderTable -> (HeaderTable, [Index])
+adjustTableSize hdrtbl = adjust hdrtbl []
+
+adjust :: HeaderTable -> [Index] -> (HeaderTable, [Index])
+adjust hdrtbl is
+  | tsize <= maxtsize = (hdrtbl, is)
+  | otherwise         = let (hdrtbl', i) = removeOne hdrtbl
+                        in adjust hdrtbl' (i:is)
+  where
+    tsize = headerTableSize hdrtbl
+    maxtsize = maxHeaderTableSize hdrtbl
+
+removeOne :: HeaderTable -> (HeaderTable,Index)
+removeOne hdrtbl@(HeaderTable maxN off n tbl tsize _) = (hdrtbl',i)
+  where
+    i = (off + n + maxN) `mod` maxN
+    e = tbl ! i
+    tbl' = modifyTable tbl i dummyEntry -- let the entry GCed
+    tsize' = tsize - entrySize e
+    hdrtbl' = hdrtbl {
+        numOfEntries = n - 1
+      , circularTable = tbl'
+      , headerTableSize = tsize'
+      }
+
+modifyTable :: Table -> Index -> Entry -> Table
+modifyTable tbl i e = runSTArray $ do
+    arr <- unsafeThaw tbl
+    writeArray arr i e
+    return arr
+
 magicalIndex :: Index -> HeaderTable -> WhichTable
-magicalIndex idx (HeaderTable siz off len tbl _ _)
-  | idx <= len                      = InHeaderTable $ tbl ! ajtidx
+magicalIndex idx (HeaderTable maxN off n tbl _ _)
+  | idx <= n                        = InHeaderTable $ tbl ! pidx
   | 1 <= stcidx && stcidx <= stcsiz = InStaticTable $ stctbl ! stcidx
   | otherwise                       = IndexError
   where
     StaticTable stcsiz stctbl = staticTable
-    stcidx = idx - len
-    pidx = off + idx
-    ajtidx
-      | pidx <= siz = pidx
-      | otherwise   = idx - pidx
+    stcidx = idx - n
+    pidx = (off + idx + maxN) `mod` maxN
 
 -- maxHeaderTableSize is 4096 bytes,
 -- an array has 128 entries, resulting 1024 bytes in 64bit machine
 newHeaderTable :: Size -> HeaderTable
 newHeaderTable maxsiz = HeaderTable {
-    maxNumOfEntries = maxNum
+    maxNumOfEntries = maxN
   , offset = end
   , numOfEntries = 0
-  , circularTable = listArray (0, end) $ replicate maxNum dummyEntry
+  , circularTable = listArray (0, end) $ replicate maxN dummyEntry
   , headerTableSize = 0
   , maxHeaderTableSize = maxsiz
   }
   where
-    maxNum = maxsiz `div` headerSizeMagicNumber
-    end = maxNum - 1
+    maxN = maxsiz `div` headerSizeMagicNumber
+    end = maxN - 1
 
 ----------------------------------------------------------------
 
@@ -100,6 +126,9 @@ addIndex idx (ReferenceSet is) = ReferenceSet $ idx : is
 
 removeIndex :: Index -> ReferenceSet -> ReferenceSet
 removeIndex idx (ReferenceSet is) = ReferenceSet $ delete idx is
+
+removeIndices :: [Index] -> ReferenceSet -> ReferenceSet
+removeIndices idcs (ReferenceSet is) = ReferenceSet $ is \\ idcs
 
 adjustIndex :: ReferenceSet -> ReferenceSet
 adjustIndex (ReferenceSet is) = ReferenceSet $ map (+1) is
