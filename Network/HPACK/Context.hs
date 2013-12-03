@@ -12,7 +12,7 @@ import Network.HPACK.Types
 
 fromNaming :: Naming -> HeaderTable -> Either DecodeError HeaderName
 fromNaming (Lit k)   _  = Right k
-fromNaming (Idx idx) hdrtbl = case magicalIndex idx hdrtbl of
+fromNaming (Idx idx) hdrtbl = case hdrtbl .!. idx of
     InHeaderTable e -> Right $ entryHeaderName e
     InStaticTable e -> Right $ entryHeaderName e
     IndexError      -> Left IndexOverrun
@@ -91,8 +91,8 @@ modifyTable tbl i e = runSTArray $ do
     writeArray arr i e
     return arr
 
-magicalIndex :: Index -> HeaderTable -> WhichTable
-magicalIndex idx (HeaderTable maxN off n tbl _ _)
+(.!.) :: HeaderTable -> Index -> WhichTable
+HeaderTable maxN off n tbl _ _ .!. idx
   | idx <= n                        = InHeaderTable $ tbl ! pidx
   | 1 <= stcidx && stcidx <= stcsiz = InStaticTable $ stctbl ! stcidx
   | otherwise                       = IndexError
@@ -138,7 +138,7 @@ allEntries (ReferenceSet is) hdrtbl
   | null ls   = Right xs
   | otherwise = Left IndexOverrun
   where
-    ws = map (\i -> magicalIndex i hdrtbl) is
+    ws = map (\i -> hdrtbl .!. i) is
     (ls,rs) = partition (== IndexError) ws
     fromWhich (InHeaderTable e) = e
     fromWhich (InStaticTable e) = e

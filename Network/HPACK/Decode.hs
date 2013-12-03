@@ -31,12 +31,11 @@ decodeStep ctx (Indexed idx)
   | idx == 0  = Right $ ctx { oldReferenceSet = emptyReferenceSet
                             , newReferenceSet = emptyReferenceSet }
   | present   = Right $ ctx { oldReferenceSet = removeIndex idx oldref }
-  | otherwise = decodeNotPresent ctx idx $ magicalIndex idx hdrtbl
+  | otherwise = decodeNotPresent ctx idx (hdrtbl .!. idx)
   where
     oldref = oldReferenceSet ctx
     hdrtbl = headerTable ctx
     present = idx `isPresent` oldref
-
 decodeStep ctx (Literal NotAdd naming v) = case fromNaming naming hdrtbl of
     Right k -> Right $ emitOnly (k,v) ctx
     Left  e -> Left e
