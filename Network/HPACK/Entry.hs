@@ -1,7 +1,9 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.HPACK.Entry (
-    toEntry
+    Size
+  , Entry
+  , toEntry
   , fromEntry
   , entrySize
   , entryHeaderName
@@ -12,6 +14,9 @@ module Network.HPACK.Entry (
 
 import qualified Data.ByteString as BS
 import Network.HPACK.Types
+
+-- Size is len of name + len of value + 32
+type Entry = (Size,Header)
 
 headerSizeMagicNumber :: Size
 headerSizeMagicNumber = 32

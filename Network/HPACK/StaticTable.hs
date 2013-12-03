@@ -1,10 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.HPACK.StaticTable where
+module Network.HPACK.StaticTable (
+    Table
+  , StaticTable(..)
+  , staticTable
+    ) where
 
-import Data.Array (listArray)
-import Network.HPACK.Types
+import Data.Array (Array, listArray)
 import Network.HPACK.Entry
+import Network.HPACK.Types
+
+type Table = Array Index Entry
+
+data StaticTable = StaticTable Size Table deriving Show
 
 staticTable :: StaticTable
 staticTable = StaticTable 60 $ listArray (1,60) $ map toEntry staticTableList

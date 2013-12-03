@@ -1,8 +1,19 @@
-module Network.HPACK.Decode where
+module Network.HPACK.Decode (
+    DecodeError(..)
+  , decode
+  , decodeStep
+  ) where
 
+import Data.List (partition)
 import Network.HPACK.Context
 import Network.HPACK.Entry
+import Network.HPACK.HeaderTable
+import Network.HPACK.ReferenceSet
 import Network.HPACK.Types
+
+----------------------------------------------------------------
+
+data DecodeError = IndexOverrun deriving Show
 
 ----------------------------------------------------------------
 
@@ -53,3 +64,27 @@ decodeNotPresent :: Context -> Index -> WhichTable -> Either DecodeError Context
 decodeNotPresent _   _   IndexError        = Left IndexOverrun
 decodeNotPresent ctx _   (InStaticTable e) = Right $ newEntry e ctx
 decodeNotPresent ctx idx (InHeaderTable e) = Right $ pushRef idx e ctx
+
+
+----------------------------------------------------------------
+
+fromNaming :: Naming -> HeaderTable -> Either DecodeError HeaderName
+fromNaming (Lit k)   _  = Right k
+fromNaming (Idx idx) hdrtbl = case hdrtbl .!. idx of
+    InHeaderTable e -> Right $ entryHeaderName e
+    InStaticTable e -> Right $ entryHeaderName e
+    IndexError      -> Left IndexOverrun
+
+----------------------------------------------------------------
+
+allEntries :: ReferenceSet -> HeaderTable -> Either DecodeError HeaderSet
+allEntries (ReferenceSet is) hdrtbl
+  | null ls   = Right xs
+  | otherwise = Left IndexOverrun
+  where
+    ws = map (\i -> hdrtbl .!. i) is
+    (ls,rs) = partition (== IndexError) ws
+    fromWhich (InHeaderTable e) = e
+    fromWhich (InStaticTable e) = e
+    fromWhich _                 = error "fromWhich"
+    xs = map (fromEntry . fromWhich) rs
