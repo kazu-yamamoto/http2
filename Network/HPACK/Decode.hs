@@ -4,11 +4,9 @@ module Network.HPACK.Decode (
   , decodeStep
   ) where
 
-import Data.List (partition)
 import Network.HPACK.Context
 import Network.HPACK.Entry
 import Network.HPACK.HeaderTable
-import Network.HPACK.ReferenceSet
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -21,42 +19,25 @@ decode :: Context -> HeaderBlock -> Either DecodeError Context
 decode ctx (r:rs) = case decodeStep ctx r of
     Left  err  -> Left err
     Right ctx' -> decode ctx' rs
-decode ctx [] = case allEntries oldref hdrtbl of
+decode ctx [] = case allEntries ctx of
     Left  e          -> Left e
     Right notEmitted -> Right $ emit ctx notEmitted
-  where
-    oldref = oldReferenceSet ctx
-    hdrtbl = headerTable ctx
-
-emit :: Context -> HeaderSet -> Context
-emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
-  where
-    hdrset' = reverse $ notEmitted ++ hdrset
-    oldref' = mergeReferenceSet newref oldref
-    ctx = Context hdrtbl oldref' emptyReferenceSet hdrset'
 
 ----------------------------------------------------------------
 
 decodeStep :: Context -> Representation -> Either DecodeError Context
 decodeStep ctx (Indexed idx)
-  | idx == 0  = Right $ ctx { oldReferenceSet = emptyReferenceSet
-                            , newReferenceSet = emptyReferenceSet }
-  | present   = Right $ ctx { oldReferenceSet = removeIndex idx oldref }
-  | otherwise = decodeNotPresent ctx idx (hdrtbl .!. idx)
+  | idx == 0  = Right $ emptyRefSets ctx
+  | present   = Right $ removeRef idx ctx
+  | otherwise = decodeNotPresent ctx idx $ whichTable idx ctx
   where
-    oldref = oldReferenceSet ctx
-    hdrtbl = headerTable ctx
-    present = idx `isPresent` oldref
-decodeStep ctx (Literal NotAdd naming v) = case fromNaming naming hdrtbl of
+    present = doesExist idx ctx
+decodeStep ctx (Literal NotAdd naming v) = case fromNaming naming ctx of
     Right k -> Right $ emitOnly (k,v) ctx
     Left  e -> Left e
-  where
-    hdrtbl = headerTable ctx
-decodeStep ctx (Literal Add naming v) = case fromNaming naming hdrtbl of
+decodeStep ctx (Literal Add naming v) = case fromNaming naming ctx of
     Right k -> Right $ newEntry (toEntry (k,v)) ctx
     Left  e -> Left e
-  where
-    hdrtbl = headerTable ctx
 
 ----------------------------------------------------------------
 
@@ -65,26 +46,24 @@ decodeNotPresent _   _   IndexError        = Left IndexOverrun
 decodeNotPresent ctx _   (InStaticTable e) = Right $ newEntry e ctx
 decodeNotPresent ctx idx (InHeaderTable e) = Right $ pushRef idx e ctx
 
-
 ----------------------------------------------------------------
 
-fromNaming :: Naming -> HeaderTable -> Either DecodeError HeaderName
+fromNaming :: Naming -> Context -> Either DecodeError HeaderName
 fromNaming (Lit k)   _  = Right k
-fromNaming (Idx idx) hdrtbl = case hdrtbl .!. idx of
+fromNaming (Idx idx) ctx = case whichTable idx ctx of
     InHeaderTable e -> Right $ entryHeaderName e
     InStaticTable e -> Right $ entryHeaderName e
     IndexError      -> Left IndexOverrun
 
 ----------------------------------------------------------------
 
-allEntries :: ReferenceSet -> HeaderTable -> Either DecodeError HeaderSet
-allEntries (ReferenceSet is) hdrtbl
+allEntries :: Context -> Either DecodeError HeaderSet
+allEntries ctx
   | null ls   = Right xs
   | otherwise = Left IndexOverrun
   where
-    ws = map (\i -> hdrtbl .!. i) is
-    (ls,rs) = partition (== IndexError) ws
+    (ls,rs) = allEnts ctx
+    xs = map (fromEntry . fromWhich) rs
     fromWhich (InHeaderTable e) = e
     fromWhich (InStaticTable e) = e
     fromWhich _                 = error "fromWhich"
-    xs = map (fromEntry . fromWhich) rs
