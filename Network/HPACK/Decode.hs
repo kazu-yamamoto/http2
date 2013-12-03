@@ -6,7 +6,6 @@ module Network.HPACK.Decode (
 
 import Network.HPACK.Context
 import Network.HPACK.Entry
-import Network.HPACK.HeaderTable
 import Network.HPACK.Types
 
 ----------------------------------------------------------------

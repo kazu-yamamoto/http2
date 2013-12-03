@@ -1,16 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.StaticTable (
-    Table
-  , StaticTable(..)
+    StaticTable(..)
   , staticTable
     ) where
 
-import Data.Array (Array, listArray)
+import Data.Array (listArray)
 import Network.HPACK.Entry
 import Network.HPACK.Types
-
-type Table = Array Index Entry
 
 data StaticTable = StaticTable Size Table deriving Show
 

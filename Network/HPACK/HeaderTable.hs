@@ -2,8 +2,6 @@ module Network.HPACK.HeaderTable (
     HeaderTable(..)
   , newHeaderTable
   , insertEntry
-  , (.!.)
-  , WhichTable(..)
   ) where
 
 import Data.Array (listArray, (!))
@@ -11,7 +9,6 @@ import Data.Array.ST (runSTArray, writeArray)
 import Data.Array.Unsafe (unsafeThaw)
 import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.Entry
-import Network.HPACK.StaticTable
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -110,20 +107,3 @@ modifyTable tbl i e = runSTArray $ do
     arr <- unsafeThaw tbl
     writeArray arr i e
     return arr
-
-----------------------------------------------------------------
-
-data WhichTable = InHeaderTable Entry
-                | InStaticTable Entry
-                | IndexError
-                deriving Eq
-
-(.!.) :: HeaderTable -> Index -> WhichTable
-HeaderTable maxN off n tbl _ _ .!. idx
-  | idx <= n                        = InHeaderTable $ tbl ! pidx
-  | 1 <= stcidx && stcidx <= stcsiz = InStaticTable $ stctbl ! stcidx
-  | otherwise                       = IndexError
-  where
-    StaticTable stcsiz stctbl = staticTable
-    stcidx = idx - n
-    pidx = (off + idx + maxN) `mod` maxN

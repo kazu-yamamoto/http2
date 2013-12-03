@@ -7,16 +7,19 @@ module Network.HPACK.Context (
   , emptyRefSets
   , emitOnly
   , emit
+  , doesExist
+  , WhichTable(..)
   , whichTable
   , allEnts
-  , doesExist
   ) where
 
+import Data.Array ((!))
 import Data.List (partition)
 import Network.HPACK.Entry
 import Network.HPACK.HeaderTable
 import Network.HPACK.ReferenceSet
 import Network.HPACK.Types
+import Network.HPACK.StaticTable
 
 ----------------------------------------------------------------
 
@@ -90,6 +93,30 @@ emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
 
 ----------------------------------------------------------------
 
+doesExist :: Index -> Context -> Bool
+doesExist idx ctx = idx `isPresent` oldref
+  where
+    oldref = oldReferenceSet ctx
+
+----------------------------------------------------------------
+
+data WhichTable = InHeaderTable Entry
+                | InStaticTable Entry
+                | IndexError
+                deriving Eq
+
+(.!.) :: HeaderTable -> Index -> WhichTable
+HeaderTable maxN off n tbl _ _ .!. idx
+  | idx <= n                        = InHeaderTable $ tbl ! pidx
+  | 1 <= stcidx && stcidx <= stcsiz = InStaticTable $ stctbl ! stcidx
+  | otherwise                       = IndexError
+  where
+    StaticTable stcsiz stctbl = staticTable
+    stcidx = idx - n
+    pidx = (off + idx + maxN) `mod` maxN
+
+----------------------------------------------------------------
+
 whichTable :: Index -> Context -> WhichTable
 whichTable idx ctx = hdrtbl .!. idx
   where
@@ -101,8 +128,3 @@ allEnts ctx = partition (== IndexError) ws
     ReferenceSet is = oldReferenceSet ctx
     hdrtbl = headerTable ctx
     ws = map (\i -> hdrtbl .!. i) is
-
-doesExist :: Index -> Context -> Bool
-doesExist idx ctx = idx `isPresent` oldref
-  where
-    oldref = oldReferenceSet ctx
