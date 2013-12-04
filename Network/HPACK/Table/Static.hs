@@ -6,7 +6,7 @@ module Network.HPACK.Table.Static (
     ) where
 
 import Data.Array (listArray)
-import Network.HPACK.Entry
+import Network.HPACK.Table.Entry
 import Network.HPACK.Types
 
 -- | Type for pre-defined static table.

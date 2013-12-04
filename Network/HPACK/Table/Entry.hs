@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
-module Network.HPACK.Entry (
+module Network.HPACK.Table.Entry (
   -- * Header and Entry
     toEntry
   , fromEntry

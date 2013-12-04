@@ -1,8 +1,10 @@
 module Network.HPACK.Table (
-  -- * Header table 
+  -- * Header table
     HeaderTable
   , newHeaderTable
   , insertEntry
+  -- * Entry
+  , module Network.HPACK.Table.Entry
   -- * Which tables
   , WhichTable(..)
   , which
@@ -10,6 +12,7 @@ module Network.HPACK.Table (
   ) where
 
 import Data.Array ((!))
+import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Header
 import Network.HPACK.Table.Static
 import Network.HPACK.Types

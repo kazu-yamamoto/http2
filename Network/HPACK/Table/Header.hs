@@ -10,7 +10,7 @@ import Data.Array (listArray, (!))
 import Data.Array.ST (runSTArray, writeArray)
 import Data.Array.Unsafe (unsafeThaw)
 import qualified Data.ByteString.Char8 as BS
-import Network.HPACK.Entry
+import Network.HPACK.Table.Entry
 import Network.HPACK.Types
 
 ----------------------------------------------------------------

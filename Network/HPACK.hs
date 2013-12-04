@@ -1,8 +1,6 @@
 module Network.HPACK (
   -- * Context
     module Network.HPACK.Context
-  -- * Entry
-  , module Network.HPACK.Entry
   -- * Ttable
   , module Network.HPACK.Table
   -- * Decoder
@@ -15,7 +13,6 @@ module Network.HPACK (
 
 import Network.HPACK.Context
 import Network.HPACK.Decode
-import Network.HPACK.Entry
 import Network.HPACK.Huffman
 import Network.HPACK.Table
 import Network.HPACK.Types
