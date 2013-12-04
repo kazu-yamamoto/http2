@@ -46,6 +46,7 @@ decodeStep ctx (Literal Add naming v) = case fromNaming naming ctx of
 
 ----------------------------------------------------------------
 
+-- FIXME: can WhichTable be eliminated?
 decodeNotPresent :: Context -> Index -> WhichTable -> Either DecodeError Context
 decodeNotPresent _   _   IndexError        = Left IndexOverrun
 decodeNotPresent ctx _   (InStaticTable e) = Right $ newEntry e ctx
