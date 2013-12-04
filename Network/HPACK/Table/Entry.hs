@@ -1,8 +1,11 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.HPACK.Table.Entry (
+  -- * Type
+    Size
+  , Entry
   -- * Header and Entry
-    toEntry
+  , toEntry
   , fromEntry
   -- * Getters
   , entrySize
@@ -15,6 +18,14 @@ module Network.HPACK.Table.Entry (
 
 import qualified Data.ByteString as BS
 import Network.HPACK.Types
+
+----------------------------------------------------------------
+
+-- | Size in bytes.
+type Size = Int
+
+-- | Type for table entry.
+type Entry = (Size,Header)
 
 ----------------------------------------------------------------
 

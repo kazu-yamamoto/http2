@@ -10,13 +10,8 @@ module Network.HPACK.Types (
   , Index
   , Indexing(..)
   , Naming(..)
-  -- * Table
-  , Size
-  , Entry
-  , Table
   ) where
 
-import Data.Array (Array)
 import Data.ByteString (ByteString)
 
 ----------------------------------------------------------------
@@ -48,14 +43,3 @@ data Indexing = Add | NotAdd deriving Show
 
 -- | Index or literal.
 data Naming = Idx Index | Lit HeaderName deriving Show
-
-----------------------------------------------------------------
-
--- | Size in bytes.
-type Size = Int
-
--- | Type for table entry.
-type Entry = (Size,Header)
-
--- | Type for table.
-type Table = Array Index Entry
