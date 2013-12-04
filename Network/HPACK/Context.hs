@@ -57,16 +57,16 @@ emptyRefSets ctx = ctx {
   }
 
 -- | The entry is removed from the reference set.
-removeRef :: Index -> Context -> Context
-removeRef idx ctx = ctx { oldReferenceSet = removeIndex idx oldref }
+removeRef :: Context -> Index -> Context
+removeRef ctx idx = ctx { oldReferenceSet = removeIndex idx oldref }
   where
     oldref = oldReferenceSet ctx
 
 -- | The header field is emitted.
 --   The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
-newEntry :: Entry -> Context -> Context
-newEntry e (Context hdrtbl oldref newref hdrset) = ctx
+newEntry :: Context -> Entry -> Context
+newEntry (Context hdrtbl oldref newref hdrset) e = ctx
   where
     (hdrtbl', is) = insertEntry e hdrtbl
     oldref' = adjustReferenceSet $ removeIndices is oldref
@@ -76,16 +76,16 @@ newEntry e (Context hdrtbl oldref newref hdrset) = ctx
 
 -- | The header field corresponding to the referenced entry is emitted.
 --   The referenced header table entry is added to the reference set.
-pushRef :: Index -> Entry -> Context -> Context
-pushRef idx e (Context hdrtbl oldref newref hdrset) = ctx
+pushRef :: Context -> Index -> Entry -> Context
+pushRef (Context hdrtbl oldref newref hdrset) idx e = ctx
   where
     hdrset' = fromEntry e : hdrset
     newref' = addIndex idx newref
     ctx = Context hdrtbl oldref newref' hdrset'
 
 -- | The header field is emitted.
-emitOnly :: Header -> Context -> Context
-emitOnly h (Context hdrtbl oldref newref hdrset) = ctx
+emitOnly :: Context -> Header -> Context
+emitOnly (Context hdrtbl oldref newref hdrset) h = ctx
   where
     hdrset' = h : hdrset
     ctx = Context hdrtbl oldref newref hdrset'
