@@ -55,7 +55,7 @@ newHeaderTable maxsiz = HeaderTable {
   , maxHeaderTableSize = maxsiz
   }
   where
-    maxN = maxsiz `div` headerSizeMagicNumber
+    maxN = maxNumbers maxsiz
     end = maxN - 1
 
 ----------------------------------------------------------------
