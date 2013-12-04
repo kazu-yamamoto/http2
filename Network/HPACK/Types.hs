@@ -5,11 +5,11 @@ module Network.HPACK.Types (
   , Header
   , HeaderSet
   -- * Representation
+  , HeaderBlock
+  , Representation(..)
   , Index
   , Indexing(..)
   , Naming(..)
-  , Representation(..)
-  , HeaderBlock
   -- * Table
   , Size
   , Entry
@@ -21,30 +21,41 @@ import Data.ByteString (ByteString)
 
 ----------------------------------------------------------------
 
+-- | Header name (FIXME).
 type HeaderName = ByteString
+-- | Header value (FIXME).
 type HeaderValue = ByteString
+-- | Header (FIXME)
 type Header = (HeaderName, HeaderValue)
+-- | Header set
 type HeaderSet = [Header]
 
 ----------------------------------------------------------------
 
-type Index = Int
+-- | Type for header block.
+type HeaderBlock = [Representation]
 
-data Indexing = Add | NotAdd deriving Show
-
-data Naming = Idx Index | Lit HeaderName deriving Show
-
+-- | Type for representation.
 data Representation = Indexed Index
                     | Literal Indexing Naming HeaderValue
                     deriving Show
 
-type HeaderBlock = [Representation]
+-- | Index for table.
+type Index = Int
+
+-- | Whether or not adding to a table.
+data Indexing = Add | NotAdd deriving Show
+
+-- | Index or literal.
+data Naming = Idx Index | Lit HeaderName deriving Show
 
 ----------------------------------------------------------------
 
+-- | Size in bytes.
 type Size = Int
 
--- Size is len of name + len of value + 32
+-- | Type for table entry.
 type Entry = (Size,Header)
 
+-- | Type for table.
 type Table = Array Index Entry
