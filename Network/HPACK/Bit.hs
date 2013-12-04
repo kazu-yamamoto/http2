@@ -9,11 +9,15 @@ module Network.HPACK.Bit (
 
 import Data.List (foldl')
 
-data B = F | T deriving (Eq,Ord,Enum,Show)
+-- | Data type for Bit.
+data B = F -- ^ Zero
+       | T -- ^ One
+       deriving (Eq,Ord,Enum,Show)
 
+-- | Bit sequence.
 type Bits = [B]
 
--- |
+-- | From 'Bits' to 'Int'.
 --
 -- >>> toInt [T,F,T,F,T,F,T,F]
 -- 170
@@ -22,7 +26,7 @@ type Bits = [B]
 toInt :: Bits -> Int
 toInt = foldl' (\x y -> x * 2 + y) 0 . map fromEnum
 
--- |
+-- | From 'Int' to 'Bits'.
 --
 -- >>> toBits 170
 -- [T,F,T,F,T,F,T,F]
