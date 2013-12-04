@@ -7,6 +7,7 @@ module Network.HPACK.Decode (
 import Network.HPACK.Context
 import Network.HPACK.Entry
 import Network.HPACK.Types
+import Network.HPACK.VirtualTable
 
 ----------------------------------------------------------------
 
