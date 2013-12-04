@@ -22,7 +22,7 @@ decode :: Context -> HeaderBlock -> Either DecodeError Context
 decode ctx (r:rs) = case decodeStep ctx r of
     Left  err  -> Left err
     Right ctx' -> decode ctx' rs
-decode ctx [] = case allEntries ctx of
+decode ctx [] = case getNotEmitted ctx of
     Left  e          -> Left e
     Right notEmitted -> Right $ emit ctx notEmitted
 
@@ -53,7 +53,7 @@ decodeNotPresent ctx idx (InHeaderTable e) = Right $ pushRef idx e ctx
 ----------------------------------------------------------------
 
 fromNaming :: Naming -> Context -> Either DecodeError HeaderName
-fromNaming (Lit k)   _  = Right k
+fromNaming (Lit k)   _   = Right k
 fromNaming (Idx idx) ctx = case whichTable idx ctx of
     InHeaderTable e -> Right $ entryHeaderName e
     InStaticTable e -> Right $ entryHeaderName e
@@ -61,8 +61,8 @@ fromNaming (Idx idx) ctx = case whichTable idx ctx of
 
 ----------------------------------------------------------------
 
-allEntries :: Context -> Either DecodeError HeaderSet
-allEntries ctx
+getNotEmitted :: Context -> Either DecodeError HeaderSet
+getNotEmitted ctx
   | null ls   = Right xs
   | otherwise = Left IndexOverrun
   where
