@@ -1,6 +1,7 @@
 module Network.HPACK.VirtualTable (
     WhichTable(..)
   , whichTable
+  , getEntry
   , notEmittedHeaders
   ) where
 
@@ -33,11 +34,23 @@ HeaderTable maxN off n tbl _ _ .!. idx
 
 ----------------------------------------------------------------
 
+which :: HeaderTable -> Index -> WhichTable
+which hdrtbl idx = hdrtbl .!. idx
+
 -- | Detecting which table does `Index` refer to?
 whichTable :: Index -> Context -> WhichTable
-whichTable idx ctx = hdrtbl .!. idx
+whichTable idx ctx = which hdrtbl idx
   where
     hdrtbl = headerTable ctx
+
+----------------------------------------------------------------
+
+-- | Getting 'Entry' by 'Index'.
+getEntry :: Index -> Context -> Maybe Entry
+getEntry idx ctx = case whichTable idx ctx of
+    InHeaderTable e -> Just e
+    InStaticTable e -> Just e
+    IndexError      -> Nothing
 
 ----------------------------------------------------------------
 
@@ -48,9 +61,9 @@ notEmittedHeaders ctx
   | otherwise = Nothing
   where
     ReferenceSet is = oldReferenceSet ctx
-    ws = map (\i -> hdrtbl .!. i) is
-    (ls,rs) = partition (== IndexError) ws
     hdrtbl = headerTable ctx
+    ws = map (which hdrtbl) is
+    (ls,rs) = partition (== IndexError) ws
     xs = map (fromEntry . fromWhich) rs
 
 fromWhich :: WhichTable -> Entry

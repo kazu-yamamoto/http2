@@ -55,10 +55,9 @@ decodeNotPresent ctx idx (InHeaderTable e) = Right $ pushRef idx e ctx
 
 fromNaming :: Naming -> Context -> Either DecodeError HeaderName
 fromNaming (Lit k)   _   = Right k
-fromNaming (Idx idx) ctx = case whichTable idx ctx of
-    InHeaderTable e -> Right $ entryHeaderName e
-    InStaticTable e -> Right $ entryHeaderName e
-    IndexError      -> Left IndexOverrun
+fromNaming (Idx idx) ctx = case getEntry idx ctx of
+    Nothing -> Left IndexOverrun
+    Just e  -> Right $ entryHeaderName e
 
 ----------------------------------------------------------------
 
