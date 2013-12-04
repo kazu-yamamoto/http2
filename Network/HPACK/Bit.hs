@@ -17,7 +17,7 @@ data B = F -- ^ Zero
 -- | Bit sequence.
 type Bits = [B]
 
--- | From 'Bits' to 'Int'.
+-- | From 'Bits' of length 8 to 'Int'.
 --
 -- >>> toInt [T,F,T,F,T,F,T,F]
 -- 170
@@ -26,7 +26,7 @@ type Bits = [B]
 toInt :: Bits -> Int
 toInt = foldl' (\x y -> x * 2 + y) 0 . map fromEnum
 
--- | From 'Int' to 'Bits'.
+-- | From 'Int' to 'Bits' of length 8.
 --
 -- >>> toBits 170
 -- [T,F,T,F,T,F,T,F]
@@ -37,8 +37,8 @@ toBits = toBits' [] 0
 
 toBits' :: Bits -> Int -> Int -> Bits
 toBits' bs !cnt 0
-  | cnt == 8 = bs
-  | otherwise = replicate (8 - cnt) F ++ bs -- FIXME: performance
+  | cnt == 8      = bs
+  | otherwise     = replicate (8 - cnt) F ++ bs -- filling missing bits from MSB
 toBits' bs !cnt x = toBits' (b:bs) (cnt + 1) q
   where
     q = x `div` 2
