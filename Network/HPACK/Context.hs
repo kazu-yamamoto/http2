@@ -9,13 +9,17 @@ module Network.HPACK.Context (
   , pushRef
   , emitOnly
   -- * Auxiliary functions
-  , emit
   , isPresentIn
+  , emit
+  , notEmittedEntries
+  , getEntry
+  , switchAction
   ) where
 
+import Data.List (partition)
 import Network.HPACK.Entry
 import Network.HPACK.ReferenceSet
-import Network.HPACK.Table.Header
+import Network.HPACK.Table
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -107,3 +111,46 @@ isPresentIn :: Index -> Context -> Bool
 isPresentIn idx ctx = idx `isMember` oldref
   where
     oldref = oldReferenceSet ctx
+
+----------------------------------------------------------------
+
+-- | Detecting which table does `Index` refer to?
+whichTable :: Index -> Context -> WhichTable
+whichTable idx ctx = which hdrtbl idx
+  where
+    hdrtbl = headerTable ctx
+
+----------------------------------------------------------------
+
+-- | Getting 'Entry' by 'Index'.
+getEntry :: Index -> Context -> Maybe Entry
+getEntry idx ctx = case whichTable idx ctx of
+    InHeaderTable e -> Just e
+    InStaticTable e -> Just e
+    IndexError      -> Nothing
+
+----------------------------------------------------------------
+
+-- | Obtaining non-emitted entries.
+notEmittedEntries :: Context -> Maybe [Entry]
+notEmittedEntries ctx
+  | null ls   = Just xs
+  | otherwise = Nothing
+  where
+    is = getIndices $ oldReferenceSet ctx
+    hdrtbl = headerTable ctx
+    ws = map (which hdrtbl) is
+    (ls,rs) = partition (== IndexError) ws
+    xs = map fromWhich rs
+
+----------------------------------------------------------------
+
+-- | Choosing an action depending on which tables.
+switchAction :: Context -> Index
+             -> (Entry -> Context) -- ^ An action for static table
+             -> (Entry -> Context) -- ^ An action for header table
+             -> Maybe Context
+switchAction ctx idx actionForStatic actionForHeaderTable = case whichTable idx ctx of
+    IndexError      -> Nothing
+    InStaticTable e -> Just $ actionForStatic e
+    InHeaderTable e -> Just $ actionForHeaderTable e
