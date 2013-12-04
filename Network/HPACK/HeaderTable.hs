@@ -1,6 +1,8 @@
 module Network.HPACK.HeaderTable (
+  -- * Type
     HeaderTable(..)
   , newHeaderTable
+  -- * Misc
   , insertEntry
   ) where
 
@@ -13,6 +15,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
+-- | Type for header table.
 data HeaderTable = HeaderTable {
     maxNumOfEntries :: Int
   , offset :: Index
@@ -43,7 +46,8 @@ showArray' tbl adj off n cnt
 
 ----------------------------------------------------------------
 
--- maxHeaderTableSize is 4096 bytes,
+-- | Creating 'HeaderTable'.
+-- The default maxHeaderTableSize is 4096 bytes,
 -- an array has 128 entries, resulting 1024 bytes in 64bit machine
 newHeaderTable :: Size -> HeaderTable
 newHeaderTable maxsiz = HeaderTable {
@@ -60,6 +64,9 @@ newHeaderTable maxsiz = HeaderTable {
 
 ----------------------------------------------------------------
 
+-- | Inserting 'Entry' to 'HeaderTable'.
+--   New 'HeaderTable' and a set of dropped 'Index'
+--   are returned.
 insertEntry :: Entry -> HeaderTable -> (HeaderTable,[Index])
 insertEntry e hdrtbl = adjustTableSize $ insertOne e hdrtbl
 
