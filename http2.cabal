@@ -18,13 +18,13 @@ Library
                         Network.HPACK.Context
                         Network.HPACK.Decode
                         Network.HPACK.Entry
-                        Network.HPACK.HeaderTable
                         Network.HPACK.Huffman
                         Network.HPACK.HuffmanRequest
                         Network.HPACK.HuffmanResponse
                         Network.HPACK.ReferenceSet
-                        Network.HPACK.StaticTable
-                        Network.HPACK.VirtualTable
+                        Network.HPACK.Table
+                        Network.HPACK.Table.Header
+                        Network.HPACK.Table.Static
                         Network.HPACK.Types
   Build-Depends:        base >= 4 && < 5
                       , array

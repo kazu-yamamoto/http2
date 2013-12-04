@@ -3,10 +3,8 @@ module Network.HPACK (
     module Network.HPACK.Context
   -- * Entry
   , module Network.HPACK.Entry
-  -- * Static table
-  , module Network.HPACK.StaticTable
-  -- * HeaderTable
-  , module Network.HPACK.HeaderTable
+  -- * Ttable
+  , module Network.HPACK.Table
   -- * ReferenceSet
   , module Network.HPACK.ReferenceSet
   -- * Decoder
@@ -21,10 +19,9 @@ module Network.HPACK (
 
 import Network.HPACK.Context
 import Network.HPACK.Decode
-import Network.HPACK.HeaderTable
+import Network.HPACK.Entry
 import Network.HPACK.HuffmanRequest
 import Network.HPACK.HuffmanResponse
 import Network.HPACK.ReferenceSet
+import Network.HPACK.Table
 import Network.HPACK.Types
-import Network.HPACK.StaticTable
-import Network.HPACK.Entry

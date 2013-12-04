@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.HPACK.StaticTable (
+module Network.HPACK.Table.Static (
     StaticTable(..)
   , staticTable
     ) where

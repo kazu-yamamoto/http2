@@ -1,4 +1,4 @@
-module Network.HPACK.HeaderTable (
+module Network.HPACK.Table.Header (
   -- * Type
     HeaderTable(..)
   , newHeaderTable

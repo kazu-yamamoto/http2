@@ -14,8 +14,8 @@ module Network.HPACK.Context (
   ) where
 
 import Network.HPACK.Entry
-import Network.HPACK.HeaderTable
 import Network.HPACK.ReferenceSet
+import Network.HPACK.Table.Header
 import Network.HPACK.Types
 
 ----------------------------------------------------------------

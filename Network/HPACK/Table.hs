@@ -1,4 +1,4 @@
-module Network.HPACK.VirtualTable (
+module Network.HPACK.Table (
     getEntry
   , notEmittedEntries
   , switchAction
@@ -7,9 +7,9 @@ module Network.HPACK.VirtualTable (
 import Data.Array ((!))
 import Data.List (partition)
 import Network.HPACK.Context
-import Network.HPACK.HeaderTable
 import Network.HPACK.ReferenceSet
-import Network.HPACK.StaticTable
+import Network.HPACK.Table.Header
+import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
