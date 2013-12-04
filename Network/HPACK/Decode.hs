@@ -63,12 +63,6 @@ fromNaming (Idx idx) ctx = case whichTable idx ctx of
 ----------------------------------------------------------------
 
 getNotEmitted :: Context -> Either DecodeError HeaderSet
-getNotEmitted ctx
-  | null ls   = Right xs
-  | otherwise = Left IndexOverrun
-  where
-    (ls,rs) = allEnts ctx
-    xs = map (fromEntry . fromWhich) rs
-    fromWhich (InHeaderTable e) = e
-    fromWhich (InStaticTable e) = e
-    fromWhich _                 = error "fromWhich"
+getNotEmitted ctx = case notEmittedHeaders ctx of
+    Nothing -> Left IndexOverrun
+    Just xs -> Right xs
