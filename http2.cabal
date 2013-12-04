@@ -14,7 +14,7 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
-  Other-Modules:        Network.HPACK.Bit
+                        Network.HPACK.Bit
                         Network.HPACK.Context
                         Network.HPACK.Decode
                         Network.HPACK.Entry
