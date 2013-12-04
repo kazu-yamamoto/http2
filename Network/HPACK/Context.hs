@@ -1,11 +1,14 @@
 module Network.HPACK.Context (
+  -- * Types
     Context(..)
   , newContext
+  -- * Processing
+  , emptyRefSets
+  , removeRef
   , newEntry
   , pushRef
-  , removeRef
-  , emptyRefSets
   , emitOnly
+  -- * Auxiliary functions
   , emit
   , doesExist
   , WhichTable(..)
@@ -23,11 +26,12 @@ import Network.HPACK.StaticTable
 
 ----------------------------------------------------------------
 
+-- | Context for decoding.
 data Context = Context {
-    headerTable :: HeaderTable
-  , oldReferenceSet :: ReferenceSet -- not emitted
-  , newReferenceSet :: ReferenceSet -- emitted
-  , headerSet :: HeaderSet
+    headerTable     :: HeaderTable  -- ^ A cache of headers
+  , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
+  , newReferenceSet :: ReferenceSet -- ^ References for already mitted
+  , headerSet       :: HeaderSet    -- ^ The results
   }
 
 -- FIXME
@@ -38,6 +42,8 @@ instance Show Context where
 
 ----------------------------------------------------------------
 
+-- | Creating a new 'Context'.
+--   The first argument is the size of 'HeaderTable'.
 newContext :: Size -> Context
 newContext maxsiz = Context (newHeaderTable maxsiz)
                             emptyReferenceSet
@@ -49,6 +55,22 @@ emptyHeaderSet = []
 
 ----------------------------------------------------------------
 
+-- | The reference set is emptied.
+emptyRefSets :: Context -> Context
+emptyRefSets ctx = ctx {
+    oldReferenceSet = emptyReferenceSet
+  , newReferenceSet = emptyReferenceSet
+  }
+
+-- | The entry is removed from the reference set.
+removeRef :: Index -> Context -> Context
+removeRef idx ctx = ctx { oldReferenceSet = removeIndex idx oldref }
+  where
+    oldref = oldReferenceSet ctx
+
+-- | The header field is emitted.
+--   The header field is inserted at the beginning of the header table.
+--   A reference to the new entry is added to the reference set.
 newEntry :: Entry -> Context -> Context
 newEntry e (Context hdrtbl oldref newref hdrset) = ctx
   where
@@ -58,6 +80,8 @@ newEntry e (Context hdrtbl oldref newref hdrset) = ctx
     hdrset' = fromEntry e : hdrset
     ctx = Context hdrtbl' oldref' newref' hdrset'
 
+-- | The header field corresponding to the referenced entry is emitted.
+--   The referenced header table entry is added to the reference set.
 pushRef :: Index -> Entry -> Context -> Context
 pushRef idx e (Context hdrtbl oldref newref hdrset) = ctx
   where
@@ -65,17 +89,7 @@ pushRef idx e (Context hdrtbl oldref newref hdrset) = ctx
     newref' = addIndex idx newref
     ctx = Context hdrtbl oldref newref' hdrset'
 
-removeRef :: Index -> Context -> Context
-removeRef idx ctx = ctx { oldReferenceSet = removeIndex idx oldref }
-  where
-    oldref = oldReferenceSet ctx
-
-emptyRefSets :: Context -> Context
-emptyRefSets ctx = ctx {
-    oldReferenceSet = emptyReferenceSet
-  , newReferenceSet = emptyReferenceSet
-  }
-
+-- | The header field is emitted.
 emitOnly :: Header -> Context -> Context
 emitOnly h (Context hdrtbl oldref newref hdrset) = ctx
   where
@@ -84,6 +98,7 @@ emitOnly h (Context hdrtbl oldref newref hdrset) = ctx
 
 ----------------------------------------------------------------
 
+-- | Emit non-emitted headers.
 emit :: Context -> HeaderSet -> Context
 emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
   where
@@ -93,6 +108,7 @@ emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
 
 ----------------------------------------------------------------
 
+-- | Is 'Index' present in the reference set?
 doesExist :: Index -> Context -> Bool
 doesExist idx ctx = idx `isPresent` oldref
   where
