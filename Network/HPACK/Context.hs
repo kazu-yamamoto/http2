@@ -69,8 +69,8 @@ newEntry :: Entry -> Context -> Context
 newEntry e (Context hdrtbl oldref newref hdrset) = ctx
   where
     (hdrtbl', is) = insertEntry e hdrtbl
-    oldref' = adjustIndex $ removeIndices is oldref
-    newref' = addIndex 1 $ adjustIndex $ removeIndices is newref
+    oldref' = adjustReferenceSet $ removeIndices is oldref
+    newref' = addIndex 1 $ adjustReferenceSet $ removeIndices is newref
     hdrset' = fromEntry e : hdrset
     ctx = Context hdrtbl' oldref' newref' hdrset'
 

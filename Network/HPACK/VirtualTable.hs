@@ -59,7 +59,7 @@ notEmittedEntries ctx
   | null ls   = Just xs
   | otherwise = Nothing
   where
-    ReferenceSet is = oldReferenceSet ctx
+    is = getIndices $ oldReferenceSet ctx
     hdrtbl = headerTable ctx
     ws = map (which hdrtbl) is
     (ls,rs) = partition (== IndexError) ws
