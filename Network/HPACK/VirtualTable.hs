@@ -1,8 +1,7 @@
 module Network.HPACK.VirtualTable (
-    WhichTable(..)
-  , whichTable
-  , getEntry
+    getEntry
   , notEmittedEntries
+  , switchAction
   ) where
 
 import Data.Array ((!))
@@ -69,3 +68,15 @@ fromWhich :: WhichTable -> Entry
 fromWhich (InHeaderTable e) = e
 fromWhich (InStaticTable e) = e
 fromWhich _                 = error "fromWhich"
+
+----------------------------------------------------------------
+
+-- | Choosing an action depending on which tables.
+switchAction :: Context -> Index
+             -> (Entry -> Context) -- ^ An action for static table
+             -> (Entry -> Context) -- ^ An action for header table
+             -> Maybe Context
+switchAction ctx idx actionForStatic actionForHeaderTable = case whichTable idx ctx of
+    IndexError      -> Nothing
+    InStaticTable e -> Just $ actionForStatic e
+    InHeaderTable e -> Just $ actionForHeaderTable e

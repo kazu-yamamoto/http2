@@ -34,23 +34,19 @@ decodeStep :: Context -> Representation -> Either DecodeError Context
 decodeStep ctx (Indexed idx)
   | idx == 0  = Right $ emptyRefSets ctx
   | isPresent = Right $ removeRef ctx idx
-  | otherwise = decodeNotPresent ctx idx $ whichTable idx ctx
+  | otherwise = case switchAction ctx idx forStatic forHeaderTable of
+      Nothing   -> Left IndexOverrun
+      Just ctx' -> Right ctx'
   where
     isPresent = idx `isPresentIn` ctx
+    forStatic = newEntry ctx
+    forHeaderTable = pushRef ctx idx
 decodeStep ctx (Literal NotAdd naming v) = case fromNaming naming ctx of
     Right k -> Right $ emitOnly ctx (k,v)
     Left  e -> Left e
 decodeStep ctx (Literal Add naming v) = case fromNaming naming ctx of
     Right k -> Right $ newEntry ctx $ toEntry (k,v)
     Left  e -> Left e
-
-----------------------------------------------------------------
-
--- FIXME: can WhichTable be eliminated?
-decodeNotPresent :: Context -> Index -> WhichTable -> Either DecodeError Context
-decodeNotPresent _   _   IndexError        = Left IndexOverrun
-decodeNotPresent ctx _   (InStaticTable e) = Right $ newEntry ctx e
-decodeNotPresent ctx idx (InHeaderTable e) = Right $ pushRef ctx idx e
 
 ----------------------------------------------------------------
 
