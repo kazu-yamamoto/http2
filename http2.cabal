@@ -14,11 +14,11 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
-                        Network.HPACK.Bit
                         Network.HPACK.Context
                         Network.HPACK.Decode
                         Network.HPACK.Entry
                         Network.HPACK.Huffman
+                        Network.HPACK.Huffman.Bit
                         Network.HPACK.HuffmanRequest
                         Network.HPACK.HuffmanResponse
                         Network.HPACK.ReferenceSet

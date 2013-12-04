@@ -3,7 +3,7 @@ module Network.HPACK.HuffmanResponse (
   , decodeInResponse
   ) where
 
-import Network.HPACK.Bit
+import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman
 
 ----------------------------------------------------------------

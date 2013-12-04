@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Network.HPACK.Bit (
+module Network.HPACK.Huffman.Bit (
     B(..)
   , Bits
   , toInt

@@ -3,7 +3,7 @@ module Network.HPACK.HuffmanRequest (
   , decodeInRequest
   ) where
 
-import Network.HPACK.Bit
+import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman
 
 ----------------------------------------------------------------

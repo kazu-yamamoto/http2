@@ -12,7 +12,7 @@ module Network.HPACK.Huffman (
 import Control.Arrow (second)
 import Data.Array (Array, (!), listArray)
 import Data.List (partition)
-import Network.HPACK.Bit
+import Network.HPACK.Huffman.Bit
 
 ----------------------------------------------------------------
 
