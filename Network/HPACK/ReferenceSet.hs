@@ -12,8 +12,8 @@ emptyReferenceSet = ReferenceSet []
 
 ----------------------------------------------------------------
 
-isPresent :: Index -> ReferenceSet -> Bool
-isPresent idx (ReferenceSet is) = idx `elem` is
+isMember :: Index -> ReferenceSet -> Bool
+isMember idx (ReferenceSet is) = idx `elem` is
 
 addIndex :: Index -> ReferenceSet -> ReferenceSet
 addIndex idx (ReferenceSet is) = ReferenceSet $ idx : is

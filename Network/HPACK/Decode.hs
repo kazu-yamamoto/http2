@@ -33,10 +33,10 @@ decode ctx [] = case getNotEmitted ctx of
 decodeStep :: Context -> Representation -> Either DecodeError Context
 decodeStep ctx (Indexed idx)
   | idx == 0  = Right $ emptyRefSets ctx
-  | present   = Right $ removeRef idx ctx
+  | isPresent = Right $ removeRef idx ctx
   | otherwise = decodeNotPresent ctx idx $ whichTable idx ctx
   where
-    present = doesExist idx ctx
+    isPresent = idx `isPresentIn` ctx
 decodeStep ctx (Literal NotAdd naming v) = case fromNaming naming ctx of
     Right k -> Right $ emitOnly (k,v) ctx
     Left  e -> Left e

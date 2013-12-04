@@ -10,7 +10,7 @@ module Network.HPACK.Context (
   , emitOnly
   -- * Auxiliary functions
   , emit
-  , doesExist
+  , isPresentIn
   ) where
 
 import Network.HPACK.Entry
@@ -103,7 +103,7 @@ emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
 ----------------------------------------------------------------
 
 -- | Is 'Index' present in the reference set?
-doesExist :: Index -> Context -> Bool
-doesExist idx ctx = idx `isPresent` oldref
+isPresentIn :: Index -> Context -> Bool
+isPresentIn idx ctx = idx `isMember` oldref
   where
     oldref = oldReferenceSet ctx
