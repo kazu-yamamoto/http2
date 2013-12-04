@@ -10,10 +10,14 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-data DecodeError = IndexOverrun deriving Show
+-- | Errors for decoder.
+data DecodeError = IndexOverrun -- ^ Index is out of the range
+                 deriving Show
 
 ----------------------------------------------------------------
 
+-- | Decoding 'HeaderBlock' in a HTTP request/response.
+-- The result of header set is stored in the final 'Context'.
 decode :: Context -> HeaderBlock -> Either DecodeError Context
 decode ctx (r:rs) = case decodeStep ctx r of
     Left  err  -> Left err
@@ -24,6 +28,7 @@ decode ctx [] = case allEntries ctx of
 
 ----------------------------------------------------------------
 
+-- | Decoding step for one 'Representation'.
 decodeStep :: Context -> Representation -> Either DecodeError Context
 decodeStep ctx (Indexed idx)
   | idx == 0  = Right $ emptyRefSets ctx
