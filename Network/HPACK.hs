@@ -11,17 +11,14 @@ module Network.HPACK (
   , module Network.HPACK.Decode
   -- * Data type
   , module Network.HPACK.Types
-  -- * Huffman for requests
-  , module Network.HPACK.HuffmanRequest
-  -- * Huffman for responses
-  , module Network.HPACK.HuffmanResponse
+  -- * Huffman
+  , module Network.HPACK.Huffman
   ) where
 
 import Network.HPACK.Context
 import Network.HPACK.Decode
 import Network.HPACK.Entry
-import Network.HPACK.HuffmanRequest
-import Network.HPACK.HuffmanResponse
+import Network.HPACK.Huffman
 import Network.HPACK.ReferenceSet
 import Network.HPACK.Table
 import Network.HPACK.Types

@@ -18,9 +18,10 @@ Library
                         Network.HPACK.Decode
                         Network.HPACK.Entry
                         Network.HPACK.Huffman
+                        Network.HPACK.Huffman.Internal
                         Network.HPACK.Huffman.Bit
-                        Network.HPACK.HuffmanRequest
-                        Network.HPACK.HuffmanResponse
+                        Network.HPACK.Huffman.Request
+                        Network.HPACK.Huffman.Response
                         Network.HPACK.ReferenceSet
                         Network.HPACK.Table
                         Network.HPACK.Table.Header

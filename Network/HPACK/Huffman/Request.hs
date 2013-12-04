@@ -1,10 +1,10 @@
-module Network.HPACK.HuffmanRequest (
+module Network.HPACK.Huffman.Request (
     encodeInRequest
   , decodeInRequest
   ) where
 
 import Network.HPACK.Huffman.Bit
-import Network.HPACK.Huffman
+import Network.HPACK.Huffman.Internal
 
 ----------------------------------------------------------------
 
