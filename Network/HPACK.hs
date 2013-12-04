@@ -1,7 +1,7 @@
 module Network.HPACK (
   -- * Context
     module Network.HPACK.Context
-  -- * Ttable
+  -- * Table
   , module Network.HPACK.Table
   -- * Decoder
   , module Network.HPACK.Decode
