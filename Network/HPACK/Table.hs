@@ -1,7 +1,9 @@
 module Network.HPACK.Table (
+  -- * Header table 
     HeaderTable
   , newHeaderTable
   , insertEntry
+  -- * Which tables
   , WhichTable(..)
   , which
   , fromWhich
@@ -32,9 +34,11 @@ HeaderTable maxN off n tbl _ _ .!. idx
 
 ----------------------------------------------------------------
 
+-- | Which table does 'Index' belong to?
 which :: HeaderTable -> Index -> WhichTable
 which hdrtbl idx = hdrtbl .!. idx
 
+-- | Extracting 'Entry'.
 fromWhich :: WhichTable -> Entry
 fromWhich (InHeaderTable e) = e
 fromWhich (InStaticTable e) = e
