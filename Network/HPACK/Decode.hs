@@ -62,6 +62,6 @@ fromNaming (Idx idx) ctx = case getEntry idx ctx of
 ----------------------------------------------------------------
 
 getNotEmitted :: Context -> Either DecodeError HeaderSet
-getNotEmitted ctx = case notEmittedHeaders ctx of
+getNotEmitted ctx = case notEmittedEntries ctx of
     Nothing -> Left IndexOverrun
-    Just xs -> Right xs
+    Just xs -> Right $ map fromEntry xs

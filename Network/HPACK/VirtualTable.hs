@@ -2,13 +2,12 @@ module Network.HPACK.VirtualTable (
     WhichTable(..)
   , whichTable
   , getEntry
-  , notEmittedHeaders
+  , notEmittedEntries
   ) where
 
 import Data.Array ((!))
 import Data.List (partition)
 import Network.HPACK.Context
-import Network.HPACK.Entry
 import Network.HPACK.HeaderTable
 import Network.HPACK.ReferenceSet
 import Network.HPACK.StaticTable
@@ -54,9 +53,9 @@ getEntry idx ctx = case whichTable idx ctx of
 
 ----------------------------------------------------------------
 
--- | Obtaining non-emitted headers.
-notEmittedHeaders :: Context -> Maybe [Header]
-notEmittedHeaders ctx
+-- | Obtaining non-emitted entries.
+notEmittedEntries :: Context -> Maybe [Entry]
+notEmittedEntries ctx
   | null ls   = Just xs
   | otherwise = Nothing
   where
@@ -64,7 +63,7 @@ notEmittedHeaders ctx
     hdrtbl = headerTable ctx
     ws = map (which hdrtbl) is
     (ls,rs) = partition (== IndexError) ws
-    xs = map (fromEntry . fromWhich) rs
+    xs = map fromWhich rs
 
 fromWhich :: WhichTable -> Entry
 fromWhich (InHeaderTable e) = e
