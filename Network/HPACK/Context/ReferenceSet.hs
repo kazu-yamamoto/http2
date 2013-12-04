@@ -1,4 +1,4 @@
-module Network.HPACK.ReferenceSet (
+module Network.HPACK.Context.ReferenceSet (
   -- * Type
     ReferenceSet
   , emptyReferenceSet

@@ -17,8 +17,8 @@ module Network.HPACK.Context (
   ) where
 
 import Data.List (partition)
+import Network.HPACK.Context.ReferenceSet
 import Network.HPACK.Entry
-import Network.HPACK.ReferenceSet
 import Network.HPACK.Table
 import Network.HPACK.Types
 

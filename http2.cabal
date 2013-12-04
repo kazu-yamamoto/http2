@@ -15,6 +15,7 @@ Library
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
                         Network.HPACK.Context
+                        Network.HPACK.Context.ReferenceSet
                         Network.HPACK.Decode
                         Network.HPACK.Entry
                         Network.HPACK.Huffman
@@ -22,7 +23,6 @@ Library
                         Network.HPACK.Huffman.Bit
                         Network.HPACK.Huffman.Request
                         Network.HPACK.Huffman.Response
-                        Network.HPACK.ReferenceSet
                         Network.HPACK.Table
                         Network.HPACK.Table.Header
                         Network.HPACK.Table.Static
