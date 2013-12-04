@@ -9,8 +9,10 @@ import Data.Array (listArray)
 import Network.HPACK.Entry
 import Network.HPACK.Types
 
+-- | Type for pre-defined static table.
 data StaticTable = StaticTable Size Table deriving Show
 
+-- | Pre-defined static table.
 staticTable :: StaticTable
 staticTable = StaticTable 60 $ listArray (1,60) $ map toEntry staticTableList
 
