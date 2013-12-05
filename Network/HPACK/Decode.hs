@@ -2,6 +2,8 @@ module Network.HPACK.Decode (
     DecodeError(..)
   , decode
   , decodeStep
+  , clearHeaderSet
+  , getHeaderSet
   ) where
 
 import Network.HPACK.Context
@@ -28,7 +30,8 @@ decode ctx [] = case getNotEmitted ctx of
 
 ----------------------------------------------------------------
 
--- | Decoding step for one 'Representation'.
+-- | Decoding step for one 'Representation'. Exporting for the
+--   test purpose.
 decodeStep :: Context -> Representation -> Either DecodeError Context
 decodeStep ctx (Indexed idx)
   | idx == 0  = Right $ clearRefSets ctx
