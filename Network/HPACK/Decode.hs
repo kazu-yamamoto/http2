@@ -1,9 +1,8 @@
 module Network.HPACK.Decode (
-    DecodeError(..)
+    fromHeaderBlock
+  , DecodeError(..)
   , decode
   , decodeStep
-  , clearHeaderSet
-  , getHeaderSet
   ) where
 
 import Network.HPACK.Context
@@ -15,6 +14,20 @@ import Network.HPACK.Table
 -- | Errors for decoder.
 data DecodeError = IndexOverrun -- ^ Index is out of the range
                  deriving Show
+
+
+fromHeaderBlock :: HeaderBlock
+                -> Context
+                -> Maybe (HeaderSet, Context)
+fromHeaderBlock (r:rs) ctx = case decodeStep ctx r of
+    Left  _    -> Nothing
+    Right ctx' -> fromHeaderBlock rs ctx'
+fromHeaderBlock [] ctx = case getNotEmitted ctx of
+    Left  _          -> Nothing
+    Right notEmitted -> let ctx' = emit ctx notEmitted
+                            hs = getHeaderSet ctx'
+                            ctx'' = clearHeaderSet ctx'
+                        in Just (hs, ctx'')
 
 ----------------------------------------------------------------
 
