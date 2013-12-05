@@ -4,7 +4,9 @@ module Network.HPACK.Table.Entry (
   -- * Type
     Size
   , Entry
-  , HeaderValue
+  , Header      -- re-exporting
+  , HeaderName
+  , HeaderValue -- re-exporting
   -- * Header and Entry
   , toEntry
   , fromEntry

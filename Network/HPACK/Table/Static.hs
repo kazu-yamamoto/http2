@@ -8,7 +8,6 @@ module Network.HPACK.Table.Static (
 import Data.Array (listArray)
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Types
-import Network.HTTP.Types (Header)
 
 -- | Type for pre-defined static table.
 data StaticTable = StaticTable Size Table deriving Show

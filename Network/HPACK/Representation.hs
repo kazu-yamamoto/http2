@@ -9,8 +9,7 @@ module Network.HPACK.Representation (
   , Naming(..)
   ) where
 
-import Network.HTTP.Types (HeaderName)
-import Network.HPACK.Table (HeaderValue, Index)
+import Network.HPACK.Table (HeaderName, HeaderValue, Index)
 
 ----------------------------------------------------------------
 

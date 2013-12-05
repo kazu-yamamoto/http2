@@ -20,7 +20,6 @@ module Network.HPACK.Context (
 import Data.List (partition)
 import Network.HPACK.Context.ReferenceSet
 import Network.HPACK.Table
-import Network.HTTP.Types (Header)
 
 ----------------------------------------------------------------
 
