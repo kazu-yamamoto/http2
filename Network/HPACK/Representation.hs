@@ -1,8 +1,10 @@
-module Network.HPACK.Types (
+module Network.HPACK.Representation (
   -- * Type
     HeaderBlock
   , Representation(..)
-  , Index
+  , HeaderName  -- re-exporting
+  , HeaderValue -- re-exporting
+  , Index       -- re-exporting
   , Indexing(..)
   , Naming(..)
   ) where

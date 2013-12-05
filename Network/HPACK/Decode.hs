@@ -5,9 +5,8 @@ module Network.HPACK.Decode (
   ) where
 
 import Network.HPACK.Context
+import Network.HPACK.Representation
 import Network.HPACK.Table
-import Network.HPACK.Types
-import Network.HTTP.Types (HeaderName)
 
 ----------------------------------------------------------------
 

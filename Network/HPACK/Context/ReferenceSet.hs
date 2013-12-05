@@ -14,7 +14,7 @@ module Network.HPACK.Context.ReferenceSet (
   ) where
 
 import Data.List (delete, (\\))
-import Network.HPACK.Types
+import Network.HPACK.Table
 
 ----------------------------------------------------------------
 
