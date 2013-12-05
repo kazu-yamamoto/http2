@@ -23,7 +23,8 @@ Library
                         Network.HPACK.Huffman.Internal
                         Network.HPACK.Huffman.Request
                         Network.HPACK.Huffman.Response
-                        Network.HPACK.Representation
+                        Network.HPACK.HeaderBlock
+                        Network.HPACK.HeaderBlock.Types
                         Network.HPACK.Table
                         Network.HPACK.Table.Entry
                         Network.HPACK.Table.Header

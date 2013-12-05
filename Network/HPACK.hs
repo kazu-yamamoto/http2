@@ -15,6 +15,7 @@ module Network.HPACK (
   ) where
 
 import Control.Arrow (first)
+import Network.HPACK.HeaderBlock
 import Network.HPACK.Huffman
 
 data HeaderSet
@@ -48,16 +49,6 @@ decodeResponseHeader :: ByteStream
                     -> Maybe (HeaderSet, DecodeContenxt)
 decodeResponseHeader bs ctx =
     fromHeaderBlock (fromByteStream huffmanDecodingInResponse bs) ctx
-
-----------------------------------------------------------------
-
-data HeaderBlock
-
-toByteStream :: HuffmanEncoding -> HeaderBlock -> ByteStream
-toByteStream = undefined
-
-fromByteStream :: HuffmanDecoding -> ByteStream -> HeaderBlock
-fromByteStream = undefined
 
 ----------------------------------------------------------------
 

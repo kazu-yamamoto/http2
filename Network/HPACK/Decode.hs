@@ -7,7 +7,7 @@ module Network.HPACK.Decode (
   ) where
 
 import Network.HPACK.Context
-import Network.HPACK.Representation
+import Network.HPACK.HeaderBlock.Types -- FIXME
 import Network.HPACK.Table
 
 ----------------------------------------------------------------
