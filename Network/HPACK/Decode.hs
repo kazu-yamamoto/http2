@@ -31,7 +31,7 @@ decode ctx [] = case getNotEmitted ctx of
 -- | Decoding step for one 'Representation'.
 decodeStep :: Context -> Representation -> Either DecodeError Context
 decodeStep ctx (Indexed idx)
-  | idx == 0  = Right $ emptyRefSets ctx
+  | idx == 0  = Right $ clearRefSets ctx
   | isPresent = Right $ removeRef ctx idx
   | otherwise = case switchAction ctx idx forStatic forHeaderTable of
       Nothing   -> Left IndexOverrun

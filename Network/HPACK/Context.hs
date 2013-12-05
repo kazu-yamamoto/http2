@@ -5,7 +5,7 @@ module Network.HPACK.Context (
   , newContext
   , showContext
   -- * Processing
-  , emptyRefSets
+  , clearRefSets
   , removeRef
   , newEntry
   , pushRef
@@ -53,8 +53,8 @@ newContext maxsiz = Context (newHeaderTable maxsiz)
 ----------------------------------------------------------------
 
 -- | The reference set is emptied.
-emptyRefSets :: Context -> Context
-emptyRefSets ctx = ctx {
+clearRefSets :: Context -> Context
+clearRefSets ctx = ctx {
     oldReferenceSet = emptyReferenceSet
   , newReferenceSet = emptyReferenceSet
   }
