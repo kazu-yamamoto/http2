@@ -39,9 +39,14 @@ data Context = Context {
 -- | Converting 'Context' to 'String'.
 showContext :: Context -> String
 showContext (Context hdrtbl oldref _ hdrset) =
-    show hdrtbl ++ "\n"
- ++ show oldref ++ "\n"
- ++ show hdrset
+    "<<<Header table>>>\n"
+ ++ showHeaderTable hdrtbl ++ "\n"
+ ++ "\n"
+ ++ "<<<Reference set>>>\n"
+ ++ show (getIndices oldref) ++ "\n"
+ ++ "\n"
+ ++ "<<<Headers>>>\n"
+ ++ showHeaderSet hdrset
 
 ----------------------------------------------------------------
 

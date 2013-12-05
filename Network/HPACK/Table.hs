@@ -3,6 +3,7 @@ module Network.HPACK.Table (
     Index
   , HeaderTable
   , newHeaderTable
+  , showHeaderTable
   , insertEntry
   -- * Entry
   , module Network.HPACK.Table.Entry
