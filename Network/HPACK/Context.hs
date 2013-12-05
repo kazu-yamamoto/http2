@@ -3,6 +3,7 @@ module Network.HPACK.Context (
     HeaderSet   -- re-exporting
   , Context(..)
   , newContext
+  , showContext
   -- * Processing
   , emptyRefSets
   , removeRef
@@ -30,13 +31,14 @@ data Context = Context {
   , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
   , newReferenceSet :: ReferenceSet -- ^ References for already mitted
   , headerSet       :: HeaderSet    -- ^ The results
-  }
+  } deriving Show
 
--- FIXME
-instance Show Context where
-  show (Context hdrtbl oldref _ hdrset) = show hdrtbl ++ "\n"
-                                       ++ show oldref ++ "\n"
-                                       ++ show hdrset
+-- | Converting 'Context' to 'String'.
+showContext :: Context -> String
+showContext (Context hdrtbl oldref _ hdrset) =
+    show hdrtbl ++ "\n"
+ ++ show oldref ++ "\n"
+ ++ show hdrset
 
 ----------------------------------------------------------------
 

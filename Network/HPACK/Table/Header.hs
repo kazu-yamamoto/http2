@@ -2,7 +2,8 @@ module Network.HPACK.Table.Header (
   -- * Type
     HeaderTable(..)
   , newHeaderTable
-  -- * Misc
+  , showHeaderTable
+  -- * Utilities
   , insertEntry
   ) where
 
@@ -24,12 +25,13 @@ data HeaderTable = HeaderTable {
   , circularTable :: Table
   , headerTableSize :: Size
   , maxHeaderTableSize :: Size
-  }
+  } deriving Show
 
 ----------------------------------------------------------------
 
-instance Show HeaderTable where
-    show (HeaderTable maxN off n tbl tblsiz _) =
+-- | Converting 'HeaderTable' to 'String'.
+showHeaderTable :: HeaderTable -> String
+showHeaderTable (HeaderTable maxN off n tbl tblsiz _) =
         showArray tbl (\x -> (x + maxN) `mod` maxN) (off+1) n
      ++ "      Table size: " ++ show tblsiz
 
