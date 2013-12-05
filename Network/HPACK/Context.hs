@@ -1,9 +1,12 @@
 module Network.HPACK.Context (
   -- * Types
     HeaderSet   -- re-exporting
-  , Context(..)
+  , Context
   , newContext
   , showContext
+  -- * Initialization and final results
+  , clearHeaderSet
+  , getHeaderSet
   -- * Processing
   , clearRefSets
   , removeRef
@@ -153,3 +156,13 @@ switchAction ctx idx actionForStatic actionForHeaderTable = case whichTable idx 
     IndexError      -> Nothing
     InStaticTable e -> Just $ actionForStatic e
     InHeaderTable e -> Just $ actionForHeaderTable e
+
+----------------------------------------------------------------
+
+-- | Clearing 'HeaderSet' in 'Context' for the next decode.
+clearHeaderSet :: Context -> Context
+clearHeaderSet ctx = ctx { headerSet = emptyHeaderSet }
+
+-- | Getting 'HeaderSet' as emitted headers.
+getHeaderSet :: Context -> HeaderSet
+getHeaderSet = headerSet
