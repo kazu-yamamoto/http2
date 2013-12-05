@@ -17,13 +17,13 @@ Library
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderSet
                         Network.HPACK.Context.ReferenceSet
-                        Network.HPACK.Decode
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit
                         Network.HPACK.Huffman.Internal
                         Network.HPACK.Huffman.Request
                         Network.HPACK.Huffman.Response
                         Network.HPACK.HeaderBlock
+                        Network.HPACK.HeaderBlock.Decode
                         Network.HPACK.HeaderBlock.Types
                         Network.HPACK.Table
                         Network.HPACK.Table.Entry

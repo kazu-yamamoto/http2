@@ -1,4 +1,4 @@
-module Network.HPACK.Decode (
+module Network.HPACK.HeaderBlock.Decode (
     fromHeaderBlock
   , DecodeError(..)
   , decode
@@ -6,7 +6,7 @@ module Network.HPACK.Decode (
   ) where
 
 import Network.HPACK.Context
-import Network.HPACK.HeaderBlock.Types -- FIXME
+import Network.HPACK.HeaderBlock.Types
 import Network.HPACK.Table
 
 ----------------------------------------------------------------
