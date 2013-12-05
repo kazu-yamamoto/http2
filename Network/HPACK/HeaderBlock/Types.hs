@@ -9,7 +9,7 @@ module Network.HPACK.HeaderBlock.Types (
   , Naming(..)
   ) where
 
-import Network.HPACK.Table (HeaderName, HeaderValue, Index)
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 

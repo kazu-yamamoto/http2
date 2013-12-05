@@ -5,8 +5,9 @@ module Network.HPACK.Table.Entry (
     Size
   , Entry
   , Header      -- re-exporting
-  , HeaderName
+  , HeaderName  -- re-exporting
   , HeaderValue -- re-exporting
+  , Index       -- re-exporting
   -- * Header and Entry
   , toEntry
   , fromEntry
@@ -22,7 +23,7 @@ module Network.HPACK.Table.Entry (
 import Data.CaseInsensitive (foldedCase)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Network.HTTP.Types (HeaderName, Header)
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
@@ -31,9 +32,6 @@ type Size = Int
 
 -- | Type for table entry.
 type Entry = (Size,Header)
-
--- | Header value
-type HeaderValue = ByteString
 
 ----------------------------------------------------------------
 
