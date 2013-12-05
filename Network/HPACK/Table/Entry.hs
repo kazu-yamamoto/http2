@@ -4,6 +4,7 @@ module Network.HPACK.Table.Entry (
   -- * Type
     Size
   , Entry
+  , HeaderValue
   -- * Header and Entry
   , toEntry
   , fromEntry
@@ -16,8 +17,10 @@ module Network.HPACK.Table.Entry (
   , maxNumbers
   ) where
 
+import Data.CaseInsensitive (foldedCase)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Network.HPACK.Types
+import Network.HTTP.Types (HeaderName, Header)
 
 ----------------------------------------------------------------
 
@@ -27,13 +30,16 @@ type Size = Int
 -- | Type for table entry.
 type Entry = (Size,Header)
 
+-- | Header value
+type HeaderValue = ByteString
+
 ----------------------------------------------------------------
 
 headerSizeMagicNumber :: Size
 headerSizeMagicNumber = 32
 
 headerSize :: Header -> Size
-headerSize (k,v) = BS.length k + BS.length v + headerSizeMagicNumber
+headerSize (k,v) = BS.length (foldedCase k) + BS.length v + headerSizeMagicNumber
 
 ----------------------------------------------------------------
 
@@ -57,8 +63,8 @@ entrySize = fst
 entryHeaderName :: Entry -> HeaderName
 entryHeaderName (_,(k,_)) = k
 
--- | Getting 'HeaderValue'.
-entryHeaderValue :: Entry -> HeaderValue
+-- | Getting 'HeaderValue'. (FIXME)
+entryHeaderValue :: Entry -> ByteString
 entryHeaderValue (_,(_,v)) = v
 
 ----------------------------------------------------------------

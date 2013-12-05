@@ -1,29 +1,14 @@
 module Network.HPACK.Types (
-  -- * Header
-    HeaderName
-  , HeaderValue
-  , Header
-  , HeaderSet
-  -- * Representation
-  , HeaderBlock
+  -- * Type
+    HeaderBlock
   , Representation(..)
   , Index
   , Indexing(..)
   , Naming(..)
   ) where
 
-import Data.ByteString (ByteString)
-
-----------------------------------------------------------------
-
--- | Header name (FIXME).
-type HeaderName = ByteString
--- | Header value (FIXME).
-type HeaderValue = ByteString
--- | Header (FIXME)
-type Header = (HeaderName, HeaderValue)
--- | Header set
-type HeaderSet = [Header]
+import Network.HTTP.Types (HeaderName)
+import Network.HPACK.Table (HeaderValue, Index)
 
 ----------------------------------------------------------------
 
@@ -34,9 +19,6 @@ type HeaderBlock = [Representation]
 data Representation = Indexed Index
                     | Literal Indexing Naming HeaderValue
                     deriving Show
-
--- | Index for table.
-type Index = Int
 
 -- | Whether or not adding to a table.
 data Indexing = Add | NotAdd deriving Show

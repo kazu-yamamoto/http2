@@ -1,6 +1,7 @@
 module Network.HPACK.Table (
   -- * Header table
-    HeaderTable
+    Index
+  , HeaderTable
   , newHeaderTable
   , insertEntry
   -- * Entry
@@ -15,7 +16,7 @@ import Data.Array ((!))
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Header
 import Network.HPACK.Table.Static
-import Network.HPACK.Types
+import Network.HPACK.Table.Types
 
 ----------------------------------------------------------------
 

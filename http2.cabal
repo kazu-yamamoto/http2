@@ -31,6 +31,8 @@ Library
   Build-Depends:        base >= 4 && < 5
                       , array
                       , bytestring
+                      , case-insensitive
+                      , http-types
 
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0

@@ -10,9 +10,9 @@ import Data.Array (listArray, (!))
 import Data.Array.ST (runSTArray, writeArray)
 import Data.Array.Unsafe (unsafeThaw)
 import qualified Data.ByteString.Char8 as BS
+import Data.CaseInsensitive (foldedCase)
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Types
-import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
@@ -43,7 +43,7 @@ showArray' tbl adj off n cnt
              ++ showArray' tbl adj (off+1) n (cnt+1)
   where
     (s,(k,v)) = tbl ! (adj off)
-    keyval = "(s = " ++ show s ++ ") " ++ BS.unpack k ++ ": " ++ BS.unpack v
+    keyval = "(s = " ++ show s ++ ") " ++ BS.unpack (foldedCase k) ++ ": " ++ BS.unpack v
 
 ----------------------------------------------------------------
 

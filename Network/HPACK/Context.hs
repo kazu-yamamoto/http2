@@ -1,6 +1,7 @@
 module Network.HPACK.Context (
   -- * Types
-    Context(..)
+    HeaderSet
+  , Context(..)
   , newContext
   -- * Processing
   , emptyRefSets
@@ -19,7 +20,12 @@ module Network.HPACK.Context (
 import Data.List (partition)
 import Network.HPACK.Context.ReferenceSet
 import Network.HPACK.Table
-import Network.HPACK.Types
+import Network.HTTP.Types (Header)
+
+----------------------------------------------------------------
+
+-- | Header set
+type HeaderSet = [Header]
 
 ----------------------------------------------------------------
 

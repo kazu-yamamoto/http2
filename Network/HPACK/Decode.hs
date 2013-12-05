@@ -7,6 +7,7 @@ module Network.HPACK.Decode (
 import Network.HPACK.Context
 import Network.HPACK.Table
 import Network.HPACK.Types
+import Network.HTTP.Types (HeaderName)
 
 ----------------------------------------------------------------
 
