@@ -1,6 +1,6 @@
 module BitSpec where
 
-import Network.HPACK.Bit
+import Network.HPACK.Huffman.Bit
 import Test.Hspec
 import Test.Hspec.QuickCheck
 

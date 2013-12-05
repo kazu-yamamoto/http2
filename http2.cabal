@@ -55,6 +55,9 @@ Test-Suite spec
                         HuffmanResponseSpec
   Build-Depends:        base
                       , array
+                      , bytestring
+                      , case-insensitive
+                      , http-types
                       , hspec >= 1.3
 
 Source-Repository head

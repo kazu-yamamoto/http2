@@ -1,7 +1,7 @@
 module HuffmanResponseSpec where
 
 import Data.Char
-import Network.HPACK.HuffmanResponse
+import Network.HPACK.Huffman.Response
 import Numeric
 import Test.Hspec
 import Test.Hspec.QuickCheck
