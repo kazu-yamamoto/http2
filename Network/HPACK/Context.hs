@@ -1,6 +1,6 @@
 module Network.HPACK.Context (
   -- * Types
-    HeaderSet
+    HeaderSet   -- re-exporting
   , Context(..)
   , newContext
   -- * Processing
@@ -18,13 +18,9 @@ module Network.HPACK.Context (
   ) where
 
 import Data.List (partition)
+import Network.HPACK.Context.HeaderSet
 import Network.HPACK.Context.ReferenceSet
 import Network.HPACK.Table
-
-----------------------------------------------------------------
-
--- | Header set
-type HeaderSet = [Header]
 
 ----------------------------------------------------------------
 
@@ -52,9 +48,6 @@ newContext maxsiz = Context (newHeaderTable maxsiz)
                             emptyReferenceSet
                             emptyHeaderSet
 
-emptyHeaderSet :: HeaderSet
-emptyHeaderSet = []
-
 ----------------------------------------------------------------
 
 -- | The reference set is emptied.
@@ -79,7 +72,7 @@ newEntry (Context hdrtbl oldref newref hdrset) e = ctx
     (hdrtbl', is) = insertEntry e hdrtbl
     oldref' = adjustReferenceSet $ removeIndices is oldref
     newref' = addIndex 1 $ adjustReferenceSet $ removeIndices is newref
-    hdrset' = fromEntry e : hdrset
+    hdrset' = insertHeader (fromEntry e) hdrset
     ctx = Context hdrtbl' oldref' newref' hdrset'
 
 -- | The header field corresponding to the referenced entry is emitted.
@@ -87,7 +80,7 @@ newEntry (Context hdrtbl oldref newref hdrset) e = ctx
 pushRef :: Context -> Index -> Entry -> Context
 pushRef (Context hdrtbl oldref newref hdrset) idx e = ctx
   where
-    hdrset' = fromEntry e : hdrset
+    hdrset' = insertHeader (fromEntry e) hdrset
     newref' = addIndex idx newref
     ctx = Context hdrtbl oldref newref' hdrset'
 
@@ -95,7 +88,7 @@ pushRef (Context hdrtbl oldref newref hdrset) idx e = ctx
 emitOnly :: Context -> Header -> Context
 emitOnly (Context hdrtbl oldref newref hdrset) h = ctx
   where
-    hdrset' = h : hdrset
+    hdrset' = insertHeader h hdrset
     ctx = Context hdrtbl oldref newref hdrset'
 
 ----------------------------------------------------------------
@@ -104,7 +97,7 @@ emitOnly (Context hdrtbl oldref newref hdrset) h = ctx
 emit :: Context -> HeaderSet -> Context
 emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
   where
-    hdrset' = reverse $ notEmitted ++ hdrset
+    hdrset' = meregeHeaderSet hdrset notEmitted
     oldref' = mergeReferenceSet newref oldref
     ctx = Context hdrtbl oldref' emptyReferenceSet hdrset'
 
