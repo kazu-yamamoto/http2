@@ -10,6 +10,6 @@ import Network.HPACK.HeaderBlock.Representation
 -- | Encoding 'HeaderSet' to 'HeaderBlock'.
 toHeaderBlock :: HeaderSet
               -> Context
-              -> (HeaderBlock, Context)
+              -> IO (HeaderBlock, Context)
 toHeaderBlock = undefined
 

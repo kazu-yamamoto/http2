@@ -3,7 +3,8 @@ module Network.HPACK.Context (
     HeaderSet   -- re-exporting
   , Context
   , newContext
-  , showContext
+  , DecodeError(..)
+--  , showContext
   -- * Initialization and final results
   , clearHeaderSet
   , getHeaderSet
@@ -21,10 +22,11 @@ module Network.HPACK.Context (
   , switchAction
   ) where
 
-import Data.List (partition)
+import Control.Applicative ((<$>))
 import Network.HPACK.Context.HeaderSet
 import Network.HPACK.Context.ReferenceSet
 import Network.HPACK.Table
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
@@ -34,8 +36,9 @@ data Context = Context {
   , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
   , newReferenceSet :: ReferenceSet -- ^ References for already mitted
   , headerSet       :: HeaderSet    -- ^ The results
-  } deriving Show
+  } -- deriving Show -- FIXME
 
+{- FIXME
 -- | Converting 'Context' to 'String'.
 showContext :: Context -> String
 showContext (Context hdrtbl oldref newref hdrset) =
@@ -50,56 +53,58 @@ showContext (Context hdrtbl oldref newref hdrset) =
  ++ "\n"
  ++ "<<<Headers>>>\n"
  ++ showHeaderSet hdrset
+-}
 
 ----------------------------------------------------------------
 
 -- | Creating a new 'Context'.
 --   The first argument is the size of 'HeaderTable'.
-newContext :: Size -> Context
-newContext maxsiz = Context (newHeaderTable maxsiz)
-                            emptyReferenceSet
-                            emptyReferenceSet
-                            emptyHeaderSet
+newContext :: Size -> IO Context
+newContext maxsiz = do
+    hdrtbl <- newHeaderTable maxsiz
+    return $ Context hdrtbl
+                     emptyReferenceSet
+                     emptyReferenceSet
+                     emptyHeaderSet
 
 ----------------------------------------------------------------
 
 -- | The reference set is emptied.
-clearRefSets :: Context -> Context
-clearRefSets ctx = ctx {
+clearRefSets :: Context -> IO Context
+clearRefSets ctx = return ctx {
     oldReferenceSet = emptyReferenceSet
   , newReferenceSet = emptyReferenceSet
   }
 
 -- | The entry is removed from the reference set.
-removeRef :: Context -> Index -> Context
-removeRef ctx idx = ctx { oldReferenceSet = removeIndex idx oldref }
+removeRef :: Context -> Index -> IO Context
+removeRef ctx idx = return ctx { oldReferenceSet = removeIndex idx oldref }
   where
     oldref = oldReferenceSet ctx
 
 -- | The header field is emitted.
 --   The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
-newEntry :: Context -> Entry -> Context
-newEntry (Context hdrtbl oldref newref hdrset) e = ctx
-  where
-    (hdrtbl', is) = insertEntry e hdrtbl
-    oldref' = adjustReferenceSet $ removeIndices is oldref
-    newref' = addIndex 1 $ adjustReferenceSet $ removeIndices is newref
-    hdrset' = insertHeader (fromEntry e) hdrset
-    ctx = Context hdrtbl' oldref' newref' hdrset'
+newEntry :: Context -> Entry -> IO Context
+newEntry (Context hdrtbl oldref newref hdrset) e = do
+    (hdrtbl', is) <- insertEntry e hdrtbl
+    let oldref' = adjustReferenceSet $ removeIndices is oldref
+        newref' = addIndex 1 $ adjustReferenceSet $ removeIndices is newref
+        hdrset' = insertHeader (fromEntry e) hdrset
+    return $ Context hdrtbl' oldref' newref' hdrset'
 
 -- | The header field corresponding to the referenced entry is emitted.
 --   The referenced header table entry is added to the reference set.
-pushRef :: Context -> Index -> Entry -> Context
-pushRef (Context hdrtbl oldref newref hdrset) idx e = ctx
+pushRef :: Context -> Index -> Entry -> IO Context
+pushRef (Context hdrtbl oldref newref hdrset) idx e = return ctx
   where
     hdrset' = insertHeader (fromEntry e) hdrset
     newref' = addIndex idx newref
     ctx = Context hdrtbl oldref newref' hdrset'
 
 -- | The header field is emitted.
-emitOnly :: Context -> Header -> Context
-emitOnly (Context hdrtbl oldref newref hdrset) h = ctx
+emitOnly :: Context -> Header -> IO Context
+emitOnly (Context hdrtbl oldref newref hdrset) h = return ctx
   where
     hdrset' = insertHeader h hdrset
     ctx = Context hdrtbl oldref newref hdrset'
@@ -125,7 +130,7 @@ isPresentIn idx ctx = idx `isMember` oldref
 ----------------------------------------------------------------
 
 -- | Detecting which table does `Index` refer to?
-whichTable :: Index -> Context -> WhichTable
+whichTable :: Index -> Context -> IO WhichTable
 whichTable idx ctx = which hdrtbl idx
   where
     hdrtbl = headerTable ctx
@@ -133,37 +138,30 @@ whichTable idx ctx = which hdrtbl idx
 ----------------------------------------------------------------
 
 -- | Getting 'Entry' by 'Index'.
-getEntry :: Index -> Context -> Maybe Entry
-getEntry idx ctx = case whichTable idx ctx of
-    InHeaderTable e -> Just e
-    InStaticTable e -> Just e
-    IndexError      -> Nothing
+getEntry :: Index -> Context -> IO Entry
+getEntry idx ctx = fromWhich <$> whichTable idx ctx
 
 ----------------------------------------------------------------
 
 -- | Obtaining non-emitted entries.
-notEmittedEntries :: Context -> Maybe [Entry]
-notEmittedEntries ctx
-  | null ls   = Just xs
-  | otherwise = Nothing
-  where
-    is = getIndices $ oldReferenceSet ctx
-    hdrtbl = headerTable ctx
-    ws = map (which hdrtbl) is
-    (ls,rs) = partition (== IndexError) ws
-    xs = map fromWhich rs
+notEmittedEntries :: Context -> IO [Entry]
+notEmittedEntries ctx = do
+    let is = getIndices $ oldReferenceSet ctx
+        hdrtbl = headerTable ctx
+    map fromWhich <$> mapM (which hdrtbl) is
 
 ----------------------------------------------------------------
 
 -- | Choosing an action depending on which tables.
 switchAction :: Context -> Index
-             -> (Entry -> Context) -- ^ An action for static table
-             -> (Entry -> Context) -- ^ An action for header table
-             -> Maybe Context
-switchAction ctx idx actionForStatic actionForHeaderTable = case whichTable idx ctx of
-    IndexError      -> Nothing
-    InStaticTable e -> Just $ actionForStatic e
-    InHeaderTable e -> Just $ actionForHeaderTable e
+             -> (Entry -> IO Context) -- ^ An action for static table
+             -> (Entry -> IO Context) -- ^ An action for header table
+             -> IO Context
+switchAction ctx idx actionForStatic actionForHeaderTable = do
+    w <- whichTable idx ctx
+    case w of
+        InStaticTable e -> actionForStatic e
+        InHeaderTable e -> actionForHeaderTable e
 
 ----------------------------------------------------------------
 

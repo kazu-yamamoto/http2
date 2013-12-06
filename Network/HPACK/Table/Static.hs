@@ -5,12 +5,11 @@ module Network.HPACK.Table.Static (
   , staticTable
     ) where
 
-import Data.Array (listArray)
+import Data.Array (Array, listArray)
 import Network.HPACK.Table.Entry
-import Network.HPACK.Table.Types
 
 -- | Type for pre-defined static table.
-data StaticTable = StaticTable Size Table deriving Show
+data StaticTable = StaticTable Size (Array Index Entry) deriving Show
 
 -- | Pre-defined static table.
 staticTable :: StaticTable
