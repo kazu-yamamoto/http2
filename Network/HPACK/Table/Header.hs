@@ -113,4 +113,4 @@ removeOne hdrtbl@(HeaderTable maxN off n tbl tsize _) = do
             numOfEntries = n - 1
           , headerTableSize = tsize'
           }
-    return (hdrtbl',i)
+    return (hdrtbl',n)
