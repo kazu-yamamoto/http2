@@ -4,7 +4,7 @@ module Network.HPACK.Context (
   , Context
   , newContext
   , DecodeError(..)
---  , showContext
+  , printContext
   -- * Initialization and final results
   , clearHeaderSet
   , getHeaderSet
@@ -36,24 +36,22 @@ data Context = Context {
   , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
   , newReferenceSet :: ReferenceSet -- ^ References for already mitted
   , headerSet       :: HeaderSet    -- ^ The results
-  } -- deriving Show -- FIXME
+  }
 
-{- FIXME
--- | Converting 'Context' to 'String'.
-showContext :: Context -> String
-showContext (Context hdrtbl oldref newref hdrset) =
-    "<<<Header table>>>\n"
- ++ showHeaderTable hdrtbl ++ "\n"
- ++ "\n"
- ++ "<<<Reference set (old)>>>\n"
- ++ show (getIndices oldref) ++ "\n"
- ++ "\n"
- ++ "<<<Reference set (new)>>>\n"
- ++ show (getIndices newref) ++ "\n"
- ++ "\n"
- ++ "<<<Headers>>>\n"
- ++ showHeaderSet hdrset
--}
+-- | Printing 'Context'
+printContext :: Context -> IO ()
+printContext (Context hdrtbl oldref newref hdrset) = do
+    putStrLn "<<<Header table>>>"
+    printHeaderTable hdrtbl
+    putStr "\n"
+    putStrLn "<<<Reference set (old)>>>"
+    print $ getIndices oldref
+    putStr "\n"
+    putStrLn "<<<Reference set (new)>>>"
+    print $ getIndices newref
+    putStr "\n"
+    putStrLn "<<<Headers>>>"
+    printHeaderSet hdrset
 
 ----------------------------------------------------------------
 

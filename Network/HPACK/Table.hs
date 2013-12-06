@@ -2,7 +2,7 @@ module Network.HPACK.Table (
   -- * Header table
     HeaderTable
   , newHeaderTable
---  , showHeaderTable -- FIXME
+  , printHeaderTable
   , insertEntry
   -- * Entry
   , module Network.HPACK.Table.Entry

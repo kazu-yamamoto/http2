@@ -2,14 +2,14 @@ module Network.HPACK.Table.Header (
   -- * Type
     HeaderTable(..)
   , newHeaderTable
---   , showHeaderTable FIXME
+  , printHeaderTable
   -- * Utilities
   , insertEntry
   ) where
 
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
--- import qualified Data.ByteString.Char8 as BS
--- import Data.CaseInsensitive (foldedCase)
+import qualified Data.ByteString.Char8 as BS
+import Data.CaseInsensitive (foldedCase)
 import Network.HPACK.Table.Entry
 
 ----------------------------------------------------------------
@@ -22,29 +22,30 @@ data HeaderTable = HeaderTable {
   , circularTable :: IOArray Index Entry
   , headerTableSize :: Size
   , maxHeaderTableSize :: Size
-  } -- deriving Show -- FIXME
+  }
 
 ----------------------------------------------------------------
 
-{- FIXME
--- | Converting 'HeaderTable' to 'String'.
-showHeaderTable :: HeaderTable -> String
-showHeaderTable (HeaderTable maxN off n tbl tblsiz _) =
-        showArray tbl (\x -> (x + maxN) `mod` maxN) (off+1) n
-     ++ "      Table size: " ++ show tblsiz
-
-showArray :: Table -> (Index -> Index) -> Index -> Int -> String
-showArray tbl adj off n = showArray' tbl adj off n 1
-
-showArray' :: Table -> (Index -> Index) -> Index -> Int -> Int -> String
-showArray' tbl adj off n cnt
-  | cnt > n   = ""
-  | otherwise = "[ " ++ show cnt ++ "] " ++ keyval ++ "\n"
-             ++ showArray' tbl adj (off+1) n (cnt+1)
+-- | Printing 'HeaderTable'.
+printHeaderTable :: HeaderTable -> IO ()
+printHeaderTable (HeaderTable maxN off n tbl tblsiz _) = do
+    es <- mapM (readArray tbl) $ map adj [beg .. end]
+    let ts = zip [1..] es
+    mapM_ printEntry ts
+    putStrLn $ "      Table size: " ++ show tblsiz
   where
-    (s,(k,v)) = tbl ! (adj off)
-    keyval = "(s = " ++ show s ++ ") " ++ BS.unpack (foldedCase k) ++ ": " ++ BS.unpack v
--}
+    adj = (\x -> (x + maxN) `mod` maxN)
+    beg = off + 1
+    end = off + n
+
+printEntry :: (Index,Entry) -> IO ()
+printEntry (i,e)= do
+    putStr "[ "
+    putStr $ show i
+    putStr "] "
+    BS.putStr $ foldedCase $ entryHeaderName e
+    putStr ": "
+    BS.putStrLn $ entryHeaderValue e
 
 ----------------------------------------------------------------
 

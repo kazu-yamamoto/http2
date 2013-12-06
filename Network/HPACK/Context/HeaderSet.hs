@@ -13,16 +13,15 @@ type HeaderSet = [Header]
 emptyHeaderSet :: HeaderSet
 emptyHeaderSet = []
 
--- FIXME: should use BlazeBuilder
--- | Converting 'HeaderSet' to 'String.
-showHeaderSet :: HeaderSet -> String
-showHeaderSet hs = BS.unpack . BS.concat $ map showHeader hs
+-- | Printing 'HeaderSet'.
+printHeaderSet :: HeaderSet -> IO ()
+printHeaderSet hs = mapM_ printHeader hs
   where
-    showHeader (k,v) = BS.concat [ foldedCase k
-                                 , ": "
-                                 , v
-                                 , "\n"
-                                 ]
+    printHeader (k,v) = do
+        BS.putStr $ foldedCase k
+        putStr ": "
+        BS.putStr v
+        putStr "\n"
 
 -- | Merging the emitted header set and the non-emitted header set.
 meregeHeaderSet :: HeaderSet -> HeaderSet -> HeaderSet
