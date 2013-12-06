@@ -39,10 +39,12 @@ printHeaderTable (HeaderTable maxN off n tbl tblsiz _) = do
     end = off + n
 
 printEntry :: (Index,Entry) -> IO ()
-printEntry (i,e)= do
+printEntry (i,e) = do
     putStr "[ "
     putStr $ show i
-    putStr "] "
+    putStr "] (s = "
+    putStr $ show $ entrySize e
+    putStr ") "
     BS.putStr $ foldedCase $ entryHeaderName e
     putStr ": "
     BS.putStrLn $ entryHeaderValue e
