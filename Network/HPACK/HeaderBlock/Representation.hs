@@ -1,4 +1,4 @@
-module Network.HPACK.HeaderBlock.Types (
+module Network.HPACK.HeaderBlock.Representation (
   -- * Type
     HeaderBlock
   , Representation(..)

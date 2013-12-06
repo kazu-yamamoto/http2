@@ -5,7 +5,7 @@ module Network.HPACK.HeaderBlock.Encode (
   ) where
 
 import Network.HPACK.Context
-import Network.HPACK.HeaderBlock.Types
+import Network.HPACK.HeaderBlock.Representation
 
 toHeaderBlock :: HeaderSet
               -> Context

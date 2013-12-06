@@ -10,7 +10,7 @@ module Network.HPACK.HeaderBlock (
 
 import Network.HPACK.HeaderBlock.Encode
 import Network.HPACK.HeaderBlock.Decode
-import Network.HPACK.HeaderBlock.Types
+import Network.HPACK.HeaderBlock.Representation
 import Network.HPACK.Huffman
 
 toByteStream :: HuffmanEncoding -> HeaderBlock -> ByteStream

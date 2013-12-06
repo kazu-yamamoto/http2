@@ -6,7 +6,7 @@ module Network.HPACK.HeaderBlock.Decode (
   ) where
 
 import Network.HPACK.Context
-import Network.HPACK.HeaderBlock.Types
+import Network.HPACK.HeaderBlock.Representation
 import Network.HPACK.Table
 
 ----------------------------------------------------------------
