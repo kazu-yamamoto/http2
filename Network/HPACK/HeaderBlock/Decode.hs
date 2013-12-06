@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Network.HPACK.HeaderBlock.Decode (
     fromHeaderBlock
   , decodeStep
@@ -19,12 +21,12 @@ data DecodeError = IndexOverrun -- ^ Index is out of the range
 fromHeaderBlock :: HeaderBlock
                 -> Context
                 -> IO (HeaderSet, Context)
-fromHeaderBlock (r:rs) ctx = decodeStep ctx r >>= fromHeaderBlock rs
-fromHeaderBlock [] ctx = do
+fromHeaderBlock (r:rs) !ctx = decodeStep ctx r >>= fromHeaderBlock rs
+fromHeaderBlock [] !ctx = do
     notEmitted <- getNotEmitted ctx
-    let ctx' = emit ctx notEmitted
-        hs = getHeaderSet ctx'
-        ctx'' = clearHeaderSet ctx'
+    let !ctx' = emit ctx notEmitted
+        !hs = getHeaderSet ctx'
+        !ctx'' = clearHeaderSet ctx'
     return (hs, ctx'')
 
 ----------------------------------------------------------------
@@ -32,7 +34,7 @@ fromHeaderBlock [] ctx = do
 -- | Decoding step for one 'Representation'. Exporting for the
 --   test purpose.
 decodeStep :: Context -> Representation -> IO Context
-decodeStep ctx (Indexed idx)
+decodeStep !ctx (Indexed idx)
   | idx == 0  = clearRefSets ctx
   | isPresent = removeRef ctx idx
   | otherwise = switchAction ctx idx forStatic forHeaderTable
@@ -40,10 +42,10 @@ decodeStep ctx (Indexed idx)
     isPresent = idx `isPresentIn` ctx
     forStatic = newEntry ctx
     forHeaderTable = pushRef ctx idx
-decodeStep ctx (Literal NotAdd naming v) = do
+decodeStep !ctx (Literal NotAdd naming v) = do
     k <- fromNaming naming ctx
     emitOnly ctx (k,v)
-decodeStep ctx (Literal Add naming v) = do
+decodeStep !ctx (Literal Add naming v) = do
     k <- fromNaming naming ctx
     newEntry ctx $ toEntry (k,v)
 

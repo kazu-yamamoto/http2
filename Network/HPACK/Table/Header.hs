@@ -19,7 +19,7 @@ data HeaderTable = HeaderTable {
     maxNumOfEntries :: Int
   , offset :: Index
   , numOfEntries :: Int
-  , circularTable :: IOArray Index Entry
+  , circularTable :: !(IOArray Index Entry)
   , headerTableSize :: Size
   , maxHeaderTableSize :: Size
   }
