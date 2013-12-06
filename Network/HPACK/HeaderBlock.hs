@@ -1,7 +1,7 @@
 -- | FIXME
 
 module Network.HPACK.HeaderBlock (
-    HeaderBlock
+    module Network.HPACK.HeaderBlock.Representation
   , toByteStream
   , fromByteStream
   , toHeaderBlock
