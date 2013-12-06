@@ -4,8 +4,6 @@ module DecodeSpec where
 
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
-import Network.HPACK.HeaderBlock.Decode
-import Network.HPACK.HeaderBlock.Representation
 import Test.Hspec
 
 spec :: Spec
