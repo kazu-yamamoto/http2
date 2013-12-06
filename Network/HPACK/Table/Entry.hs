@@ -20,9 +20,8 @@ module Network.HPACK.Table.Entry (
   , maxNumbers
   ) where
 
-import Data.CaseInsensitive (foldedCase)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import Data.CaseInsensitive (foldedCase)
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -63,8 +62,8 @@ entrySize = fst
 entryHeaderName :: Entry -> HeaderName
 entryHeaderName (_,(k,_)) = k
 
--- | Getting 'HeaderValue'. (FIXME)
-entryHeaderValue :: Entry -> ByteString
+-- | Getting 'HeaderValue'.
+entryHeaderValue :: Entry -> HeaderValue
 entryHeaderValue (_,(_,v)) = v
 
 ----------------------------------------------------------------
