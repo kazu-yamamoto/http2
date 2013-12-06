@@ -71,7 +71,7 @@ entryHeaderValue (_,(_,v)) = v
 
 -- | Dummy 'Entry' to initialize a table.
 dummyEntry :: Entry
-dummyEntry = (0,("",""))
+dummyEntry = (0,("dummy","dummy"))
 
 maxNumbers :: Size -> Int
 maxNumbers siz = siz `div` headerSizeMagicNumber
