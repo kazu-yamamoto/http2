@@ -1,4 +1,4 @@
-module Network.HPACK.Huffman.Internal (
+module Network.HPACK.Huffman.Code (
   -- * Huffman encoding
     Encoder
   , toEncoder

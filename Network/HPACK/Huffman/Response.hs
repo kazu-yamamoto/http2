@@ -4,7 +4,7 @@ module Network.HPACK.Huffman.Response (
   ) where
 
 import Network.HPACK.Huffman.Bit
-import Network.HPACK.Huffman.Internal
+import Network.HPACK.Huffman.Code
 
 ----------------------------------------------------------------
 

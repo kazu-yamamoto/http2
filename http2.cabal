@@ -19,7 +19,7 @@ Library
                         Network.HPACK.Context.ReferenceSet
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit
-                        Network.HPACK.Huffman.Internal
+                        Network.HPACK.Huffman.Code
                         Network.HPACK.Huffman.Request
                         Network.HPACK.Huffman.Response
                         Network.HPACK.HeaderBlock
