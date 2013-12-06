@@ -86,8 +86,8 @@ removeRef ctx idx = return ctx { oldReferenceSet = removeIndex idx oldref }
 newEntry :: Context -> Entry -> IO Context
 newEntry (Context hdrtbl oldref newref hdrset) e = do
     (hdrtbl', is) <- insertEntry e hdrtbl
-    let oldref' = adjustReferenceSet $ removeIndices is oldref
-        newref' = addIndex 1 $ adjustReferenceSet $ removeIndices is newref
+    let oldref' = removeIndices is $ adjustReferenceSet oldref
+        newref' = addIndex 1 $ removeIndices is $ adjustReferenceSet newref
         hdrset' = insertHeader (fromEntry e) hdrset
     return $ Context hdrtbl' oldref' newref' hdrset'
 
