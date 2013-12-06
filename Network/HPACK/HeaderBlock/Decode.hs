@@ -1,5 +1,6 @@
 module Network.HPACK.HeaderBlock.Decode (
     fromHeaderBlock
+  , decodeStep
   ) where
 
 import Network.HPACK.Context
