@@ -1,8 +1,5 @@
 module Network.HPACK.HeaderBlock.Decode (
     fromHeaderBlock
-  , DecodeError(..)
-  , decode
-  , decodeStep
   ) where
 
 import Network.HPACK.Context
@@ -11,11 +8,12 @@ import Network.HPACK.Table
 
 ----------------------------------------------------------------
 
+-- FIXME: this is not necessary
 -- | Errors for decoder.
 data DecodeError = IndexOverrun -- ^ Index is out of the range
                  deriving Show
 
-
+-- | Decoding 'HeaderBlock' to 'HeaderSet'.
 fromHeaderBlock :: HeaderBlock
                 -> Context
                 -> Maybe (HeaderSet, Context)
@@ -28,18 +26,6 @@ fromHeaderBlock [] ctx = case getNotEmitted ctx of
                             hs = getHeaderSet ctx'
                             ctx'' = clearHeaderSet ctx'
                         in Just (hs, ctx'')
-
-----------------------------------------------------------------
-
--- | Decoding 'HeaderBlock' in a HTTP request/response.
--- The result of header set is stored in the final 'Context'.
-decode :: Context -> HeaderBlock -> Either DecodeError Context
-decode ctx (r:rs) = case decodeStep ctx r of
-    Left  err  -> Left err
-    Right ctx' -> decode ctx' rs
-decode ctx [] = case getNotEmitted ctx of
-    Left  e          -> Left e
-    Right notEmitted -> Right $ emit ctx notEmitted
 
 ----------------------------------------------------------------
 

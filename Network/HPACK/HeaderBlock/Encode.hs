@@ -7,6 +7,7 @@ module Network.HPACK.HeaderBlock.Encode (
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock.Representation
 
+-- | Encoding 'HeaderSet' to 'HeaderBlock'.
 toHeaderBlock :: HeaderSet
               -> Context
               -> (HeaderBlock, Context)
