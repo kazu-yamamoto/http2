@@ -1,7 +1,6 @@
 module Network.HPACK.Huffman (
   -- * Type
-    ByteStream
-  , HuffmanEncoding
+    HuffmanEncoding
   , HuffmanDecoding
   -- * Encoding/decoding
   , huffmanEncodingInRequest
@@ -15,9 +14,6 @@ import qualified Data.ByteString as BS
 import Network.HPACK.Huffman.Request
 import Network.HPACK.Huffman.Response
 import Network.HPACK.Types
-
--- | Byte stream in HTTP request/response.
-type ByteStream = ByteString
 
 -- | Huffman encoding.
 type HuffmanEncoding = HeaderStuff -> ByteStream

@@ -8,10 +8,11 @@ module Network.HPACK.HeaderBlock (
   , fromHeaderBlock
   ) where
 
-import Network.HPACK.HeaderBlock.Encode
 import Network.HPACK.HeaderBlock.Decode
+import Network.HPACK.HeaderBlock.Encode
 import Network.HPACK.HeaderBlock.HeaderField
 import Network.HPACK.Huffman
+import Network.HPACK.Types
 
 toByteStream :: HuffmanEncoding -> HeaderBlock -> ByteStream
 toByteStream = undefined

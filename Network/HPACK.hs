@@ -20,6 +20,7 @@ import Control.Arrow (first)
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Huffman
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 

@@ -5,6 +5,7 @@ module Network.HPACK.Types (
   , HeaderValue
   , HeaderStuff
   , Header
+  , ByteStream
   , Index
   , DecodeError(..)
   ) where
@@ -19,6 +20,9 @@ type HeaderValue = ByteString
 
 -- | To be a 'HeaderName' or 'HeaderValue'.
 type HeaderStuff = ByteString
+
+-- | Byte stream in HTTP request/response.
+type ByteStream = ByteString
 
 -- | Index for table.
 type Index = Int
