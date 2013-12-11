@@ -1,9 +1,12 @@
 -- | FIXME
 
 module Network.HPACK.HeaderBlock (
+  -- * Types for header block
     module Network.HPACK.HeaderBlock.HeaderField
+  -- * Header block from/to Low level
   , toByteStream
   , fromByteStream
+  -- * Header block from/to header set
   , toHeaderBlock
   , fromHeaderBlock
   ) where
