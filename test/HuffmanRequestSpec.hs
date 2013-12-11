@@ -2,26 +2,21 @@ module HuffmanRequestSpec where
 
 import Data.Char
 import Network.HPACK.Huffman.Request
-import Numeric
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Text.Printf
+
+import HexString
 
 shouldBeEncoded :: String -> String -> Expectation
-shouldBeEncoded inp out = (toS . huffmanEncodeInRequest . toW) inp `shouldBe` out
+shouldBeEncoded inp out = enc inp `shouldBe` out
   where
+    enc = toHexString . huffmanEncodeInRequest . toW
     toW = map (fromIntegral . ord)
-    toS = concatMap (printf "%02x")
 
 shouldBeDecoded :: String -> String -> Expectation
-shouldBeDecoded inp out = (toS . huffmanDecodeInRequest . toW) inp `shouldBe` out
+shouldBeDecoded inp out = dec inp `shouldBe` out
   where
-    toW = map fromHex . group2
-    fromHex = fst . head . readHex
-    group2 [] = []
-    group2 xs = ys : group2 zs
-      where
-       (ys,zs) = splitAt 2 xs
+    dec = toS . huffmanDecodeInRequest . fromHexString
     toS = map (chr . fromIntegral)
 
 spec :: Spec
