@@ -1,7 +1,7 @@
 module Network.HPACK.HeaderBlock.HeaderField (
   -- * Type
     HeaderBlock
-  , Representation(..)
+  , HeaderField(..)
   , HeaderName  -- re-exporting
   , HeaderValue -- re-exporting
   , Index       -- re-exporting
@@ -14,12 +14,12 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | Type for header block.
-type HeaderBlock = [Representation]
+type HeaderBlock = [HeaderField]
 
 -- | Type for representation.
-data Representation = Indexed Index
-                    | Literal Indexing Naming HeaderValue
-                    deriving Show
+data HeaderField = Indexed Index
+                 | Literal Indexing Naming HeaderValue
+                 deriving Show
 
 -- | Whether or not adding to a table.
 data Indexing = Add | NotAdd deriving Show

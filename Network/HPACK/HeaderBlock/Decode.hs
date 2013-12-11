@@ -31,9 +31,9 @@ fromHeaderBlock [] !ctx = do
 
 ----------------------------------------------------------------
 
--- | Decoding step for one 'Representation'. Exporting for the
+-- | Decoding step for one 'HeaderField'. Exporting for the
 --   test purpose.
-decodeStep :: Context -> Representation -> IO Context
+decodeStep :: Context -> HeaderField -> IO Context
 decodeStep !ctx (Indexed idx)
   | idx == 0  = clearRefSets ctx
   | isPresent = removeRef ctx idx
