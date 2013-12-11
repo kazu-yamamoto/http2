@@ -58,9 +58,13 @@ Test-Suite spec
   Main-Is:              Spec.hs
   Other-Modules:        BitSpec
                         DecodeSpec
+                        HeaderBlockSpec
                         HuffmanRequestSpec
                         HuffmanResponseSpec
+                        HeaderBlock
+                        HexString
   Build-Depends:        base
+                      , bytestring
                       , http2
                       , hspec >= 1.3
 
