@@ -52,7 +52,7 @@ dec :: Decoder -> Bits -> (Int,Bits)
 dec (Tip i)   xs     = (i,xs)
 dec (Bin l _) (F:xs) = dec l xs
 dec (Bin _ r) (T:xs) = dec r xs
-dec _         []     = (-1,[])
+dec _         []     = (-1,[]) -- FIXME: assuming Int, enbugs for Word8.
 
 -- | Creating 'Decoder'.
 toDecoder :: [Bits] -> Decoder
@@ -73,7 +73,7 @@ decode decoder is = decodeBits decoder (concatMap toBits is)
 decodeBits :: Decoder -> Bits -> [Int]
 decodeBits _       [] = []
 decodeBits decoder xs
-  | i < 0             = []
+  | i < 0             = [] -- FIXME: assuming Int, enbugs for Word8.
   | otherwise         = i : decodeBits decoder ys
   where
     (i,ys) = dec decoder xs
