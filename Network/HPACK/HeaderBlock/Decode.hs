@@ -7,7 +7,7 @@ module Network.HPACK.HeaderBlock.Decode (
 
 import Control.Applicative ((<$>))
 import Network.HPACK.Context
-import Network.HPACK.HeaderBlock.Representation
+import Network.HPACK.HeaderBlock.HeaderField
 import Network.HPACK.Table
 
 ----------------------------------------------------------------

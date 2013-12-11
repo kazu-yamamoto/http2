@@ -1,7 +1,7 @@
 -- | FIXME
 
 module Network.HPACK.HeaderBlock (
-    module Network.HPACK.HeaderBlock.Representation
+    module Network.HPACK.HeaderBlock.HeaderField
   , toByteStream
   , fromByteStream
   , toHeaderBlock
@@ -10,7 +10,7 @@ module Network.HPACK.HeaderBlock (
 
 import Network.HPACK.HeaderBlock.Encode
 import Network.HPACK.HeaderBlock.Decode
-import Network.HPACK.HeaderBlock.Representation
+import Network.HPACK.HeaderBlock.HeaderField
 import Network.HPACK.Huffman
 
 toByteStream :: HuffmanEncoding -> HeaderBlock -> ByteStream

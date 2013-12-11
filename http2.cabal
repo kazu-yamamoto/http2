@@ -25,7 +25,7 @@ Library
                         Network.HPACK.HeaderBlock
                         Network.HPACK.HeaderBlock.Decode
                         Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.Representation
+                        Network.HPACK.HeaderBlock.HeaderField
                         Network.HPACK.Table
                         Network.HPACK.Table.Entry
                         Network.HPACK.Table.Header
