@@ -1,9 +1,9 @@
 module Network.HPACK.HeaderBlock.Integer where
 
-import Network.HPACK.Types
+import Data.Word (Word8)
 
-encode :: Int -> ByteStream
+encode :: Int -> Int -> [Word8]
 encode = undefined
 
-decode :: ByteStream -> Int
+decode :: Int -> [Word8] -> Int
 decode = undefined

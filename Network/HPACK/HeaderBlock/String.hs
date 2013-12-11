@@ -1,9 +1,11 @@
 module Network.HPACK.HeaderBlock.String where
 
+import Data.Word (Word8)
+import Network.HPACK.Huffman
 import Network.HPACK.Types
 
-encode :: HeaderStuff -> ByteStream
+encode :: HuffmanEncoding -> HeaderStuff -> [Word8]
 encode = undefined
 
-decode :: ByteStream -> HeaderStuff
+decode :: HuffmanDecoding -> [Word8] -> HeaderStuff
 decode = undefined
