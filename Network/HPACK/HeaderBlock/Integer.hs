@@ -1,6 +1,12 @@
-module Network.HPACK.HeaderBlock.Integer where
+module Network.HPACK.HeaderBlock.Integer (
+    encode
+  , encodeOne
+  , decode
+  ) where
 
 import Data.Word (Word8)
+
+----------------------------------------------------------------
 
 -- | Integer encoding. The first argument is N of prefix.
 --
@@ -23,6 +29,13 @@ encode' i
   | otherwise = fromIntegral (r + 128) : encode' q
   where
     (q,r) = i `divMod` 128
+
+----------------------------------------------------------------
+
+encodeOne :: Int -> Word8
+encodeOne = fromIntegral
+
+----------------------------------------------------------------
 
 -- | Integer decoding. The first argument is N of prefix.
 decode :: Int -> [Word8] -> Int

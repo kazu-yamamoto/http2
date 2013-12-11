@@ -1,8 +1,8 @@
 module Network.HPACK.HeaderBlock.Format where
 
-import Data.Bits
+import Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as BB
-import qualified Data.ByteString as BS
+import Data.Bits
 import Data.CaseInsensitive (foldedCase)
 import Data.List (foldl')
 import Data.Monoid ((<>), mempty)
@@ -19,36 +19,51 @@ import Network.HPACK.Types
 toByteStream :: HuffmanEncoding -> HeaderBlock -> ByteStream
 toByteStream he hbs = BB.toByteString $ foldl' (<>) mempty $ map toBB hbs
   where
-    toBB = BB.fromWord8s . fromHeaderField he
+    toBB = fromHeaderField he
 
-fromHeaderField :: HuffmanEncoding -> HeaderField -> [Word8]
-fromHeaderField _  (Indexed idx)                = set1  $ I.encode 7 idx
-fromHeaderField he (Literal NotAdd (Idx idx) v) = set01 $ indexedName he idx v
-fromHeaderField he (Literal NotAdd (Lit key) v) = set01 $ newName he key v
-fromHeaderField he (Literal Add    (Idx idx) v) = set00 $ indexedName he idx v
-fromHeaderField he (Literal Add    (Lit key) v) = set00 $ newName he key v
+fromHeaderField :: HuffmanEncoding -> HeaderField -> Builder
+fromHeaderField _  (Indexed idx)                = index idx
+fromHeaderField he (Literal NotAdd (Idx idx) v) = indexedName he set01 idx v
+fromHeaderField he (Literal NotAdd (Lit key) v) = newName     he set01 key v
+fromHeaderField he (Literal Add    (Idx idx) v) = indexedName he set00 idx v
+fromHeaderField he (Literal Add    (Lit key) v) = newName     he set00 key v
 
-indexedName :: HuffmanEncoding -> Int -> HeaderValue -> [Word8]
-indexedName he idx v = I.encode 6 idx ++ I.encode 8 vlen ++ S.encode he v
+index :: Int -> Builder
+index = BB.fromWord8 . set1 . I.encodeOne
+
+-- Using Huffman encoding
+indexedName :: HuffmanEncoding -> Setter -> Int -> HeaderValue -> Builder
+indexedName he set idx v = pre <> vlen <> val
   where
-    vlen = BS.length v
+    pre = BB.fromWord8 $ set $ I.encodeOne idx
+    (valueLen,value) = S.encode he v
+    vlen = BB.fromWord8s $ setH $ I.encode 8 valueLen
+    val = BB.fromWord8s value
 
-newName :: HuffmanEncoding -> HeaderName -> HeaderValue -> [Word8]
-newName he key v = 0
-                 : I.encode 8 klen ++ S.encode he k
-                ++ I.encode 8 vlen ++ S.encode he v
+-- Using Huffman encoding
+newName :: HuffmanEncoding -> Setter -> HeaderName -> HeaderValue -> Builder
+newName he set ck v = pre <> klen <> key <> vlen <> val
   where
-    k = foldedCase key
-    klen = BS.length k
-    vlen = BS.length v
+    pre = BB.fromWord8 $ set 0
+    k = foldedCase ck
+    (keyLen, key0) = S.encode he k
+    (valueLen, value) = S.encode he v
+    klen = BB.fromWord8s $ setH $ I.encode 8 keyLen
+    vlen = BB.fromWord8s $ setH $ I.encode 8 valueLen
+    key = BB.fromWord8s key0
+    val = BB.fromWord8s value
+
+type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
-set1, set01, set00 :: [Word8] -> [Word8]
-set1  []     = error "set1"
-set1  (x:xs) = setBit x 7 : xs
-set01 []     = error "set01"
-set01 (x:xs) = setBit x 6 : xs
-set00        = id
+set1, set01, set00 :: Setter
+set1  x = setBit x 7
+set01 x = setBit x 6
+set00   = id
+
+setH :: [Word8] -> [Word8]
+setH []     = error "setH"
+setH (x:xs) = setBit x 7 :xs
 
 ----------------------------------------------------------------
 
