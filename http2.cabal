@@ -61,6 +61,7 @@ Test-Suite spec
                         HeaderBlockSpec
                         HuffmanRequestSpec
                         HuffmanResponseSpec
+                        IntegerSpec
                         HeaderBlock
                         HexString
   Build-Depends:        base
