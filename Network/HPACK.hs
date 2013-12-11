@@ -6,6 +6,7 @@ module Network.HPACK (
   , HeaderSet
   , Context
   , newContext
+  , DecodeError(..)
   -- * Request
   , encodeRequestHeader
   , decodeRequestHeader
@@ -22,12 +23,15 @@ import Network.HPACK.Huffman
 
 ----------------------------------------------------------------
 
+-- | Converting 'HeaderSet' for HTTP request to the low level format.
 encodeRequestHeader :: HeaderSet
                     -> Context
                     -> IO (ByteStream, Context)
 encodeRequestHeader hs ctx =
     first (toByteStream huffmanEncodingInRequest) <$> toHeaderBlock hs ctx
 
+-- | Converting the low level format for HTTP request to'HeaderSet'.
+--   'DecodeError' would be thrown.
 decodeRequestHeader :: ByteStream
                     -> Context
                     -> IO (HeaderSet, Context)
@@ -36,12 +40,15 @@ decodeRequestHeader bs ctx =
 
 ----------------------------------------------------------------
 
+-- | Converting 'HeaderSet' for HTTP response to the low level format.
 encodeResponseHeader :: HeaderSet
                      -> Context
                      -> IO (ByteStream, Context)
 encodeResponseHeader hs ctx =
     first (toByteStream huffmanEncodingInResponse) <$> toHeaderBlock hs ctx
 
+-- | Converting the low level format for HTTP response to'HeaderSet'.
+--   'DecodeError' would be thrown.
 decodeResponseHeader :: ByteStream
                     -> Context
                     -> IO (HeaderSet, Context)
