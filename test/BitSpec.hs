@@ -6,7 +6,7 @@ import Test.Hspec.QuickCheck
 
 spec :: Spec
 spec = do
-    describe "toBits and toInt" $ do
+    describe "toBits and fromBits" $ do
         prop "duality" $ \n ->
-            let i = n `mod` 256
-            in  toInt (toBits i) == i
+            let i = fromIntegral $ abs (n :: Int) `mod` 256
+            in  fromBits (toBits i) == i

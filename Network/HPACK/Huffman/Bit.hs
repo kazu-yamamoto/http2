@@ -3,39 +3,49 @@
 module Network.HPACK.Huffman.Bit (
     B(..)
   , Bits
-  , toInt
+  , fromBits
   , toBits
   ) where
 
 import Data.List (foldl')
+import Data.Word (Word8)
 
 -- | Data type for Bit.
 data B = F -- ^ Zero
        | T -- ^ One
-       deriving (Eq,Ord,Enum,Show)
+       deriving (Eq,Ord,Show)
+
+fromBit :: B -> Word8
+fromBit F = 0
+fromBit T = 1
+
+toBit :: Word8 -> B
+toBit 0 = F
+toBit 1 = T
+toBit _ = error "toBit"
 
 -- | Bit sequence.
 type Bits = [B]
 
--- | From 'Bits' of length 8 to 'Int'.
+-- | From 'Bits' of length 8 to 'Word8'.
 --
--- >>> toInt [T,F,T,F,T,F,T,F]
+-- >>> fromBits [T,F,T,F,T,F,T,F]
 -- 170
--- >>> toInt [F,T,F,T,F,T,F,T]
+-- >>> fromBits [F,T,F,T,F,T,F,T]
 -- 85
-toInt :: Bits -> Int
-toInt = foldl' (\x y -> x * 2 + y) 0 . map fromEnum
+fromBits :: Bits -> Word8
+fromBits = foldl' (\x y -> x * 2 + y) 0 . map fromBit
 
--- | From 'Int' to 'Bits' of length 8.
+-- | From 'Word8' to 'Bits' of length 8.
 --
 -- >>> toBits 170
 -- [T,F,T,F,T,F,T,F]
 -- >>> toBits 85
 -- [F,T,F,T,F,T,F,T]
-toBits :: Int -> Bits
+toBits :: Word8 -> Bits
 toBits = toBits' [] 0
 
-toBits' :: Bits -> Int -> Int -> Bits
+toBits' :: Bits -> Int -> Word8 -> Bits
 toBits' bs !cnt 0
   | cnt == 8      = bs
   | otherwise     = replicate (8 - cnt) F ++ bs -- filling missing bits from MSB
@@ -43,4 +53,4 @@ toBits' bs !cnt x = toBits' (b:bs) (cnt + 1) q
   where
     q = x `div` 2
     r = x `mod` 2
-    b = if r == 0 then F else T
+    b = toBit r

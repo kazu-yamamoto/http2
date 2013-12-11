@@ -29,7 +29,7 @@ encodeRequestHeader :: HeaderSet
                     -> Context
                     -> IO (ByteStream, Context)
 encodeRequestHeader hs ctx =
-    first (toByteStream huffmanEncodingInRequest) <$> toHeaderBlock hs ctx
+    first (toByteStream huffmanEncodeInRequest) <$> toHeaderBlock hs ctx
 
 -- | Converting the low level format for HTTP request to'HeaderSet'.
 --   'DecodeError' would be thrown.
@@ -37,7 +37,7 @@ decodeRequestHeader :: ByteStream
                     -> Context
                     -> IO (HeaderSet, Context)
 decodeRequestHeader bs ctx =
-    fromHeaderBlock (fromByteStream huffmanDecodingInRequest bs) ctx
+    fromHeaderBlock (fromByteStream huffmanDecodeInRequest bs) ctx
 
 ----------------------------------------------------------------
 
@@ -46,7 +46,7 @@ encodeResponseHeader :: HeaderSet
                      -> Context
                      -> IO (ByteStream, Context)
 encodeResponseHeader hs ctx =
-    first (toByteStream huffmanEncodingInResponse) <$> toHeaderBlock hs ctx
+    first (toByteStream huffmanEncodeInResponse) <$> toHeaderBlock hs ctx
 
 -- | Converting the low level format for HTTP response to'HeaderSet'.
 --   'DecodeError' would be thrown.
@@ -54,4 +54,4 @@ decodeResponseHeader :: ByteStream
                     -> Context
                     -> IO (HeaderSet, Context)
 decodeResponseHeader bs ctx =
-    fromHeaderBlock (fromByteStream huffmanDecodingInResponse bs) ctx
+    fromHeaderBlock (fromByteStream huffmanDecodeInResponse bs) ctx

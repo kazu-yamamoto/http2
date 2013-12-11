@@ -1,6 +1,6 @@
 module Network.HPACK.Huffman.Response (
-    encodeInResponse
-  , decodeInResponse
+    huffmanEncodeInResponse
+  , huffmanDecodeInResponse
   ) where
 
 import Network.HPACK.Huffman.Bit
@@ -12,8 +12,8 @@ encoderForResponse :: Encoder
 encoderForResponse = toEncoder huffmanResponse
 
 -- | Hoffman encoding in HTTP/2.0 request.
-encodeInResponse :: [Int] -> [Int]
-encodeInResponse = encode encoderForResponse
+huffmanEncodeInResponse :: HuffmanEncoding
+huffmanEncodeInResponse = encode encoderForResponse
 
 ----------------------------------------------------------------
 
@@ -21,8 +21,8 @@ decoderForResponse :: Decoder
 decoderForResponse = toDecoder huffmanResponse
 
 -- | Hoffman decoding in HTTP/2.0 request.
-decodeInResponse :: [Int] -> [Int]
-decodeInResponse = decode decoderForResponse
+huffmanDecodeInResponse :: HuffmanDecoding
+huffmanDecodeInResponse = decode decoderForResponse
 
 ----------------------------------------------------------------
 
