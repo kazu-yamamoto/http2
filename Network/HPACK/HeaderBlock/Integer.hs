@@ -2,6 +2,7 @@ module Network.HPACK.HeaderBlock.Integer (
     encode
   , encodeOne
   , decode
+  , decodeOne
   ) where
 
 import Data.Word (Word8)
@@ -38,5 +39,17 @@ encodeOne = fromIntegral
 ----------------------------------------------------------------
 
 -- | Integer decoding. The first argument is N of prefix.
+--
+-- >>> decode 5 [10]
+-- 10
+-- >>> decode 5 [31,154,10]
+-- 1337
+-- >>> decode 8 [42]
+-- 42
 decode :: Int -> [Word8] -> Int
 decode = undefined
+
+----------------------------------------------------------------
+
+decodeOne :: Word8 -> Int
+decodeOne = fromIntegral
