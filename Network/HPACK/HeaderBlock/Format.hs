@@ -36,7 +36,8 @@ indexedName :: HuffmanEncoding -> Setter -> Int -> HeaderValue -> Builder
 indexedName he set idx v = pre <> vlen <> val
   where
     pre = BB.fromWord8 $ set $ I.encodeOne idx
-    (valueLen,value) = S.encode he v
+    value = S.encode he v
+    valueLen = length value -- FIXME: performance
     vlen = BB.fromWord8s $ setH $ I.encode 8 valueLen
     val = BB.fromWord8s value
 
@@ -46,8 +47,10 @@ newName he set ck v = pre <> klen <> key <> vlen <> val
   where
     pre = BB.fromWord8 $ set 0
     k = foldedCase ck
-    (keyLen, key0) = S.encode he k
-    (valueLen, value) = S.encode he v
+    key0 = S.encode he k
+    keyLen = length key0
+    value = S.encode he v
+    valueLen = length value
     klen = BB.fromWord8s $ setH $ I.encode 8 keyLen
     vlen = BB.fromWord8s $ setH $ I.encode 8 valueLen
     key = BB.fromWord8s key0
