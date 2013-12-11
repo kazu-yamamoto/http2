@@ -1,5 +1,6 @@
 module Network.HPACK.HeaderBlock.Format where
 
+import Data.Bits
 import qualified Blaze.ByteString.Builder as BB
 import qualified Data.ByteString as BS
 import Data.CaseInsensitive (foldedCase)
@@ -41,11 +42,13 @@ newName he key v = 0
     klen = BS.length k
     vlen = BS.length v
 
--- FIXME
+-- Assuming MSBs are 0.
 set1, set01, set00 :: [Word8] -> [Word8]
-set1 = undefined
-set01 = undefined
-set00 = undefined
+set1  []     = error "set1"
+set1  (x:xs) = setBit x 7 : xs
+set01 []     = error "set01"
+set01 (x:xs) = setBit x 6 : xs
+set00        = id
 
 ----------------------------------------------------------------
 
