@@ -29,12 +29,12 @@ data HeaderTable = HeaderTable {
 -- | Printing 'HeaderTable'.
 printHeaderTable :: HeaderTable -> IO ()
 printHeaderTable (HeaderTable maxN off n tbl tblsiz _) = do
-    es <- mapM (readArray tbl) $ map adj [beg .. end]
+    es <- mapM (readArray tbl . adj) [beg .. end]
     let ts = zip [1..] es
     mapM_ printEntry ts
     putStrLn $ "      Table size: " ++ show tblsiz
   where
-    adj = (\x -> (x + maxN) `mod` maxN)
+    adj x = (x + maxN) `mod` maxN
     beg = off + 1
     end = off + n
 
