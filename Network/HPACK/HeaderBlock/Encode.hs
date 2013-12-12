@@ -41,7 +41,7 @@ indexedName he set idx v = pre <> vlen <> val
     pre = BB.fromWord8 $ set $ I.encodeOne idx
     value = S.encode he v
     valueLen = length value -- FIXME: performance
-    vlen = BB.fromWord8s $ setH $ I.encode 8 valueLen
+    vlen = BB.fromWord8s $ setH $ I.encode 7 valueLen
     val = BB.fromWord8s value
 
 -- Using Huffman encoding
@@ -54,8 +54,8 @@ newName he set ck v = pre <> klen <> key <> vlen <> val
     keyLen = length key0 -- FIXME: performance
     value = S.encode he v
     valueLen = length value -- FIXME: performance
-    klen = BB.fromWord8s $ setH $ I.encode 8 keyLen
-    vlen = BB.fromWord8s $ setH $ I.encode 8 valueLen
+    klen = BB.fromWord8s $ setH $ I.encode 7 keyLen
+    vlen = BB.fromWord8s $ setH $ I.encode 7 valueLen
     key = BB.fromWord8s key0
     val = BB.fromWord8s value
 

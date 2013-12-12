@@ -2,9 +2,12 @@
 
 module HeaderBlockSpec where
 
+import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Huffman
+import Network.HPACK.Types
 import Test.Hspec
+import Test.Hspec.QuickCheck
 
 import HeaderBlock
 
@@ -27,3 +30,17 @@ spec = do
             fromByteStream huffmanDecodeInResponse e51b `shouldBe` e51
             fromByteStream huffmanDecodeInResponse e52b `shouldBe` e52
             fromByteStream huffmanDecodeInResponse e53b `shouldBe` e53
+    describe "toByteStream & fromByteStream" $ do
+        prop "duality for request" $ \k v -> do
+            putStrLn $ "K length" ++ show (length k)
+            putStrLn $ "V length" ++ show (length v)
+            let key = toHeaderName $ BS.pack ('k':k)
+                val = BS.pack ('v':v)
+                hb = [Literal Add (Lit key) val]
+            fromByteStream huffmanDecodeInRequest
+                (toByteStream huffmanEncodeInRequest hb) `shouldBe` hb
+        prop "duality for response" $ \v -> do
+            let val = BS.pack ('v':v)
+                hb = [Literal Add (Idx 3) val]
+            fromByteStream huffmanDecodeInResponse
+                (toByteStream huffmanEncodeInResponse hb) `shouldBe` hb
