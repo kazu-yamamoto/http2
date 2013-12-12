@@ -4,7 +4,6 @@ module Network.HPACK.HeaderBlock.Decode (
 
 import Data.Bits
 import qualified Data.ByteString as BS
-import Data.CaseInsensitive (mk)
 import Data.Word (Word8)
 import Network.HPACK.HeaderBlock.HeaderField
 import qualified Network.HPACK.HeaderBlock.Integer as I
@@ -60,7 +59,8 @@ fromNewName indexing hd ws = (hf, ws'')
   where
     (val,ws')  = headerStuff hd ws
     (key,ws'') = headerStuff hd ws'
-    hf = Literal indexing (Lit (mk key)) val
+    name = toHeaderName key
+    hf = Literal indexing (Lit name) val
 
 index6 :: Word8 -> Int
 index6 w = fromIntegral $ w .&. 63

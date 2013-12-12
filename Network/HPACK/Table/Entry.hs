@@ -21,7 +21,6 @@ module Network.HPACK.Table.Entry (
   ) where
 
 import qualified Data.ByteString as BS
-import Data.CaseInsensitive (foldedCase)
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -38,7 +37,9 @@ headerSizeMagicNumber :: Size
 headerSizeMagicNumber = 32
 
 headerSize :: Header -> Size
-headerSize (k,v) = BS.length (foldedCase k) + BS.length v + headerSizeMagicNumber
+headerSize (k,v) = BS.length (fromHeaderName k)
+                 + BS.length v
+                 + headerSizeMagicNumber
 
 ----------------------------------------------------------------
 

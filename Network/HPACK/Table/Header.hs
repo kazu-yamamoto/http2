@@ -9,8 +9,8 @@ module Network.HPACK.Table.Header (
 
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
-import Data.CaseInsensitive (foldedCase)
 import Network.HPACK.Table.Entry
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
@@ -45,7 +45,7 @@ printEntry (i,e) = do
     putStr "] (s = "
     putStr $ show $ entrySize e
     putStr ") "
-    BS.putStr $ foldedCase $ entryHeaderName e
+    BS.putStr $ fromHeaderName $ entryHeaderName e
     putStr ": "
     BS.putStrLn $ entryHeaderValue e
 
