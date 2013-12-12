@@ -75,7 +75,7 @@ staticColonHeaderList :: [Header]
 
 staticColonHeaderList = takeWhile isColon staticTableList
   where
-    isColon e = H.head (fromHeaderName (fst e)) == ':'
+    isColon h = H.head (fromHeaderName (fst h)) == ':'
 
 ----------------------------------------------------------------
 
