@@ -12,10 +12,9 @@ module Network.HPACK.Table (
   , fromWhich
   ) where
 
-import Control.Exception (throwIO)
-import Data.Array ((!))
-import Data.Array.IO (readArray)
 import Control.Applicative ((<$>))
+import Control.Exception (throwIO)
+import Data.Array.IO (readArray)
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Header
 import Network.HPACK.Table.Static
@@ -34,10 +33,10 @@ data WhichTable = InHeaderTable Entry
 which :: HeaderTable -> Index -> IO WhichTable
 which (HeaderTable maxN off n tbl _ _) idx
   | idx <= n                        = InHeaderTable <$> readArray tbl pidx
-  | 1 <= stcidx && stcidx <= stcsiz = return $ InStaticTable $ stctbl ! stcidx
+  | 1 <= stcidx && stcidx <= stcsiz = return $ InStaticTable $ toStaticEntry stcidx
   | otherwise                       = throwIO IndexOverrun
   where
-    StaticTable stcsiz stctbl = staticTable
+    stcsiz = staticTableSize
     stcidx = idx - n
     pidx = (off + idx + maxN) `mod` maxN
 
