@@ -28,7 +28,7 @@ import Network.HPACK.Types
 -- | Size in bytes.
 type Size = Int
 
--- | Type for table entry.
+-- | Type for table entry. Size includes the 32 bytes magic number.
 type Entry = (Size,Header)
 
 ----------------------------------------------------------------
