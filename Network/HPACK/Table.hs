@@ -3,7 +3,11 @@ module Network.HPACK.Table (
     HeaderTable
   , newHeaderTable
   , printHeaderTable
+  -- * Insertion
   , insertEntry
+  -- * Lookup
+  , HeaderCache(..)
+  , lookupTable
   -- * Entry
   , module Network.HPACK.Table.Entry
   -- * Which tables
@@ -19,6 +23,29 @@ import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Header
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
+
+----------------------------------------------------------------
+
+data HeaderCache = None | KeyOnly Index | KeyValue Index
+
+-- | Looking up the static table and the header table.
+lookupTable :: Header -> HeaderTable -> IO HeaderCache
+lookupTable h hdrtbl
+  | isColon h = do
+      mi <- toStaticColonIndex h
+      case mi of
+          Just i  -> return $ KeyValue i
+          Nothing -> lookupHeaderTable h hdrtbl
+  | otherwise = lookupHeaderTable h hdrtbl
+
+lookupHeaderTable :: Header -> HeaderTable -> IO HeaderCache
+lookupHeaderTable (k,v) hdrtbl = do
+    miv <- toIndexValue k hdrtbl
+    return $ case miv of
+        Nothing       -> None
+        Just (i,val)
+          | val == v  -> KeyValue i
+          | otherwise -> KeyOnly i
 
 ----------------------------------------------------------------
 

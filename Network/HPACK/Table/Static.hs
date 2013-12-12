@@ -5,6 +5,7 @@ module Network.HPACK.Table.Static (
   , toStaticEntry
   , toStaticIndex
   , toStaticColonIndex
+  , isColon
   ) where
 
 import Data.Array (Array, listArray, (!))
@@ -74,8 +75,10 @@ staticColonHashTable = unsafePerformIO $ I.fromList alist
 staticColonHeaderList :: [Header]
 
 staticColonHeaderList = takeWhile isColon staticTableList
-  where
-    isColon h = H.head (fromHeaderName (fst h)) == ':'
+
+-- | Checking if 'HeaderName' starts with colon.
+isColon :: Header -> Bool
+isColon h = H.head (fromHeaderName (fst h)) == ':'
 
 ----------------------------------------------------------------
 
