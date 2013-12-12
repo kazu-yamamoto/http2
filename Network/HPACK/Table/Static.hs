@@ -4,7 +4,7 @@ module Network.HPACK.Table.Static (
     staticTableSize
   , toStaticEntry
   , toStaticIndex
-  , toStaticIndexValue
+  , toStaticColonIndex
   ) where
 
 import Data.Array (Array, listArray, (!))
@@ -37,8 +37,9 @@ staticTable = listArray (1,60) $ map toEntry staticTableList
 ----------------------------------------------------------------
 
 -- | Get 'Index' from the static table.
---   Only non colon headers.
 --
+-- >>> toStaticIndex ":status"
+-- Just 13
 -- >>> toStaticIndex "date"
 -- Just 32
 -- >>> toStaticIndex "user-agent"
@@ -49,36 +50,32 @@ toStaticIndex k = I.lookup staticHashTable k
 staticHashTable :: BasicHashTable HeaderName Index
 staticHashTable = unsafePerformIO $ I.fromList alist
   where
-    beg = length staticVirtualHeaderList + 1
-    alist = zip staticKeyList [beg ..]
+    alist = zip (map fst staticTableList) [1 ..]
 
 ----------------------------------------------------------------
 
 -- | Get 'Index' from the static table.
 --   Only colon headers.
 --
--- >>> toStaticIndexValue (":path","/index.html")
+-- >>> toStaticColonIndex (":path","/index.html")
 -- Just 5
--- >>> toStaticIndexValue (":status","200")
+-- >>> toStaticColonIndex (":status","200")
 -- Just 8
-toStaticIndexValue :: Header -> IO (Maybe Index)
-toStaticIndexValue h = I.lookup staticColonHashTable h
+toStaticColonIndex :: Header -> IO (Maybe Index)
+toStaticColonIndex h = I.lookup staticColonHashTable h
 
 staticColonHashTable :: BasicHashTable Header Index
 staticColonHashTable = unsafePerformIO $ I.fromList alist
   where
-    alist = zip staticVirtualHeaderList [1 ..]
+    alist = zip staticColonHeaderList [1 ..]
 
 ----------------------------------------------------------------
 
-staticVirtualHeaderList :: [Header]
-staticKeyList :: [HeaderName]
+staticColonHeaderList :: [Header]
 
-(staticVirtualHeaderList,staticKeyList) = (vs,ks)
+staticColonHeaderList = takeWhile isColon staticTableList
   where
     isColon e = H.head (fromHeaderName (fst e)) == ':'
-    (vs,ks') = span isColon staticTableList
-    ks = map fst ks'
 
 ----------------------------------------------------------------
 
