@@ -29,6 +29,8 @@ fromHeaderField he (Literal NotAdd (Lit key) v) = newName     he set01 key v
 fromHeaderField he (Literal Add    (Idx idx) v) = indexedName he set00 idx v
 fromHeaderField he (Literal Add    (Lit key) v) = newName     he set00 key v
 
+----------------------------------------------------------------
+
 index :: Int -> Builder
 index = BB.fromWord8 . set1 . I.encodeOne
 
@@ -49,13 +51,15 @@ newName he set ck v = pre <> klen <> key <> vlen <> val
     pre = BB.fromWord8 $ set 0
     k = fromHeaderName ck
     key0 = S.encode he k
-    keyLen = length key0
+    keyLen = length key0 -- FIXME: performance
     value = S.encode he v
-    valueLen = length value
+    valueLen = length value -- FIXME: performance
     klen = BB.fromWord8s $ setH $ I.encode 8 keyLen
     vlen = BB.fromWord8s $ setH $ I.encode 8 valueLen
     key = BB.fromWord8s key0
     val = BB.fromWord8s value
+
+----------------------------------------------------------------
 
 type Setter = Word8 -> Word8
 
