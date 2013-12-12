@@ -4,7 +4,7 @@ module Network.HPACK.HeaderBlock.Encode (
 
 import Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as BB
-import Data.Bits
+import Data.Bits (setBit)
 import Data.List (foldl')
 import Data.Monoid ((<>), mempty)
 import Data.Word (Word8)
@@ -65,10 +65,10 @@ type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
 set1, set01, set00 :: Setter
-set1  x = setBit x 7
-set01 x = setBit x 6
+set1  x = x `setBit` 7
+set01 x = x `setBit` 6
 set00   = id
 
 setH :: [Word8] -> [Word8]
 setH []     = error "setH"
-setH (x:xs) = setBit x 7 :xs
+setH (x:xs) = (x `setBit` 7) : xs
