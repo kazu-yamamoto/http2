@@ -19,10 +19,10 @@ type HeaderBlock = [HeaderField]
 -- | Type for representation.
 data HeaderField = Indexed Index
                  | Literal Indexing Naming HeaderValue
-                 deriving Show
+                 deriving (Eq,Show)
 
 -- | Whether or not adding to a table.
-data Indexing = Add | NotAdd deriving Show
+data Indexing = Add | NotAdd deriving (Eq,Show)
 
 -- | Index or literal.
-data Naming = Idx Index | Lit HeaderName deriving Show
+data Naming = Idx Index | Lit HeaderName deriving (Eq,Show)

@@ -3,10 +3,16 @@ module Network.HPACK.HeaderBlock.Integer (
   , encodeOne
   , decode
   , decodeOne
+  , parseInteger
   ) where
 
 import Data.Array (Array, listArray, (!))
 import Data.Word (Word8)
+
+----------------------------------------------------------------
+
+powerArray :: Array Int Int
+powerArray = listArray (1,8) [1,3,7,15,31,63,127,255]
 
 ----------------------------------------------------------------
 
@@ -23,7 +29,7 @@ encode n i
   | i < p     = fromIntegral i : []
   | otherwise = fromIntegral p : encode' (i - p)
   where
-    p = encodeArray ! n
+    p = powerArray ! n
 
 encode' :: Int -> [Word8]
 encode' i
@@ -31,9 +37,6 @@ encode' i
   | otherwise = fromIntegral (r + 128) : encode' q
   where
     (q,r) = i `divMod` 128
-
-encodeArray :: Array Int Int
-encodeArray = listArray (1,8) [1,3,7,15,31,63,127,255]
 
 ----------------------------------------------------------------
 
@@ -57,11 +60,27 @@ decode n ws
   | i < p     = i
   | otherwise = foldr1 (\x y -> x - 128 + y * 128) is + i
   where
-    p = encodeArray ! n
+    p = powerArray ! n
     (i:is) = map fromIntegral ws
-
-----------------------------------------------------------------
 
 -- | Integer decoding.
 decodeOne :: Word8 -> Int
 decodeOne = fromIntegral
+
+----------------------------------------------------------------
+
+parseInteger :: Int -> Word8 -> [Word8] -> (Int, [Word8])
+parseInteger n w ws
+  | i < p     = (i, ws)
+  | otherwise = (len, rest)
+  where
+    p = powerArray ! n
+    i = fromIntegral w
+    (ws', rest) = split ws
+    len = decode n (w:ws')
+
+split :: [Word8] -> ([Word8],[Word8])
+split []     = error "split"
+split (w:ws)
+  | w >= 128  = let (xs,ys) = split ws in (w:xs, ys)
+  | otherwise = ([w], ws)
