@@ -25,10 +25,11 @@ Library
                         Network.HPACK.HeaderBlock
                         Network.HPACK.HeaderBlock.Decode
                         Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.Format
+                        Network.HPACK.HeaderBlock.From
                         Network.HPACK.HeaderBlock.HeaderField
                         Network.HPACK.HeaderBlock.Integer
                         Network.HPACK.HeaderBlock.String
+                        Network.HPACK.HeaderBlock.To
                         Network.HPACK.Table
                         Network.HPACK.Table.Entry
                         Network.HPACK.Table.Header

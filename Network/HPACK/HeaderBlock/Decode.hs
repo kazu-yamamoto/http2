@@ -1,61 +1,73 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Network.HPACK.HeaderBlock.Decode (
-    fromHeaderBlock
-  , decodeStep
+    fromByteStream
   ) where
 
-import Control.Applicative ((<$>))
-import Network.HPACK.Context
+import Data.Bits
+import qualified Data.ByteString as BS
+import Data.CaseInsensitive (mk)
+import Data.Word (Word8)
 import Network.HPACK.HeaderBlock.HeaderField
-import Network.HPACK.Table
+import qualified Network.HPACK.HeaderBlock.Integer as I
+import qualified Network.HPACK.HeaderBlock.String as S
+import Network.HPACK.Huffman
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- FIXME: this is not necessary
--- | Errors for decoder.
-data DecodeError = IndexOverrun -- ^ Index is out of the range
-                 deriving Show
-
--- | Decoding 'HeaderBlock' to 'HeaderSet'.
-fromHeaderBlock :: HeaderBlock
-                -> Context
-                -> IO (HeaderSet, Context)
-fromHeaderBlock (r:rs) !ctx = decodeStep ctx r >>= fromHeaderBlock rs
-fromHeaderBlock [] !ctx = do
-    notEmitted <- getNotEmitted ctx
-    let !ctx' = emit ctx notEmitted
-        !hs = getHeaderSet ctx'
-        !ctx'' = clearHeaderSet ctx'
-    return (hs, ctx'')
-
-----------------------------------------------------------------
-
--- | Decoding step for one 'HeaderField'. Exporting for the
---   test purpose.
-decodeStep :: Context -> HeaderField -> IO Context
-decodeStep !ctx (Indexed idx)
-  | idx == 0  = clearRefSets ctx
-  | isPresent = removeRef ctx idx
-  | otherwise = switchAction ctx idx forStatic forHeaderTable
+-- | Converting the low level format to 'HeaderBlock'.
+fromByteStream :: HuffmanDecoding -> ByteStream -> HeaderBlock
+fromByteStream hd bs = go $ BS.unpack bs
   where
-    isPresent = idx `isPresentIn` ctx
-    forStatic = newEntry ctx
-    forHeaderTable = pushRef ctx idx
-decodeStep !ctx (Literal NotAdd naming v) = do
-    k <- fromNaming naming ctx
-    emitOnly ctx (k,v)
-decodeStep !ctx (Literal Add naming v) = do
-    k <- fromNaming naming ctx
-    newEntry ctx $ toEntry (k,v)
+    go [] = []
+    go ws = hf : go ws'
+       where
+         (hf, ws') = toHeaderField hd ws
 
-----------------------------------------------------------------
+toHeaderField :: HuffmanDecoding -> [Word8] -> (HeaderField, [Word8])
+toHeaderField _  []     = error "toHeaderField"
+toHeaderField hd (w:ws)
+  | testBit w 7 = indexed w ws
+  | testBit w 6 = withoutIndexing hd w ws
+  | otherwise   = incrementalIndexing hd w ws
 
-fromNaming :: Naming -> Context -> IO HeaderName
-fromNaming (Lit k)   _   = return k
-fromNaming (Idx idx) ctx = entryHeaderName <$> getEntry idx ctx
+indexed :: Word8 -> [Word8] -> (HeaderField, [Word8])
+indexed w ws = (Indexed idx , ws)
+  where
+    idx = fromIntegral $ clearBit w 7
 
-----------------------------------------------------------------
+withoutIndexing :: HuffmanDecoding -> Word8 -> [Word8] -> (HeaderField, [Word8])
+withoutIndexing hd w ws
+  | isIndexedName w = fromIndexedName NotAdd hd w ws
+  | otherwise       = fromNewName NotAdd hd ws
 
-getNotEmitted :: Context -> IO HeaderSet
-getNotEmitted ctx = map fromEntry <$> notEmittedEntries ctx
+incrementalIndexing :: HuffmanDecoding -> Word8 -> [Word8] -> (HeaderField, [Word8])
+incrementalIndexing hd w ws
+  | isIndexedName w = fromIndexedName Add hd w ws
+  | otherwise       = fromNewName Add hd ws
+
+isIndexedName :: Word8 -> Bool
+isIndexedName w = w .&. 63 /= 0
+
+fromIndexedName :: Indexing -> HuffmanDecoding -> Word8 -> [Word8] -> (HeaderField, [Word8])
+fromIndexedName indexing hd w ws = (hf, ws')
+  where
+    idx = index6 w
+    (val,ws') = headerStuff hd ws
+    hf = Literal indexing (Idx idx) val
+
+fromNewName :: Indexing -> HuffmanDecoding -> [Word8] -> (HeaderField, [Word8])
+fromNewName indexing hd ws = (hf, ws'')
+  where
+    (val,ws')  = headerStuff hd ws
+    (key,ws'') = headerStuff hd ws'
+    hf = Literal indexing (Lit (mk key)) val
+
+index6 :: Word8 -> Int
+index6 w = fromIntegral $ w .&. 63
+
+headerStuff :: HuffmanDecoding -> [Word8] -> (HeaderStuff, [Word8])
+headerStuff = undefined
+ -- see if Huffman
+ -- extract len
+ -- splitAt len
+ -- decoding

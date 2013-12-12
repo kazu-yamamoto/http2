@@ -1,6 +1,6 @@
 -- | FIXME
 
-module Network.HPACK.HeaderBlock.Encode (
+module Network.HPACK.HeaderBlock.To (
     toHeaderBlock
   ) where
 

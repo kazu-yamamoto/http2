@@ -13,5 +13,6 @@ module Network.HPACK.HeaderBlock (
 
 import Network.HPACK.HeaderBlock.Decode
 import Network.HPACK.HeaderBlock.Encode
-import Network.HPACK.HeaderBlock.Format
+import Network.HPACK.HeaderBlock.From
 import Network.HPACK.HeaderBlock.HeaderField
+import Network.HPACK.HeaderBlock.To
