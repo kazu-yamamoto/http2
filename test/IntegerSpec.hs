@@ -11,7 +11,7 @@ dual n i = decode n (encode n x) == x
 
 spec :: Spec
 spec = do
-    describe "encode and dcode" $ do
+    describe "encode and decode" $ do
         prop "duality" $ dual 1
         prop "duality" $ dual 2
         prop "duality" $ dual 3
