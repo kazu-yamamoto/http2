@@ -1,5 +1,3 @@
--- | FIXME
-
 module Network.HPACK.HeaderBlock (
   -- * Types for header block
     module Network.HPACK.HeaderBlock.HeaderField
