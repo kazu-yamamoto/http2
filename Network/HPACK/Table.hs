@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module Network.HPACK.Table (
   -- * Header table
     HeaderTable
@@ -13,7 +15,6 @@ module Network.HPACK.Table (
   -- * Which tables
   , WhichTable(..)
   , which
-  , fromWhich
   ) where
 
 import Control.Applicative ((<$>))
@@ -26,48 +27,43 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-data HeaderCache = None | KeyOnly Index | KeyValue Index
+data HeaderCache = None | KeyOnly WhichTable Index | KeyValue WhichTable Index
 
 -- | Looking up the static table and the header table.
 lookupTable :: Header -> HeaderTable -> IO HeaderCache
-lookupTable h hdrtbl
-  | isColon h = do
-      mi <- toStaticColonIndex h
-      case mi of
-          Just i  -> return $ KeyValue i
-          Nothing -> lookupHeaderTable h hdrtbl
-  | otherwise = lookupHeaderTable h hdrtbl
-
-lookupHeaderTable :: Header -> HeaderTable -> IO HeaderCache
-lookupHeaderTable (k,v) hdrtbl = do
+lookupTable h@(k,v) hdrtbl = do
     miv <- toIndexValue k hdrtbl
-    return $ case miv of
-        Nothing       -> None
+    case miv of
         Just (i,val)
-          | val == v  -> KeyValue i
-          | otherwise -> KeyOnly i
+          | val == v  -> return $ KeyValue (whic i hdrtbl) i
+          | otherwise -> return $ KeyOnly (whic i hdrtbl) i
+        Nothing
+          | isColon h -> do
+              mi <- toStaticColonIndex h
+              case mi of
+                  Just i  -> return $ KeyValue InStaticTable (i + numOfEntries hdrtbl)
+                  Nothing -> return $ None
+          | otherwise -> return $ None
+
+whic :: Int -> HeaderTable -> WhichTable
+whic i hdrtbl
+ | i <= numOfEntries hdrtbl = InHeaderTable
+ | otherwise                = InStaticTable
 
 ----------------------------------------------------------------
 
 -- | Which table does `Index` refer to?
-data WhichTable = InHeaderTable Entry
-                | InStaticTable Entry
-                deriving Eq
+data WhichTable = InHeaderTable | InStaticTable deriving Eq
 
 ----------------------------------------------------------------
 
 -- | Which table does 'Index' belong to?
-which :: HeaderTable -> Index -> IO WhichTable
+which :: HeaderTable -> Index -> IO (WhichTable, Entry)
 which (HeaderTable maxN off n tbl _ _) idx
-  | idx <= n                        = InHeaderTable <$> readArray tbl pidx
-  | 1 <= stcidx && stcidx <= stcsiz = return $ InStaticTable $ toStaticEntry stcidx
+  | idx <= n                        = (InHeaderTable,) <$> readArray tbl pidx
+  | 1 <= stcidx && stcidx <= stcsiz = return (InStaticTable, toStaticEntry stcidx)
   | otherwise                       = throwIO IndexOverrun
   where
     stcsiz = staticTableSize
     stcidx = idx - n
     pidx = (off + idx + maxN) `mod` maxN
-
--- | Extracting 'Entry'.
-fromWhich :: WhichTable -> Entry
-fromWhich (InHeaderTable e) = e
-fromWhich (InStaticTable e) = e

@@ -28,6 +28,7 @@ module Network.HPACK.Context (
   , decodeFinal
   , encodeFinal
   , lookupTable2
+  , encodeInit
   ) where
 
 import Control.Applicative ((<$>))
@@ -143,7 +144,7 @@ isPresentIn idx ctx = idx `isMember` oldref
 ----------------------------------------------------------------
 
 -- | Detecting which table does `Index` refer to?
-whichTable :: Index -> Context -> IO WhichTable
+whichTable :: Index -> Context -> IO (WhichTable, Entry)
 whichTable idx ctx = which hdrtbl idx
   where
     hdrtbl = headerTable ctx
@@ -152,7 +153,7 @@ whichTable idx ctx = which hdrtbl idx
 
 -- | Getting 'Entry' by 'Index'.
 getEntry :: Index -> Context -> IO Entry
-getEntry idx ctx = fromWhich <$> whichTable idx ctx
+getEntry idx ctx = snd <$> whichTable idx ctx
 
 ----------------------------------------------------------------
 
@@ -161,7 +162,7 @@ notEmittedEntries :: Context -> IO [Entry]
 notEmittedEntries ctx = do
     let is = getIndices $ oldReferenceSet ctx
         hdrtbl = headerTable ctx
-    map fromWhich <$> mapM (which hdrtbl) is
+    map snd <$> mapM (which hdrtbl) is
 
 ----------------------------------------------------------------
 
@@ -173,8 +174,8 @@ switchAction :: Context -> Index
 switchAction ctx idx actionForStatic actionForHeaderTable = do
     w <- whichTable idx ctx
     case w of
-        InStaticTable e -> actionForStatic e
-        InHeaderTable e -> actionForHeaderTable e
+        (InStaticTable, e) -> actionForStatic e
+        (InHeaderTable, e) -> actionForHeaderTable e
 
 ----------------------------------------------------------------
 
@@ -203,15 +204,16 @@ decodeFinal ctx = do
         !ctx'' = clearHeaderSet ctx'
     return (hs, ctx'')
 
+encodeInit :: Context -> IO Context
+encodeInit ctx = do
+    ctx' <- clearHeaderSet <$> clearRefSets ctx -- FIXME: in the case of diff
+    return $ ctx' { headerBlock = [Indexed 0] }
+
 encodeFinal :: Context -> IO (HeaderBlock, Context)
 encodeFinal ctx = do
     !ctx' <- emit ctx <$> getNotEmitted ctx
-    let !hb = headerBlock ctx'
-        !ctx'' = clearHeaderBlock ctx'
-    return (hb, ctx'')
-
-clearHeaderBlock :: Context -> Context
-clearHeaderBlock ctx = ctx { headerBlock = emptyHeaderBlock }
+    let !hb = reverse (headerBlock ctx') -- FIXME
+    return (hb, ctx')
 
 lookupTable2 :: Context -> Header -> IO HeaderCache
 lookupTable2 ctx h = lookupTable h (headerTable ctx)
