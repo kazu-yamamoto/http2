@@ -42,7 +42,6 @@ encodeStep !ctx h@(k,v) = do
             let hf = Indexed i
             pushHeaderField hf <$> pushRef ctx i e
 
-
 encodeInit :: Context -> IO Context
 encodeInit ctx = do
     ctx' <- clearHeaderSet <$> clearRefSets ctx -- FIXME: in the case of diff
