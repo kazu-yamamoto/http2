@@ -32,11 +32,13 @@ decodeStep :: Context -> HeaderField -> IO Context
 decodeStep !ctx (Indexed idx)
   | idx == 0  = clearRefSets ctx
   | isPresent = removeRef ctx idx
-  | otherwise = switchAction ctx idx forStatic forHeaderTable
+  | otherwise = do
+      w <- whichTable idx ctx
+      case w of
+          (InStaticTable, e) -> newEntry ctx e
+          (InHeaderTable, e) -> pushRef ctx idx e
   where
     isPresent = idx `isPresentIn` ctx
-    forStatic = newEntry ctx
-    forHeaderTable = pushRef ctx idx
 decodeStep !ctx (Literal NotAdd naming v) = do
     k <- fromNaming naming ctx
     emitOnly ctx (k,v)

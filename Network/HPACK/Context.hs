@@ -21,7 +21,6 @@ module Network.HPACK.Context (
   , emit
   , notEmittedEntries
   , getEntry
-  , switchAction
   -- * FIXME
   , pushHeaderField
   , getNotEmitted
@@ -29,6 +28,7 @@ module Network.HPACK.Context (
   , encodeFinal
   , lookupTable2
   , encodeInit
+  , whichTable
   ) where
 
 import Control.Applicative ((<$>))
@@ -163,19 +163,6 @@ notEmittedEntries ctx = do
     let is = getIndices $ oldReferenceSet ctx
         hdrtbl = headerTable ctx
     map snd <$> mapM (which hdrtbl) is
-
-----------------------------------------------------------------
-
--- | Choosing an action depending on which tables.
-switchAction :: Context -> Index
-             -> (Entry -> IO Context) -- ^ An action for static table
-             -> (Entry -> IO Context) -- ^ An action for header table
-             -> IO Context
-switchAction ctx idx actionForStatic actionForHeaderTable = do
-    w <- whichTable idx ctx
-    case w of
-        (InStaticTable, e) -> actionForStatic e
-        (InHeaderTable, e) -> actionForHeaderTable e
 
 ----------------------------------------------------------------
 
