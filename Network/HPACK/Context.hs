@@ -18,17 +18,15 @@ module Network.HPACK.Context (
   , emitOnly
   -- * Auxiliary functions
   , isPresentIn
-  , emit
-  , notEmittedEntries
+  , emitNotEmitted
   , getEntry
-  -- * FIXME
-  , pushHeaderField
-  , getNotEmitted
-  , decodeFinal
-  , encodeFinal
-  , lookupTable2
-  , encodeInit
+  -- * Table
   , whichTable
+  , lookupTable2
+  -- * FIXME
+  , getHeaderBlock
+  , setHeaderBlock
+  , pushHeaderField
   ) where
 
 import Control.Applicative ((<$>))
@@ -125,6 +123,9 @@ emitOnly (Context hdrtbl oldref newref hdrset hdrblk) h = return ctx
 
 ----------------------------------------------------------------
 
+emitNotEmitted :: Context -> IO Context
+emitNotEmitted ctx = emit ctx <$> getNotEmitted ctx
+
 -- | Emit non-emitted headers.
 emit :: Context -> HeaderSet -> Context
 emit (Context hdrtbl oldref newref hdrset hdrblk) notEmitted = ctx
@@ -132,6 +133,16 @@ emit (Context hdrtbl oldref newref hdrset hdrblk) notEmitted = ctx
     hdrset' = meregeHeaderSet hdrset notEmitted
     oldref' = mergeReferenceSet newref oldref
     ctx = Context hdrtbl oldref' emptyReferenceSet hdrset' hdrblk
+
+getNotEmitted :: Context -> IO HeaderSet
+getNotEmitted ctx = map fromEntry <$> notEmittedEntries ctx
+
+-- | Obtaining non-emitted entries.
+notEmittedEntries :: Context -> IO [Entry]
+notEmittedEntries ctx = do
+    let is = getIndices $ oldReferenceSet ctx
+        hdrtbl = headerTable ctx
+    map snd <$> mapM (which hdrtbl) is
 
 ----------------------------------------------------------------
 
@@ -157,15 +168,6 @@ getEntry idx ctx = snd <$> whichTable idx ctx
 
 ----------------------------------------------------------------
 
--- | Obtaining non-emitted entries.
-notEmittedEntries :: Context -> IO [Entry]
-notEmittedEntries ctx = do
-    let is = getIndices $ oldReferenceSet ctx
-        hdrtbl = headerTable ctx
-    map snd <$> mapM (which hdrtbl) is
-
-----------------------------------------------------------------
-
 -- | Clearing 'HeaderSet' in 'Context' for the next decode.
 clearHeaderSet :: Context -> Context
 clearHeaderSet ctx = ctx { headerSet = emptyHeaderSet }
@@ -176,31 +178,16 @@ getHeaderSet = headerSet
 
 -- FIXME
 
+getHeaderBlock :: Context -> HeaderBlock
+getHeaderBlock = headerBlock
+
+setHeaderBlock :: Context -> HeaderBlock -> Context
+setHeaderBlock ctx hb = ctx { headerBlock = hb }
+
 pushHeaderField :: HeaderField -> Context -> Context
 pushHeaderField hf ctx = ctx { headerBlock = hf : headerBlock ctx }
 
-getNotEmitted :: Context -> IO HeaderSet
-getNotEmitted ctx = map fromEntry <$> notEmittedEntries ctx
-
 -- FIXME
-
-decodeFinal :: Context -> IO (HeaderSet, Context)
-decodeFinal ctx = do
-    !ctx' <- emit ctx <$> getNotEmitted ctx
-    let !hs = getHeaderSet ctx'
-        !ctx'' = clearHeaderSet ctx'
-    return (hs, ctx'')
-
-encodeInit :: Context -> IO Context
-encodeInit ctx = do
-    ctx' <- clearHeaderSet <$> clearRefSets ctx -- FIXME: in the case of diff
-    return $ ctx' { headerBlock = [Indexed 0] }
-
-encodeFinal :: Context -> IO (HeaderBlock, Context)
-encodeFinal ctx = do
-    !ctx' <- emit ctx <$> getNotEmitted ctx
-    let !hb = reverse (headerBlock ctx') -- FIXME
-    return (hb, ctx')
 
 lookupTable2 :: Context -> Header -> IO HeaderCache
 lookupTable2 ctx h = lookupTable h (headerTable ctx)

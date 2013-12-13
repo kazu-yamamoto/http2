@@ -46,6 +46,13 @@ decodeStep !ctx (Literal Add naming v) = do
     k <- fromNaming naming ctx
     newEntry ctx $ toEntry (k,v)
 
+decodeFinal :: Context -> IO (HeaderSet, Context)
+decodeFinal ctx = do
+    !ctx' <- emitNotEmitted ctx
+    let !hs = getHeaderSet ctx'
+        !ctx'' = clearHeaderSet ctx'
+    return (hs, ctx'')
+
 ----------------------------------------------------------------
 
 fromNaming :: Naming -> Context -> IO HeaderName

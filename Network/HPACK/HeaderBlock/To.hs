@@ -41,3 +41,15 @@ encodeStep !ctx h@(k,v) = do
         KeyValue InHeaderTable i -> do
             let hf = Indexed i
             pushHeaderField hf <$> pushRef ctx i e
+
+
+encodeInit :: Context -> IO Context
+encodeInit ctx = do
+    ctx' <- clearHeaderSet <$> clearRefSets ctx -- FIXME: in the case of diff
+    return $ setHeaderBlock ctx' [Indexed 0] -- FIXME
+
+encodeFinal :: Context -> IO (HeaderBlock, Context)
+encodeFinal ctx = do
+    !ctx' <- emitNotEmitted ctx
+    let !hb = reverse $ getHeaderBlock ctx' -- FIXME
+    return (hb, ctx')
