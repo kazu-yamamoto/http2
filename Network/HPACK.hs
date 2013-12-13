@@ -1,5 +1,3 @@
--- | FIXME
-
 module Network.HPACK (
   -- * Type
     ByteStream

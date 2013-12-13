@@ -1,6 +1,7 @@
 module Network.HPACK.HeaderBlock.HeaderField (
   -- * Type
     HeaderBlock
+  , emptyHeaderBlock
   , HeaderField(..)
   , HeaderName  -- re-exporting
   , HeaderValue -- re-exporting
@@ -15,6 +16,10 @@ import Network.HPACK.Types
 
 -- | Type for header block.
 type HeaderBlock = [HeaderField]
+
+-- | Empty header block.
+emptyHeaderBlock :: HeaderBlock
+emptyHeaderBlock = []
 
 -- | Type for representation.
 data HeaderField = Indexed Index

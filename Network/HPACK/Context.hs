@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Network.HPACK.Context (
   -- * Types
     HeaderSet   -- re-exporting
@@ -20,11 +22,18 @@ module Network.HPACK.Context (
   , notEmittedEntries
   , getEntry
   , switchAction
+  -- * FIXME
+  , pushHeaderField
+  , getNotEmitted
+  , decodeFinal
+  , encodeFinal
+  , lookupTable2
   ) where
 
 import Control.Applicative ((<$>))
 import Network.HPACK.Context.HeaderSet
 import Network.HPACK.Context.ReferenceSet
+import Network.HPACK.HeaderBlock.HeaderField -- FIXME
 import Network.HPACK.Table
 import Network.HPACK.Types
 
@@ -35,12 +44,17 @@ data Context = Context {
     headerTable     :: !HeaderTable -- ^ A cache of headers
   , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
   , newReferenceSet :: ReferenceSet -- ^ References for already mitted
-  , headerSet       :: HeaderSet    -- ^ The results
+  , headerSet       :: HeaderSet    -- ^ Emitted header set.
+                                    --   Encode: the previous ones.
+                                    --   Decode: the results.
+  , headerBlock     :: HeaderBlock  -- ^ A list of HeaderField.
+                                    --   Encode: the results.
+                                    --   Decode: not used. (FIXME)
   }
 
 -- | Printing 'Context'
 printContext :: Context -> IO ()
-printContext (Context hdrtbl oldref newref hdrset) = do
+printContext (Context hdrtbl oldref newref hdrset _) = do -- FIXME
     putStrLn "<<<Header table>>>"
     printHeaderTable hdrtbl
     putStr "\n"
@@ -64,6 +78,7 @@ newContext maxsiz = do
                      emptyReferenceSet
                      emptyReferenceSet
                      emptyHeaderSet
+                     emptyHeaderBlock
 
 ----------------------------------------------------------------
 
@@ -84,38 +99,38 @@ removeRef ctx idx = return ctx { oldReferenceSet = removeIndex idx oldref }
 --   The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
 newEntry :: Context -> Entry -> IO Context
-newEntry (Context hdrtbl oldref newref hdrset) e = do
+newEntry (Context hdrtbl oldref newref hdrset hdrblk) e = do
     (hdrtbl', is) <- insertEntry e hdrtbl
     let oldref' = removeIndices is $ adjustReferenceSet oldref
         newref' = addIndex 1 $ removeIndices is $ adjustReferenceSet newref
         hdrset' = insertHeader (fromEntry e) hdrset
-    return $ Context hdrtbl' oldref' newref' hdrset'
+    return $ Context hdrtbl' oldref' newref' hdrset' hdrblk
 
 -- | The header field corresponding to the referenced entry is emitted.
 --   The referenced header table entry is added to the reference set.
 pushRef :: Context -> Index -> Entry -> IO Context
-pushRef (Context hdrtbl oldref newref hdrset) idx e = return ctx
+pushRef (Context hdrtbl oldref newref hdrset hdrblk) idx e = return ctx
   where
     hdrset' = insertHeader (fromEntry e) hdrset
     newref' = addIndex idx newref
-    ctx = Context hdrtbl oldref newref' hdrset'
+    ctx = Context hdrtbl oldref newref' hdrset' hdrblk
 
 -- | The header field is emitted.
 emitOnly :: Context -> Header -> IO Context
-emitOnly (Context hdrtbl oldref newref hdrset) h = return ctx
+emitOnly (Context hdrtbl oldref newref hdrset hdrblk) h = return ctx
   where
     hdrset' = insertHeader h hdrset
-    ctx = Context hdrtbl oldref newref hdrset'
+    ctx = Context hdrtbl oldref newref hdrset' hdrblk
 
 ----------------------------------------------------------------
 
 -- | Emit non-emitted headers.
 emit :: Context -> HeaderSet -> Context
-emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
+emit (Context hdrtbl oldref newref hdrset hdrblk) notEmitted = ctx
   where
     hdrset' = meregeHeaderSet hdrset notEmitted
     oldref' = mergeReferenceSet newref oldref
-    ctx = Context hdrtbl oldref' emptyReferenceSet hdrset'
+    ctx = Context hdrtbl oldref' emptyReferenceSet hdrset' hdrblk
 
 ----------------------------------------------------------------
 
@@ -170,3 +185,33 @@ clearHeaderSet ctx = ctx { headerSet = emptyHeaderSet }
 -- | Getting 'HeaderSet' as emitted headers.
 getHeaderSet :: Context -> HeaderSet
 getHeaderSet = headerSet
+
+-- FIXME
+
+pushHeaderField :: HeaderField -> Context -> Context
+pushHeaderField hf ctx = ctx { headerBlock = hf : headerBlock ctx }
+
+getNotEmitted :: Context -> IO HeaderSet
+getNotEmitted ctx = map fromEntry <$> notEmittedEntries ctx
+
+-- FIXME
+
+decodeFinal :: Context -> IO (HeaderSet, Context)
+decodeFinal ctx = do
+    !ctx' <- emit ctx <$> getNotEmitted ctx
+    let !hs = getHeaderSet ctx'
+        !ctx'' = clearHeaderSet ctx'
+    return (hs, ctx'')
+
+encodeFinal :: Context -> IO (HeaderBlock, Context)
+encodeFinal ctx = do
+    !ctx' <- emit ctx <$> getNotEmitted ctx
+    let !hb = headerBlock ctx'
+        !ctx'' = clearHeaderBlock ctx'
+    return (hb, ctx'')
+
+clearHeaderBlock :: Context -> Context
+clearHeaderBlock ctx = ctx { headerBlock = emptyHeaderBlock }
+
+lookupTable2 :: Context -> Header -> IO HeaderCache
+lookupTable2 ctx h = lookupTable h (headerTable ctx)

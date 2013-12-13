@@ -22,12 +22,7 @@ fromHeaderBlock :: HeaderBlock
                 -> Context
                 -> IO (HeaderSet, Context)
 fromHeaderBlock (r:rs) !ctx = decodeStep ctx r >>= fromHeaderBlock rs
-fromHeaderBlock [] !ctx = do
-    notEmitted <- getNotEmitted ctx
-    let !ctx' = emit ctx notEmitted
-        !hs = getHeaderSet ctx'
-        !ctx'' = clearHeaderSet ctx'
-    return (hs, ctx'')
+fromHeaderBlock []     !ctx = decodeFinal ctx
 
 ----------------------------------------------------------------
 
@@ -54,8 +49,3 @@ decodeStep !ctx (Literal Add naming v) = do
 fromNaming :: Naming -> Context -> IO HeaderName
 fromNaming (Lit k)   _   = return k
 fromNaming (Idx idx) ctx = entryHeaderName <$> getEntry idx ctx
-
-----------------------------------------------------------------
-
-getNotEmitted :: Context -> IO HeaderSet
-getNotEmitted ctx = map fromEntry <$> notEmittedEntries ctx
