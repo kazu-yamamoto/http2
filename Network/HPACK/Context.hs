@@ -10,6 +10,7 @@ module Network.HPACK.Context (
   -- * Initialization and final results
   , clearHeaderSet
   , getHeaderSet
+  , emitNotEmitted
   -- * Processing
   , clearRefSets
   , removeRef
@@ -18,11 +19,10 @@ module Network.HPACK.Context (
   , emitOnly
   -- * Auxiliary functions
   , isPresentIn
-  , emitNotEmitted
   , getEntry
   -- * Table
   , whichTable
-  , lookupTable2
+  , lookupHeader
   -- * FIXME
   , getHeaderBlock
   , setHeaderBlock
@@ -123,6 +123,7 @@ emitOnly (Context hdrtbl oldref newref hdrset hdrblk) h = return ctx
 
 ----------------------------------------------------------------
 
+-- | Emitting non-emitted headers.
 emitNotEmitted :: Context -> IO Context
 emitNotEmitted ctx = emit ctx <$> getNotEmitted ctx
 
@@ -135,14 +136,10 @@ emit (Context hdrtbl oldref newref hdrset hdrblk) notEmitted = ctx
     ctx = Context hdrtbl oldref' emptyReferenceSet hdrset' hdrblk
 
 getNotEmitted :: Context -> IO HeaderSet
-getNotEmitted ctx = map fromEntry <$> notEmittedEntries ctx
-
--- | Obtaining non-emitted entries.
-notEmittedEntries :: Context -> IO [Entry]
-notEmittedEntries ctx = do
+getNotEmitted ctx = do
     let is = getIndices $ oldReferenceSet ctx
         hdrtbl = headerTable ctx
-    map snd <$> mapM (which hdrtbl) is
+    map (fromEntry . snd) <$> mapM (which hdrtbl) is
 
 ----------------------------------------------------------------
 
@@ -159,6 +156,9 @@ whichTable :: Index -> Context -> IO (WhichTable, Entry)
 whichTable idx ctx = which hdrtbl idx
   where
     hdrtbl = headerTable ctx
+
+lookupHeader :: Header -> Context -> IO HeaderCache
+lookupHeader h ctx = lookupTable h (headerTable ctx)
 
 ----------------------------------------------------------------
 
@@ -186,8 +186,3 @@ setHeaderBlock ctx hb = ctx { headerBlock = hb }
 
 pushHeaderField :: HeaderField -> Context -> Context
 pushHeaderField hf ctx = ctx { headerBlock = hf : headerBlock ctx }
-
--- FIXME
-
-lookupTable2 :: Context -> Header -> IO HeaderCache
-lookupTable2 ctx h = lookupTable h (headerTable ctx)

@@ -23,7 +23,7 @@ toHeaderBlock' []     !ctx = encodeFinal ctx
 
 encodeStep :: Context -> Header -> IO Context
 encodeStep !ctx h@(k,v) = do
-    cache <- lookupTable2 ctx h
+    cache <- lookupHeader h ctx
     let e = toEntry h
     case cache of
         None -> do
