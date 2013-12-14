@@ -21,6 +21,10 @@ toHeaderBlock' :: HeaderSet
 toHeaderBlock' (h:hs) !ctx = encodeStep ctx h >>= toHeaderBlock' hs
 toHeaderBlock' []     !ctx = encodeFinal ctx
 
+----------------------------------------------------------------
+-- A simple encoding strategy to reset the reference set first
+-- by 'Index 0' and uses indexing as much as possible.
+
 encodeStep :: (DL,Context) -> Header -> IO (DL,Context)
 encodeStep (!dl,!ctx) h@(k,v) = do
     cache <- lookupHeader h ctx
