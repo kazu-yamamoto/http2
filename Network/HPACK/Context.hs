@@ -142,12 +142,13 @@ isPresentIn idx ctx = idx `isMember` oldref
 
 ----------------------------------------------------------------
 
--- | Detecting which table does `Index` refer to?
+-- | Which table does 'Index' refer to?
 whichTable :: Index -> Context -> IO (WhichTable, Entry)
 whichTable idx ctx = which hdrtbl idx
   where
     hdrtbl = headerTable ctx
 
+-- | Which table contains 'Header'?
 lookupHeader :: Header -> Context -> IO HeaderCache
 lookupHeader h ctx = lookupTable h (headerTable ctx)
 
