@@ -23,16 +23,11 @@ module Network.HPACK.Context (
   -- * Table
   , whichTable
   , lookupHeader
-  -- * FIXME
-  , getHeaderBlock
-  , setHeaderBlock
-  , pushHeaderField
   ) where
 
 import Control.Applicative ((<$>))
 import Network.HPACK.Context.HeaderSet
 import Network.HPACK.Context.ReferenceSet
-import Network.HPACK.HeaderBlock.HeaderField -- FIXME
 import Network.HPACK.Table
 import Network.HPACK.Types
 
@@ -46,14 +41,11 @@ data Context = Context {
   , headerSet       :: HeaderSet    -- ^ Emitted header set.
                                     --   Encode: the previous ones.
                                     --   Decode: the results.
-  , headerBlock     :: HeaderBlock  -- ^ A list of HeaderField.
-                                    --   Encode: the results.
-                                    --   Decode: not used. (FIXME)
   }
 
 -- | Printing 'Context'
 printContext :: Context -> IO ()
-printContext (Context hdrtbl oldref newref hdrset _) = do -- FIXME
+printContext (Context hdrtbl oldref newref hdrset) = do
     putStrLn "<<<Header table>>>"
     printHeaderTable hdrtbl
     putStr "\n"
@@ -77,7 +69,6 @@ newContext maxsiz = do
                      emptyReferenceSet
                      emptyReferenceSet
                      emptyHeaderSet
-                     emptyHeaderBlock
 
 ----------------------------------------------------------------
 
@@ -98,28 +89,28 @@ removeRef ctx idx = return ctx { oldReferenceSet = removeIndex idx oldref }
 --   The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
 newEntry :: Context -> Entry -> IO Context
-newEntry (Context hdrtbl oldref newref hdrset hdrblk) e = do
+newEntry (Context hdrtbl oldref newref hdrset) e = do
     (hdrtbl', is) <- insertEntry e hdrtbl
     let oldref' = removeIndices is $ adjustReferenceSet oldref
         newref' = addIndex 1 $ removeIndices is $ adjustReferenceSet newref
         hdrset' = insertHeader (fromEntry e) hdrset
-    return $ Context hdrtbl' oldref' newref' hdrset' hdrblk
+    return $ Context hdrtbl' oldref' newref' hdrset'
 
 -- | The header field corresponding to the referenced entry is emitted.
 --   The referenced header table entry is added to the reference set.
 pushRef :: Context -> Index -> Entry -> IO Context
-pushRef (Context hdrtbl oldref newref hdrset hdrblk) idx e = return ctx
+pushRef (Context hdrtbl oldref newref hdrset) idx e = return ctx
   where
     hdrset' = insertHeader (fromEntry e) hdrset
     newref' = addIndex idx newref
-    ctx = Context hdrtbl oldref newref' hdrset' hdrblk
+    ctx = Context hdrtbl oldref newref' hdrset'
 
 -- | The header field is emitted.
 emitOnly :: Context -> Header -> IO Context
-emitOnly (Context hdrtbl oldref newref hdrset hdrblk) h = return ctx
+emitOnly (Context hdrtbl oldref newref hdrset) h = return ctx
   where
     hdrset' = insertHeader h hdrset
-    ctx = Context hdrtbl oldref newref hdrset' hdrblk
+    ctx = Context hdrtbl oldref newref hdrset'
 
 ----------------------------------------------------------------
 
@@ -129,11 +120,11 @@ emitNotEmitted ctx = emit ctx <$> getNotEmitted ctx
 
 -- | Emit non-emitted headers.
 emit :: Context -> HeaderSet -> Context
-emit (Context hdrtbl oldref newref hdrset hdrblk) notEmitted = ctx
+emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
   where
     hdrset' = meregeHeaderSet hdrset notEmitted
     oldref' = mergeReferenceSet newref oldref
-    ctx = Context hdrtbl oldref' emptyReferenceSet hdrset' hdrblk
+    ctx = Context hdrtbl oldref' emptyReferenceSet hdrset'
 
 getNotEmitted :: Context -> IO HeaderSet
 getNotEmitted ctx = do
@@ -175,14 +166,3 @@ clearHeaderSet ctx = ctx { headerSet = emptyHeaderSet }
 -- | Getting 'HeaderSet' as emitted headers.
 getHeaderSet :: Context -> HeaderSet
 getHeaderSet = headerSet
-
--- FIXME
-
-getHeaderBlock :: Context -> HeaderBlock
-getHeaderBlock = headerBlock
-
-setHeaderBlock :: Context -> HeaderBlock -> Context
-setHeaderBlock ctx hb = ctx { headerBlock = hb }
-
-pushHeaderField :: HeaderField -> Context -> Context
-pushHeaderField hf ctx = ctx { headerBlock = hf : headerBlock ctx }

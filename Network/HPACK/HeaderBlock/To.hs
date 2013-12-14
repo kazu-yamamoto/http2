@@ -16,39 +16,58 @@ toHeaderBlock :: HeaderSet
 toHeaderBlock hs !ctx = encodeInit ctx >>= toHeaderBlock' hs
 
 toHeaderBlock' :: HeaderSet
-               -> Context
+               -> (DL, Context)
                -> IO (HeaderBlock, Context)
 toHeaderBlock' (h:hs) !ctx = encodeStep ctx h >>= toHeaderBlock' hs
 toHeaderBlock' []     !ctx = encodeFinal ctx
 
-encodeStep :: Context -> Header -> IO Context
-encodeStep !ctx h@(k,v) = do
+encodeStep :: (DL,Context) -> Header -> IO (DL,Context)
+encodeStep (!dl,!ctx) h@(k,v) = do
     cache <- lookupHeader h ctx
     let e = toEntry h
     case cache of
         None -> do
-            let hf = Literal Add (Lit k) v
-            pushHeaderField hf <$> newEntry ctx e
+            let dl' = dl << Literal Add (Lit k) v
+            ctx' <- newEntry ctx e
+            return (dl', ctx')
         KeyOnly InStaticTable i  -> do
-            let hf = Literal Add (Idx i) v
-            pushHeaderField hf <$> newEntry ctx e
+            let dl' = dl << Literal Add (Idx i) v
+            ctx' <- newEntry ctx e
+            return (dl', ctx')
         KeyOnly InHeaderTable i  -> do
-            let hf = Literal Add (Idx i) v
-            pushHeaderField hf <$> newEntry ctx e
+            let dl' = dl << Literal Add (Idx i) v
+            ctx' <- newEntry ctx e
+            return (dl', ctx')
         KeyValue InStaticTable i -> do
-            let hf = Indexed i
-            pushHeaderField hf <$> newEntry ctx e
+            let dl' = dl << Indexed i
+            ctx' <- newEntry ctx e
+            return (dl', ctx')
         KeyValue InHeaderTable i -> do
-            let hf = Indexed i
-            pushHeaderField hf <$> pushRef ctx i e
+            let dl' = dl << Indexed i
+            ctx' <- pushRef ctx i e
+            return (dl', ctx')
 
-encodeInit :: Context -> IO Context
+encodeInit :: Context -> IO (DL, Context)
 encodeInit ctx = do
-    ctx' <- clearHeaderSet <$> clearRefSets ctx -- FIXME: in the case of diff
-    return $ setHeaderBlock ctx' [Indexed 0] -- FIXME
+    ctx' <- clearHeaderSet <$> clearRefSets ctx
+    let initialHeaderBlock = initResult $ Indexed 0
+    return (initialHeaderBlock, ctx')
 
-encodeFinal :: Context -> IO (HeaderBlock, Context)
-encodeFinal ctx = do
+encodeFinal :: (DL, Context) -> IO (HeaderBlock, Context)
+encodeFinal (dl,ctx) = do
     !ctx' <- emitNotEmitted ctx
-    let !hb = reverse $ getHeaderBlock ctx' -- FIXME
+    let !hb = getResult dl
     return (hb, ctx')
+
+----------------------------------------------------------------
+
+type DL = HeaderBlock -> HeaderBlock
+
+(<<) :: DL -> HeaderField -> DL
+dl << entry = dl . (entry :)
+
+initResult :: HeaderField -> DL
+initResult hf = (hf :)
+
+getResult :: DL -> HeaderBlock
+getResult dl = dl []
