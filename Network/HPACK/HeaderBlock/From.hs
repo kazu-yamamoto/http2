@@ -12,11 +12,6 @@ import Network.HPACK.Table
 
 ----------------------------------------------------------------
 
--- FIXME: this is not necessary
--- | Errors for decoder.
-data DecodeError = IndexOverrun -- ^ Index is out of the range
-                 deriving Show
-
 -- | Decoding 'HeaderBlock' to 'HeaderSet'.
 fromHeaderBlock :: HeaderBlock
                 -> Context
