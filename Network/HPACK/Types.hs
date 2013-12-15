@@ -41,7 +41,7 @@ type ByteStream = ByteString
 type Index = Int
 
 -- | Errors for decoder.
-data DecodeError = IndexOverrun -- ^ Index is out of range
+data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  deriving (Show,Typeable)
 
 instance Exception DecodeError

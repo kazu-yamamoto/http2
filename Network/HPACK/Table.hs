@@ -62,7 +62,7 @@ which :: HeaderTable -> Index -> IO (WhichTable, Entry)
 which (HeaderTable maxN off n tbl _ _) idx
   | idx <= n                        = (InHeaderTable,) <$> readArray tbl pidx
   | 1 <= stcidx && stcidx <= stcsiz = return (InStaticTable, toStaticEntry stcidx)
-  | otherwise                       = throwIO IndexOverrun
+  | otherwise                       = throwIO $ IndexOverrun idx
   where
     stcsiz = staticTableSize
     stcidx = idx - n
