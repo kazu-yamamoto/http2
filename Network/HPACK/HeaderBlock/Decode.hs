@@ -49,10 +49,11 @@ incrementalIndexing hd w ws
 ----------------------------------------------------------------
 
 indexedName :: Indexing -> HuffmanDecoding -> Word8 -> [Word8] -> (HeaderField, [Word8])
-indexedName indexing hd w ws = (hf, ws')
+indexedName indexing hd w ws = (hf, ws'')
   where
-    idx = index6 w
-    (val,ws') = headerStuff hd ws
+    p = mask6 w
+    (idx,ws') = I.parseInteger 6 p ws
+    (val,ws'') = headerStuff hd ws'
     hf = Literal indexing (Idx idx) val
 
 newName :: Indexing -> HuffmanDecoding -> [Word8] -> (HeaderField, [Word8])
@@ -81,9 +82,6 @@ mask6 w = w .&. 63
 
 isIndexedName :: Word8 -> Bool
 isIndexedName w = mask6 w /= 0
-
-index6 :: Word8 -> Int
-index6 = fromIntegral . mask6
 
 ----------------------------------------------------------------
 
