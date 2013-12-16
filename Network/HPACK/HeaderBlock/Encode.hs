@@ -38,7 +38,8 @@ index = BB.fromWord8 . set1 . I.encodeOne
 indexedName :: HuffmanEncoding -> Setter -> Int -> HeaderValue -> Builder
 indexedName he set idx v = pre <> vlen <> val
   where
-    pre = BB.fromWord8 $ set $ I.encodeOne idx
+    (p:ps) = I.encode 6 idx
+    pre = BB.fromWord8s $ set p : ps
     value = S.encode he v
     valueLen = length value -- FIXME: performance
     vlen = BB.fromWord8s $ setH $ I.encode 7 valueLen
