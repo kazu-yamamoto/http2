@@ -29,7 +29,7 @@ encodeRequestHeader :: HeaderSet
 encodeRequestHeader hs ctx =
     first (toByteStream huffmanEncodeInRequest) <$> toHeaderBlock hs ctx
 
--- | Converting the low level format for HTTP request to'HeaderSet'.
+-- | Converting the low level format for HTTP request to 'HeaderSet'.
 --   'DecodeError' would be thrown.
 decodeRequestHeader :: ByteStream
                     -> Context
