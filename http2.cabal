@@ -6,7 +6,10 @@ License:                BSD3
 License-File:           LICENSE
 Synopsis:               HTTP/2.0 library including HPACK
 Description:            HTTP/2.0 library including HPACK.
-                        Currently only HPACK 06 is supported.
+                        Currently only (coming) HPACK 06 is supported.
+                        Use Network.HPACK only.
+                        Many modules are exported for debugging
+                        purpose only. Please don't import them.
 Category:               Network
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
