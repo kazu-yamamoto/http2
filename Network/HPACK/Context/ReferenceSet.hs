@@ -19,7 +19,7 @@ import Network.HPACK.Table
 ----------------------------------------------------------------
 
 -- | Type for the reference set.
-data ReferenceSet = ReferenceSet [Index] deriving Show
+newtype ReferenceSet = ReferenceSet [Index] deriving Show
 
 -- | Empty reference set.
 emptyReferenceSet :: ReferenceSet
