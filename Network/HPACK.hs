@@ -46,7 +46,7 @@ encodeResponseHeader :: HeaderSet
 encodeResponseHeader hs ctx =
     first (toByteStream huffmanEncodeInResponse) <$> toHeaderBlock hs ctx
 
--- | Converting the low level format for HTTP response to'HeaderSet'.
+-- | Converting the low level format for HTTP response to 'HeaderSet'.
 --   'DecodeError' would be thrown.
 decodeResponseHeader :: ByteStream
                     -> Context
