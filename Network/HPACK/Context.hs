@@ -33,7 +33,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | Context for decoding.
+-- | Context for encoding/decoding.
 data Context = Context {
     headerTable     :: !HeaderTable -- ^ A cache of headers
   , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
