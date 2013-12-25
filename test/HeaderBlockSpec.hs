@@ -32,8 +32,6 @@ spec = do
             fromByteStream huffmanDecodeInResponse e53b `shouldBe` e53
     describe "toByteStream & fromByteStream" $ do
         prop "duality for request" $ \k v -> do
-            putStrLn $ "K length" ++ show (length k)
-            putStrLn $ "V length" ++ show (length v)
             let key = toHeaderName $ BS.pack ('k':k)
                 val = BS.pack ('v':v)
                 hb = [Literal Add (Lit key) val]
