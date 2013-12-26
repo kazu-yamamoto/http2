@@ -104,6 +104,8 @@ pushRef :: Context -> Index -> Entry -> IO Context
 pushRef (Context hdrtbl oldref newref hdrset) idx e = return ctx
   where
     hdrset' = insertHeader (fromEntry e) hdrset
+    -- isPresentIn ensures that idx does not exist in
+    -- newref and oldref.
     newref' = addIndex idx newref
     ctx = Context hdrtbl oldref newref' hdrset'
 
