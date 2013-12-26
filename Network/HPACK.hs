@@ -5,6 +5,8 @@ module Network.HPACK (
   , Context
   , newContext
   , DecodeError(..)
+  , HPACKEncoding
+  , HPACKDecoding
   -- * Request
   , encodeRequestHeader
   , decodeRequestHeader
@@ -22,34 +24,31 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
+type HPACKEncoding = HeaderSet -> Context -> IO (ByteStream, Context)
+type HPACKDecoding = ByteStream -> Context -> IO (HeaderSet, Context)
+
+----------------------------------------------------------------
+
 -- | Converting 'HeaderSet' for HTTP request to the low level format.
-encodeRequestHeader :: HeaderSet
-                    -> Context
-                    -> IO (ByteStream, Context)
+encodeRequestHeader :: HPACKEncoding
 encodeRequestHeader hs ctx =
     first (toByteStream huffmanEncodeInRequest) <$> toHeaderBlock hs ctx
 
 -- | Converting the low level format for HTTP request to 'HeaderSet'.
 --   'DecodeError' would be thrown.
-decodeRequestHeader :: ByteStream
-                    -> Context
-                    -> IO (HeaderSet, Context)
+decodeRequestHeader :: HPACKDecoding
 decodeRequestHeader bs ctx =
     fromHeaderBlock (fromByteStream huffmanDecodeInRequest bs) ctx
 
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderSet' for HTTP response to the low level format.
-encodeResponseHeader :: HeaderSet
-                     -> Context
-                     -> IO (ByteStream, Context)
+encodeResponseHeader :: HPACKEncoding
 encodeResponseHeader hs ctx =
     first (toByteStream huffmanEncodeInResponse) <$> toHeaderBlock hs ctx
 
 -- | Converting the low level format for HTTP response to 'HeaderSet'.
 --   'DecodeError' would be thrown.
-decodeResponseHeader :: ByteStream
-                    -> Context
-                    -> IO (HeaderSet, Context)
+decodeResponseHeader :: HPACKDecoding
 decodeResponseHeader bs ctx =
     fromHeaderBlock (fromByteStream huffmanDecodeInResponse bs) ctx
