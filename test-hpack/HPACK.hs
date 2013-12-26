@@ -7,6 +7,9 @@ import qualified Data.ByteString as BS
 import Data.List (sort)
 import Network.HPACK
 
+import Network.HPACK.HeaderBlock.Decode
+import Network.HPACK.Huffman
+
 import HexString
 import Types
 
@@ -46,8 +49,10 @@ test c dec dctx enc ectx = do
             if pass then
                 return $ Right (dctx', ectx')
               else
-                return $ Left $ "Headers are different in " ++ hex ++ ":\n" ++ show hs ++ "\n" ++ show hs'
+                return $ Left $ "Headers are different in " ++ hex ++ ":\n" ++ show hd ++ "\n" ++ show hs ++ "\n" ++ show hs'
   where
     hex = wire c
     inp = BS.pack $ fromHexString hex
     hs = headers c
+
+    hd = fromByteStream huffmanDecodeInRequest inp
