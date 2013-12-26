@@ -46,7 +46,8 @@ test c dec dctx enc ectx = do
             if pass then
                 return $ Right (dctx', ectx')
               else
-                return $ Left $ "Headers are different:\n" ++ show hs ++ "\n" ++ show hs'
+                return $ Left $ "Headers are different in " ++ hex ++ ":\n" ++ show hs ++ "\n" ++ show hs'
   where
-    inp = BS.pack $ fromHexString $ wire c
+    hex = wire c
+    inp = BS.pack $ fromHexString hex
     hs = headers c
