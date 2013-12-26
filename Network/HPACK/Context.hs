@@ -141,7 +141,7 @@ isPresentIn :: Index -> Context -> Bool
 isPresentIn idx ctx = idx `isMember` oldref || idx `isMember` newref
   where
     oldref = oldReferenceSet ctx
-    newref = oldReferenceSet ctx
+    newref = newReferenceSet ctx
 
 ----------------------------------------------------------------
 
