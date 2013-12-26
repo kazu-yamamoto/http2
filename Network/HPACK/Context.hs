@@ -138,9 +138,10 @@ getNotEmitted ctx = do
 
 -- | Is 'Index' present in the reference set?
 isPresentIn :: Index -> Context -> Bool
-isPresentIn idx ctx = idx `isMember` oldref
+isPresentIn idx ctx = idx `isMember` oldref || idx `isMember` newref
   where
     oldref = oldReferenceSet ctx
+    newref = oldReferenceSet ctx
 
 ----------------------------------------------------------------
 
