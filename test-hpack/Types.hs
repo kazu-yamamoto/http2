@@ -84,4 +84,5 @@ instance FromJSON Header where
     parseJSON _         = mzero
 
 instance ToJSON Header where
-    toJSON (k,v) = object [ T.pack (B8.unpack (foldedCase k)) .= v]
+--    toJSON (k,v) = object [ T.pack (B8.unpack (foldedCase k)) .= v]
+    toJSON (k,v) = toJSON [foldedCase k,v]

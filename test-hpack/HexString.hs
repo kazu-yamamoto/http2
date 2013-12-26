@@ -1,11 +1,12 @@
 module HexString where
 
-import Data.Word (Word8)
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Numeric
 import Text.Printf
 
-fromHexString :: String -> [Word8]
-fromHexString = map fromHex . group2
+fromHexString :: String -> ByteString
+fromHexString = BS.pack . map fromHex . group2
   where
     fromHex = fst . head . readHex
     group2 [] = []
@@ -13,5 +14,5 @@ fromHexString = map fromHex . group2
       where
        (ys,zs) = splitAt 2 xs
 
-toHexString :: [Word8] -> String
-toHexString = concatMap (printf "%02x")
+toHexString :: ByteString -> String
+toHexString = concatMap (printf "%02x") . BS.unpack

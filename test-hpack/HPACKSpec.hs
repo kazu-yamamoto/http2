@@ -30,17 +30,17 @@ getTestFiles' subdir = do
   where
     valid = map (subdir </>) . filter (isSuffixOf ".json")
 
-test :: FilePath -> IO Result
+test :: FilePath -> IO (Maybe String)
 test file = do
     bs <- BL.readFile file
     let etc = eitherDecode bs :: Either String Test
     case etc of
-        Left e   -> return $ Fail $ file ++ ": " ++ e
+        Left e   -> return $ Just $ file ++ ": " ++ e
         Right tc -> do
             res <- run tc
             case res of
-                Pass   -> return Pass
-                Fail e -> return $ Fail $ file ++ ": " ++ e
+                Pass _ -> return Nothing
+                Fail e -> return $ Just $ file ++ ": " ++ e
 
 spec :: Spec
 spec = do
@@ -48,4 +48,4 @@ spec = do
         it "decodes headers in request" $ do
             files <- getTestFiles testDir
             forM_ files $ \file ->
-                test file `shouldReturn` Pass
+                test file `shouldReturn` Nothing
