@@ -47,8 +47,14 @@ encodeStep (!dl,!ctx) h@(k,v) = do
             ctx' <- newEntry ctx e
             return (dl', ctx')
         KeyValue InHeaderTable i -> do
-            let dl' = dl << Indexed i
-            ctx' <- pushRef ctx i e
+            (dl',ctx') <- if i `isPresentIn` ctx then do
+                  let d = dl << Indexed i << Indexed i
+                      c = ctx
+                  return (d,c)
+                else do
+                  let d = dl << Indexed i
+                  c <- pushRef ctx i e
+                  return (d,c)
             return (dl', ctx')
 
 encodeInit :: Context -> IO (DL, Context)
