@@ -6,7 +6,6 @@ import Control.Exception
 import qualified Data.ByteString as BS
 import Data.List (sort)
 import Network.HPACK
-
 import Network.HPACK.HeaderBlock.Decode
 import Network.HPACK.Huffman
 
@@ -54,5 +53,4 @@ test c dec dctx enc ectx = do
     hex = wire c
     inp = BS.pack $ fromHexString hex
     hs = headers c
-
     hd = fromByteStream huffmanDecodeInRequest inp
