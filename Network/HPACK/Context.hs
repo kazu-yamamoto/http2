@@ -81,9 +81,11 @@ clearRefSets ctx = return ctx {
 
 -- | The entry is removed from the reference set.
 removeRef :: Context -> Index -> IO Context
-removeRef ctx idx = return ctx { oldReferenceSet = removeIndex idx oldref }
+removeRef (Context hdrtbl oldref newref hdrset) idx = return ctx
   where
-    oldref = oldReferenceSet ctx
+    oldref' = removeIndex idx oldref
+    newref' = removeIndex idx newref
+    ctx = Context hdrtbl oldref' newref' hdrset
 
 -- | The header field is emitted.
 --   The header field is inserted at the beginning of the header table.
