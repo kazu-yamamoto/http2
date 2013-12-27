@@ -25,7 +25,7 @@ fromByteStream hd bs = go (BS.unpack bs) id
 
 toHeaderField :: HuffmanDecoding -> [Word8]
               -> Either DecodeError (HeaderField, [Word8])
-toHeaderField _  []     = error "toHeaderField"
+toHeaderField _  []     = Left EmptyBlock
 toHeaderField hd (w:ws)
   | w `testBit` 7 = Right $ indexed w ws
   | w `testBit` 6 = withoutIndexing hd w ws
@@ -75,7 +75,7 @@ newName indexing hd ws = do
 
 headerStuff :: HuffmanDecoding -> [Word8]
             -> Either DecodeError (HeaderStuff, [Word8])
-headerStuff _  []     = Left FIXME
+headerStuff _  []     = Left EmptyEncodedString
 headerStuff hd (w:ws) = S.parseString hd huff len ws'
   where
     p = dropHuffman w

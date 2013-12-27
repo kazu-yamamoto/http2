@@ -36,10 +36,11 @@ type Index = Int
 
 -- | Errors for decoder.
 data DecodeError = IndexOverrun Index -- ^ Index is out of range
-                 | EosInTheMiddle -- ^ FIXME
-                 | IllegalEos -- ^ FIXME
-                 | TooLongEos -- ^ FIXME
-                 | FIXME
+                 | EosInTheMiddle -- ^ Eos appears in the middle of string
+                 | IllegalEos -- ^ Non-eos appears in the end of string
+                 | TooLongEos -- ^ Eos is more than 7 bits
+                 | EmptyEncodedString -- ^ Encoded string has no length
+                 | EmptyBlock -- ^ Header block is empty
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
