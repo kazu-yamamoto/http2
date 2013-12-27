@@ -10,16 +10,16 @@ spec :: Spec
 spec = do
     describe "fromHeaderBlock" $ do
         it "decodes HeaderSet in request" $ do
-            (h1,c1) <- newContext 4096 >>= fromHeaderBlock e31
+            (c1,h1) <- newContext 4096 >>= flip fromHeaderBlock e31
             h1 `shouldBe` e31h
-            (h2,c2) <- fromHeaderBlock e32 c1
+            (c2,h2) <- fromHeaderBlock c1 e32
             h2 `shouldBe` e32h
-            (h3,_)  <- fromHeaderBlock e33 c2
+            (_,h3)  <- fromHeaderBlock c2 e33
             h3 `shouldBe` e33h
         it "decodes HeaderSet in response" $ do
-            (h1,c1) <- newContext 256 >>= fromHeaderBlock e51
+            (c1,h1) <- newContext 256 >>= flip fromHeaderBlock e51
             h1 `shouldBe` e51h
-            (h2,c2) <- fromHeaderBlock e52 c1
+            (c2,h2) <- fromHeaderBlock c1 e52
             h2 `shouldBe` e52h
-            (h3,_)  <- fromHeaderBlock e53 c2
+            (_,h3)  <- fromHeaderBlock c2 e53
             h3 `shouldBe` e53h

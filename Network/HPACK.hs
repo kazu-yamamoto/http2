@@ -16,7 +16,8 @@ module Network.HPACK (
   ) where
 
 import Control.Applicative ((<$>))
-import Control.Arrow (first)
+import Control.Arrow (second)
+import Control.Exception (throwIO)
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Huffman
@@ -24,31 +25,35 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-type HPACKEncoding = HeaderSet -> Context -> IO (ByteStream, Context)
-type HPACKDecoding = ByteStream -> Context -> IO (HeaderSet, Context)
+type HPACKEncoding = Context -> HeaderSet  -> IO (Context, ByteStream)
+type HPACKDecoding = Context -> ByteStream -> IO (Context, HeaderSet)
 
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderSet' for HTTP request to the low level format.
 encodeRequestHeader :: HPACKEncoding
-encodeRequestHeader hs ctx =
-    first (toByteStream huffmanEncodeInRequest) <$> toHeaderBlock hs ctx
+encodeRequestHeader ctx hs = second toBS <$> toHeaderBlock ctx hs
+  where
+    toBS = toByteStream huffmanEncodeInRequest
 
 -- | Converting the low level format for HTTP request to 'HeaderSet'.
 --   'DecodeError' would be thrown.
 decodeRequestHeader :: HPACKDecoding
-decodeRequestHeader bs ctx =
-    fromHeaderBlock (fromByteStream huffmanDecodeInRequest bs) ctx
+decodeRequestHeader ctx bs = either throwIO (fromHeaderBlock ctx) ehb
+  where
+    ehb = fromByteStream huffmanDecodeInRequest bs
 
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderSet' for HTTP response to the low level format.
 encodeResponseHeader :: HPACKEncoding
-encodeResponseHeader hs ctx =
-    first (toByteStream huffmanEncodeInResponse) <$> toHeaderBlock hs ctx
+encodeResponseHeader ctx hs = second toBS <$> toHeaderBlock ctx hs
+  where
+    toBS = toByteStream huffmanEncodeInResponse
 
 -- | Converting the low level format for HTTP response to 'HeaderSet'.
 --   'DecodeError' would be thrown.
 decodeResponseHeader :: HPACKDecoding
-decodeResponseHeader bs ctx =
-    fromHeaderBlock (fromByteStream huffmanDecodeInResponse bs) ctx
+decodeResponseHeader ctx bs = either throwIO (fromHeaderBlock ctx) ehb
+  where
+    ehb = fromByteStream huffmanDecodeInResponse bs

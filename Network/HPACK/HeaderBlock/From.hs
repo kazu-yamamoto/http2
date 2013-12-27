@@ -13,11 +13,11 @@ import Network.HPACK.Table
 ----------------------------------------------------------------
 
 -- | Decoding 'HeaderBlock' to 'HeaderSet'.
-fromHeaderBlock :: HeaderBlock
-                -> Context
-                -> IO (HeaderSet, Context)
-fromHeaderBlock (r:rs) !ctx = decodeStep ctx r >>= fromHeaderBlock rs
-fromHeaderBlock []     !ctx = decodeFinal ctx
+fromHeaderBlock :: Context
+                -> HeaderBlock
+                -> IO (Context, HeaderSet)
+fromHeaderBlock !ctx (r:rs) = decodeStep ctx r >>= \cx -> fromHeaderBlock cx rs
+fromHeaderBlock !ctx []     = decodeFinal ctx
 
 ----------------------------------------------------------------
 
@@ -41,12 +41,12 @@ decodeStep !ctx (Literal Add naming v) = do
     k <- fromNaming naming ctx
     newEntry ctx $ toEntry (k,v)
 
-decodeFinal :: Context -> IO (HeaderSet, Context)
+decodeFinal :: Context -> IO (Context, HeaderSet)
 decodeFinal ctx = do
     !ctx' <- emitNotEmitted ctx
     let !hs = getHeaderSet ctx'
         !ctx'' = clearHeaderSet ctx'
-    return (hs, ctx'')
+    return (ctx'', hs)
 
 ----------------------------------------------------------------
 

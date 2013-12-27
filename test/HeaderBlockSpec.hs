@@ -23,21 +23,21 @@ spec = do
 
     describe "fromByteStream" $ do
         it "encodes HeaderBlock" $ do
-            fromByteStream huffmanDecodeInRequest  e31b `shouldBe` e31
-            fromByteStream huffmanDecodeInRequest  e32b `shouldBe` e32
-            fromByteStream huffmanDecodeInRequest  e33b `shouldBe` e33
-            fromByteStream huffmanDecodeInResponse e51b `shouldBe` e51
-            fromByteStream huffmanDecodeInResponse e52b `shouldBe` e52
-            fromByteStream huffmanDecodeInResponse e53b `shouldBe` e53
+            fromByteStream huffmanDecodeInRequest  e31b `shouldBe` Right e31
+            fromByteStream huffmanDecodeInRequest  e32b `shouldBe` Right e32
+            fromByteStream huffmanDecodeInRequest  e33b `shouldBe` Right e33
+            fromByteStream huffmanDecodeInResponse e51b `shouldBe` Right e51
+            fromByteStream huffmanDecodeInResponse e52b `shouldBe` Right e52
+            fromByteStream huffmanDecodeInResponse e53b `shouldBe` Right e53
     describe "toByteStream & fromByteStream" $ do
         prop "duality for request" $ \k v -> do
             let key = BS.pack ('k':k)
                 val = BS.pack ('v':v)
                 hb = [Literal Add (Lit key) val]
             fromByteStream huffmanDecodeInRequest
-                (toByteStream huffmanEncodeInRequest hb) `shouldBe` hb
+                (toByteStream huffmanEncodeInRequest hb) `shouldBe` Right hb
         prop "duality for response" $ \v -> do
             let val = BS.pack ('v':v)
                 hb = [Literal Add (Idx 3) val]
             fromByteStream huffmanDecodeInResponse
-                (toByteStream huffmanEncodeInResponse hb) `shouldBe` hb
+                (toByteStream huffmanEncodeInResponse hb) `shouldBe` Right hb

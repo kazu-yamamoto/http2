@@ -36,6 +36,10 @@ type Index = Int
 
 -- | Errors for decoder.
 data DecodeError = IndexOverrun Index -- ^ Index is out of range
-                 deriving (Show,Typeable)
+                 | EosInTheMiddle -- ^ FIXME
+                 | IllegalEos -- ^ FIXME
+                 | TooLongEos -- ^ FIXME
+                 | FIXME
+                 deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError

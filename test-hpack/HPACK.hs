@@ -39,11 +39,11 @@ test :: Case
      -> HPACKEncoding -> Context
      -> IO (Either String (Context, Context, String))
 test c dec dctx enc ectx = do
-    x <- try $ dec inp dctx
+    x <- try $ dec dctx inp
     case x of
-        Left (IndexOverrun idx) -> return $ Left $ "IndexOverrun " ++ show idx
-        Right (hs',dctx') -> do
-            (out, ectx') <- enc hs ectx
+        Left e -> return $ Left $ show (e :: DecodeError)
+        Right (dctx',hs') -> do
+            (ectx',out) <- enc ectx hs
             let pass = sort hs == sort hs'
                 hex' = toHexString out
             if pass then

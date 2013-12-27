@@ -1,5 +1,6 @@
 module HuffmanResponseSpec where
 
+import Control.Applicative ((<$>))
 import Data.Char
 import Network.HPACK.Huffman.Response
 import Test.Hspec
@@ -14,9 +15,9 @@ shouldBeEncoded inp out = enc inp `shouldBe` out
     toW = map (fromIntegral . ord)
 
 shouldBeDecoded :: String -> String -> Expectation
-shouldBeDecoded inp out = dec inp `shouldBe` out
+shouldBeDecoded inp out = dec inp `shouldBe` Right out
   where
-    dec = toS . huffmanDecodeInResponse . fromHexString
+    dec x = toS <$> huffmanDecodeInResponse (fromHexString x)
     toS = map (chr . fromIntegral)
 
 spec :: Spec
@@ -24,7 +25,7 @@ spec = do
     describe "huffmanEncodeInResponse and huffmanDecodeInResponse" $ do
         prop "duality" $ \ns ->
             let is = map ((`mod` 255) . abs) ns
-            in huffmanDecodeInResponse (huffmanEncodeInResponse is) == is
+            in huffmanDecodeInResponse (huffmanEncodeInResponse is) == Right is
     describe "huffmanEncodeInResponse" $ do
         it "encodes in response" $ do
             "private" `shouldBeEncoded` "c31b39bf387f"

@@ -14,18 +14,20 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | Converting the low level format to 'HeaderBlock'.
-fromByteStream :: HuffmanDecoding -> ByteStream -> HeaderBlock
-fromByteStream hd bs = go $ BS.unpack bs
+fromByteStream :: HuffmanDecoding -> ByteStream
+               -> Either DecodeError HeaderBlock
+fromByteStream hd bs = go (BS.unpack bs) id
   where
-    go [] = []
-    go ws = hf : go ws'
-       where
-         (hf, ws') = toHeaderField hd ws
+    go [] builder = Right $ builder []
+    go ws builder = do
+        (hf, ws') <- toHeaderField hd ws
+        go ws' (builder . (hf :))
 
-toHeaderField :: HuffmanDecoding -> [Word8] -> (HeaderField, [Word8])
+toHeaderField :: HuffmanDecoding -> [Word8]
+              -> Either DecodeError (HeaderField, [Word8])
 toHeaderField _  []     = error "toHeaderField"
 toHeaderField hd (w:ws)
-  | w `testBit` 7 = indexed w ws
+  | w `testBit` 7 = Right $ indexed w ws
   | w `testBit` 6 = withoutIndexing hd w ws
   | otherwise     = incrementalIndexing hd w ws
 
@@ -36,43 +38,49 @@ indexed w ws = (Indexed idx , ws)
   where
     idx = fromIntegral $ clearBit w 7
 
-withoutIndexing :: HuffmanDecoding -> Word8 -> [Word8] -> (HeaderField, [Word8])
+withoutIndexing :: HuffmanDecoding -> Word8 -> [Word8]
+                -> Either DecodeError (HeaderField, [Word8])
 withoutIndexing hd w ws
   | isIndexedName w = indexedName NotAdd hd w ws
   | otherwise       = newName NotAdd hd ws
 
-incrementalIndexing :: HuffmanDecoding -> Word8 -> [Word8] -> (HeaderField, [Word8])
+incrementalIndexing :: HuffmanDecoding -> Word8 -> [Word8]
+                    -> Either DecodeError (HeaderField, [Word8])
 incrementalIndexing hd w ws
   | isIndexedName w = indexedName Add hd w ws
   | otherwise       = newName Add hd ws
 
 ----------------------------------------------------------------
 
-indexedName :: Indexing -> HuffmanDecoding -> Word8 -> [Word8] -> (HeaderField, [Word8])
-indexedName indexing hd w ws = (hf, ws'')
+indexedName :: Indexing -> HuffmanDecoding -> Word8 -> [Word8]
+            -> Either DecodeError (HeaderField, [Word8])
+indexedName indexing hd w ws = do
+    (val,ws'') <- headerStuff hd ws'
+    let hf = Literal indexing (Idx idx) val
+    return (hf, ws'')
   where
     p = mask6 w
     (idx,ws') = I.parseInteger 6 p ws
-    (val,ws'') = headerStuff hd ws'
-    hf = Literal indexing (Idx idx) val
 
-newName :: Indexing -> HuffmanDecoding -> [Word8] -> (HeaderField, [Word8])
-newName indexing hd ws = (hf, ws'')
-  where
-    (key,ws')  = headerStuff hd ws
-    (val,ws'') = headerStuff hd ws'
-    hf = Literal indexing (Lit key) val
+
+newName :: Indexing -> HuffmanDecoding -> [Word8]
+        -> Either DecodeError (HeaderField, [Word8])
+newName indexing hd ws = do
+    (key,ws')  <- headerStuff hd ws
+    (val,ws'') <- headerStuff hd ws'
+    let hf = Literal indexing (Lit key) val
+    return (hf, ws'')
 
 ----------------------------------------------------------------
 
-headerStuff :: HuffmanDecoding -> [Word8] -> (HeaderStuff, [Word8])
-headerStuff _  []     = error "headerStuff"
-headerStuff hd (w:ws) = (hs, ws'')
+headerStuff :: HuffmanDecoding -> [Word8]
+            -> Either DecodeError (HeaderStuff, [Word8])
+headerStuff _  []     = Left FIXME
+headerStuff hd (w:ws) = S.parseString hd huff len ws'
   where
     p = dropHuffman w
     huff = isHuffman w
     (len, ws') = I.parseInteger 7 p ws
-    (hs, ws'') = S.parseString hd huff len ws'
 
 ----------------------------------------------------------------
 
