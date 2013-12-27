@@ -43,9 +43,7 @@ Library
                       , array
                       , blaze-builder
                       , bytestring
-                      , case-insensitive
                       , hashtables
-                      , http-types
 
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
@@ -87,10 +85,8 @@ Test-Suite hpack
                       , aeson-pretty
                       , bytestring
                       , unordered-containers
-                      , case-insensitive
                       , directory
                       , filepath
-                      , http-types
                       , http2
                       , text
                       , vector

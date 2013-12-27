@@ -12,7 +12,6 @@ import Data.Array (Array, listArray, (!))
 import Data.HashTable.IO (BasicHashTable)
 import qualified Data.HashTable.IO as I
 import Network.HPACK.Table.Entry
-import Network.HPACK.Types
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString.Char8 as H
 
@@ -78,7 +77,7 @@ staticColonHeaderList = takeWhile isColon staticTableList
 
 -- | Checking if 'HeaderName' starts with colon.
 isColon :: Header -> Bool
-isColon h = H.head (fromHeaderName (fst h)) == ':'
+isColon h = H.head (fst h) == ':'
 
 ----------------------------------------------------------------
 

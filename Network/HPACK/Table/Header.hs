@@ -11,7 +11,6 @@ module Network.HPACK.Table.Header (
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.Table.Entry
-import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
@@ -45,7 +44,7 @@ printEntry (i,e) = do
     putStr "] (s = "
     putStr $ show $ entrySize e
     putStr ") "
-    BS.putStr $ fromHeaderName $ entryHeaderName e
+    BS.putStr $ entryHeaderName e
     putStr ": "
     BS.putStrLn $ entryHeaderValue e
 

@@ -5,7 +5,6 @@ module HeaderBlockSpec where
 import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Huffman
-import Network.HPACK.Types
 import Test.Hspec
 import Test.Hspec.QuickCheck
 
@@ -32,7 +31,7 @@ spec = do
             fromByteStream huffmanDecodeInResponse e53b `shouldBe` e53
     describe "toByteStream & fromByteStream" $ do
         prop "duality for request" $ \k v -> do
-            let key = toHeaderName $ BS.pack ('k':k)
+            let key = BS.pack ('k':k)
                 val = BS.pack ('v':v)
                 hb = [Literal Add (Lit key) val]
             fromByteStream huffmanDecodeInRequest

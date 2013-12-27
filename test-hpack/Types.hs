@@ -12,13 +12,13 @@ import Control.Monad (mzero)
 import Data.Aeson
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
-import Data.CaseInsensitive (mk, foldedCase)
+import qualified Data.HashMap.Strict as H
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Vector ((!))
 import qualified Data.Vector as V
 import Network.HPACK
-import Network.HTTP.Types
-import qualified Data.HashMap.Strict as H
+import Network.HPACK.Types
 
 {-
 import Data.Aeson.Encode.Pretty (encodePretty)
@@ -80,17 +80,21 @@ instance ToJSON HeaderSet where
 instance FromJSON Header where
     parseJSON (Array a)  = pure (toKey (a ! 0), toValue (a ! 1)) -- old
       where
-        toKey = mk . toValue
-    parseJSON (Object o) = pure (toKey k, toValue v) -- new
+        toKey = toValue
+    parseJSON (Object o) = pure (textToByteString k, toValue v) -- new
       where
         (k,v) = head $ H.toList o
-        toKey = mk . B8.pack . T.unpack
     parseJSON _          = mzero
 
-toValue :: Value -> ByteString
-toValue (String s) = B8.pack $ T.unpack s
-toValue _          = error "toValue"
-
 instance ToJSON Header where
-    toJSON (k,v) = object [ T.pack (B8.unpack (foldedCase k)) .= v]
---    toJSON (k,v) = toJSON [foldedCase k,v]
+    toJSON (k,v) = object [ byteStringToText k .= v ]
+
+textToByteString :: Text -> ByteString
+textToByteString = B8.pack . T.unpack
+
+byteStringToText :: ByteString -> Text
+byteStringToText = T.pack . B8.unpack
+
+toValue :: Value -> ByteString
+toValue (String s) = textToByteString s
+toValue _          = error "toValue"

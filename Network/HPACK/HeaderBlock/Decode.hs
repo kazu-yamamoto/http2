@@ -61,8 +61,7 @@ newName indexing hd ws = (hf, ws'')
   where
     (key,ws')  = headerStuff hd ws
     (val,ws'') = headerStuff hd ws'
-    name = toHeaderName key
-    hf = Literal indexing (Lit name) val
+    hf = Literal indexing (Lit key) val
 
 ----------------------------------------------------------------
 

@@ -5,8 +5,6 @@ module Network.HPACK.Types (
     HeaderName
   , HeaderValue
   , HeaderStuff
-  , fromHeaderName
-  , toHeaderName
   , Header
   -- * Misc
   , ByteStream
@@ -16,23 +14,19 @@ module Network.HPACK.Types (
 
 import Control.Exception as E
 import Data.ByteString (ByteString)
-import Data.CaseInsensitive (foldedCase, mk)
 import Data.Typeable
-import Network.HTTP.Types (HeaderName, Header)
+
+-- | Header name.
+type HeaderName = ByteString
 
 -- | Header value.
 type HeaderValue = ByteString
 
+-- | Header.
+type Header = (HeaderName, HeaderValue)
+
 -- | To be a 'HeaderName' or 'HeaderValue'.
 type HeaderStuff = ByteString
-
--- | Converting 'HeaderName' to 'HeaderStuff'.
-fromHeaderName :: HeaderName -> HeaderStuff
-fromHeaderName = foldedCase
-
--- | Converting 'HeaderStuff' to 'HeaderName'.
-toHeaderName :: HeaderStuff -> HeaderName
-toHeaderName = mk
 
 -- | Byte stream in HTTP request/response.
 type ByteStream = ByteString

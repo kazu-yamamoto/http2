@@ -47,10 +47,9 @@ indexedName he set idx v = pre <> vlen <> val
 
 -- Using Huffman encoding
 newName :: HuffmanEncoding -> Setter -> HeaderName -> HeaderValue -> Builder
-newName he set ck v = pre <> klen <> key <> vlen <> val
+newName he set k v = pre <> klen <> key <> vlen <> val
   where
     pre = BB.fromWord8 $ set 0
-    k = fromHeaderName ck
     key0 = S.encode he k
     keyLen = length key0 -- FIXME: performance
     value = S.encode he v

@@ -37,7 +37,7 @@ headerSizeMagicNumber :: Size
 headerSizeMagicNumber = 32
 
 headerSize :: Header -> Size
-headerSize (k,v) = BS.length (fromHeaderName k)
+headerSize (k,v) = BS.length k
                  + BS.length v
                  + headerSizeMagicNumber
 

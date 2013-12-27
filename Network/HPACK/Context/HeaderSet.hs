@@ -4,7 +4,6 @@ module Network.HPACK.Context.HeaderSet where
 
 import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.Table
-import Network.HPACK.Types
 
 -- | Header set.
 type HeaderSet = [Header]
@@ -18,7 +17,7 @@ printHeaderSet :: HeaderSet -> IO ()
 printHeaderSet hs = mapM_ printHeader hs
   where
     printHeader (k,v) = do
-        BS.putStr $ fromHeaderName k
+        BS.putStr k
         putStr ": "
         BS.putStr v
         putStr "\n"
