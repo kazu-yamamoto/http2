@@ -15,6 +15,7 @@ import Control.Arrow (second)
 import Data.Array (Array, (!), listArray)
 import Data.List (partition)
 import Data.Word (Word8)
+import Network.HPACK.Builder
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Types (DecodeError(..))
 
@@ -89,14 +90,12 @@ mark _ _      _                 = error "mark"
 
 -- | Huffman decoding.
 decode :: Decoder -> HuffmanDecoding
-decode decoder ws = decodeBits decoder (concatMap toBits ws) id
+decode decoder ws = decodeBits decoder (concatMap toBits ws) empty
 
-type Builder = [Word8] -> [Word8]
-
-decodeBits :: Decoder -> Bits -> Builder -> Either DecodeError [Word8]
+decodeBits :: Decoder -> Bits -> Builder Word8 -> Either DecodeError [Word8]
 decodeBits decoder xs builder = case dec decoder xs of
-  Right (OK v xs') -> decodeBits decoder xs' (builder . (fromIntegral v :))
-  Right Eos        -> Right $ builder []
+  Right (OK v xs') -> decodeBits decoder xs' (builder << fromIntegral v)
+  Right Eos        -> Right $ run builder
   Left  err        -> Left err
 
 data DecodeOK = Eos | OK Int Bits

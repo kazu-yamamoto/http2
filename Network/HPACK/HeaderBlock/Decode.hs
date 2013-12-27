@@ -5,6 +5,7 @@ module Network.HPACK.HeaderBlock.Decode (
 import Data.Bits (testBit, clearBit, (.&.))
 import qualified Data.ByteString as BS
 import Data.Word (Word8)
+import Network.HPACK.Builder
 import Network.HPACK.HeaderBlock.HeaderField
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.HeaderBlock.String as S
@@ -16,12 +17,12 @@ import Network.HPACK.Types
 -- | Converting the low level format to 'HeaderBlock'.
 fromByteStream :: HuffmanDecoding -> ByteStream
                -> Either DecodeError HeaderBlock
-fromByteStream hd bs = go (BS.unpack bs) id
+fromByteStream hd bs = go (BS.unpack bs) empty
   where
-    go [] builder = Right $ builder []
+    go [] builder = Right $ run builder
     go ws builder = do
         (hf, ws') <- toHeaderField hd ws
-        go ws' (builder . (hf :))
+        go ws' (builder << hf)
 
 toHeaderField :: HuffmanDecoding -> [Word8]
               -> Either DecodeError (HeaderField, [Word8])

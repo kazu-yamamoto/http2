@@ -18,6 +18,7 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
+                        Network.HPACK.Builder
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderSet
                         Network.HPACK.Context.ReferenceSet
