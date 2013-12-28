@@ -1,11 +1,7 @@
+-- | HPACK: encoding and decoding a header set.
 module Network.HPACK (
-  -- * Type
-    ByteStream
-  , HeaderSet
-  , Context
-  , newContext
-  , DecodeError(..)
-  , HPACKEncoding
+  -- * Encoding and decoding
+    HPACKEncoding
   , HPACKDecoding
   -- * Request
   , encodeRequestHeader
@@ -13,19 +9,37 @@ module Network.HPACK (
   -- * Response
   , encodeResponseHeader
   , decodeResponseHeader
+  -- * Contenxt
+  , Context
+  , newContext
+  -- * Errors for decoding
+  , DecodeError(..)
+  -- * Headers
+  , HeaderSet
+  , Header
+  , HeaderName
+  , HeaderValue
+  -- * Basic types
+  , ByteStream
+  , Size
+  , Index
   ) where
 
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Exception (throwIO)
-import Network.HPACK.Context
-import Network.HPACK.HeaderBlock
-import Network.HPACK.Huffman
-import Network.HPACK.Types
+import Network.HPACK.Context (Context, newContext, HeaderSet)
+import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteStream, fromByteStream)
+import Network.HPACK.Huffman (huffmanEncodeInRequest, huffmanDecodeInRequest, huffmanEncodeInResponse, huffmanDecodeInResponse)
+import Network.HPACK.Table (Size)
+import Network.HPACK.Types (ByteStream, DecodeError(..), Header, HeaderName, HeaderValue, Index)
 
 ----------------------------------------------------------------
 
+-- | HPACK encoding, from 'HeaderSet' to 'ByteStream'.
 type HPACKEncoding = Context -> HeaderSet  -> IO (Context, ByteStream)
+
+-- | HPACK decoding, from 'ByteStream' to 'HeaderSet'.
 type HPACKDecoding = Context -> ByteStream -> IO (Context, HeaderSet)
 
 ----------------------------------------------------------------

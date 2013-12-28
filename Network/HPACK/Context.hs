@@ -33,7 +33,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | Context for encoding/decoding.
+-- | Context for HPACK encoding/decoding.
 data Context = Context {
     headerTable     :: !HeaderTable -- ^ A cache of headers
   , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
@@ -61,7 +61,7 @@ printContext (Context hdrtbl oldref newref hdrset) = do
 ----------------------------------------------------------------
 
 -- | Creating a new 'Context'.
---   The first argument is the size of 'HeaderTable'.
+--   The first argument is the size of a header table.
 newContext :: Size -> IO Context
 newContext maxsiz = do
     hdrtbl <- newHeaderTable maxsiz

@@ -36,9 +36,9 @@ type Index = Int
 
 -- | Errors for decoder.
 data DecodeError = IndexOverrun Index -- ^ Index is out of range
-                 | EosInTheMiddle -- ^ Eos appears in the middle of string
-                 | IllegalEos -- ^ Non-eos appears in the end of string
-                 | TooLongEos -- ^ Eos is more than 7 bits
+                 | EosInTheMiddle -- ^ Eos appears in the middle of huffman string
+                 | IllegalEos -- ^ Non-eos appears in the end of huffman string
+                 | TooLongEos -- ^ Eos of huffman string is more than 7 bits
                  | EmptyEncodedString -- ^ Encoded string has no length
                  | EmptyBlock -- ^ Header block is empty
                  deriving (Eq,Show,Typeable)
