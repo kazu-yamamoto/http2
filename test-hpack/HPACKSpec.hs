@@ -21,7 +21,7 @@ getTestFiles dir = do
     subdirs1 <- filterM doesDirectoryExist subdirs0
     concat <$> mapM getTestFiles' subdirs1
   where
-    valid = map (testDir </>) . filter (not . isPrefixOf ".")
+    valid = map (testDir </>) . filter ("raw-data" /=) . filter (not . isPrefixOf ".")
 
 getTestFiles' :: FilePath -> IO [FilePath]
 getTestFiles' subdir = do
