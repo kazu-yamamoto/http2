@@ -92,6 +92,7 @@ Test-Suite hpack
                       , text
                       , unordered-containers
                       , vector
+                      , word8
                       , hspec >= 1.3
 
 Source-Repository head

@@ -3,6 +3,7 @@
 module HPACK (run, Result(..)) where
 
 import Control.Exception
+import qualified Data.ByteString.Char8 as B8
 import Data.List (sort)
 import Network.HPACK
 import Network.HPACK.HeaderBlock.Decode
@@ -45,11 +46,11 @@ test c dec dctx enc ectx = do
         Right (dctx',hs') -> do
             (ectx',out) <- enc ectx hs
             let pass = sort hs == sort hs'
-                hex' = toHexString out
+                hex' = B8.unpack $ toHexString out
             if pass then
                 return $ Right (dctx', ectx', hex')
               else
-                return $ Left $ "Headers are different in " ++ hex ++ ":\n" ++ show hd ++ "\n" ++ show hs ++ "\n" ++ show hs'
+                return $ Left $ "Headers are different in " ++ B8.unpack hex ++ ":\n" ++ show hd ++ "\n" ++ show hs ++ "\n" ++ show hs'
   where
     hex = wire c
     inp = fromHexString hex

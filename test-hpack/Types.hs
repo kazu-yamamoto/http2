@@ -39,7 +39,7 @@ data Test = Test {
 
 data Case = Case {
     size :: Int
-  , wire :: String
+  , wire :: ByteString
   , headers :: HeaderSet
   } deriving Show
 
