@@ -51,6 +51,5 @@ toBits' bs !cnt 0
   | otherwise     = replicate (8 - cnt) F ++ bs -- filling missing bits from MSB
 toBits' bs !cnt x = toBits' (b:bs) (cnt + 1) q
   where
-    q = x `div` 2
-    r = x `mod` 2
+    (q,r) = x `divMod` 2
     b = toBit r
