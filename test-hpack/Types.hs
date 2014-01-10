@@ -18,7 +18,6 @@ import qualified Data.Text as T
 import Data.Vector ((!))
 import qualified Data.Vector as V
 import Network.HPACK
-import Network.HPACK.Types
 
 {-
 import Data.Aeson.Encode.Pretty (encodePretty)
