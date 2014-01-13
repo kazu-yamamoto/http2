@@ -76,6 +76,10 @@ decodeOne = fromIntegral
 
 ----------------------------------------------------------------
 
+-- |
+--
+-- >>> parseInteger 7 127 $ BS.pack [210,211,212,87,88,89,90]
+-- (183839313,"XYZ")
 parseInteger :: Int -> Word8 -> ByteString -> (Int, ByteString)
 parseInteger n w bs
   | i < p     = (i, bs)
