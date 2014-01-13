@@ -109,17 +109,15 @@ mark _ _      _                 = error "mark"
 
 -- | Huffman decoding.
 decode :: Decoder -> HuffmanDecoding
-decode decoder bs = case decodeBits decoder src empty of
-    Left err -> Left err
-    Right ws -> Right $ BS.pack ws -- FIXME
+decode decoder bs = decodeBits decoder src empty >>= return . BS.pack -- FIXME
   where
     src = toBitSource bs
 
 decodeBits :: Decoder -> BitSource -> Builder Word8 -> Either DecodeError [Word8]
 decodeBits decoder src builder = case dec decoder src of
   Right (OK v src') -> decodeBits decoder src' (builder << fromIntegral v)
-  Right Eos        -> Right $ run builder -- fixme
-  Left  err        -> Left err
+  Right Eos         -> Right $ run builder -- fixme
+  Left  err         -> Left err
 
 data DecodeOK = Eos | OK Int BitSource
 
