@@ -5,6 +5,7 @@ module Network.HPACK.HeaderBlock.Encode (
 import Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as BB
 import Data.Bits (setBit)
+import qualified Data.ByteString as BS
 import Data.List (foldl')
 import Data.Monoid ((<>), mempty)
 import Data.Word (Word8)
@@ -41,9 +42,9 @@ indexedName he set idx v = pre <> vlen <> val
     (p:ps) = I.encode 6 idx
     pre = BB.fromWord8s $ set p : ps
     value = S.encode he v
-    valueLen = length value -- FIXME: performance
+    valueLen = BS.length value
     vlen = BB.fromWord8s $ setH $ I.encode 7 valueLen
-    val = BB.fromWord8s value
+    val = BB.fromByteString value
 
 -- Using Huffman encoding
 newName :: HuffmanEncoding -> Setter -> HeaderName -> HeaderValue -> Builder
@@ -51,13 +52,13 @@ newName he set k v = pre <> klen <> key <> vlen <> val
   where
     pre = BB.fromWord8 $ set 0
     key0 = S.encode he k
-    keyLen = length key0 -- FIXME: performance
+    keyLen = BS.length key0
     value = S.encode he v
-    valueLen = length value -- FIXME: performance
+    valueLen = BS.length value
     klen = BB.fromWord8s $ setH $ I.encode 7 keyLen
     vlen = BB.fromWord8s $ setH $ I.encode 7 valueLen
-    key = BB.fromWord8s key0
-    val = BB.fromWord8s value
+    key = BB.fromByteString key0
+    val = BB.fromByteString value
 
 ----------------------------------------------------------------
 

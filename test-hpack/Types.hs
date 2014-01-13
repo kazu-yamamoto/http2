@@ -59,13 +59,13 @@ instance ToJSON Test where
 
 instance FromJSON Case where
     parseJSON (Object o) = Case <$> o .: "header_table_size"
-                                <*> o .: "wire"
+                                <*> (textToByteString <$> (o .: "wire"))
                                 <*> o .: "headers"
     parseJSON _          = mzero
 
 instance ToJSON Case where
     toJSON (Case siz w hs) = object ["header_table_size" .= siz
-                                    ,"wire" .= w
+                                    ,"wire" .= byteStringToText w
                                     ,"headers" .= hs
                                     ]
 
@@ -86,7 +86,7 @@ instance FromJSON Header where
     parseJSON _          = mzero
 
 instance ToJSON Header where
-    toJSON (k,v) = object [ byteStringToText k .= v ]
+    toJSON (k,v) = object [ byteStringToText k .= byteStringToText v ]
 
 textToByteString :: Text -> ByteString
 textToByteString = B8.pack . T.unpack

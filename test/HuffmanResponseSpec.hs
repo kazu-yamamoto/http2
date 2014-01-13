@@ -1,31 +1,31 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module HuffmanResponseSpec where
 
-import Control.Applicative ((<$>))
-import Data.Char
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Network.HPACK.Huffman.Response
 import Test.Hspec
 import Test.Hspec.QuickCheck
 
 import HexString
 
-shouldBeEncoded :: String -> String -> Expectation
+shouldBeEncoded :: ByteString -> ByteString -> Expectation
 shouldBeEncoded inp out = enc inp `shouldBe` out
   where
-    enc = toHexString . huffmanEncodeInResponse . toW
-    toW = map (fromIntegral . ord)
+    enc = toHexString . huffmanEncodeInResponse
 
-shouldBeDecoded :: String -> String -> Expectation
+shouldBeDecoded :: ByteString -> ByteString -> Expectation
 shouldBeDecoded inp out = dec inp `shouldBe` Right out
   where
-    dec x = toS <$> huffmanDecodeInResponse (fromHexString x)
-    toS = map (chr . fromIntegral)
+    dec x = huffmanDecodeInResponse (fromHexString x)
 
 spec :: Spec
 spec = do
     describe "huffmanEncodeInResponse and huffmanDecodeInResponse" $ do
-        prop "duality" $ \ns ->
-            let is = map ((`mod` 255) . abs) ns
-            in huffmanDecodeInResponse (huffmanEncodeInResponse is) == Right is
+        prop "duality" $ \cs ->
+            let bs = BS.pack cs
+            in huffmanDecodeInResponse (huffmanEncodeInResponse bs) == Right bs
     describe "huffmanEncodeInResponse" $ do
         it "encodes in response" $ do
             "private" `shouldBeEncoded` "c31b39bf387f"

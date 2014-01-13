@@ -7,7 +7,12 @@ module Network.HPACK.HeaderBlock.Integer (
   ) where
 
 import Data.Array (Array, listArray, (!))
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Data.Word (Word8)
+
+-- $setup
+-- >>> import qualified Data.ByteString as BS
 
 ----------------------------------------------------------------
 
@@ -48,20 +53,22 @@ encodeOne = fromIntegral
 
 -- | Integer decoding. The first argument is N of prefix.
 --
--- >>> decode 5 [10]
+-- >>> decode 5 10 $ BS.empty
 -- 10
--- >>> decode 5 [31,154,10]
+-- >>> decode 5 31 $ BS.pack [154,10]
 -- 1337
--- >>> decode 8 [42]
+-- >>> decode 8 42 $ BS.empty
 -- 42
-decode :: Int -> [Word8] -> Int
-decode _ []     = error "decode"
-decode n ws
-  | i < p     = i
-  | otherwise = foldr1 (\x y -> x - 128 + y * 128) is + i
+decode :: Int -> Word8 -> ByteString -> Int
+decode n w bs
+  | i < p      = i
+  | BS.null bs = error $ "decode: n = " ++ show n ++ ", w = " ++ show w ++ ", bs = empty"
+  | otherwise  = BS.foldr' (\x y -> fromIntegral x - 128 + y * 128) i0 bs' + i
   where
     p = powerArray ! n
-    (i:is) = map fromIntegral ws
+    i = fromIntegral w
+    i0 = fromIntegral $ BS.last bs
+    bs' = BS.init bs
 
 -- | Integer decoding.
 decodeOne :: Word8 -> Int
@@ -69,18 +76,14 @@ decodeOne = fromIntegral
 
 ----------------------------------------------------------------
 
-parseInteger :: Int -> Word8 -> [Word8] -> (Int, [Word8])
-parseInteger n w ws
-  | i < p     = (i, ws)
+parseInteger :: Int -> Word8 -> ByteString -> (Int, ByteString)
+parseInteger n w bs
+  | i < p     = (i, bs)
   | otherwise = (len, rest)
   where
     p = powerArray ! n
     i = fromIntegral w
-    (ws', rest) = split ws
-    len = decode n (w:ws')
+    Just idx = BS.findIndex (< 128) bs
+    (bs', rest) = BS.splitAt (idx + 1) bs
+    len = decode n w bs'
 
-split :: [Word8] -> ([Word8],[Word8])
-split []     = error "split"
-split (w:ws)
-  | w >= 128  = let (xs,ys) = split ws in (w:xs, ys)
-  | otherwise = ([w], ws)

@@ -3,11 +3,18 @@
 module Network.HPACK.Huffman.Bit (
     B(..)
   , Bits
-  , fromBits
-  , toBits
+  , fromBitsToByteString
+  , BitSource
+  , toBitSource
+  , uncons
   ) where
 
-import Data.List (foldl')
+import Data.Array
+import Data.Bits (setBit, testBit)
+import Data.ByteString.Internal (ByteString, unsafeCreate)
+import qualified Data.ByteString as BS
+import Foreign.Ptr
+import Foreign.Storable (poke)
 import Data.Word (Word8)
 
 -- | Data type for Bit.
@@ -15,26 +22,50 @@ data B = F -- ^ Zero
        | T -- ^ One
        deriving (Eq,Ord,Show)
 
-fromBit :: B -> Word8
-fromBit F = 0
-fromBit T = 1
-
-toBit :: Word8 -> B
-toBit 0 = F
-toBit 1 = T
-toBit _ = error "toBit"
-
--- | Bit sequence.
 type Bits = [B]
 
--- | From 'Bits' of length 8 to 'Word8'.
---
--- >>> fromBits [T,F,T,F,T,F,T,F]
--- 170
--- >>> fromBits [F,T,F,T,F,T,F,T]
--- 85
-fromBits :: Bits -> Word8
-fromBits = foldl' (\x y -> x * 2 + y) 0 . map fromBit
+fromBitsToByteString :: Int -> [Bits] -> ByteString
+fromBitsToByteString len bss = unsafeCreate len $ loop [] bss
+  where
+    loop [] [] _       = return ()
+    loop [] (b:bs) ptr = do
+        (ptr', rest') <- write ptr b
+        loop rest' bs ptr'
+    loop rest (b:bs) ptr = do
+        (ptr', rest') <- write ptr (rest ++ b) -- inefficient?
+        loop rest' bs ptr'
+    loop _ _ _      = error "loop"
+    write ptr (b7:b6:b5:b4:b3:b2:b1:b0:bs) = do
+        poke ptr (toWord b7 b6 b5 b4 b3 b2 b1 b0)
+        write (ptr `plusPtr` 1) bs
+    write ptr bs = return (ptr,bs)
+    set w _ F = w
+    set w i T = w `setBit` i
+    toWord b7 b6 b5 b4 b3 b2 b1 b0 = w7
+      where
+        w0 = set  0 0 b0
+        w1 = set w0 1 b1
+        w2 = set w1 2 b2
+        w3 = set w2 3 b3
+        w4 = set w3 4 b4
+        w5 = set w4 5 b5
+        w6 = set w5 6 b6
+        w7 = set w6 7 b7
+
+data BitSource = BitSource [B] !ByteString
+
+toBitSource :: ByteString -> BitSource
+toBitSource bs = BitSource [] bs
+
+uncons :: BitSource -> Maybe (B,BitSource)
+uncons (BitSource [] bs) = case BS.uncons bs of
+    Nothing      -> Nothing
+    Just (w,bs') -> let x:xs = bitArray ! w
+                    in Just $ (x, BitSource xs bs')
+uncons (BitSource (x:xs) bs) = Just (x, BitSource xs bs)
+
+bitArray :: Array Word8 Bits
+bitArray = listArray (0,255) $ map toBits [0..255]
 
 -- | From 'Word8' to 'Bits' of length 8.
 --
@@ -43,13 +74,16 @@ fromBits = foldl' (\x y -> x * 2 + y) 0 . map fromBit
 -- >>> toBits 85
 -- [F,T,F,T,F,T,F,T]
 toBits :: Word8 -> Bits
-toBits = toBits' [] 0
-
-toBits' :: Bits -> Int -> Word8 -> Bits
-toBits' bs !cnt 0
-  | cnt == 8      = bs
-  | otherwise     = replicate (8 - cnt) F ++ bs -- filling missing bits from MSB
-toBits' bs !cnt x = toBits' (b:bs) (cnt + 1) q
+toBits w = [b7,b6,b5,b4,b3,b2,b1,b0]
   where
-    (q,r) = x `divMod` 2
-    b = toBit r
+    get i
+      | w `testBit` i = T
+      | otherwise     = F
+    b0 = get 0
+    b1 = get 1
+    b2 = get 2
+    b3 = get 3
+    b4 = get 4
+    b5 = get 5
+    b6 = get 6
+    b7 = get 7

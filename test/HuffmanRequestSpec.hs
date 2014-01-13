@@ -1,7 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module HuffmanRequestSpec where
 
-import Control.Applicative ((<$>))
-import Data.Char
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import Network.HPACK.Huffman.Request
 import Network.HPACK.Types
 import Test.Hspec
@@ -9,24 +11,22 @@ import Test.Hspec.QuickCheck
 
 import HexString
 
-shouldBeEncoded :: String -> String -> Expectation
+shouldBeEncoded :: ByteString -> ByteString -> Expectation
 shouldBeEncoded inp out = enc inp `shouldBe` out
   where
-    enc = toHexString . huffmanEncodeInRequest . toW
-    toW = map (fromIntegral . ord)
+    enc = toHexString . huffmanEncodeInRequest
 
-shouldBeDecoded :: String -> Either DecodeError String -> Expectation
+shouldBeDecoded :: ByteString -> Either DecodeError ByteString -> Expectation
 shouldBeDecoded inp out = dec inp `shouldBe` out
   where
-    dec x = toS <$> huffmanDecodeInRequest (fromHexString x)
-    toS = map (chr . fromIntegral)
+    dec x = huffmanDecodeInRequest (fromHexString x)
 
 spec :: Spec
 spec = do
     describe "huffmanEncodeInRequest and huffmanDecodeInRequest" $ do
-        prop "duality" $ \ns ->
-            let is = map ((`mod` 255) . abs) ns
-            in huffmanDecodeInRequest (huffmanEncodeInRequest is) == Right is
+        prop "duality" $ \cs ->
+            let bs = BS.pack cs
+            in huffmanDecodeInRequest (huffmanEncodeInRequest bs) == Right bs
     describe "huffmanEncodeInRequest" $ do
         it "encodes in request" $ do
             "www.example.com" `shouldBeEncoded` "db6d883e68d1cb1225ba7f"

@@ -2,7 +2,6 @@
 
 module HeaderBlock where
 
-import qualified Data.ByteString as BS
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Types
@@ -27,7 +26,7 @@ e31h = [(":method","GET")
         ]
 
 e31b :: ByteStream
-e31b = BS.pack $ fromHexString "828786048bdb6d883e68d1cb1225ba7f"
+e31b = fromHexString "828786048bdb6d883e68d1cb1225ba7f"
 
 e32 :: HeaderBlock
 e32 = [
@@ -42,7 +41,7 @@ e32h = [("cache-control","no-cache")
         ,(":authority","www.example.com")]
 
 e32b :: ByteStream
-e32b = BS.pack $ fromHexString "1b8663654a1398ff"
+e32b = fromHexString "1b8663654a1398ff"
 
 e33 :: HeaderBlock
 e33 = [
@@ -63,7 +62,7 @@ e33h = [(":method","GET")
         ]
 
 e33b :: ByteStream
-e33b = BS.pack $ fromHexString "80858c8b8400884eb08b749790fa7f894eb08b74979a17a8ff"
+e33b = fromHexString "80858c8b8400884eb08b749790fa7f894eb08b74979a17a8ff"
 
 ----------------------------------------------------------------
 
@@ -83,7 +82,7 @@ e51h = [(":status","302")
         ]
 
 e51b :: ByteStream
-e51b = BS.pack $ fromHexString "0882409f1886c31b39bf387f2292a2fba20320f2ab303124018b490d3209e8773093e39e7864dd7afd3d3d248747db87284955f6ff"
+e51b = fromHexString "0882409f1886c31b39bf387f2292a2fba20320f2ab303124018b490d3209e8773093e39e7864dd7afd3d3d248747db87284955f6ff"
 
 e52 :: HeaderBlock
 e52 = [
@@ -99,7 +98,7 @@ e52h = [(":status","200")
         ]
 
 e52b :: ByteStream
-e52b = BS.pack $ fromHexString "848c"
+e52b = fromHexString "848c"
 
 e53 :: HeaderBlock
 e53 = [
@@ -124,4 +123,4 @@ e53h = [("cache-control","private")
         ,("set-cookie","foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1")]
 
 e53b :: ByteStream
-e53b = BS.pack $ fromHexString "8384840392a2fba20320f2ab303124018b490d3309e8771d84e1fbb30f848483833ab3df7dfb36d3d9e1fcfc3fafe7abfcfefcbfaf3edf2f977fd36ff7fd79f6f977fd3de16bfa46fe10d889447de1ce18e565f76c2f"
+e53b = fromHexString "8384840392a2fba20320f2ab303124018b490d3309e8771d84e1fbb30f848483833ab3df7dfb36d3d9e1fcfc3fafe7abfcfefcbfaf3edf2f977fd36ff7fd79f6f977fd3de16bfa46fe10d889447de1ce18e565f76c2f"

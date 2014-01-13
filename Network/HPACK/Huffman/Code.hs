@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Network.HPACK.Huffman.Code (
   -- * Huffman encoding
     Encoder
@@ -11,21 +13,28 @@ module Network.HPACK.Huffman.Code (
   , decode
   ) where
 
+import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Data.Array (Array, (!), listArray)
+import Data.ByteString.Internal (ByteString(..))
+import qualified Data.ByteString as BS
 import Data.List (partition)
 import Data.Word (Word8)
+import Foreign.ForeignPtr
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Storable (peek)
 import Network.HPACK.Builder
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Types (DecodeError(..))
+import System.IO.Unsafe (unsafePerformIO)
 
 ----------------------------------------------------------------
 
 -- | Huffman encoding.
-type HuffmanEncoding = [Word8] -> [Word8]
+type HuffmanEncoding = ByteString -> ByteString
 
 -- | Huffman decoding.
-type HuffmanDecoding = [Word8] -> Either DecodeError [Word8]
+type HuffmanDecoding = ByteString -> Either DecodeError ByteString
 
 ----------------------------------------------------------------
 
@@ -35,36 +44,46 @@ idxEos = 256
 ----------------------------------------------------------------
 
 -- | Type for Huffman encoding.
-newtype Encoder = Encoder (Array Int Bits)
+newtype Encoder = Encoder (Array Int (Int,Bits))
 
 -- | Creating 'Encoder'.
 toEncoder :: [Bits] -> Encoder
-toEncoder bs = Encoder $ listArray (0,idxEos) bs
+toEncoder bss = Encoder $ listArray (0,idxEos) (map toEnt bss)
+  where
+    toEnt bs = (len, bs)
+      where
+        !len = length bs
 
 -- | Huffman encoding.
 encode :: Encoder -> HuffmanEncoding
-encode encoder ws = map fromBits $ group8 bits
+encode encoder (PS fptr off len) = fromBitsToByteString nBytes (run b)
   where
-    bits = concatMap (enc encoder . fromIntegral) ws
-    group8 xs
-      | null zs   = eos ys
-      | otherwise = ys : group8 zs
+    (nbits,b0) = unsafePerformIO $ withForeignPtr fptr $ \ptr ->
+        loop (ptr `plusPtr` off) 0 0 empty
+    (nBytes,b) = eos nbits b0
+    loop :: Ptr Word8 -> Int -> Int -> Builder Bits -> IO (Int,Builder Bits)
+    loop !ptr !cnt !nBits !builder
+      | cnt == len = return (nBits,builder)
+      | otherwise  = do
+          i <- fromIntegral <$> peek ptr
+          let (bits,bs) = enc encoder i
+              builder' = builder << bs
+          loop (ptr `plusPtr` 1) (cnt + 1) (nBits + bits) builder'
+    eos nBits !builder
+      | r == 0    = (q,builder)
+      | otherwise = (q+1, builder << bools')
       where
-        (ys,zs) = splitAt 8 xs
-    eos xs
-      | len == 0  = []  -- only when ws == [], [] should be encoded to [].
-      | len == 8  = [xs]
-      | otherwise = [take 8 (xs ++ enc encoder idxEos)]
-      where
-        len = length xs
+        (q,r) = nBits `divMod` 8
+        (_,bools) = enc encoder idxEos
+        bools' = take (8 - r) bools
 
-enc :: Encoder -> Int -> Bits
+enc :: Encoder -> Int -> (Int,Bits)
 enc (Encoder ary) i = ary ! i
 
 ----------------------------------------------------------------
 
 -- | Type for Huffman decoding.
-data Decoder = Tip (Maybe Int) Int
+data Decoder = Tip (Maybe Int) {-# UNPACK #-} !Int
              | Bin (Maybe Int) Decoder Decoder
              deriving Show
 
@@ -90,23 +109,29 @@ mark _ _      _                 = error "mark"
 
 -- | Huffman decoding.
 decode :: Decoder -> HuffmanDecoding
-decode decoder ws = decodeBits decoder (concatMap toBits ws) empty
+decode decoder bs = case decodeBits decoder src empty of
+    Left err -> Left err
+    Right ws -> Right $ BS.pack ws -- FIXME
+  where
+    src = toBitSource bs
 
-decodeBits :: Decoder -> Bits -> Builder Word8 -> Either DecodeError [Word8]
-decodeBits decoder xs builder = case dec decoder xs of
-  Right (OK v xs') -> decodeBits decoder xs' (builder << fromIntegral v)
-  Right Eos        -> Right $ run builder
+decodeBits :: Decoder -> BitSource -> Builder Word8 -> Either DecodeError [Word8]
+decodeBits decoder src builder = case dec decoder src of
+  Right (OK v src') -> decodeBits decoder src' (builder << fromIntegral v)
+  Right Eos        -> Right $ run builder -- fixme
   Left  err        -> Left err
 
-data DecodeOK = Eos | OK Int Bits
+data DecodeOK = Eos | OK Int BitSource
 
-dec :: Decoder -> Bits -> Either DecodeError DecodeOK
-dec (Tip Nothing v)    xs     = Right $ OK v xs
-dec (Tip _       _)    _      = Left EosInTheMiddle
-dec (Bin _ l _)        (F:xs) = dec l xs
-dec (Bin _ _ r)        (T:xs) = dec r xs
-dec (Bin Nothing _ _)  []     = Left IllegalEos
-dec (Bin (Just i) _ _) []
-  -- i is 1 origin. 8 means Bits are consumed in the parent 7.
-  | i <= 8                    = Right Eos
-  | otherwise                 = Left TooLongEos
+dec :: Decoder -> BitSource -> Either DecodeError DecodeOK
+dec (Tip Nothing v)    src = Right $ OK v src
+dec (Tip _       _)    _   = Left EosInTheMiddle
+dec (Bin x l r)        src = case uncons src of
+    Nothing -> case x of
+        Nothing           -> Left IllegalEos
+        Just i
+          -- i is 1 origin. 8 means Bits are consumed in the parent 7.
+          | i <= 8        -> Right Eos
+          | otherwise     -> Left TooLongEos
+    Just (F,src')         -> dec l src'
+    Just (T,src')         -> dec r src'

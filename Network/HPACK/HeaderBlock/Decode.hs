@@ -3,6 +3,7 @@ module Network.HPACK.HeaderBlock.Decode (
   ) where
 
 import Data.Bits (testBit, clearBit, (.&.))
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Word (Word8)
 import Network.HPACK.Builder
@@ -17,44 +18,48 @@ import Network.HPACK.Types
 -- | Converting the low level format to 'HeaderBlock'.
 fromByteStream :: HuffmanDecoding -> ByteStream
                -> Either DecodeError HeaderBlock
-fromByteStream hd bs = go (BS.unpack bs) empty
+fromByteStream hd inp = go inp empty
   where
-    go [] builder = Right $ run builder
-    go ws builder = do
-        (hf, ws') <- toHeaderField hd ws
-        go ws' (builder << hf)
+    go bs builder
+      | BS.null bs = Right $ run builder
+      | otherwise  = do
+        (hf, bs') <- toHeaderField hd bs
+        go bs' (builder << hf)
 
-toHeaderField :: HuffmanDecoding -> [Word8]
-              -> Either DecodeError (HeaderField, [Word8])
-toHeaderField _  []     = Left EmptyBlock
-toHeaderField hd (w:ws)
-  | w `testBit` 7 = Right $ indexed w ws
-  | w `testBit` 6 = withoutIndexing hd w ws
-  | otherwise     = incrementalIndexing hd w ws
+toHeaderField :: HuffmanDecoding -> ByteString
+              -> Either DecodeError (HeaderField, ByteString)
+toHeaderField hd bs
+  | BS.null bs    = Left EmptyBlock
+  | w `testBit` 7 = Right $ indexed w bs'
+  | w `testBit` 6 = withoutIndexing hd w bs'
+  | otherwise     = incrementalIndexing hd w bs'
+  where
+    w = BS.head bs
+    bs' = BS.tail bs
 
 ----------------------------------------------------------------
 
-indexed :: Word8 -> [Word8] -> (HeaderField, [Word8])
+indexed :: Word8 -> ByteString -> (HeaderField, ByteString)
 indexed w ws = (Indexed idx , ws)
   where
     idx = fromIntegral $ clearBit w 7
 
-withoutIndexing :: HuffmanDecoding -> Word8 -> [Word8]
-                -> Either DecodeError (HeaderField, [Word8])
+withoutIndexing :: HuffmanDecoding -> Word8 -> ByteString
+                -> Either DecodeError (HeaderField, ByteString)
 withoutIndexing hd w ws
   | isIndexedName w = indexedName NotAdd hd w ws
   | otherwise       = newName NotAdd hd ws
 
-incrementalIndexing :: HuffmanDecoding -> Word8 -> [Word8]
-                    -> Either DecodeError (HeaderField, [Word8])
+incrementalIndexing :: HuffmanDecoding -> Word8 -> ByteString
+                    -> Either DecodeError (HeaderField, ByteString)
 incrementalIndexing hd w ws
   | isIndexedName w = indexedName Add hd w ws
   | otherwise       = newName Add hd ws
 
 ----------------------------------------------------------------
 
-indexedName :: Indexing -> HuffmanDecoding -> Word8 -> [Word8]
-            -> Either DecodeError (HeaderField, [Word8])
+indexedName :: Indexing -> HuffmanDecoding -> Word8 -> ByteString
+            -> Either DecodeError (HeaderField, ByteString)
 indexedName indexing hd w ws = do
     (val,ws'') <- headerStuff hd ws'
     let hf = Literal indexing (Idx idx) val
@@ -64,8 +69,8 @@ indexedName indexing hd w ws = do
     (idx,ws') = I.parseInteger 6 p ws
 
 
-newName :: Indexing -> HuffmanDecoding -> [Word8]
-        -> Either DecodeError (HeaderField, [Word8])
+newName :: Indexing -> HuffmanDecoding -> ByteString
+        -> Either DecodeError (HeaderField, ByteString)
 newName indexing hd ws = do
     (key,ws')  <- headerStuff hd ws
     (val,ws'') <- headerStuff hd ws'
@@ -74,14 +79,17 @@ newName indexing hd ws = do
 
 ----------------------------------------------------------------
 
-headerStuff :: HuffmanDecoding -> [Word8]
-            -> Either DecodeError (HeaderStuff, [Word8])
-headerStuff _  []     = Left EmptyEncodedString
-headerStuff hd (w:ws) = S.parseString hd huff len ws'
+headerStuff :: HuffmanDecoding -> ByteString
+            -> Either DecodeError (HeaderStuff, ByteString)
+headerStuff hd bs
+  | BS.null bs  = Left EmptyEncodedString
+  | otherwise   = S.parseString hd huff len bs''
   where
+    w = BS.head bs
+    bs' = BS.tail bs
     p = dropHuffman w
     huff = isHuffman w
-    (len, ws') = I.parseInteger 7 p ws
+    (len, bs'') = I.parseInteger 7 p bs'
 
 ----------------------------------------------------------------
 

@@ -3,10 +3,12 @@ module IntegerSpec where
 import Network.HPACK.HeaderBlock.Integer
 import Test.Hspec
 import Test.Hspec.QuickCheck
+import qualified Data.ByteString as BS
 
 dual :: Int -> Int -> Bool
-dual n i = decode n (encode n x) == x
+dual n i = decode n w (BS.pack ws) == x
   where
+    w:ws = encode n x
     x = abs i
 
 spec :: Spec

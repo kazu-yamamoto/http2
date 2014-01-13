@@ -15,7 +15,8 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
-  Other-Modules:        Network.HPACK.Builder
+--  Other-Modules:        Network.HPACK.Builder
+                        Network.HPACK.Builder
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderSet
                         Network.HPACK.Context.ReferenceSet
@@ -58,8 +59,7 @@ Test-Suite spec
   HS-Source-Dirs:       test, .
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
-  Other-Modules:        BitSpec
-                        DecodeSpec
+  Other-Modules:        DecodeSpec
                         HeaderBlockSpec
                         HuffmanRequestSpec
                         HuffmanResponseSpec
@@ -71,6 +71,7 @@ Test-Suite spec
                       , blaze-builder
                       , bytestring
                       , hashtables
+                      , word8
                       , hspec >= 1.3
 
 Test-Suite hpack

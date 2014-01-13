@@ -1,21 +1,21 @@
 module Network.HPACK.HeaderBlock.String where
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Data.Word (Word8)
 import Network.HPACK.Huffman
 import Network.HPACK.Types
 
-encode :: HuffmanEncoding -> HeaderStuff -> [Word8]
-encode he h = he $ BS.unpack h
+encode :: HuffmanEncoding -> HeaderStuff -> ByteString
+encode he h = he h
 
-decode :: HuffmanDecoding -> [Word8] -> Either DecodeError HeaderStuff
-decode hd ws = hd ws >>= return . BS.pack
+decode :: HuffmanDecoding -> ByteString -> Either DecodeError HeaderStuff
+decode hd ws = hd ws
 
-parseString :: HuffmanDecoding -> Bool -> Int -> [Word8]
-            -> Either DecodeError (HeaderStuff, [Word8])
-parseString _  False len ws = Right (BS.pack es, ws')
+parseString :: HuffmanDecoding -> Bool -> Int -> ByteString
+            -> Either DecodeError (HeaderStuff, ByteString)
+parseString _  False len bs = Right (es, bs')
   where
-    (es, ws') = splitAt len ws
-parseString hd True  len ws = decode hd es >>= \x -> return (x,ws')
+    (es, bs') = BS.splitAt len bs
+parseString hd True  len bs = decode hd es >>= \x -> return (x,bs')
   where
-    (es, ws') = splitAt len ws
+    (es, bs') = BS.splitAt len bs
