@@ -1,9 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Network.HPACK.Huffman.Bit (
+  -- * Bits
     B(..)
   , Bits
   , fromBitsToByteString
+  -- * Bit source
   , BitSource
   , toBitSource
   , uncons
@@ -22,8 +24,11 @@ data B = F -- ^ Zero
        | T -- ^ One
        deriving (Eq,Ord,Show)
 
+-- | Bit stream.
 type Bits = [B]
 
+-- | Converting '[Bits]' to 'ByteString'.
+--   The first arguments is the length in bytes.
 fromBitsToByteString :: Int -> [Bits] -> ByteString
 fromBitsToByteString len bss = unsafeCreate len $ loop [] bss
   where
@@ -52,11 +57,14 @@ fromBitsToByteString len bss = unsafeCreate len $ loop [] bss
         w6 = set w5 6 b6
         w7 = set w6 7 b7
 
+-- | Source for bit stream.
 data BitSource = BitSource [B] !ByteString
 
+-- | Converting 'ByteString' to 'BitSource'
 toBitSource :: ByteString -> BitSource
 toBitSource bs = BitSource [] bs
 
+-- | Extracting a bit from 'BitSource'.
 uncons :: BitSource -> Maybe (B,BitSource)
 uncons (BitSource [] bs) = case BS.uncons bs of
     Nothing      -> Nothing
