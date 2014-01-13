@@ -17,13 +17,13 @@ import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Data.Array (Array, (!), listArray)
 import Data.ByteString.Internal (ByteString(..))
-import qualified Data.ByteString as BS
 import Data.List (partition)
 import Data.Word (Word8)
 import Foreign.ForeignPtr
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
 import Network.HPACK.Builder
+import Network.HPACK.Builder.Word8
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Types (DecodeError(..))
 import System.IO.Unsafe (unsafePerformIO)
@@ -109,14 +109,14 @@ mark _ _      _                 = error "mark"
 
 -- | Huffman decoding.
 decode :: Decoder -> HuffmanDecoding
-decode decoder bs = decodeBits decoder src empty >>= return . BS.pack -- FIXME
+decode decoder bs = decodeBits decoder src w8empty
   where
     src = toBitSource bs
 
-decodeBits :: Decoder -> BitSource -> Builder Word8 -> Either DecodeError [Word8]
+decodeBits :: Decoder -> BitSource -> Word8Builder -> Either DecodeError ByteString
 decodeBits decoder src builder = case dec decoder src of
-  Right (OK v src') -> decodeBits decoder src' (builder << fromIntegral v)
-  Right Eos         -> Right $ run builder -- fixme
+  Right (OK v src') -> decodeBits decoder src' (builder <| fromIntegral v)
+  Right Eos         -> Right $ toByteString builder
   Left  err         -> Left err
 
 data DecodeOK = Eos | OK Int BitSource

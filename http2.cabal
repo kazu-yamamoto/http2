@@ -17,6 +17,7 @@ Library
   Exposed-Modules:      Network.HPACK
 --  Other-Modules:        Network.HPACK.Builder
                         Network.HPACK.Builder
+                        Network.HPACK.Builder.Word8
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderSet
                         Network.HPACK.Context.ReferenceSet
