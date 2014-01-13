@@ -11,13 +11,13 @@ module Network.HPACK.Huffman.Bit (
   , uncons
   ) where
 
-import Data.Array
+import Data.Array (Array, (!), listArray)
 import Data.Bits (setBit, testBit)
-import Data.ByteString.Internal (ByteString, unsafeCreate)
 import qualified Data.ByteString as BS
-import Foreign.Ptr
-import Foreign.Storable (poke)
+import Data.ByteString.Internal (ByteString, unsafeCreate)
 import Data.Word (Word8)
+import Foreign.Ptr (plusPtr)
+import Foreign.Storable (poke)
 
 -- | Data type for Bit.
 data B = F -- ^ Zero
