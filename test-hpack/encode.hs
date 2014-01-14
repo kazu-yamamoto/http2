@@ -6,12 +6,10 @@ import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy.Char8 as BL
-import Data.CaseInsensitive (mk, foldedCase)
 import qualified Data.Text as T
 import Data.Vector ((!))
 import qualified Data.Vector as V
 import Network.HPACK
-import Network.HTTP.Types
 
 import HPACK
 import Types
