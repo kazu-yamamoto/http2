@@ -7,6 +7,7 @@ module Network.HPACK.HeaderBlock.Integer (
   ) where
 
 import Data.Array (Array, listArray, (!))
+import Data.Bits ((.&.), shiftR)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Word (Word8)
@@ -41,7 +42,9 @@ encode' i
   | i < 128   = fromIntegral i : []
   | otherwise = fromIntegral (r + 128) : encode' q
   where
-    (q,r) = i `divMod` 128
+--    (q,r) = i `divMod` 128
+    q = i `shiftR` 7
+    r = i .&. 0x7f
 
 ----------------------------------------------------------------
 

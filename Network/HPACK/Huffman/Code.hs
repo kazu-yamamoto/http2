@@ -16,6 +16,7 @@ module Network.HPACK.Huffman.Code (
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Data.Array (Array, (!), listArray)
+import Data.Bits ((.&.), shiftR)
 import Data.ByteString.Internal (ByteString(..))
 import Data.List (partition)
 import Data.Word (Word8)
@@ -73,7 +74,9 @@ encode encoder (PS fptr off len) = fromBitsToByteString nBytes (run b)
       | r == 0    = (q,builder)
       | otherwise = (q+1, builder << bools')
       where
-        (q,r) = nBits `divMod` 8
+--        (q,r) = nBits `divMod` 8
+        q = nBits `shiftR` 3
+        r = nBits .&. 0x7
         (_,bools) = enc encoder idxEos
         bools' = take (8 - r) bools
 
