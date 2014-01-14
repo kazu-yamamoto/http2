@@ -45,7 +45,7 @@ test c dec dctx enc ectx = do
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)
         Right (dctx',hs') -> do
-            (ectx',out) <- enc ectx hs
+            (ectx',out) <- enc defaultEncodeStrategy ectx hs
             let pass = sort hs == sort hs'
                 hex' = toHexString out
             if pass then

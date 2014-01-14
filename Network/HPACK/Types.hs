@@ -9,6 +9,10 @@ module Network.HPACK.Types (
   -- * Misc
   , ByteStream
   , Index
+  -- * Encoding and decoding
+  , CompressionAlgo(..)
+  , EncodeStrategy(..)
+  , defaultEncodeStrategy
   , DecodeError(..)
   ) where
 
@@ -33,6 +37,27 @@ type ByteStream = ByteString
 
 -- | Index for table.
 type Index = Int
+
+-- | Compression algorithms for HPACK encoding.
+data CompressionAlgo = Naive  -- ^ No compression
+                     | Linear -- ^ Using indices only
+                     | Diff   -- ^ Calculating difference
+
+-- | Strategy for HPACK encoding.
+data EncodeStrategy = EncodeStrategy {
+  -- | Which compression algorithm is used.
+    compressionAlgo :: CompressionAlgo
+  -- | Whether or not to use Huffman encoding for strings.
+  , useHuffman :: Bool
+  }
+
+-- | Default 'EncodeStrategy'. 'compressionAlgo' is 'Linear' and 'useHuffman' is 'True'.
+defaultEncodeStrategy :: EncodeStrategy
+defaultEncodeStrategy = EncodeStrategy {
+    compressionAlgo = Linear
+  , useHuffman = True
+  }
+
 
 -- | Errors for decoder.
 data DecodeError = IndexOverrun Index -- ^ Index is out of range
