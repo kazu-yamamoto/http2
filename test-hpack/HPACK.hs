@@ -19,9 +19,10 @@ run :: Test -> IO Result
 run (Test _ reqOrRsp _ cs) = do
     dctx <- newContext 4096 -- FIXME
     ectx <- newContext 4096 -- FIXME
+    let stgy = defaultEncodeStrategy
     let (dec,enc) = case reqOrRsp of
-            "request" -> (decodeRequestHeader,  encodeRequestHeader)
-            _         -> (decodeResponseHeader, encodeResponseHeader)
+            "request" -> (decodeRequestHeader,  encodeRequestHeader  stgy)
+            _         -> (decodeResponseHeader, encodeResponseHeader stgy)
     testLoop cs dec dctx enc ectx []
 
 testLoop :: [Case]
@@ -45,7 +46,7 @@ test c dec dctx enc ectx = do
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)
         Right (dctx',hs') -> do
-            (ectx',out) <- enc defaultEncodeStrategy ectx hs
+            (ectx',out) <- enc ectx hs
             let pass = sort hs == sort hs'
                 hex' = toHexString out
             if pass then
