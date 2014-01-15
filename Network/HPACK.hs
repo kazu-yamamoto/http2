@@ -41,7 +41,7 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | HPACK encoding, from 'HeaderSet' to 'ByteStream'.
-type HPACKEncoding = EncodeStrategy -> Context -> HeaderSet  -> IO (Context, ByteStream)
+type HPACKEncoding = Context -> HeaderSet  -> IO (Context, ByteStream)
 
 -- | HPACK decoding, from 'ByteStream' to 'HeaderSet'.
 type HPACKDecoding = Context -> ByteStream -> IO (Context, HeaderSet)
@@ -49,9 +49,10 @@ type HPACKDecoding = Context -> ByteStream -> IO (Context, HeaderSet)
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderSet' for HTTP request to the low level format.
-encodeRequestHeader :: HPACKEncoding
-encodeRequestHeader stgy ctx hs = second toBS <$> toHeaderBlock ctx hs
+encodeRequestHeader :: EncodeStrategy -> HPACKEncoding
+encodeRequestHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
+    algo = compressionAlgo stgy
     toBS
       | useHuffman stgy = toByteStream huffmanEncodeInRequest
       | otherwise       = toByteStream id
@@ -66,9 +67,10 @@ decodeRequestHeader ctx bs = either throwIO (fromHeaderBlock ctx) ehb
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderSet' for HTTP response to the low level format.
-encodeResponseHeader :: HPACKEncoding
-encodeResponseHeader stgy ctx hs = second toBS <$> toHeaderBlock ctx hs
+encodeResponseHeader :: EncodeStrategy -> HPACKEncoding
+encodeResponseHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
+    algo = compressionAlgo stgy
     toBS
       | useHuffman stgy = toByteStream huffmanEncodeInResponse
       | otherwise       = toByteStream id
