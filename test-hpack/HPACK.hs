@@ -1,6 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module HPACK (run, Result(..)) where
+module HPACK (run
+           , Result(..)
+           , EncodeStrategy(..)
+           , defaultEncodeStrategy
+           , CompressionAlgo(..)
+           ) where
 
 import Data.ByteString (ByteString)
 import Control.Exception
@@ -15,11 +20,10 @@ import Types
 
 data Result = Pass [ByteString] | Fail String deriving (Eq,Show)
 
-run :: Test -> IO Result
-run (Test _ reqOrRsp _ cs) = do
+run :: EncodeStrategy -> Test -> IO Result
+run stgy (Test _ reqOrRsp _ cs) = do
     dctx <- newContext 4096 -- FIXME
     ectx <- newContext 4096 -- FIXME
-    let stgy = defaultEncodeStrategy
     let (dec,enc) = case reqOrRsp of
             "request" -> (decodeRequestHeader,  encodeRequestHeader  stgy)
             _         -> (decodeResponseHeader, encodeResponseHeader stgy)

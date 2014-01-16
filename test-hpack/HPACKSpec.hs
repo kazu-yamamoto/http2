@@ -37,7 +37,7 @@ test file = do
     case etc of
         Left e   -> return $ Just $ file ++ ": " ++ e
         Right tc -> do
-            res <- run tc
+            res <- run defaultEncodeStrategy tc
             case res of
                 Pass _ -> return Nothing
                 Fail e -> return $ Just $ file ++ ": " ++ e

@@ -45,6 +45,22 @@ Library
                       , bytestring
                       , hashtables
 
+Executable hpack-encode
+  Default-Language:     Haskell2010
+  HS-Source-Dirs:       test-hpack
+  GHC-Options:          -Wall
+  Main-Is:              hpack-encode.hs
+  Build-Depends:        base >= 4 && < 5
+                      , aeson
+                      , aeson-pretty
+                      , array
+                      , bytestring
+                      , http2
+                      , text
+                      , unordered-containers
+                      , vector
+                      , word8
+
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
