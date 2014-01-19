@@ -35,25 +35,21 @@ import Network.HPACK.Types
 
 -- | Context for HPACK encoding/decoding.
 data Context = Context {
-    headerTable     :: !HeaderTable -- ^ A cache of headers
-  , oldReferenceSet :: ReferenceSet -- ^ References for not emitted
-  , newReferenceSet :: ReferenceSet -- ^ References for already mitted
-  , headerSet       :: HeaderSet    -- ^ Emitted header set.
+    headerTable  :: !HeaderTable -- ^ A cache of headers
+  , referenceSet :: ReferenceSet -- ^ Reference set
+  , headerSet    :: HeaderSet    -- ^ Emitted header set.
                                     --   Encode: the previous ones.
                                     --   Decode: the results.
   }
 
 -- | Printing 'Context'
 printContext :: Context -> IO ()
-printContext (Context hdrtbl oldref newref hdrset) = do
+printContext (Context hdrtbl refs hdrset) = do
     putStrLn "<<<Header table>>>"
     printHeaderTable hdrtbl
     putStr "\n"
-    putStrLn "<<<Reference set (old)>>>"
-    print $ getIndices oldref
-    putStr "\n"
-    putStrLn "<<<Reference set (new)>>>"
-    print $ getIndices newref
+    putStrLn "<<<Reference set>>>"
+    print refs
     putStr "\n"
     putStrLn "<<<Headers>>>"
     printHeaderSet hdrset
@@ -67,7 +63,6 @@ newContext maxsiz = do
     hdrtbl <- newHeaderTable maxsiz
     return $ Context hdrtbl
                      emptyReferenceSet
-                     emptyReferenceSet
                      emptyHeaderSet
 
 ----------------------------------------------------------------
@@ -75,46 +70,43 @@ newContext maxsiz = do
 -- | The reference set is emptied.
 clearRefSets :: Context -> IO Context
 clearRefSets ctx = return ctx {
-    oldReferenceSet = emptyReferenceSet
-  , newReferenceSet = emptyReferenceSet
+    referenceSet = emptyReferenceSet
   }
 
 -- | The entry is removed from the reference set.
 removeRef :: Context -> Index -> IO Context
-removeRef (Context hdrtbl oldref newref hdrset) idx = return ctx
+removeRef (Context hdrtbl refs hdrset) idx = return ctx
   where
-    oldref' = removeIndex idx oldref
-    newref' = removeIndex idx newref
-    ctx = Context hdrtbl oldref' newref' hdrset
+    refs' = removeIndex idx refs
+    ctx = Context hdrtbl refs' hdrset
 
 -- | The header field is emitted.
 --   The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
 newEntry :: Context -> Entry -> IO Context
-newEntry (Context hdrtbl oldref newref hdrset) e = do
+newEntry (Context hdrtbl refs hdrset) e = do
     (hdrtbl', is) <- insertEntry e hdrtbl
-    let oldref' = removeIndices is $ adjustReferenceSet oldref
-        newref' = addIndex 1 $ removeIndices is $ adjustReferenceSet newref
+    let refs' = addIndex 1 $ removeIndices is $ adjustReferenceSet refs
         hdrset' = insertHeader (fromEntry e) hdrset
-    return $ Context hdrtbl' oldref' newref' hdrset'
+    return $ Context hdrtbl' refs' hdrset'
 
 -- | The header field corresponding to the referenced entry is emitted.
 --   The referenced header table entry is added to the reference set.
 pushRef :: Context -> Index -> Entry -> IO Context
-pushRef (Context hdrtbl oldref newref hdrset) idx e = return ctx
+pushRef (Context hdrtbl refs hdrset) idx e = return ctx
   where
     hdrset' = insertHeader (fromEntry e) hdrset
     -- isPresentIn ensures that idx does not exist in
     -- newref and oldref.
-    newref' = addIndex idx newref
-    ctx = Context hdrtbl oldref newref' hdrset'
+    refs' = addIndex idx refs
+    ctx = Context hdrtbl refs' hdrset'
 
 -- | The header field is emitted.
 emitOnly :: Context -> Header -> IO Context
-emitOnly (Context hdrtbl oldref newref hdrset) h = return ctx
+emitOnly (Context hdrtbl refs hdrset) h = return ctx
   where
     hdrset' = insertHeader h hdrset
-    ctx = Context hdrtbl oldref newref hdrset'
+    ctx = Context hdrtbl refs hdrset'
 
 ----------------------------------------------------------------
 
@@ -124,15 +116,15 @@ emitNotEmitted ctx = emit ctx <$> getNotEmitted ctx
 
 -- | Emit non-emitted headers.
 emit :: Context -> HeaderSet -> Context
-emit (Context hdrtbl oldref newref hdrset) notEmitted = ctx
+emit (Context hdrtbl refs hdrset) notEmitted = ctx
   where
     hdrset' = meregeHeaderSet hdrset notEmitted
-    oldref' = mergeReferenceSet newref oldref
-    ctx = Context hdrtbl oldref' emptyReferenceSet hdrset'
+    refs' = renew refs
+    ctx = Context hdrtbl refs' hdrset'
 
 getNotEmitted :: Context -> IO HeaderSet
 getNotEmitted ctx = do
-    let is = getIndices $ oldReferenceSet ctx
+    let is = getNotEmittedIndices $ referenceSet ctx
         hdrtbl = headerTable ctx
     map (fromEntry . snd) <$> mapM (which hdrtbl) is
 
@@ -140,10 +132,7 @@ getNotEmitted ctx = do
 
 -- | Is 'Index' present in the reference set?
 isPresentIn :: Index -> Context -> Bool
-isPresentIn idx ctx = idx `isMember` oldref || idx `isMember` newref
-  where
-    oldref = oldReferenceSet ctx
-    newref = newReferenceSet ctx
+isPresentIn idx ctx = idx `isMember` referenceSet ctx
 
 ----------------------------------------------------------------
 
