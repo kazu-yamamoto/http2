@@ -19,21 +19,15 @@ toHeaderBlock :: CompressionAlgo
               -> Context
               -> HeaderSet
               -> IO (Context, HeaderBlock)
-toHeaderBlock Naive  !ctx hs = encodeInit ctx >>= encodeStep naiveStep  hs
-toHeaderBlock Linear !ctx hs = encodeInit ctx >>= encodeStep linearStep hs
+toHeaderBlock Naive  !ctx hs = reset ctx >>= encodeStep naiveStep  hs
+toHeaderBlock Linear !ctx hs = reset ctx >>= encodeStep linearStep hs
 toHeaderBlock _      _    _  = undefined -- fixme
 
 ----------------------------------------------------------------
 
-encodeInit :: Context -> IO Ctx
-encodeInit ctx = do
-    ctx' <- clearHeaderSet <$> clearRefSets ctx
-    let initialHeaderBlock = singleton $ Indexed 0
-    return (ctx', initialHeaderBlock)
-
 encodeFinal :: Ctx -> IO (Context, HeaderBlock)
 encodeFinal (ctx, builder) = do
-    !ctx' <- emitNotEmitted ctx
+    !ctx' <- emitNotEmittedForEncoding ctx
     let !hb = run builder
     return (ctx', hb)
 
@@ -43,6 +37,15 @@ encodeStep :: Step
            -> IO (Context, HeaderBlock)
 encodeStep step (h:hs) !ctx = step ctx h >>= encodeStep step hs
 encodeStep _    []     !ctx = encodeFinal ctx
+
+----------------------------------------------------------------
+
+-- for naiveStep and linearStep
+reset :: Context -> IO Ctx
+reset ctx = do
+    ctx' <- clearHeaderSet <$> clearRefSets ctx
+    let initialHeaderBlock = singleton $ Indexed 0
+    return (ctx', initialHeaderBlock)
 
 ----------------------------------------------------------------
 

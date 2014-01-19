@@ -9,8 +9,9 @@ module Network.HPACK.Context (
   , printContext
   -- * Initialization and final results
   , clearHeaderSet
-  , getHeaderSet
-  , emitNotEmitted
+  , getAndClearHeaderSet
+  , emitNotEmittedForEncoding
+  , emitNotEmittedForDecoding
   -- * Processing
   , clearRefSets
   , removeRef
@@ -111,12 +112,17 @@ emitOnly (Context hdrtbl refs hdrset) h = return ctx
 ----------------------------------------------------------------
 
 -- | Emitting non-emitted headers.
-emitNotEmitted :: Context -> IO Context
-emitNotEmitted ctx = emit ctx <$> getNotEmitted ctx
+emitNotEmittedForEncoding :: Context -> IO Context
+emitNotEmittedForEncoding ctx = emit ctx renewForEncoding <$> getNotEmitted ctx
 
+-- | Emitting non-emitted headers.
+emitNotEmittedForDecoding :: Context -> IO Context
+emitNotEmittedForDecoding ctx = emit ctx renewForDecoding <$> getNotEmitted ctx
+
+-- renewForEncoding
 -- | Emit non-emitted headers.
-emit :: Context -> HeaderSet -> Context
-emit (Context hdrtbl refs hdrset) notEmitted = ctx
+emit :: Context -> (ReferenceSet -> ReferenceSet) -> HeaderSet -> Context
+emit (Context hdrtbl refs hdrset) renew notEmitted = ctx
   where
     hdrset' = meregeHeaderSet hdrset notEmitted
     refs' = renew refs
@@ -158,6 +164,8 @@ getEntry idx ctx = snd <$> whichTable idx ctx
 clearHeaderSet :: Context -> Context
 clearHeaderSet ctx = ctx { headerSet = emptyHeaderSet }
 
--- | Getting 'HeaderSet' as emitted headers.
-getHeaderSet :: Context -> HeaderSet
-getHeaderSet = headerSet
+getAndClearHeaderSet :: Context -> (HeaderSet, Context)
+getAndClearHeaderSet ctx = (hs, ctx')
+  where
+    hs = headerSet ctx
+    ctx' = clearHeaderSet ctx

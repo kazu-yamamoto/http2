@@ -10,7 +10,8 @@ module Network.HPACK.Context.ReferenceSet (
   -- * Managing reference set
   , getNotEmittedIndices
   , adjustReferenceSet
-  , renew
+  , renewForEncoding
+  , renewForDecoding
   ) where
 
 import Data.List (foldl')
@@ -20,7 +21,10 @@ import Network.HPACK.Table
 
 ----------------------------------------------------------------
 
-data Status = NotEmitted | Emitted deriving (Eq,Show)
+data Status = Old        -- E:   Initial state for encoding
+            | NotEmitted -- E&D: Initial state for decoding
+            | Emitted    -- E&D:
+            deriving (Eq,Show)
 
 -- | Type for the reference set.
 newtype ReferenceSet = ReferenceSet (Map Index Status) deriving Show
@@ -54,9 +58,13 @@ removeIndices idcs (ReferenceSet m) = ReferenceSet $ foldl' (flip M.delete) m id
 getNotEmittedIndices :: ReferenceSet -> [Index]
 getNotEmittedIndices (ReferenceSet m) = M.keys $ M.filter (== NotEmitted) m
 
--- | Renewing 'ReferenceSet' for the next step.
-renew :: ReferenceSet -> ReferenceSet
-renew (ReferenceSet m) = ReferenceSet $ M.map (const NotEmitted) m
+-- | Renewing 'ReferenceSet' for the next encoding step.
+renewForEncoding :: ReferenceSet -> ReferenceSet
+renewForEncoding (ReferenceSet m) = ReferenceSet $ M.map (const Old) $ M.filter (/= Old) m
+
+-- | Renewing 'ReferenceSet' for the next decoding step.
+renewForDecoding :: ReferenceSet -> ReferenceSet
+renewForDecoding (ReferenceSet m) = ReferenceSet $ M.map (const NotEmitted) m
 
 -- | Incrementing all 'Index' by one.
 adjustReferenceSet :: ReferenceSet -> ReferenceSet

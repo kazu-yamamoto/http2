@@ -43,9 +43,8 @@ decodeStep !ctx (Literal Add naming v) = do
 
 decodeFinal :: Context -> IO (Context, HeaderSet)
 decodeFinal ctx = do
-    !ctx' <- emitNotEmitted ctx
-    let !hs = getHeaderSet ctx'
-        !ctx'' = clearHeaderSet ctx'
+    !ctx' <- emitNotEmittedForDecoding ctx
+    let (!hs,!ctx'') = getAndClearHeaderSet ctx'
     return (ctx'', hs)
 
 ----------------------------------------------------------------
