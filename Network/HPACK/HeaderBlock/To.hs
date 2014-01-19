@@ -60,7 +60,30 @@ naiveStep (!ctx,!builder) (k,v) = do
 -- by 'Index 0' and uses indexing as much as possible.
 
 linearStep :: Step
-linearStep (!ctx,!builder) h@(k,v) = do
+linearStep cb@(!ctx,!builder) h = anyStep linear cb h
+  where
+    linear i e
+      | i `isPresentIn` ctx = do
+          let b = builder << Indexed i << Indexed i
+              c = ctx
+          return (c,b)
+      | otherwise = do
+          let b = builder << Indexed i
+          c <- pushRef ctx i e
+          return (c,b)
+
+----------------------------------------------------------------
+-- See http://lists.w3.org/Archives/Public/ietf-http-wg/2013JulSep/1135.html
+
+diffStep :: Step
+diffStep cb@(!ctx,!builder) h@(k,v) = anyStep diff cb h
+  where
+    diff = undefined
+
+----------------------------------------------------------------
+
+anyStep :: (Index -> Entry -> IO Ctx) -> Step
+anyStep func (!ctx,!builder) h@(k,v) = do
     cache <- lookupHeader h ctx
     let e = toEntry h
     case cache of
@@ -80,13 +103,4 @@ linearStep (!ctx,!builder) h@(k,v) = do
             let builder' = builder << Indexed i
             ctx' <- newEntry ctx e
             return (ctx', builder')
-        KeyValue InHeaderTable i -> do
-            (builder',ctx') <- if i `isPresentIn` ctx then do
-                  let b = builder << Indexed i << Indexed i
-                      c = ctx
-                  return (b,c)
-                else do
-                  let b = builder << Indexed i
-                  c <- pushRef ctx i e
-                  return (b,c)
-            return (ctx', builder')
+        KeyValue InHeaderTable i -> func i e
