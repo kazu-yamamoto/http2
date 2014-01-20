@@ -18,17 +18,17 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderBlock' to the low level format.
-toByteStream :: HuffmanEncoding -> HeaderBlock -> ByteStream
-toByteStream he hbs = BB.toByteString $ foldl' (<>) mempty $ map toBB hbs
+toByteStream :: HuffmanEncoding -> Bool -> HeaderBlock -> ByteStream
+toByteStream he huff hbs = BB.toByteString $ foldl' (<>) mempty $ map toBB hbs
   where
-    toBB = fromHeaderField he
+    toBB = fromHeaderField he huff
 
-fromHeaderField :: HuffmanEncoding -> HeaderField -> Builder
-fromHeaderField _  (Indexed idx)                = index idx
-fromHeaderField he (Literal NotAdd (Idx idx) v) = indexedName he set01 idx v
-fromHeaderField he (Literal NotAdd (Lit key) v) = newName     he set01 key v
-fromHeaderField he (Literal Add    (Idx idx) v) = indexedName he set00 idx v
-fromHeaderField he (Literal Add    (Lit key) v) = newName     he set00 key v
+fromHeaderField :: HuffmanEncoding -> Bool -> HeaderField -> Builder
+fromHeaderField _  _    (Indexed idx)                = index idx
+fromHeaderField he huff (Literal NotAdd (Idx idx) v) = indexedName he huff set01 idx v
+fromHeaderField he huff (Literal NotAdd (Lit key) v) = newName     he huff set01 key v
+fromHeaderField he huff (Literal Add    (Idx idx) v) = indexedName he huff set00 idx v
+fromHeaderField he huff (Literal Add    (Lit key) v) = newName     he huff set00 key v
 
 ----------------------------------------------------------------
 
@@ -36,27 +36,33 @@ index :: Int -> Builder
 index = BB.fromWord8 . set1 . I.encodeOne
 
 -- Using Huffman encoding
-indexedName :: HuffmanEncoding -> Setter -> Int -> HeaderValue -> Builder
-indexedName he set idx v = pre <> vlen <> val
+indexedName :: HuffmanEncoding -> Bool -> Setter -> Int -> HeaderValue -> Builder
+indexedName he huff set idx v = pre <> vlen <> val
   where
     (p:ps) = I.encode 6 idx
     pre = BB.fromWord8s $ set p : ps
     value = S.encode he v
     valueLen = BS.length value
-    vlen = BB.fromWord8s $ setH $ I.encode 7 valueLen
+    vlen
+      | huff      = BB.fromWord8s $ setH $ I.encode 7 valueLen
+      | otherwise = BB.fromWord8s $ I.encode 7 valueLen
     val = BB.fromByteString value
 
 -- Using Huffman encoding
-newName :: HuffmanEncoding -> Setter -> HeaderName -> HeaderValue -> Builder
-newName he set k v = pre <> klen <> key <> vlen <> val
+newName :: HuffmanEncoding -> Bool -> Setter -> HeaderName -> HeaderValue -> Builder
+newName he huff set k v = pre <> klen <> key <> vlen <> val
   where
     pre = BB.fromWord8 $ set 0
     key0 = S.encode he k
     keyLen = BS.length key0
     value = S.encode he v
     valueLen = BS.length value
-    klen = BB.fromWord8s $ setH $ I.encode 7 keyLen
-    vlen = BB.fromWord8s $ setH $ I.encode 7 valueLen
+    klen
+      | huff      = BB.fromWord8s $ setH $ I.encode 7 keyLen
+      | otherwise = BB.fromWord8s $ I.encode 7 keyLen
+    vlen
+      | huff      = BB.fromWord8s $ setH $ I.encode 7 valueLen
+      | otherwise = BB.fromWord8s $ I.encode 7 valueLen
     key = BB.fromByteString key0
     val = BB.fromByteString value
 

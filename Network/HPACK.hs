@@ -54,8 +54,8 @@ encodeRequestHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBS
-      | useHuffman stgy = toByteStream huffmanEncodeInRequest
-      | otherwise       = toByteStream id
+      | useHuffman stgy = toByteStream huffmanEncodeInRequest True
+      | otherwise       = toByteStream id                     False
 
 -- | Converting the low level format for HTTP request to 'HeaderSet'.
 --   'DecodeError' would be thrown.
@@ -72,8 +72,8 @@ encodeResponseHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBS
-      | useHuffman stgy = toByteStream huffmanEncodeInResponse
-      | otherwise       = toByteStream id
+      | useHuffman stgy = toByteStream huffmanEncodeInResponse True
+      | otherwise       = toByteStream id                      False
 
 -- | Converting the low level format for HTTP response to 'HeaderSet'.
 --   'DecodeError' would be thrown.
