@@ -7,52 +7,88 @@ module HPACK (run
            , CompressionAlgo(..)
            ) where
 
-import Data.ByteString (ByteString)
 import Control.Exception
+import Control.Monad (when)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import Data.List (sort)
 import Network.HPACK
-import Network.HPACK.HeaderBlock.Decode
+import Network.HPACK.Context
+import Network.HPACK.Context.HeaderSet
+import Network.HPACK.HeaderBlock
 import Network.HPACK.Huffman
 
 import HexString
 import Types
 
+data Conf = Conf {
+    debug :: Bool
+  , enc :: HPACKEncoding
+  , dec :: HPACKDecoding
+  , hbk :: ByteStream -> Either DecodeError HeaderBlock
+  }
+
 data Result = Pass [ByteString] | Fail String deriving (Eq,Show)
 
-run :: EncodeStrategy -> Test -> IO Result
-run stgy (Test _ reqOrRsp _ cs) = do
+run :: Bool -> EncodeStrategy -> Test -> IO Result
+run d stgy (Test _ reqOrRsp _ cs) = do
     dctx <- newContext 4096 -- FIXME
     ectx <- newContext 4096 -- FIXME
-    let (dec,enc) = case reqOrRsp of
-            "request" -> (decodeRequestHeader,  encodeRequestHeader  stgy)
-            _         -> (decodeResponseHeader, encodeResponseHeader stgy)
-    testLoop cs dec dctx enc ectx []
+    let conf
+          | reqOrRsp == "request" = Conf {
+                debug = d
+              , enc = encodeRequestHeader stgy
+              , dec = decodeRequestHeader
+              , hbk = fromByteStream huffmanDecodeInRequest
+              }
+          | otherwise = Conf {
+                debug = d
+              , enc = encodeResponseHeader stgy
+              , dec = decodeResponseHeader
+              , hbk = fromByteStream huffmanDecodeInResponse
+              }
+    testLoop conf cs dctx ectx []
 
-testLoop :: [Case]
-         -> HPACKDecoding -> Context
-         -> HPACKEncoding -> Context
+testLoop :: Conf
+         -> [Case]
+         -> Context
+         -> Context
          -> [ByteString]
          -> IO Result
-testLoop []     _   _    _   _    hexs = return $ Pass $ reverse hexs
-testLoop (c:cs) dec dctx enc ectx hexs = do
-    res <- test c dec dctx enc ectx
+testLoop _    []     _    _    hexs = return $ Pass $ reverse hexs
+testLoop conf (c:cs) dctx ectx hexs = do
+    res <- test conf c dctx ectx
     case res of
-        Right (dctx', ectx', hex) -> testLoop cs dec dctx' enc ectx' (hex:hexs)
+        Right (dctx', ectx', hex) -> testLoop conf cs dctx' ectx' (hex:hexs)
         Left e                    -> return $ Fail e
 
-test :: Case
-     -> HPACKDecoding -> Context
-     -> HPACKEncoding -> Context
+test :: Conf
+     -> Case
+     -> Context
+     -> Context
      -> IO (Either String (Context, Context, ByteString))
-test c dec dctx enc ectx = do
-    x <- try $ dec dctx inp
+test conf c dctx ectx = do
+    x <- try $ dec conf dctx inp
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)
         Right (dctx',hs') -> do
-            (ectx',out) <- enc ectx hs
+            -- This is for hpack-encoding only.
+            (ectx',out) <- enc conf ectx hs
             let pass = sort hs == sort hs'
                 hex' = toHexString out
+            when (debug conf) $ do
+                putStrLn "--------------------------------"
+                putStrLn "---- Input headerset"
+                printHeaderSet $ sort hs
+                putStrLn "---- Output headerset"
+                printHeaderSet $ sort hs'
+                putStrLn "---- Input context"
+                printContext dctx
+                putStrLn "---- Input header block"
+                print hd
+                putStrLn "---- Output context"
+                printContext dctx'
+                putStrLn "--------------------------------"
             if pass then
                 return $ Right (dctx', ectx', hex')
               else
@@ -61,4 +97,4 @@ test c dec dctx enc ectx = do
     hex = wire c
     inp = fromHexString hex
     hs = headers c
-    hd = fromByteStream huffmanDecodeInRequest inp
+    hd = hbk conf inp

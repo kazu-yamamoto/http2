@@ -32,7 +32,7 @@ hpackEncode :: EncodeStrategy -> IO ()
 hpackEncode stgy = do
     bs <- BL.getContents
     let Just tc = decode bs :: Maybe Test
-    Pass hexs <- run stgy tc
+    Pass hexs <- run False stgy tc
     let cs = cases tc
         cs' = zipWith update cs hexs
         tc' = tc {

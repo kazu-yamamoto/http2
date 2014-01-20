@@ -62,6 +62,20 @@ Executable hpack-encode
                       , vector
                       , word8
 
+Executable hpack-debug
+  Default-Language:     Haskell2010
+  HS-Source-Dirs:       test-hpack
+  GHC-Options:          -Wall
+  Main-Is:              hpack-debug.hs
+  Build-Depends:        base >= 4 && < 5
+                      , aeson
+                      , bytestring
+                      , http2
+                      , text
+                      , vector
+                      , unordered-containers
+                      , word8
+
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
