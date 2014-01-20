@@ -16,12 +16,12 @@ import Network.HPACK.Table.Entry
 
 -- | Type for header table.
 data HeaderTable = HeaderTable {
-    maxNumOfEntries :: Int
-  , offset :: Index
-  , numOfEntries :: Int
+    maxNumOfEntries :: !Int
+  , offset :: !Index
+  , numOfEntries :: !Int
   , circularTable :: !(IOArray Index Entry)
-  , headerTableSize :: Size
-  , maxHeaderTableSize :: Size
+  , headerTableSize :: !Size
+  , maxHeaderTableSize :: !Size
   }
 
 ----------------------------------------------------------------
