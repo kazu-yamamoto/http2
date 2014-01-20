@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.To (
     toHeaderBlock
@@ -93,23 +93,14 @@ diffStep cb@(!ctx,!builder) h = smartStep diff cb h
 ----------------------------------------------------------------
 
 smartStep :: (Index -> IO Ctx) -> Step
-smartStep func (!ctx,!builder) h@(k,v) = do
+smartStep func cb@(!ctx,!builder) h@(k,_) = do
     cache <- lookupHeader h ctx
-    let e = toEntry h
     case cache of
-        None -> do
-            (is,ctx') <- newEntryForEncoding ctx e
-            let builder' = double is builder << Literal Add (Lit k) v
-            return (ctx', builder')
-        KeyOnly InStaticTable i  -> do
-            (is,ctx') <- newEntryForEncoding ctx e
-            let builder' = double is builder << Literal Add (Idx i) v
-            return (ctx', builder')
-        KeyOnly InHeaderTable i  -> do
-            (is,ctx') <- newEntryForEncoding ctx e
-            let builder' = double is builder << Literal Add (Idx i) v
-            return (ctx', builder')
+        None                     -> check cb h (Lit k)
+        KeyOnly  InStaticTable i -> check cb h (Idx i)
+        KeyOnly  InHeaderTable i -> check cb h (Idx i)
         KeyValue InStaticTable i -> do
+            let e = toEntry h
             (is,ctx') <- newEntryForEncoding ctx e
             let builder' = double is builder << Indexed i
             return (ctx', builder')
@@ -118,3 +109,23 @@ smartStep func (!ctx,!builder) h@(k,v) = do
 double :: [Index] -> Builder HeaderField -> Builder HeaderField
 double []     b = b
 double (i:is) b = double is (b << Indexed i << Indexed i)
+
+check :: Ctx -> Header -> Naming -> IO Ctx
+check (ctx,builder) h@(k,v) x
+  | k `elem` headersNotToIndex = do
+      let builder' = builder << Literal NotAdd x v
+      return (ctx, builder')
+  | otherwise = do
+      let e = toEntry h
+      (is,ctx') <- newEntryForEncoding ctx e
+      let builder' = double is builder << Literal Add x v
+      return (ctx', builder')
+
+headersNotToIndex :: [HeaderName]
+headersNotToIndex = [
+    ":path"
+  , "content-length"
+  , "location"
+  , "etag"
+  , "set-cookie"
+  ]
