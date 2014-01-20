@@ -68,6 +68,15 @@ test :: Conf
      -> Context
      -> IO (Either String (Context, Context, ByteString))
 test conf c dctx ectx = do
+    -- context is destructive!!!
+    when (debug conf) $ do
+        putStrLn "--------------------------------"
+        putStrLn "---- Input headerset"
+        printHeaderSet $ sort hs
+        putStrLn "---- Input context"
+        printContext dctx
+        putStrLn "---- Input header block"
+        print hd
     x <- try $ dec conf dctx inp
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)
@@ -77,15 +86,8 @@ test conf c dctx ectx = do
             let pass = sort hs == sort hs'
                 hex' = toHexString out
             when (debug conf) $ do
-                putStrLn "--------------------------------"
-                putStrLn "---- Input headerset"
-                printHeaderSet $ sort hs
                 putStrLn "---- Output headerset"
                 printHeaderSet $ sort hs'
-                putStrLn "---- Input context"
-                printContext dctx
-                putStrLn "---- Input header block"
-                print hd
                 putStrLn "---- Output context"
                 printContext dctx'
                 putStrLn "--------------------------------"
