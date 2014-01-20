@@ -20,6 +20,8 @@ module Network.HPACK.Context (
   , emitOnly
   -- * Auxiliary functions
   , isPresentIn
+  , Sequence(..)
+  , checkAndUpdate
   , getEntry
   -- * Table
   , whichTable
@@ -112,20 +114,21 @@ emitOnly (Context hdrtbl refs hdrset) h = return ctx
 ----------------------------------------------------------------
 
 -- | Emitting non-emitted headers.
-emitNotEmittedForEncoding :: Context -> IO Context
+emitNotEmittedForEncoding :: Context -> IO ([Index],Context)
 emitNotEmittedForEncoding ctx = emit ctx renewForEncoding <$> getNotEmitted ctx
 
 -- | Emitting non-emitted headers.
 emitNotEmittedForDecoding :: Context -> IO Context
-emitNotEmittedForDecoding ctx = emit ctx renewForDecoding <$> getNotEmitted ctx
+emitNotEmittedForDecoding ctx = snd . emit ctx renewForDecoding <$> getNotEmitted ctx
 
 -- renewForEncoding
 -- | Emit non-emitted headers.
-emit :: Context -> (ReferenceSet -> ReferenceSet) -> HeaderSet -> Context
-emit (Context hdrtbl refs hdrset) renew notEmitted = ctx
+emit :: Context -> (ReferenceSet -> ([Index],ReferenceSet)) -> HeaderSet
+     -> ([Index],Context)
+emit (Context hdrtbl refs hdrset) renew notEmitted = (removedIndces,ctx)
   where
     hdrset' = meregeHeaderSet hdrset notEmitted
-    refs' = renew refs
+    (removedIndces,refs') = renew refs
     ctx = Context hdrtbl refs' hdrset'
 
 getNotEmitted :: Context -> IO HeaderSet
@@ -139,6 +142,12 @@ getNotEmitted ctx = do
 -- | Is 'Index' present in the reference set?
 isPresentIn :: Index -> Context -> Bool
 isPresentIn idx ctx = idx `isMember` referenceSet ctx
+
+checkAndUpdate :: Index -> Context -> (Sequence, Context)
+checkAndUpdate idx ctx = (s, ctx')
+  where
+    (s,refs') = lookupAndUpdate idx $ referenceSet ctx
+    ctx' = ctx { referenceSet = refs' }
 
 ----------------------------------------------------------------
 

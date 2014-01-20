@@ -12,6 +12,8 @@ module Network.HPACK.Context.ReferenceSet (
   , adjustReferenceSet
   , renewForEncoding
   , renewForDecoding
+  , Sequence(..)
+  , lookupAndUpdate
   ) where
 
 import Data.List (foldl')
@@ -59,13 +61,28 @@ getNotEmittedIndices :: ReferenceSet -> [Index]
 getNotEmittedIndices (ReferenceSet m) = M.keys $ M.filter (== NotEmitted) m
 
 -- | Renewing 'ReferenceSet' for the next encoding step.
-renewForEncoding :: ReferenceSet -> ReferenceSet
-renewForEncoding (ReferenceSet m) = ReferenceSet $ M.map (const Old) $ M.filter (/= Old) m
+renewForEncoding :: ReferenceSet -> ([Index],ReferenceSet)
+renewForEncoding (ReferenceSet m) = (removedIndces, ReferenceSet m')
+  where
+    (oldm,newm) = M.partition (== Old) m
+    removedIndces = M.keys oldm
+    m' = M.map (const Old) newm
 
 -- | Renewing 'ReferenceSet' for the next decoding step.
-renewForDecoding :: ReferenceSet -> ReferenceSet
-renewForDecoding (ReferenceSet m) = ReferenceSet $ M.map (const NotEmitted) m
+renewForDecoding :: ReferenceSet -> ([Index],ReferenceSet)
+renewForDecoding (ReferenceSet m) = ([], ReferenceSet m')
+  where
+    m' = M.map (const NotEmitted) m
 
 -- | Incrementing all 'Index' by one.
 adjustReferenceSet :: ReferenceSet -> ReferenceSet
 adjustReferenceSet (ReferenceSet m) = ReferenceSet $ M.mapKeysMonotonic (+1) m
+
+data Sequence = Z | E0 | E2 | E4
+
+lookupAndUpdate :: Index -> ReferenceSet -> (Sequence,ReferenceSet)
+lookupAndUpdate idx rs@(ReferenceSet m) = case M.lookup idx m of
+    Nothing         -> (Z,  rs)
+    Just Old        -> (E0, ReferenceSet $ M.adjust (const NotEmitted) idx m)
+    Just NotEmitted -> (E4, ReferenceSet $ M.adjust (const Emitted) idx m)
+    Just Emitted    -> (E2, rs)

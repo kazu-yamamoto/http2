@@ -5,6 +5,7 @@ module Network.HPACK.HeaderBlock.To (
   ) where
 
 import Control.Applicative ((<$>))
+import Data.List (foldl')
 import Network.HPACK.Builder
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock.HeaderField
@@ -21,14 +22,15 @@ toHeaderBlock :: CompressionAlgo
               -> IO (Context, HeaderBlock)
 toHeaderBlock Naive  !ctx hs = reset ctx >>= encodeStep naiveStep  hs
 toHeaderBlock Linear !ctx hs = reset ctx >>= encodeStep linearStep hs
-toHeaderBlock _      _    _  = undefined -- fixme
+toHeaderBlock Diff   !ctx hs = encodeStep diffStep hs (ctx, empty)
 
 ----------------------------------------------------------------
 
 encodeFinal :: Ctx -> IO (Context, HeaderBlock)
 encodeFinal (ctx, builder) = do
-    !ctx' <- emitNotEmittedForEncoding ctx
-    let !hb = run builder
+    (is,!ctx') <- emitNotEmittedForEncoding ctx
+    let builder' = foldl' (\b i -> b << Indexed i) builder is
+        !hb = run builder'
     return (ctx', hb)
 
 encodeStep :: Step
@@ -60,13 +62,12 @@ naiveStep (!ctx,!builder) (k,v) = do
 -- by 'Index 0' and uses indexing as much as possible.
 
 linearStep :: Step
-linearStep cb@(!ctx,!builder) h = anyStep linear cb h
+linearStep cb@(!ctx,!builder) h = smartStep linear cb h
   where
     linear i e
       | i `isPresentIn` ctx = do
           let b = builder << Indexed i << Indexed i
-              c = ctx
-          return (c,b)
+          return (ctx,b)
       | otherwise = do
           let b = builder << Indexed i
           c <- pushRef ctx i e
@@ -76,14 +77,25 @@ linearStep cb@(!ctx,!builder) h = anyStep linear cb h
 -- See http://lists.w3.org/Archives/Public/ietf-http-wg/2013JulSep/1135.html
 
 diffStep :: Step
-diffStep cb@(!ctx,!builder) h@(k,v) = anyStep diff cb h
+diffStep cb@(!ctx,!builder) h = smartStep diff cb h
   where
-    diff = undefined
+    diff i e = case checkAndUpdate i ctx of
+        (Z,  ctx') -> do
+            let b = builder << Indexed i
+            c <- pushRef ctx' i e
+            return (c,b)
+        (E0, ctx') -> return (ctx', builder)
+        (E2, ctx') -> do
+            let b = builder << Indexed i << Indexed i
+            return (ctx',b)
+        (E4, ctx') -> do
+            let b = builder << Indexed i << Indexed i << Indexed i << Indexed i
+            return (ctx',b)
 
 ----------------------------------------------------------------
 
-anyStep :: (Index -> Entry -> IO Ctx) -> Step
-anyStep func (!ctx,!builder) h@(k,v) = do
+smartStep :: (Index -> Entry -> IO Ctx) -> Step
+smartStep func (!ctx,!builder) h@(k,v) = do
     cache <- lookupHeader h ctx
     let e = toEntry h
     case cache of
