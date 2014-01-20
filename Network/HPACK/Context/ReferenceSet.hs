@@ -69,8 +69,8 @@ renewForEncoding (ReferenceSet m) = (removedIndces, ReferenceSet m')
     m' = M.map (const Old) newm
 
 -- | Renewing 'ReferenceSet' for the next decoding step.
-renewForDecoding :: ReferenceSet -> ([Index],ReferenceSet)
-renewForDecoding (ReferenceSet m) = ([], ReferenceSet m')
+renewForDecoding :: ReferenceSet -> ReferenceSet
+renewForDecoding (ReferenceSet m) = ReferenceSet m'
   where
     m' = M.map (const NotEmitted) m
 

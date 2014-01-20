@@ -4,7 +4,6 @@ module Network.HPACK.HeaderBlock.To (
     toHeaderBlock
   ) where
 
-import Control.Applicative ((<$>))
 import Data.List (foldl')
 import Network.HPACK.Builder
 import Network.HPACK.Context
@@ -20,33 +19,33 @@ toHeaderBlock :: CompressionAlgo
               -> Context
               -> HeaderSet
               -> IO (Context, HeaderBlock)
-toHeaderBlock Naive  !ctx hs = reset ctx >>= encodeStep naiveStep  hs
-toHeaderBlock Linear !ctx hs = reset ctx >>= encodeStep linearStep hs
-toHeaderBlock Diff   !ctx hs = encodeStep diffStep hs (ctx, empty)
+toHeaderBlock Naive  !ctx hs = reset ctx >>= encodeLoop naiveStep  hs
+toHeaderBlock Linear !ctx hs = reset ctx >>= encodeLoop linearStep hs
+toHeaderBlock Diff   !ctx hs = encodeLoop diffStep hs (ctx, empty)
 
 ----------------------------------------------------------------
 
 encodeFinal :: Ctx -> IO (Context, HeaderBlock)
-encodeFinal (ctx, builder) = do
+encodeFinal (!ctx, !builder) = do
     (is,!ctx') <- emitNotEmittedForEncoding ctx
     let builder' = foldl' (\b i -> b << Indexed i) builder is
         !hb = run builder'
     return (ctx', hb)
 
-encodeStep :: Step
+encodeLoop :: Step
            -> HeaderSet
            -> Ctx
            -> IO (Context, HeaderBlock)
-encodeStep step (h:hs) !ctx = step ctx h >>= encodeStep step hs
-encodeStep _    []     !ctx = encodeFinal ctx
+encodeLoop step (h:hs) !ctx = step ctx h >>= encodeLoop step hs
+encodeLoop _    []     !ctx = encodeFinal ctx
 
 ----------------------------------------------------------------
 
 -- for naiveStep and linearStep
 reset :: Context -> IO Ctx
 reset ctx = do
-    ctx' <- clearHeaderSet <$> clearRefSets ctx
-    let initialHeaderBlock = singleton $ Indexed 0
+    let ctx' = clearRefSets ctx
+        initialHeaderBlock = singleton $ Indexed 0
     return (ctx', initialHeaderBlock)
 
 ----------------------------------------------------------------
@@ -54,8 +53,7 @@ reset ctx = do
 naiveStep :: Step
 naiveStep (!ctx,!builder) (k,v) = do
     let builder' = builder << Literal NotAdd (Lit k) v
-    ctx' <- emitOnly ctx (k,v)
-    return (ctx', builder')
+    return (ctx, builder')
 
 ----------------------------------------------------------------
 -- A simple encoding strategy to reset the reference set first
@@ -64,13 +62,13 @@ naiveStep (!ctx,!builder) (k,v) = do
 linearStep :: Step
 linearStep cb@(!ctx,!builder) h = smartStep linear cb h
   where
-    linear i e
+    linear i
       | i `isPresentIn` ctx = do
           let b = builder << Indexed i << Indexed i
           return (ctx,b)
       | otherwise = do
           let b = builder << Indexed i
-          c <- pushRef ctx i e
+              c = pushRef ctx i
           return (c,b)
 
 ----------------------------------------------------------------
@@ -79,10 +77,10 @@ linearStep cb@(!ctx,!builder) h = smartStep linear cb h
 diffStep :: Step
 diffStep cb@(!ctx,!builder) h = smartStep diff cb h
   where
-    diff i e = case checkAndUpdate i ctx of
+    diff i = case checkAndUpdate i ctx of
         (Z,  ctx') -> do
             let b = builder << Indexed i
-            c <- pushRef ctx' i e
+                c = pushRef ctx' i
             return (c,b)
         (E0, ctx') -> return (ctx', builder)
         (E2, ctx') -> do
@@ -94,7 +92,7 @@ diffStep cb@(!ctx,!builder) h = smartStep diff cb h
 
 ----------------------------------------------------------------
 
-smartStep :: (Index -> Entry -> IO Ctx) -> Step
+smartStep :: (Index -> IO Ctx) -> Step
 smartStep func (!ctx,!builder) h@(k,v) = do
     cache <- lookupHeader h ctx
     let e = toEntry h
@@ -115,4 +113,4 @@ smartStep func (!ctx,!builder) h@(k,v) = do
             let builder' = builder << Indexed i
             ctx' <- newEntry ctx e
             return (ctx', builder')
-        KeyValue InHeaderTable i -> func i e
+        KeyValue InHeaderTable i -> func i

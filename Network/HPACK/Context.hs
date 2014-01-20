@@ -8,8 +8,6 @@ module Network.HPACK.Context (
   , DecodeError(..)
   , printContext
   -- * Initialization and final results
-  , clearHeaderSet
-  , getAndClearHeaderSet
   , emitNotEmittedForEncoding
   , emitNotEmittedForDecoding
   -- * Processing
@@ -17,7 +15,6 @@ module Network.HPACK.Context (
   , removeRef
   , newEntry
   , pushRef
-  , emitOnly
   -- * Auxiliary functions
   , isPresentIn
   , Sequence(..)
@@ -37,25 +34,20 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | Context for HPACK encoding/decoding.
+--   This is destructive!
 data Context = Context {
     headerTable  :: !HeaderTable -- ^ A cache of headers
   , referenceSet :: ReferenceSet -- ^ Reference set
-  , headerSet    :: HeaderSet    -- ^ Emitted header set.
-                                    --   Encode: the previous ones.
-                                    --   Decode: the results.
   }
 
 -- | Printing 'Context'
 printContext :: Context -> IO ()
-printContext (Context hdrtbl refs hdrset) = do
+printContext (Context hdrtbl refs) = do
     putStrLn "<<<Header table>>>"
     printHeaderTable hdrtbl
     putStr "\n"
     putStrLn "<<<Reference set>>>"
     print refs
-    putStr "\n"
-    putStrLn "<<<Headers>>>"
-    printHeaderSet hdrset
 
 ----------------------------------------------------------------
 
@@ -64,72 +56,56 @@ printContext (Context hdrtbl refs hdrset) = do
 newContext :: Size -> IO Context
 newContext maxsiz = do
     hdrtbl <- newHeaderTable maxsiz
-    return $ Context hdrtbl
-                     emptyReferenceSet
-                     emptyHeaderSet
+    return $ Context hdrtbl emptyReferenceSet
 
 ----------------------------------------------------------------
 
 -- | The reference set is emptied.
-clearRefSets :: Context -> IO Context
-clearRefSets ctx = return ctx {
+clearRefSets :: Context -> Context
+clearRefSets ctx = ctx {
     referenceSet = emptyReferenceSet
   }
 
 -- | The entry is removed from the reference set.
-removeRef :: Context -> Index -> IO Context
-removeRef (Context hdrtbl refs hdrset) idx = return ctx
+removeRef :: Context -> Index -> Context
+removeRef (Context hdrtbl refs) idx = ctx
   where
     refs' = removeIndex idx refs
-    ctx = Context hdrtbl refs' hdrset
+    ctx = Context hdrtbl refs'
 
--- | The header field is emitted.
---   The header field is inserted at the beginning of the header table.
+-- | The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
-newEntry :: Context -> Entry -> IO Context
-newEntry (Context hdrtbl refs hdrset) e = do
+newEntry :: Context -> Entry -> IO Context -- FIXME for encoding
+newEntry (Context hdrtbl refs) e = do
     (hdrtbl', is) <- insertEntry e hdrtbl
     let refs' = addIndex 1 $ removeIndices is $ adjustReferenceSet refs
-        hdrset' = insertHeader (fromEntry e) hdrset
-    return $ Context hdrtbl' refs' hdrset'
+    return $ Context hdrtbl' refs'
 
--- | The header field corresponding to the referenced entry is emitted.
---   The referenced header table entry is added to the reference set.
-pushRef :: Context -> Index -> Entry -> IO Context
-pushRef (Context hdrtbl refs hdrset) idx e = return ctx
+-- | The referenced header table entry is added to the reference set.
+pushRef :: Context -> Index -> Context
+pushRef (Context hdrtbl refs) idx = ctx
   where
-    hdrset' = insertHeader (fromEntry e) hdrset
     -- isPresentIn ensures that idx does not exist in
     -- newref and oldref.
     refs' = addIndex idx refs
-    ctx = Context hdrtbl refs' hdrset'
-
--- | The header field is emitted.
-emitOnly :: Context -> Header -> IO Context
-emitOnly (Context hdrtbl refs hdrset) h = return ctx
-  where
-    hdrset' = insertHeader h hdrset
-    ctx = Context hdrtbl refs hdrset'
+    ctx = Context hdrtbl refs'
 
 ----------------------------------------------------------------
 
 -- | Emitting non-emitted headers.
 emitNotEmittedForEncoding :: Context -> IO ([Index],Context)
-emitNotEmittedForEncoding ctx = emit ctx renewForEncoding <$> getNotEmitted ctx
+emitNotEmittedForEncoding (Context hdrtbl refs) = do
+    let (removedIndces,refs') = renewForEncoding refs
+        ctx' = Context hdrtbl refs'
+    return (removedIndces, ctx')
 
 -- | Emitting non-emitted headers.
-emitNotEmittedForDecoding :: Context -> IO Context
-emitNotEmittedForDecoding ctx = snd . emit ctx renewForDecoding <$> getNotEmitted ctx
-
--- renewForEncoding
--- | Emit non-emitted headers.
-emit :: Context -> (ReferenceSet -> ([Index],ReferenceSet)) -> HeaderSet
-     -> ([Index],Context)
-emit (Context hdrtbl refs hdrset) renew notEmitted = (removedIndces,ctx)
-  where
-    hdrset' = meregeHeaderSet hdrset notEmitted
-    (removedIndces,refs') = renew refs
-    ctx = Context hdrtbl refs' hdrset'
+emitNotEmittedForDecoding :: Context -> IO (HeaderSet,Context)
+emitNotEmittedForDecoding ctx@(Context hdrtbl refs) = do
+    hs <- getNotEmitted ctx
+    let refs' = renewForDecoding refs
+        ctx'  = Context hdrtbl refs'
+    return (hs,ctx')
 
 getNotEmitted :: Context -> IO HeaderSet
 getNotEmitted ctx = do
@@ -166,15 +142,3 @@ lookupHeader h ctx = lookupTable h (headerTable ctx)
 -- | Getting 'Entry' by 'Index'.
 getEntry :: Index -> Context -> IO Entry
 getEntry idx ctx = snd <$> whichTable idx ctx
-
-----------------------------------------------------------------
-
--- | Clearing 'HeaderSet' in 'Context' for the next decode.
-clearHeaderSet :: Context -> Context
-clearHeaderSet ctx = ctx { headerSet = emptyHeaderSet }
-
-getAndClearHeaderSet :: Context -> (HeaderSet, Context)
-getAndClearHeaderSet ctx = (hs, ctx')
-  where
-    hs = headerSet ctx
-    ctx' = clearHeaderSet ctx
