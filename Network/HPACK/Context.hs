@@ -13,7 +13,8 @@ module Network.HPACK.Context (
   -- * Processing
   , clearRefSets
   , removeRef
-  , newEntry
+  , newEntryForEncoding
+  , newEntryForDecoding
   , pushRef
   -- * Auxiliary functions
   , isPresentIn
@@ -75,10 +76,20 @@ removeRef (Context hdrtbl refs) idx = ctx
 
 -- | The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
-newEntry :: Context -> Entry -> IO Context -- FIXME for encoding
-newEntry (Context hdrtbl refs) e = do
+newEntryForEncoding :: Context -> Entry -> IO ([Index],Context)
+newEntryForEncoding (Context hdrtbl refs) e = do
     (hdrtbl', is) <- insertEntry e hdrtbl
-    let refs' = addIndex 1 $ removeIndices is $ adjustReferenceSet refs
+    let ns = getCommon is refs
+        refs' = addIndex 1 $ adjustReferenceSet $ removeIndices is refs
+        ctx = Context hdrtbl' refs'
+    return (ns, ctx)
+
+-- | The header field is inserted at the beginning of the header table.
+--   A reference to the new entry is added to the reference set.
+newEntryForDecoding :: Context -> Entry -> IO Context
+newEntryForDecoding (Context hdrtbl refs) e = do
+    (hdrtbl', is) <- insertEntry e hdrtbl
+    let refs' = addIndex 1 $ adjustReferenceSet $ removeIndices is refs
     return $ Context hdrtbl' refs'
 
 -- | The referenced header table entry is added to the reference set.

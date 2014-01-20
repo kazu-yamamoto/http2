@@ -71,7 +71,7 @@ newHeaderTable maxsiz = do
 ----------------------------------------------------------------
 
 -- | Inserting 'Entry' to 'HeaderTable'.
---   New 'HeaderTable' and a set of dropped 'Index'
+--   New 'HeaderTable' and a set of dropped OLD 'Index'
 --   are returned.
 insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,[Index])
 insertEntry e hdrtbl = insertOne e hdrtbl >>= adjustTableSize
@@ -112,7 +112,7 @@ removeOne hdrtbl@(HeaderTable maxN off n tbl tsize _) = do
             numOfEntries = n - 1
           , headerTableSize = tsize'
           }
-    return (hdrtbl',n)
+    return (hdrtbl',n - 1) -- OLD index
 
 ----------------------------------------------------------------
 

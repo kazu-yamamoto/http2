@@ -40,7 +40,7 @@ decodeStep (!ctx,!builder) (Indexed idx)
       w <- whichTable idx ctx
       case w of
           (InStaticTable, e) -> do
-              c <- newEntry ctx e
+              c <- newEntryForDecoding ctx e
               let b = builder << fromEntry e
               return (c,b)
           (InHeaderTable, e) -> do
@@ -58,7 +58,7 @@ decodeStep (!ctx,!builder) (Literal Add naming v) = do
     let h = (k,v)
         e = toEntry (k,v)
         b = builder << h
-    c <- newEntry ctx e
+    c <- newEntryForDecoding ctx e
     return (c,b)
 
 decodeFinal :: Ctx -> IO (Context, HeaderSet)

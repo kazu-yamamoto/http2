@@ -14,6 +14,7 @@ module Network.HPACK.Context.ReferenceSet (
   , renewForDecoding
   , Sequence(..)
   , lookupAndUpdate
+  , getCommon
   ) where
 
 import Data.List (foldl')
@@ -86,3 +87,11 @@ lookupAndUpdate idx rs@(ReferenceSet m) = case M.lookup idx m of
     Just Old        -> (E0, ReferenceSet $ M.adjust (const NotEmitted) idx m)
     Just NotEmitted -> (E4, ReferenceSet $ M.adjust (const Emitted) idx m)
     Just Emitted    -> (E2, rs)
+
+getCommon :: [Index] -> ReferenceSet -> [Index]
+getCommon is (ReferenceSet m) = go is []
+  where
+    go []     ret = ret
+    go (n:ns) ret = case M.lookup n m of
+        Just NotEmitted -> go ns (n:ret)
+        _               -> go ns ret

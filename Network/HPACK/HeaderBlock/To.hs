@@ -98,19 +98,23 @@ smartStep func (!ctx,!builder) h@(k,v) = do
     let e = toEntry h
     case cache of
         None -> do
-            let builder' = builder << Literal Add (Lit k) v
-            ctx' <- newEntry ctx e
+            (is,ctx') <- newEntryForEncoding ctx e
+            let builder' = double is builder << Literal Add (Lit k) v
             return (ctx', builder')
         KeyOnly InStaticTable i  -> do
-            let builder' = builder << Literal Add (Idx i) v
-            ctx' <- newEntry ctx e
+            (is,ctx') <- newEntryForEncoding ctx e
+            let builder' = double is builder << Literal Add (Idx i) v
             return (ctx', builder')
         KeyOnly InHeaderTable i  -> do
-            let builder' = builder << Literal Add (Idx i) v
-            ctx' <- newEntry ctx e
+            (is,ctx') <- newEntryForEncoding ctx e
+            let builder' = double is builder << Literal Add (Idx i) v
             return (ctx', builder')
         KeyValue InStaticTable i -> do
-            let builder' = builder << Indexed i
-            ctx' <- newEntry ctx e
+            (is,ctx') <- newEntryForEncoding ctx e
+            let builder' = double is builder << Indexed i
             return (ctx', builder')
         KeyValue InHeaderTable i -> func i
+
+double :: [Index] -> Builder HeaderField -> Builder HeaderField
+double []     b = b
+double (i:is) b = double is (b << Indexed i << Indexed i)
