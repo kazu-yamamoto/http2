@@ -2,26 +2,25 @@
 
 module Network.HPACK.Table.Static (
     SIndex(..)
-  , staticTableSize
-  , toStaticEntry
+  , fromStaticIndex
   , toStaticIndex
-  , toStaticColonIndex
-  , isColon
   , isSIndexValid
+  , toStaticEntry
+  , staticTableList
   ) where
 
-import Control.Applicative ((<$>))
 import Data.Array (Array, listArray, (!))
-import Data.HashTable.IO (BasicHashTable)
-import qualified Data.HashTable.IO as I
 import Network.HPACK.Table.Entry
-import System.IO.Unsafe (unsafePerformIO)
-import qualified Data.ByteString.Char8 as H
 
 ----------------------------------------------------------------
 
-newtype SIndex = SIndex Int deriving (Eq,Show)
+newtype SIndex = SIndex Int deriving (Eq,Ord,Show)
 
+fromStaticIndex :: SIndex -> Int
+fromStaticIndex (SIndex sidx) = sidx
+
+toStaticIndex :: Int -> SIndex
+toStaticIndex = SIndex
 
 isSIndexValid :: SIndex -> Bool
 isSIndexValid (SIndex sidx) = 1 <= sidx && sidx <= staticTableSize
@@ -44,55 +43,6 @@ toStaticEntry (SIndex sidx) = staticTable ! sidx
 -- | Pre-defined static table.
 staticTable :: Array Index Entry
 staticTable = listArray (1,60) $ map toEntry staticTableList
-
-----------------------------------------------------------------
-
--- | Get 'Index' from the static table.
---
--- >>> toStaticIndex ":status"
--- Just (SIndex 13)
--- >>> toStaticIndex "date"
--- Just (SIndex 32)
--- >>> toStaticIndex "user-agent"
--- Just (SIndex 57)
-toStaticIndex :: HeaderName -> IO (Maybe SIndex)
-toStaticIndex k = do
-    mx <- I.lookup staticHashTable k
-    return $ SIndex <$> mx
-
-staticHashTable :: BasicHashTable HeaderName Int
-staticHashTable = unsafePerformIO $ I.fromList alist
-  where
-    alist = zip (map fst staticTableList) [1 ..]
-
-----------------------------------------------------------------
-
--- | Get 'Index' from the static table.
---   Only colon headers.
---
--- >>> toStaticColonIndex (":path","/index.html")
--- Just (SIndex 5)
--- >>> toStaticColonIndex (":status","200")
--- Just (SIndex 8)
-toStaticColonIndex :: Header -> IO (Maybe SIndex)
-toStaticColonIndex h = do
-    mx <- I.lookup staticColonHashTable h
-    return $ SIndex <$> mx
-
-staticColonHashTable :: BasicHashTable Header Int
-staticColonHashTable = unsafePerformIO $ I.fromList alist
-  where
-    alist = zip staticColonHeaderList [1 ..]
-
-----------------------------------------------------------------
-
-staticColonHeaderList :: [Header]
-
-staticColonHeaderList = takeWhile isColon staticTableList
-
--- | Checking if 'HeaderName' starts with colon.
-isColon :: Header -> Bool
-isColon h = H.head (fst h) == ':'
 
 ----------------------------------------------------------------
 

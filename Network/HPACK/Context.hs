@@ -145,7 +145,7 @@ whichTable idx ctx = which hdrtbl idx
     hdrtbl = headerTable ctx
 
 -- | Which table contains 'Header'?
-lookupHeader :: Header -> Context -> IO HeaderCache
+lookupHeader :: Header -> Context -> HeaderCache
 lookupHeader h ctx = lookupTable h (headerTable ctx)
 
 ----------------------------------------------------------------

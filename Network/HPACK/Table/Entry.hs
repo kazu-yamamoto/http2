@@ -13,6 +13,7 @@ module Network.HPACK.Table.Entry (
   , fromEntry
   -- * Getters
   , entrySize
+  , entryHeader
   , entryHeaderName
   , entryHeaderValue
   -- * For initialization
@@ -58,6 +59,10 @@ fromEntry = snd
 -- | Getting the size of 'Entry'.
 entrySize :: Entry -> Size
 entrySize = fst
+
+-- | Getting 'Header'.
+entryHeader :: Entry -> Header
+entryHeader (_,h) = h
 
 -- | Getting 'HeaderName'.
 entryHeaderName :: Entry -> HeaderName

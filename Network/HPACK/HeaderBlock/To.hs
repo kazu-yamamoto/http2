@@ -94,7 +94,7 @@ diffStep cb@(!ctx,!builder) h = smartStep diff cb h
 
 smartStep :: (Index -> IO Ctx) -> Step
 smartStep func cb@(!ctx,!builder) h@(k,_) = do
-    cache <- lookupHeader h ctx
+    let cache = lookupHeader h ctx
     case cache of
         None                     -> check cb h (Lit k)
         KeyOnly  InStaticTable i -> check cb h (Idx i)
