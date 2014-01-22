@@ -39,7 +39,6 @@ newtype HIndex = HIndex Int
 toHeaderEntry :: HeaderTable -> HIndex -> IO Entry
 toHeaderEntry hdrtbl (HIndex hidx) = readArray (circularTable hdrtbl) hidx
 
-
 isIn :: Int -> HeaderTable -> Bool
 isIn idx hdrtbl = idx <= numOfEntries hdrtbl
 
@@ -51,7 +50,7 @@ fromIndexToHIndex hdrtbl idx = HIndex hidx
   where
     maxN = maxNumOfEntries hdrtbl
     off = offset hdrtbl
-    hidx = (off + idx + maxN) `mod` maxN
+    hidx = adj maxN (off + idx)
 
 fromSIndexToIndex :: HeaderTable -> SIndex -> Index
 fromSIndexToIndex hdrtbl (SIndex sidx) = sidx + numOfEntries hdrtbl
@@ -60,6 +59,7 @@ fromIndexToSIndex :: HeaderTable -> Index -> SIndex
 fromIndexToSIndex hdrtbl idx = SIndex sidx
   where
     sidx = idx - numOfEntries hdrtbl
+
 ----------------------------------------------------------------
 
 -- | Printing 'HeaderTable'.
