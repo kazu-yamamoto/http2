@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Table.Static (
-    staticTableSize
+    SIndex(..)
+  , staticTableSize
   , toStaticEntry
   , toStaticIndex
   , toStaticColonIndex
   , isColon
+  , isSIndexValid
   ) where
 
+import Control.Applicative ((<$>))
 import Data.Array (Array, listArray, (!))
 import Data.HashTable.IO (BasicHashTable)
 import qualified Data.HashTable.IO as I
@@ -17,18 +20,26 @@ import qualified Data.ByteString.Char8 as H
 
 ----------------------------------------------------------------
 
+newtype SIndex = SIndex Int deriving (Eq,Show)
+
+
+isSIndexValid :: SIndex -> Bool
+isSIndexValid (SIndex sidx) = 1 <= sidx && sidx <= staticTableSize
+
+----------------------------------------------------------------
+
 -- | The size of static table.
 staticTableSize :: Size
 staticTableSize = 60
 
 -- | Get 'Entry' from the static table.
 --
--- >>> toStaticEntry 8
+-- >>> toStaticEntry (SIndex 8)
 -- (42,(":status","200"))
--- >>> toStaticEntry 49
+-- >>> toStaticEntry (SIndex 49)
 -- (37,("range",""))
-toStaticEntry :: Index -> Entry
-toStaticEntry idx = staticTable ! idx
+toStaticEntry :: SIndex -> Entry
+toStaticEntry (SIndex sidx) = staticTable ! sidx
 
 -- | Pre-defined static table.
 staticTable :: Array Index Entry
@@ -39,15 +50,17 @@ staticTable = listArray (1,60) $ map toEntry staticTableList
 -- | Get 'Index' from the static table.
 --
 -- >>> toStaticIndex ":status"
--- Just 13
+-- Just (SIndex 13)
 -- >>> toStaticIndex "date"
--- Just 32
+-- Just (SIndex 32)
 -- >>> toStaticIndex "user-agent"
--- Just 57
-toStaticIndex :: HeaderName -> IO (Maybe Index)
-toStaticIndex k = I.lookup staticHashTable k
+-- Just (SIndex 57)
+toStaticIndex :: HeaderName -> IO (Maybe SIndex)
+toStaticIndex k = do
+    mx <- I.lookup staticHashTable k
+    return $ SIndex <$> mx
 
-staticHashTable :: BasicHashTable HeaderName Index
+staticHashTable :: BasicHashTable HeaderName Int
 staticHashTable = unsafePerformIO $ I.fromList alist
   where
     alist = zip (map fst staticTableList) [1 ..]
@@ -58,13 +71,15 @@ staticHashTable = unsafePerformIO $ I.fromList alist
 --   Only colon headers.
 --
 -- >>> toStaticColonIndex (":path","/index.html")
--- Just 5
+-- Just (SIndex 5)
 -- >>> toStaticColonIndex (":status","200")
--- Just 8
-toStaticColonIndex :: Header -> IO (Maybe Index)
-toStaticColonIndex h = I.lookup staticColonHashTable h
+-- Just (SIndex 8)
+toStaticColonIndex :: Header -> IO (Maybe SIndex)
+toStaticColonIndex h = do
+    mx <- I.lookup staticColonHashTable h
+    return $ SIndex <$> mx
 
-staticColonHashTable :: BasicHashTable Header Index
+staticColonHashTable :: BasicHashTable Header Int
 staticColonHashTable = unsafePerformIO $ I.fromList alist
   where
     alist = zip staticColonHeaderList [1 ..]

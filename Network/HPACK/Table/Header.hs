@@ -1,16 +1,24 @@
 module Network.HPACK.Table.Header (
   -- * Type
-    HeaderTable(..)
+    HIndex
+  , HeaderTable
+  , isIn
+  , fromHIndexToIndex
+  , fromIndexToHIndex
+  , fromSIndexToIndex
+  , fromIndexToSIndex
   , newHeaderTable
   , printHeaderTable
   -- * Utilities
   , insertEntry
   , toIndexValue
+  , toHeaderEntry
   ) where
 
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.Table.Entry
+import Network.HPACK.Table.Static
 
 ----------------------------------------------------------------
 
@@ -24,6 +32,34 @@ data HeaderTable = HeaderTable {
   , maxHeaderTableSize :: !Size
   }
 
+----------------------------------------------------------------
+
+newtype HIndex = HIndex Int
+
+toHeaderEntry :: HeaderTable -> HIndex -> IO Entry
+toHeaderEntry hdrtbl (HIndex hidx) = readArray (circularTable hdrtbl) hidx
+
+
+isIn :: Int -> HeaderTable -> Bool
+isIn idx hdrtbl = idx <= numOfEntries hdrtbl
+
+fromHIndexToIndex :: HeaderTable -> HIndex -> Index
+fromHIndexToIndex = undefined
+
+fromIndexToHIndex :: HeaderTable -> Index -> HIndex
+fromIndexToHIndex hdrtbl idx = HIndex hidx
+  where
+    maxN = maxNumOfEntries hdrtbl
+    off = offset hdrtbl
+    hidx = (off + idx + maxN) `mod` maxN
+
+fromSIndexToIndex :: HeaderTable -> SIndex -> Index
+fromSIndexToIndex hdrtbl (SIndex sidx) = sidx + numOfEntries hdrtbl
+
+fromIndexToSIndex :: HeaderTable -> Index -> SIndex
+fromIndexToSIndex hdrtbl idx = SIndex sidx
+  where
+    sidx = idx - numOfEntries hdrtbl
 ----------------------------------------------------------------
 
 -- | Printing 'HeaderTable'.
@@ -131,5 +167,5 @@ toIndexValue k (HeaderTable maxN off n tbl _ _) = go 1
 
 ----------------------------------------------------------------
 
-adj :: Int -> Int -> Int
+adj :: Int -> Index -> Index
 adj maxN x = (x + maxN) `mod` maxN

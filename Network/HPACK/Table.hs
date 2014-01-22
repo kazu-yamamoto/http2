@@ -19,7 +19,6 @@ module Network.HPACK.Table (
 
 import Control.Applicative ((<$>))
 import Control.Exception (throwIO)
-import Data.Array.IO (readArray)
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Header
 import Network.HPACK.Table.Static
@@ -27,7 +26,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-data HeaderCache = None | KeyOnly WhichTable Index | KeyValue WhichTable Index
+data HeaderCache = None | KeyOnly WhichTable Index | KeyValue WhichTable Index deriving Show
 
 -- | Looking up the static table and the header table.
 lookupTable :: Header -> HeaderTable -> IO HeaderCache
@@ -41,29 +40,37 @@ lookupTable h@(k,v) hdrtbl = do
           | isColon h -> do
               mi <- toStaticColonIndex h
               case mi of
-                  Just i  -> return $ KeyValue InStaticTable (i + numOfEntries hdrtbl)
+                  Just sidx -> return $ KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+                  Nothing -> do
+                      mj <- toStaticIndex k
+                      case mj of
+                          Just sidx -> return $ KeyOnly InStaticTable (fromSIndexToIndex hdrtbl sidx)
+                          Nothing -> return $ None
+          | otherwise -> do
+              mj <- toStaticIndex k
+              case mj of
+                  Just sidx -> return $ KeyOnly InStaticTable (fromSIndexToIndex hdrtbl sidx)
                   Nothing -> return $ None
-          | otherwise -> return $ None
+
 
 whic :: Int -> HeaderTable -> WhichTable
-whic i hdrtbl
- | i <= numOfEntries hdrtbl = InHeaderTable
- | otherwise                = InStaticTable
+whic idx hdrtbl
+ | idx `isIn` hdrtbl = InHeaderTable
+ | otherwise         = InStaticTable
 
 ----------------------------------------------------------------
 
 -- | Which table does `Index` refer to?
-data WhichTable = InHeaderTable | InStaticTable deriving Eq
+data WhichTable = InHeaderTable | InStaticTable deriving (Eq,Show)
 
 ----------------------------------------------------------------
 
 -- | Which table does 'Index' belong to?
 which :: HeaderTable -> Index -> IO (WhichTable, Entry)
-which (HeaderTable maxN off n tbl _ _) idx
-  | idx <= n                        = (InHeaderTable,) <$> readArray tbl pidx
-  | 1 <= stcidx && stcidx <= stcsiz = return (InStaticTable, toStaticEntry stcidx)
-  | otherwise                       = throwIO $ IndexOverrun idx
+which hdrtbl idx
+  | idx `isIn` hdrtbl  = (InHeaderTable,) <$> toHeaderEntry hdrtbl hidx
+  | isSIndexValid sidx = return (InStaticTable, toStaticEntry sidx)
+  | otherwise          = throwIO $ IndexOverrun idx
   where
-    stcsiz = staticTableSize
-    stcidx = idx - n
-    pidx = (off + idx + maxN) `mod` maxN
+    hidx = fromIndexToHIndex hdrtbl idx
+    sidx = fromIndexToSIndex hdrtbl idx
