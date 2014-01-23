@@ -87,18 +87,23 @@ enc (Encoder ary) i = ary ! i
 ----------------------------------------------------------------
 
 -- | Type for Huffman decoding.
-data Decoder = Tip (Maybe Int) {-# UNPACK #-} !Int
-             | Bin (Maybe Int) Decoder Decoder
+data Decoder = Tip
+               (Maybe Int)          -- EOS info from 1
+               {-# UNPACK #-} !Int  -- Decoded value. Essentially Word8
+             | Bin (Maybe Int)      -- EOS info from 1
+               {-# UNPACK #-} !Int  -- Sequence no from 0
+               Decoder              -- Left
+               Decoder              -- Right
              deriving Show
 
 showTree :: Decoder -> String
 showTree = showTree' ""
 
 showTree' :: String -> Decoder -> String
-showTree' _    (Tip _ i)   = show i ++ "\n"
-showTree' pref (Bin _ l r) = "\n"
-                             ++ pref ++ "+ " ++ showTree' pref' l
-                             ++ pref ++ "+ " ++ showTree' pref' r
+showTree' _    (Tip _ i)     = show i ++ "\n"
+showTree' pref (Bin _ n l r) = "No " ++ show n ++ "\n"
+                            ++ pref ++ "+ " ++ showTree' pref' l
+                            ++ pref ++ "+ " ++ showTree' pref' r
   where
     pref' = "  " ++ pref
 
@@ -107,23 +112,25 @@ printTree = putStr . showTree
 
 -- | Creating 'Decoder'.
 toDecoder :: [Bits] -> Decoder
-toDecoder bs = mark 1 eos $ build $ zip [0..idxEos] bs
+toDecoder bs = mark 1 eos $ snd $ build 0 $ zip [0..idxEos] bs
   where
     eos = bs !! idxEos
 
-build :: [(Int,Bits)] -> Decoder
-build [(v,[])] = Tip Nothing v
-build xs       = Bin Nothing (build fs) (build ts)
+build :: Int -> [(Int,Bits)] -> (Int, Decoder)
+build !cnt0 [(v,[])] = (cnt0,Tip Nothing v)
+build !cnt0 xs       = let (cnt1,l) = build (cnt0 + 1) fs
+                           (cnt2,r) = build cnt1 ts
+                       in (cnt2, Bin Nothing cnt0 l r)
   where
     (fs',ts') = partition ((==) F . head . snd) xs
     fs = map (second tail) fs'
     ts = map (second tail) ts'
 
 mark :: Int -> Bits -> Decoder -> Decoder
-mark i []     (Tip Nothing v)   = Tip (Just i) v
-mark i (F:bs) (Bin Nothing l r) = Bin (Just i) (mark (i+1) bs l) r
-mark i (T:bs) (Bin Nothing l r) = Bin (Just i) l (mark (i+1) bs r)
-mark _ _      _                 = error "mark"
+mark i []     (Tip Nothing v)     = Tip (Just i) v
+mark i (F:bs) (Bin Nothing n l r) = Bin (Just i) n (mark (i+1) bs l) r
+mark i (T:bs) (Bin Nothing n l r) = Bin (Just i) n l (mark (i+1) bs r)
+mark _ _      _                   = error "mark"
 
 -- | Huffman decoding.
 decode :: Decoder -> HuffmanDecoding
@@ -140,14 +147,14 @@ decodeBits decoder src builder = case dec decoder src of
 data DecodeOK = Eos | OK Int BitSource
 
 dec :: Decoder -> BitSource -> Either DecodeError DecodeOK
-dec (Tip Nothing v)    src = Right $ OK v src
-dec (Tip _       _)    _   = Left EosInTheMiddle
-dec (Bin x l r)        src = case uncons src of
+dec (Tip Nothing v)    src   = Right $ OK v src
+dec (Tip _       _)    _     = Left EosInTheMiddle
+dec (Bin x _ l r)        src = case uncons src of
     Nothing -> case x of
-        Nothing           -> Left IllegalEos
+        Nothing             -> Left IllegalEos
         Just i
           -- i is 1 origin. 8 means Bits are consumed in the parent 7.
-          | i <= 8        -> Right Eos
-          | otherwise     -> Left TooLongEos
-    Just (F,src')         -> dec l src'
-    Just (T,src')         -> dec r src'
+          | i <= 8          -> Right Eos
+          | otherwise       -> Left TooLongEos
+    Just (F,src')           -> dec l src'
+    Just (T,src')           -> dec r src'
