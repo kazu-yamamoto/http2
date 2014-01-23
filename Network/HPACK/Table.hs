@@ -21,12 +21,8 @@ import Control.Applicative ((<$>))
 import Control.Exception (throwIO)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as H
-import Data.List (foldl')
-import Data.PSQueue (PSQ, Binding(..))
-import qualified Data.PSQueue as P
 import Network.HPACK.Table.Entry
+import qualified Network.HPACK.Table.HashPSQ as HP
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
@@ -40,7 +36,7 @@ data HeaderTable = HeaderTable {
   , circularTable :: !(IOArray Index Entry)
   , headerTableSize :: !Size
   , maxHeaderTableSize :: !Size
-  , reverseLookup :: !Rev
+  , reverseIndex :: !(HP.HashPSQ HIndex)
   }
 
 adj :: Int -> Int -> Int
@@ -84,22 +80,6 @@ data HeaderCache = None
 
 newtype HIndex = HIndex Int deriving (Eq, Ord, Show)
 
--- | Static physical index only.
---   Index for static table.
---   Index for header table.
---   'Index' is not allowd since it is dynamic.
-data PIndex = S SIndex | H HIndex deriving (Eq, Show)
-
-instance Ord PIndex where
-    (S sidx1) `compare` (S sidx2) = sidx1 `compare` sidx2
-    (S _)     `compare` (H _)     = GT
-    (H _)     `compare` (S _)     = LT
-    (H hidx1) `compare` (H hidx2) = hidx1 `compare` hidx2
-
-----------------------------------------------------------------
-
-newtype Rev = Rev (HashMap HeaderName (PSQ HeaderValue PIndex)) deriving Show
-
 ----------------------------------------------------------------
 
 fromHIndexToIndex :: HeaderTable -> HIndex -> Index
@@ -139,19 +119,11 @@ newHeaderTable maxsiz = do
       , circularTable = tbl
       , headerTableSize = 0
       , maxHeaderTableSize = maxsiz
-      , reverseLookup = initialReverseLookup
+      , reverseIndex = HP.empty
       }
   where
     maxN = maxNumbers maxsiz
     end = maxN - 1
-
-initialReverseLookup :: Rev
-initialReverseLookup = ir
-  where
-    ss = map (S . toStaticIndex) [1..]
-    shs = zip ss staticTableList
-    ins !rev (!p,!h) = insert h p rev
-    !ir = foldl' ins (Rev H.empty) shs
 
 ----------------------------------------------------------------
 
@@ -161,9 +133,9 @@ initialReverseLookup = ir
 insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,[Index])
 insertEntry e hdrtbl = do
     (hdrtbl', is, hs) <- insertOne e hdrtbl >>= adjustTableSize
-    let rev = reverseLookup hdrtbl'
-        rev' = foldl' (flip delete) rev hs
-        hdrtbl'' = hdrtbl' { reverseLookup = rev' }
+    let rev = reverseIndex hdrtbl'
+        rev' = HP.deleteList hs rev
+        hdrtbl'' = hdrtbl' { reverseIndex = rev' }
     return (hdrtbl'', is)
 
 insertOne :: Entry -> HeaderTable -> IO HeaderTable
@@ -173,12 +145,13 @@ insertOne e hdrtbl@(HeaderTable maxN off n tbl tsize _ rev) = do
         offset = off'
       , numOfEntries = n + 1
       , headerTableSize = tsize'
-      , reverseLookup = insert (entryHeader e) (H (HIndex i)) rev
+      , reverseIndex = rev'
       }
   where
     i = off
     tsize' = tsize + entrySize e
     off' = adj maxN (off - 1)
+    rev' = HP.insert (entryHeader e) (HIndex i) rev
 
 adjustTableSize :: HeaderTable -> IO (HeaderTable, [Index], [Header])
 adjustTableSize hdrtbl = adjust hdrtbl [] []
@@ -208,42 +181,16 @@ removeOne hdrtbl@(HeaderTable maxN off n tbl tsize _ _) = do
 
 ----------------------------------------------------------------
 
-insert :: Header -> PIndex -> Rev -> Rev
-insert (k,v) p (Rev m) = case H.lookup k m of
-    Nothing  -> let psq = P.singleton v p
-                in Rev $ H.insert k psq m
-    Just psq -> let psq' = P.insert v p psq
-                in Rev $ H.adjust (const psq') k m
-
 lookupTable :: Header -> HeaderTable -> HeaderCache
-lookupTable (k,v) hdrtbl = case H.lookup k m of
-    Nothing  -> None
-    Just psq -> case P.lookup v psq of
-        Nothing -> case P.findMin psq of
-            Nothing        -> error "lookupTable"
-            Just (_ :-> p) -> case p of
-                S sidx -> KeyOnly InStaticTable (fromSIndexToIndex hdrtbl sidx)
-                H hidx -> KeyOnly InHeaderTable (fromHIndexToIndex hdrtbl hidx)
-        Just p -> case p of
-            S sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
-            H hidx -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+lookupTable h hdrtbl = case HP.search h rev of
+    HP.N  -> case HP.search h staticHashPSQ of
+        HP.N       -> None
+        HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
+        HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+    HP.K  hidx     -> KeyOnly  InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+    HP.KV hidx     -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
   where
-    Rev m = reverseLookup hdrtbl
-
-delete :: Header -> Rev -> Rev
-delete (k,v) (Rev m) = case H.lookup k m of
-    Nothing  -> error $ "delete: " ++ show k ++ " " ++ show v
-    Just psq -> case P.lookup v psq of
-        Nothing -> error $ "delete psq': " ++ show k ++ " " ++ show v
-        Just p  -> case p of
-            S _ -> Rev m
-            H _ -> delete' psq
-  where
-    delete' psq
-      | P.null psq' = Rev $ H.delete k m
-      | otherwise   = Rev $ H.adjust (const psq') k m
-      where
-        psq' = P.delete v psq
+    rev = reverseIndex hdrtbl
 
 ----------------------------------------------------------------
 

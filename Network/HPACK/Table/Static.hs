@@ -6,11 +6,12 @@ module Network.HPACK.Table.Static (
   , toStaticIndex
   , isSIndexValid
   , toStaticEntry
-  , staticTableList
+  , staticHashPSQ
   ) where
 
 import Data.Array (Array, listArray, (!))
 import Network.HPACK.Table.Entry
+import qualified Network.HPACK.Table.HashPSQ as HP
 
 ----------------------------------------------------------------
 
@@ -43,6 +44,12 @@ toStaticEntry (SIndex sidx) = staticTable ! sidx
 -- | Pre-defined static table.
 staticTable :: Array Index Entry
 staticTable = listArray (1,60) $ map toEntry staticTableList
+
+staticHashPSQ :: HP.HashPSQ SIndex
+staticHashPSQ = HP.fromList alist
+  where
+    is = map toStaticIndex [1..]
+    alist = zip is staticTableList
 
 ----------------------------------------------------------------
 
