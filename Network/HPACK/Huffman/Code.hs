@@ -12,10 +12,6 @@ module Network.HPACK.Huffman.Code (
   , HuffmanDecoding
   , decode
   , printTree
-  , step -- fixme
-  , bits4s
-  , flatten
-  , doit
   ) where
 
 import Control.Applicative ((<$>))
@@ -90,6 +86,84 @@ enc :: Encoder -> Int -> (Int,Bits)
 enc (Encoder ary) i = ary ! i
 
 ----------------------------------------------------------------
+----------------------------------------------------------------
+
+data Pin = EndOfString
+         | Forward {-# UNPACK #-} !Word8 -- node no.
+         | GoBack  {-# UNPACK #-} !Word8 -- node no.
+                   {-# UNPACK #-} !Word8 -- a decoded value
+         deriving Show
+
+type Way16  = Array Word8 Pin
+type Way256 = Array Word8 Way16
+
+newtype Decoder = Decoder Way256
+
+----------------------------------------------------------------
+
+-- | Huffman decoding.
+decode :: Decoder -> HuffmanDecoding
+decode (Decoder way256) bs = dec way256 qs
+  where
+    qs = toQ $ BS.unpack bs -- fixme
+    toQ [] = []
+    toQ (w:ws) = w0 : w1 : toQ ws
+      where
+        w0 = w `shiftR` 4
+        w1 = w .&. 0xf
+
+-- FIXME: DecodeError
+dec :: Way256 -> [Word8] -> Either DecodeError ByteString
+dec way256 inp = go (way256 ! 0) inp w8empty
+  where
+    go :: Way16 -> [Word8] -> Word8Builder -> Either DecodeError ByteString
+    go _   []     builder = Right $ toByteString builder
+    go way (w:ws) builder = case way ! w of
+        EndOfString -> undefined
+        Forward n   -> go (way256 ! n) ws builder
+        GoBack  n v -> go (way256 ! n) ws (builder <| v)
+
+----------------------------------------------------------------
+
+toDecoder :: [Bits] -> Decoder
+toDecoder = construct . toHTree
+
+construct :: HTree -> Decoder
+construct decoder = Decoder $ listArray (0,255) $ map to16ways $ flatten decoder
+  where
+    to16ways x = listArray (0,15) $ map (step decoder x Nothing) bits4s
+
+step :: HTree -> HTree -> Maybe Word8 -> [B] -> Pin
+step root (Tip _ v)     _  bss
+  | v == idxEos                     = EndOfString
+  | otherwise                       = let w = fromIntegral v
+                                      in step root root (Just w) bss
+step _    (Bin _ n _ _) Nothing  [] = Forward (fromIntegral n)
+step _    (Bin _ n _ _) (Just w) [] = GoBack (fromIntegral n) w
+step root (Bin _ _ l _) mx   (F:bs) = step root l mx bs
+step root (Bin _ _ _ r) mx   (T:bs) = step root r mx bs
+
+bits4s :: [[B]]
+bits4s = [
+    [F,F,F,F]
+  , [F,F,F,T]
+  , [F,F,T,F]
+  , [F,F,T,T]
+  , [F,T,F,F]
+  , [F,T,F,T]
+  , [F,T,T,F]
+  , [F,T,T,T]
+  , [T,F,F,F]
+  , [T,F,F,T]
+  , [T,F,T,F]
+  , [T,F,T,T]
+  , [T,T,F,F]
+  , [T,T,F,T]
+  , [T,T,T,F]
+  , [T,T,T,T]
+  ]
+
+----------------------------------------------------------------
 
 -- | Type for Huffman decoding.
 data HTree = Tip
@@ -131,81 +205,13 @@ build !cnt0 xs       = let (cnt1,l) = build (cnt0 + 1) fs
     fs = map (second tail) fs'
     ts = map (second tail) ts'
 
+-- | Marking the EOS path
 mark :: Int -> Bits -> HTree -> HTree
 mark i []     (Tip Nothing v)     = Tip (Just i) v
 mark i (F:bs) (Bin Nothing n l r) = Bin (Just i) n (mark (i+1) bs l) r
 mark i (T:bs) (Bin Nothing n l r) = Bin (Just i) n l (mark (i+1) bs r)
 mark _ _      _                   = error "mark"
 
-type Way16  = Array Word8 Pin
-type Way256 = Array Word8 Way16
-
-newtype Decoder = Decoder Way256
-
-toDecoder :: [Bits] -> Decoder
-toDecoder = doit . toHTree
-
--- | Huffman decoding.
-decode :: Decoder -> HuffmanDecoding
-decode (Decoder aoa) bs = dec aoa qs
-  where
-    qs = toQ $ BS.unpack bs -- fixme
-    toQ [] = []
-    toQ (w:ws) = w0 : w1 : toQ ws
-      where
-        w0 = w `shiftR` 4
-        w1 = w .&. 0xf
-
-dec :: Way256 -> [Word8] -> Either DecodeError ByteString
-dec way256 inp = loop (way256 ! 0) inp w8empty
-  where
-    loop :: Way16 -> [Word8] -> Word8Builder -> Either DecodeError ByteString
-    loop _   []     builder = Right $ toByteString builder
-    loop way (w:ws) builder = case way ! w of
-        EndOfString -> undefined
-        Forward n   -> loop (way256 ! n) ws builder
-        GoBack  n v -> loop (way256 ! n) ws (builder <| v)
-
 flatten :: HTree -> [HTree]
 flatten (Tip _ _)       = []
 flatten t@(Bin _ _ l r) = t : (flatten l ++ flatten r)
-
-doit :: HTree -> Decoder
-doit decoder = Decoder $ listArray (0,255) $ map to16ways $ flatten decoder
-  where
-    to16ways x = listArray (0,15) $ map (step decoder x Nothing) bits4s
-
-data Pin = EndOfString
-         | Forward Word8
-         | GoBack  Word8 Word8
-         deriving Show
-
-step :: HTree -> HTree -> Maybe Word8 -> [B] -> Pin
-step root (Tip _ v)     _  bss
-  | v == idxEos                     = EndOfString
-  | otherwise                       = let w = fromIntegral v
-                                      in step root root (Just w) bss
-step _    (Bin _ n _ _) Nothing  [] = Forward (fromIntegral n)
-step _    (Bin _ n _ _) (Just w) [] = GoBack (fromIntegral n) w
-step root (Bin _ _ l _) mx   (F:bs) = step root l mx bs
-step root (Bin _ _ _ r) mx   (T:bs) = step root r mx bs
-
-bits4s :: [[B]]
-bits4s = [
-    [F,F,F,F]
-  , [F,F,F,T]
-  , [F,F,T,F]
-  , [F,F,T,T]
-  , [F,T,F,F]
-  , [F,T,F,T]
-  , [F,T,T,F]
-  , [F,T,T,T]
-  , [T,F,F,F]
-  , [T,F,F,T]
-  , [T,F,T,F]
-  , [T,F,T,T]
-  , [T,T,F,F]
-  , [T,T,F,T]
-  , [T,T,T,F]
-  , [T,T,T,T]
-  ]
