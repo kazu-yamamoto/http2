@@ -31,9 +31,11 @@ data Conf = Conf {
 data Result = Pass [ByteString] | Fail String deriving (Eq,Show)
 
 run :: Bool -> EncodeStrategy -> Test -> IO Result
-run d stgy (Test _ reqOrRsp _ cs) = do
-    dctx <- newContext 4096 -- FIXME
-    ectx <- newContext 4096 -- FIXME
+run _ _    (Test _ _        _ [])        = return $ Pass []
+run d stgy (Test _ reqOrRsp _ ccs@(c:_)) = do
+    let siz = size c
+    dctx <- newContext siz
+    ectx <- newContext siz
     let conf
           | reqOrRsp == "request" = Conf {
                 debug = d
@@ -47,7 +49,7 @@ run d stgy (Test _ reqOrRsp _ cs) = do
               , dec = decodeResponseHeader
               , hbk = fromByteStream huffmanDecodeInResponse
               }
-    testLoop conf cs dctx ectx []
+    testLoop conf ccs dctx ectx []
 
 testLoop :: Conf
          -> [Case]
