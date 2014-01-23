@@ -1,8 +1,6 @@
 module Network.HPACK.HeaderBlock.Integer (
     encode
-  , encodeOne
   , decode
-  , decodeOne
   , parseInteger
   ) where
 
@@ -48,12 +46,6 @@ encode' i
 
 ----------------------------------------------------------------
 
--- | Integer encoding.
-encodeOne :: Int -> Word8
-encodeOne = fromIntegral
-
-----------------------------------------------------------------
-
 -- | Integer decoding. The first argument is N of prefix.
 --
 -- >>> decode 5 10 $ BS.empty
@@ -72,10 +64,6 @@ decode n w bs
     i = fromIntegral w
     i0 = fromIntegral $ BS.last bs
     bs' = BS.init bs
-
--- | Integer decoding.
-decodeOne :: Word8 -> Int
-decodeOne = fromIntegral
 
 ----------------------------------------------------------------
 

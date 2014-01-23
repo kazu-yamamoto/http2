@@ -33,7 +33,10 @@ fromHeaderField he huff (Literal Add    (Lit key) v) = newName     he huff set00
 ----------------------------------------------------------------
 
 index :: Int -> Builder
-index = BB.fromWord8 . set1 . I.encodeOne
+index i = BB.fromWord8s (w':ws)
+  where
+    (w:ws) = I.encode 7 i
+    w' = set1 w
 
 -- Using Huffman encoding
 indexedName :: HuffmanEncoding -> Bool -> Setter -> Int -> HeaderValue -> Builder
