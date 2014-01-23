@@ -50,11 +50,12 @@ adj maxN x = (x + maxN) `mod` maxN
 
 -- | Printing 'HeaderTable'.
 printHeaderTable :: HeaderTable -> IO ()
-printHeaderTable (HeaderTable maxN off n tbl tblsiz _ _) = do
+printHeaderTable (HeaderTable maxN off n tbl tblsiz _ rev) = do
     es <- mapM (readArray tbl . adj maxN) [beg .. end]
     let ts = zip [1..] es
     mapM_ printEntry ts
     putStrLn $ "      Table size: " ++ show tblsiz
+    print rev
   where
     beg = off + 1
     end = off + n
@@ -97,7 +98,7 @@ instance Ord PIndex where
 
 ----------------------------------------------------------------
 
-newtype Rev = Rev (HashMap HeaderName (PSQ HeaderValue PIndex))
+newtype Rev = Rev (HashMap HeaderName (PSQ HeaderValue PIndex)) deriving Show
 
 ----------------------------------------------------------------
 
@@ -159,19 +160,20 @@ initialReverseLookup = ir
 --   are returned.
 insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,[Index])
 insertEntry e hdrtbl = do
-    (hdrtbl', is, hs)<- insertOne e hdrtbl >>= adjustTableSize
+    (hdrtbl', is, hs) <- insertOne e hdrtbl >>= adjustTableSize
     let rev = reverseLookup hdrtbl'
         rev' = foldl' (flip delete) rev hs
         hdrtbl'' = hdrtbl' { reverseLookup = rev' }
     return (hdrtbl'', is)
 
 insertOne :: Entry -> HeaderTable -> IO HeaderTable
-insertOne e hdrtbl@(HeaderTable maxN off n tbl tsize _ _) = do
+insertOne e hdrtbl@(HeaderTable maxN off n tbl tsize _ rev) = do
     writeArray tbl i e
     return $ hdrtbl {
         offset = off'
       , numOfEntries = n + 1
       , headerTableSize = tsize'
+      , reverseLookup = insert (entryHeader e) (H (HIndex i)) rev
       }
   where
     i = off
@@ -210,7 +212,8 @@ insert :: Header -> PIndex -> Rev -> Rev
 insert (k,v) p (Rev m) = case H.lookup k m of
     Nothing  -> let psq = P.singleton v p
                 in Rev $ H.insert k psq m
-    Just psq -> Rev $ H.insert k psq m
+    Just psq -> let psq' = P.insert v p psq
+                in Rev $ H.adjust (const psq') k m
 
 lookupTable :: Header -> HeaderTable -> HeaderCache
 lookupTable (k,v) hdrtbl = case H.lookup k m of
@@ -229,14 +232,18 @@ lookupTable (k,v) hdrtbl = case H.lookup k m of
 
 delete :: Header -> Rev -> Rev
 delete (k,v) (Rev m) = case H.lookup k m of
-    Nothing  -> Rev m -- error "delete"
-    Just psq -> delete' psq
- where
-   delete' psq
-     | P.null psq' = Rev $ H.delete k m
-     | otherwise   = Rev $ H.adjust (const psq') k m
-     where
-       psq' = P.delete v psq
+    Nothing  -> error $ "delete: " ++ show k ++ " " ++ show v
+    Just psq -> case P.lookup v psq of
+        Nothing -> error $ "delete psq': " ++ show k ++ " " ++ show v
+        Just p  -> case p of
+            S _ -> Rev m
+            H _ -> delete' psq
+  where
+    delete' psq
+      | P.null psq' = Rev $ H.delete k m
+      | otherwise   = Rev $ H.adjust (const psq') k m
+      where
+        psq' = P.delete v psq
 
 ----------------------------------------------------------------
 

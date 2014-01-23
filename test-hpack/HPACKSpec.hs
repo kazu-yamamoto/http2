@@ -47,5 +47,6 @@ spec = do
     describe "decodeRequestHeader" $ do
         it "decodes headers in request" $ do
             files <- getTestFiles testDir
-            forM_ files $ \file ->
+            forM_ files $ \file -> do
+                putStrLn file
                 test file `shouldReturn` Nothing
