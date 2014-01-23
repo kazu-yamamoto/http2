@@ -34,8 +34,8 @@ run :: Bool -> EncodeStrategy -> Test -> IO Result
 run _ _    (Test _ _        _ [])        = return $ Pass []
 run d stgy (Test _ reqOrRsp _ ccs@(c:_)) = do
     let siz = size c
-    dctx <- newContext siz
-    ectx <- newContext siz
+    dctx <- newContextForDecoding siz
+    ectx <- newContextForEncoding siz
     let conf
           | reqOrRsp == "request" = Conf {
                 debug = d
@@ -77,6 +77,8 @@ test conf c dctx ectx = do
         printHeaderSet $ sort hs
         putStrLn "---- Input context"
         printContext dctx
+        putStrLn "---- Input Hex"
+        B8.putStrLn hex
         putStrLn "---- Input header block"
         print hd
     x <- try $ dec conf dctx inp

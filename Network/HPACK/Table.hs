@@ -3,7 +3,8 @@
 module Network.HPACK.Table (
   -- * Header table
     HeaderTable
-  , newHeaderTable
+  , newHeaderTableForEncoding
+  , newHeaderTableForDecoding
   , printHeaderTable
   -- * Insertion
   , insertEntry
@@ -36,7 +37,7 @@ data HeaderTable = HeaderTable {
   , circularTable :: !(IOArray Index Entry)
   , headerTableSize :: !Size
   , maxHeaderTableSize :: !Size
-  , reverseIndex :: !(HP.HashPSQ HIndex)
+  , reverseIndex :: Maybe (HP.HashPSQ HIndex)
   }
 
 adj :: Int -> Int -> Int
@@ -109,8 +110,17 @@ fromIndexToSIndex hdrtbl idx = toStaticIndex sidx
 -- | Creating 'HeaderTable'.
 -- The default maxHeaderTableSize is 4096 bytes,
 -- an array has 128 entries, resulting 1024 bytes in 64bit machine
-newHeaderTable :: Size -> IO HeaderTable
-newHeaderTable maxsiz = do
+newHeaderTableForEncoding :: Size -> IO HeaderTable
+newHeaderTableForEncoding maxsiz = newHeaderTable maxsiz (Just HP.empty)
+
+-- | Creating 'HeaderTable'.
+-- The default maxHeaderTableSize is 4096 bytes,
+-- an array has 128 entries, resulting 1024 bytes in 64bit machine
+newHeaderTableForDecoding :: Size -> IO HeaderTable
+newHeaderTableForDecoding maxsiz = newHeaderTable maxsiz Nothing
+
+newHeaderTable :: Size -> Maybe (HP.HashPSQ HIndex) -> IO HeaderTable
+newHeaderTable maxsiz mhp = do
     tbl <- newArray (0,end) dummyEntry
     return HeaderTable {
         maxNumOfEntries = maxN
@@ -119,7 +129,7 @@ newHeaderTable maxsiz = do
       , circularTable = tbl
       , headerTableSize = 0
       , maxHeaderTableSize = maxsiz
-      , reverseIndex = HP.empty
+      , reverseIndex = mhp
       }
   where
     maxN = maxNumbers maxsiz
@@ -133,25 +143,27 @@ newHeaderTable maxsiz = do
 insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,[Index])
 insertEntry e hdrtbl = do
     (hdrtbl', is, hs) <- insertOne e hdrtbl >>= adjustTableSize
-    let rev = reverseIndex hdrtbl'
-        rev' = HP.deleteList hs rev
-        hdrtbl'' = hdrtbl' { reverseIndex = rev' }
+    let hdrtbl'' = case reverseIndex hdrtbl' of
+            Nothing  -> hdrtbl'
+            Just rev -> hdrtbl' { reverseIndex = Just (HP.deleteList hs rev) }
     return (hdrtbl'', is)
 
 insertOne :: Entry -> HeaderTable -> IO HeaderTable
-insertOne e hdrtbl@(HeaderTable maxN off n tbl tsize _ rev) = do
+insertOne e hdrtbl@(HeaderTable maxN off n tbl tsize _ mrev) = do
     writeArray tbl i e
     return $ hdrtbl {
         offset = off'
       , numOfEntries = n + 1
       , headerTableSize = tsize'
-      , reverseIndex = rev'
+      , reverseIndex = mrev'
       }
   where
     i = off
     tsize' = tsize + entrySize e
     off' = adj maxN (off - 1)
-    rev' = HP.insert (entryHeader e) (HIndex i) rev
+    mrev' = case mrev of
+        Nothing  -> Nothing
+        Just rev -> Just $ HP.insert (entryHeader e) (HIndex i) rev
 
 adjustTableSize :: HeaderTable -> IO (HeaderTable, [Index], [Header])
 adjustTableSize hdrtbl = adjust hdrtbl [] []
@@ -182,15 +194,17 @@ removeOne hdrtbl@(HeaderTable maxN off n tbl tsize _ _) = do
 ----------------------------------------------------------------
 
 lookupTable :: Header -> HeaderTable -> HeaderCache
-lookupTable h hdrtbl = case HP.search h rev of
-    HP.N  -> case HP.search h staticHashPSQ of
-        HP.N       -> None
-        HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
-        HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
-    HP.K  hidx     -> KeyOnly  InHeaderTable (fromHIndexToIndex hdrtbl hidx)
-    HP.KV hidx     -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+lookupTable h hdrtbl = case mrev of
+    Nothing            -> None
+    Just rev -> case HP.search h rev of
+        HP.N -> case HP.search h staticHashPSQ of
+            HP.N       -> None
+            HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
+            HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+        HP.K  hidx     -> KeyOnly  InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+        HP.KV hidx     -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
   where
-    rev = reverseIndex hdrtbl
+    mrev = reverseIndex hdrtbl
 
 ----------------------------------------------------------------
 

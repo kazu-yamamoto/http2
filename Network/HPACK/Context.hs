@@ -4,7 +4,8 @@ module Network.HPACK.Context (
   -- * Types
     HeaderSet   -- re-exporting
   , Context
-  , newContext
+  , newContextForEncoding
+  , newContextForDecoding
   , DecodeError(..)
   , printContext
   -- * Initialization and final results
@@ -54,9 +55,16 @@ printContext (Context hdrtbl refs) = do
 
 -- | Creating a new 'Context'.
 --   The first argument is the size of a header table.
-newContext :: Size -> IO Context
-newContext maxsiz = do
-    hdrtbl <- newHeaderTable maxsiz
+newContextForEncoding :: Size -> IO Context
+newContextForEncoding maxsiz = do
+    hdrtbl <- newHeaderTableForEncoding maxsiz
+    return $ Context hdrtbl emptyReferenceSet
+
+-- | Creating a new 'Context'.
+--   The first argument is the size of a header table.
+newContextForDecoding :: Size -> IO Context
+newContextForDecoding maxsiz = do
+    hdrtbl <- newHeaderTableForDecoding maxsiz
     return $ Context hdrtbl emptyReferenceSet
 
 ----------------------------------------------------------------

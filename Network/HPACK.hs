@@ -11,7 +11,8 @@ module Network.HPACK (
   , decodeResponseHeader
   -- * Contenxt
   , Context
-  , newContext
+  , newContextForEncoding
+  , newContextForDecoding
   -- * Strategy for encoding
   , CompressionAlgo(..)
   , EncodeStrategy(..)
@@ -32,7 +33,7 @@ module Network.HPACK (
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Exception (throwIO)
-import Network.HPACK.Context (Context, newContext, HeaderSet)
+import Network.HPACK.Context (Context, newContextForEncoding, newContextForDecoding, HeaderSet)
 import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteStream, fromByteStream)
 import Network.HPACK.Huffman (huffmanEncodeInRequest, huffmanDecodeInRequest, huffmanEncodeInResponse, huffmanDecodeInResponse)
 import Network.HPACK.Table (Size)
