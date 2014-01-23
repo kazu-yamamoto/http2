@@ -11,6 +11,7 @@ module Network.HPACK.Huffman.Code (
   , toDecoder
   , HuffmanDecoding
   , decode
+  , printTree
   ) where
 
 import Control.Applicative ((<$>))
@@ -89,6 +90,20 @@ enc (Encoder ary) i = ary ! i
 data Decoder = Tip (Maybe Int) {-# UNPACK #-} !Int
              | Bin (Maybe Int) Decoder Decoder
              deriving Show
+
+showTree :: Decoder -> String
+showTree = showTree' ""
+
+showTree' :: String -> Decoder -> String
+showTree' _    (Tip _ i)   = show i ++ "\n"
+showTree' pref (Bin _ l r) = "\n"
+                             ++ pref ++ "+ " ++ showTree' pref' l
+                             ++ pref ++ "+ " ++ showTree' pref' r
+  where
+    pref' = "  " ++ pref
+
+printTree :: Decoder -> IO ()
+printTree = putStr . showTree
 
 -- | Creating 'Decoder'.
 toDecoder :: [Bits] -> Decoder
