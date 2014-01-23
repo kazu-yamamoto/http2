@@ -31,10 +31,12 @@ insert (k,v) p (HashPSQ m) = case H.lookup k m of
                 in HashPSQ $ H.adjust (const psq') k m
 
 delete :: Ord p => Header -> HashPSQ p -> HashPSQ p
-delete (k,v) (HashPSQ m) = case H.lookup k m of
-    Nothing  -> error $ "HashPSQ.delete: " ++ show k ++ " " ++ show v
+delete (k,v) hp@(HashPSQ m) = case H.lookup k m of
+    Nothing  -> hp -- Non-smart implementation makes duplicate keys.
+                   -- It is likely to happen to delete the same key
+                   -- in multiple times.
     Just psq -> case P.lookup v psq of
-        Nothing -> error $ "HashPSQ.delete psq': " ++ show k ++ " " ++ show v
+        Nothing -> hp -- see above
         _       -> delete' psq
   where
     delete' psq
