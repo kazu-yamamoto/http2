@@ -5,17 +5,10 @@ module Network.HPACK.Huffman.Bit (
     B(..)
   , Bits
   , fromBitsToByteString
-  -- * Bit source
-  , BitSource
-  , toBitSource
-  , uncons
   ) where
 
-import Data.Array (Array, (!), listArray)
-import Data.Bits (setBit, testBit)
-import qualified Data.ByteString as BS
+import Data.Bits (setBit)
 import Data.ByteString.Internal (ByteString, unsafeCreate)
-import Data.Word (Word8)
 import Foreign.Ptr (plusPtr)
 import Foreign.Storable (poke)
 
@@ -57,24 +50,7 @@ fromBitsToByteString len bss = unsafeCreate len $ loop [] bss
         w6 = set w5 6 b6
         w7 = set w6 7 b7
 
--- | Source for bit stream.
-data BitSource = BitSource [B] !ByteString
-
--- | Converting 'ByteString' to 'BitSource'
-toBitSource :: ByteString -> BitSource
-toBitSource bs = BitSource [] bs
-
--- | Extracting a bit from 'BitSource'.
-uncons :: BitSource -> Maybe (B,BitSource)
-uncons (BitSource [] bs) = case BS.uncons bs of
-    Nothing      -> Nothing
-    Just (w,bs') -> let x:xs = bitArray ! w
-                    in Just $ (x, BitSource xs bs')
-uncons (BitSource (x:xs) bs) = Just (x, BitSource xs bs)
-
-bitArray :: Array Word8 Bits
-bitArray = listArray (0,255) $ map toBits [0..255]
-
+{-
 -- | From 'Word8' to 'Bits' of length 8.
 --
 -- >>> toBits 170
@@ -95,3 +71,4 @@ toBits w = [b7,b6,b5,b4,b3,b2,b1,b0]
     b5 = get 5
     b6 = get 6
     b7 = get 7
+-}
