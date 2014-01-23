@@ -40,9 +40,10 @@ toHeaderField hd bs
 ----------------------------------------------------------------
 
 indexed :: Word8 -> ByteString -> (HeaderField, ByteString)
-indexed w ws = (Indexed idx , ws)
+indexed w ws = (Indexed idx , ws')
   where
-    idx = fromIntegral $ clearBit w 7
+    w' = clearBit w 7
+    (idx, ws') = I.parseInteger 7 w' ws
 
 withoutIndexing :: HuffmanDecoding -> Word8 -> ByteString
                 -> Either DecodeError (HeaderField, ByteString)
