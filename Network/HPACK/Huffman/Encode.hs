@@ -18,17 +18,13 @@ import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
 import Network.HPACK.Builder
 import Network.HPACK.Huffman.Bit
+import Network.HPACK.Huffman.Params
 import System.IO.Unsafe (unsafePerformIO)
 
 ----------------------------------------------------------------
 
 -- | Huffman encoding.
 type HuffmanEncoding = ByteString -> ByteString
-
-----------------------------------------------------------------
-
-idxEos :: Int
-idxEos = 256
 
 ----------------------------------------------------------------
 

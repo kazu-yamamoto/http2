@@ -18,18 +18,13 @@ import Data.List (partition)
 import Data.Word (Word8)
 import Network.HPACK.Builder.Word8
 import Network.HPACK.Huffman.Bit
+import Network.HPACK.Huffman.Params
 import Network.HPACK.Types (DecodeError(..))
 
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
 type HuffmanDecoding = ByteString -> Either DecodeError ByteString
-
-----------------------------------------------------------------
-
--- FIXME
-idxEos :: Int
-idxEos = 256
 
 ----------------------------------------------------------------
 

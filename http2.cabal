@@ -25,8 +25,10 @@ Library
                         Network.HPACK.Huffman.Bit
                         Network.HPACK.Huffman.Decode
                         Network.HPACK.Huffman.Encode
+                        Network.HPACK.Huffman.Params
                         Network.HPACK.Huffman.Request
                         Network.HPACK.Huffman.Response
+                        Network.HPACK.Huffman.Tree
                         Network.HPACK.HeaderBlock
                         Network.HPACK.HeaderBlock.Decode
                         Network.HPACK.HeaderBlock.Encode
