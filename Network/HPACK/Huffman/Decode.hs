@@ -6,8 +6,11 @@ module Network.HPACK.Huffman.Decode (
   , decode
   ) where
 
-import Data.Array (Array, (!), listArray)
+import Data.Bits ((.&.), shiftR)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import Data.ByteString.Internal (ByteString(..))
+import Data.Array (Array, (!), listArray)
 import Data.Word (Word8)
 import Network.HPACK.Builder.Word8
 import Network.HPACK.Huffman.Bit
@@ -43,7 +46,13 @@ newtype Decoder = Decoder Way256
 decode :: Decoder -> HuffmanDecoding
 decode (Decoder way256) bs = dec way256 qs
   where
-    qs = unpack4bits bs
+--  qs = unpack4bits bs  -- fixme
+    qs = toQ $ BS.unpack bs
+    toQ [] = []
+    toQ (w:ws) = w0 : w1 : toQ ws
+      where
+        w0 = w `shiftR` 4
+        w1 = w .&. 0xf
 
 dec :: Way256 -> [Word8] -> Either DecodeError ByteString
 dec way256 inp = go (way256 ! 0) inp w8empty

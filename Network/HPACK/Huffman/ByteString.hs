@@ -6,7 +6,7 @@ import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import Foreign.Storable (peek)
-import GHC.IO (unsafeDupablePerformIO)
+import System.IO.Unsafe (unsafePerformIO)
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
@@ -20,7 +20,7 @@ import GHC.IO (unsafeDupablePerformIO)
 -- [3,4,15,3,10,11]
 
 unpack4bits :: ByteString -> [Word8]
-unpack4bits (PS fptr off len) = unsafeDupablePerformIO $
+unpack4bits (PS fptr off len) = unsafePerformIO $
   withForeignPtr fptr $ \ptr -> do
     let beg = ptr `plusPtr` off
         end = beg `plusPtr` (len - 1)
@@ -33,6 +33,3 @@ unpack4bits (PS fptr off len) = unsafeDupablePerformIO $
           let w0 = w `shiftR` 4
               w1 = w .&. 0xf
           go beg (p `plusPtr` (-1)) (w0:w1:ws)
-
-packLoL :: Int -> [[Word8]] -> ByteString
-packLoL = undefined
