@@ -32,8 +32,11 @@ data Pin = EndOfString
                    {-# UNPACK #-} !Word8 -- a decoded value
          deriving Show
 
-type Way16  = Array Word8 Pin
+data Way16 = Way16 (Maybe Int) (Array Word8 Pin)
 type Way256 = Array Word8 Way16
+
+next :: Way16 -> Word8 -> Pin
+next (Way16 _ a16) w = a16 ! w
 
 newtype Decoder = Decoder Way256
 
@@ -50,16 +53,18 @@ decode (Decoder way256) bs = dec way256 qs
         w0 = w `shiftR` 4
         w1 = w .&. 0xf
 
--- FIXME: DecodeError
 dec :: Way256 -> [Word8] -> Either DecodeError ByteString
 dec way256 inp = go (way256 ! 0) inp w8empty
   where
     go :: Way16 -> [Word8] -> Word8Builder -> Either DecodeError ByteString
-    go _   []     builder = Right $ toByteString builder
-    go way (w:ws) builder = case way ! w of
-        EndOfString -> undefined
-        Forward n   -> go (way256 ! n) ws builder
-        GoBack  n v -> go (way256 ! n) ws (builder <| v)
+    go (Way16 Nothing  _) [] _       = Left IllegalEos
+    go (Way16 (Just i) _) [] builder
+        | i <= 8                     = Right $ toByteString builder
+        | otherwise                  = Left TooLongEos
+    go way (w:ws) builder = case next way w of
+        EndOfString                 -> Left EosInTheMiddle
+        Forward n                   -> go (way256 ! n) ws builder
+        GoBack  n v                 -> go (way256 ! n) ws (builder <| v)
 
 ----------------------------------------------------------------
 
@@ -69,7 +74,10 @@ toDecoder = construct . toHTree
 construct :: HTree -> Decoder
 construct decoder = Decoder $ listArray (0,255) $ map to16ways $ flatten decoder
   where
-    to16ways x = listArray (0,15) $ map (step decoder x Nothing) bits4s
+    to16ways x = Way16 ei a16
+      where
+        ei = eosInfo x
+        a16 = listArray (0,15) $ map (step decoder x Nothing) bits4s
 
 step :: HTree -> HTree -> Maybe Word8 -> [B] -> Pin
 step root (Tip _ v)     _  bss

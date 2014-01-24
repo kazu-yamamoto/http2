@@ -3,6 +3,7 @@
 module Network.HPACK.Huffman.Tree (
   -- * Huffman decoding
     HTree(..)
+  , eosInfo
   , toHTree
   , showTree
   , printTree
@@ -16,15 +17,22 @@ import Network.HPACK.Huffman.Params
 
 ----------------------------------------------------------------
 
+type EOSInfo = Maybe Int
+
 -- | Type for Huffman decoding.
 data HTree = Tip
-             (Maybe Int)          -- EOS info from 1
-             {-# UNPACK #-} !Int  -- Decoded value. Essentially Word8
-           | Bin (Maybe Int)      -- EOS info from 1
-             {-# UNPACK #-} !Int  -- Sequence no from 0
-             HTree              -- Left
-             HTree              -- Right
+             EOSInfo             -- EOS info from 1
+             {-# UNPACK #-} !Int -- Decoded value. Essentially Word8
+           | Bin
+             EOSInfo             -- EOS info from 1
+             {-# UNPACK #-} !Int -- Sequence no from 0
+             HTree               -- Left
+             HTree               -- Right
            deriving Show
+
+eosInfo :: HTree -> EOSInfo
+eosInfo (Tip mx _)     = mx
+eosInfo (Bin mx _ _ _) = mx
 
 ----------------------------------------------------------------
 
