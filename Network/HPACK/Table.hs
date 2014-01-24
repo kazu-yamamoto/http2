@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections, BangPatterns #-}
+{-# LANGUAGE TupleSections #-}
 
 module Network.HPACK.Table (
   -- * Header table

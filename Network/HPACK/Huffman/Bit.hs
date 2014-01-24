@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Network.HPACK.Huffman.Bit (
   -- * Bits
     B(..)

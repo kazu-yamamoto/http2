@@ -107,8 +107,7 @@ smartStep func cb@(!ctx,!builder) h@(k,_) = do
         KeyValue InHeaderTable i -> func i
 
 double :: [Index] -> Builder HeaderField -> Builder HeaderField
-double []     b = b
-double (i:is) b = double is (b << Indexed i << Indexed i)
+double is bldr = foldl' (\b i -> b << Indexed i << Indexed i) bldr is
 
 check :: Ctx -> Header -> Naming -> IO Ctx
 check (ctx,builder) h@(k,v) x

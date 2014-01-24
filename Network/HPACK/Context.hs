@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Network.HPACK.Context (
   -- * Types
     HeaderSet   -- re-exporting
