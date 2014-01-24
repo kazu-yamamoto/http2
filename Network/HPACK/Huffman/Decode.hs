@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Network.HPACK.Huffman.Decode (
   -- * Huffman decoding
     Decoder
@@ -9,12 +7,11 @@ module Network.HPACK.Huffman.Decode (
   ) where
 
 import Data.Array (Array, (!), listArray)
-import Data.Bits ((.&.), shiftR)
-import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..))
+import Data.ByteString (ByteString)
 import Data.Word (Word8)
 import Network.HPACK.Builder.Word8
 import Network.HPACK.Huffman.Bit
+import Network.HPACK.Huffman.ByteString
 import Network.HPACK.Huffman.Params
 import Network.HPACK.Huffman.Tree
 import Network.HPACK.Types (DecodeError(..))
@@ -46,12 +43,7 @@ newtype Decoder = Decoder Way256
 decode :: Decoder -> HuffmanDecoding
 decode (Decoder way256) bs = dec way256 qs
   where
-    qs = toQ $ BS.unpack bs -- fixme
-    toQ [] = []
-    toQ (w:ws) = w0 : w1 : toQ ws
-      where
-        w0 = w `shiftR` 4
-        w1 = w .&. 0xf
+    qs = unpack4bits bs
 
 dec :: Way256 -> [Word8] -> Either DecodeError ByteString
 dec way256 inp = go (way256 ! 0) inp w8empty
