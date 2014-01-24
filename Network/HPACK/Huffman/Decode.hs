@@ -6,19 +6,17 @@ module Network.HPACK.Huffman.Decode (
   , toDecoder
   , HuffmanDecoding
   , decode
-  , printTree
   ) where
 
-import Control.Arrow (second)
 import Data.Array (Array, (!), listArray)
 import Data.Bits ((.&.), shiftR)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
-import Data.List (partition)
 import Data.Word (Word8)
 import Network.HPACK.Builder.Word8
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
+import Network.HPACK.Huffman.Tree
 import Network.HPACK.Types (DecodeError(..))
 
 ----------------------------------------------------------------
@@ -102,56 +100,3 @@ bits4s = [
   , [T,T,T,F]
   , [T,T,T,T]
   ]
-
-----------------------------------------------------------------
-
--- | Type for Huffman decoding.
-data HTree = Tip
-             (Maybe Int)          -- EOS info from 1
-             {-# UNPACK #-} !Int  -- Decoded value. Essentially Word8
-           | Bin (Maybe Int)      -- EOS info from 1
-             {-# UNPACK #-} !Int  -- Sequence no from 0
-             HTree              -- Left
-             HTree              -- Right
-           deriving Show
-
-showTree :: HTree -> String
-showTree = showTree' ""
-
-showTree' :: String -> HTree -> String
-showTree' _    (Tip _ i)     = show i ++ "\n"
-showTree' pref (Bin _ n l r) = "No " ++ show n ++ "\n"
-                            ++ pref ++ "+ " ++ showTree' pref' l
-                            ++ pref ++ "+ " ++ showTree' pref' r
-  where
-    pref' = "  " ++ pref
-
-printTree :: HTree -> IO ()
-printTree = putStr . showTree
-
--- | Creating 'HTree'.
-toHTree :: [Bits] -> HTree
-toHTree bs = mark 1 eos $ snd $ build 0 $ zip [0..idxEos] bs
-  where
-    eos = bs !! idxEos
-
-build :: Int -> [(Int,Bits)] -> (Int, HTree)
-build !cnt0 [(v,[])] = (cnt0,Tip Nothing v)
-build !cnt0 xs       = let (cnt1,l) = build (cnt0 + 1) fs
-                           (cnt2,r) = build cnt1 ts
-                       in (cnt2, Bin Nothing cnt0 l r)
-  where
-    (fs',ts') = partition ((==) F . head . snd) xs
-    fs = map (second tail) fs'
-    ts = map (second tail) ts'
-
--- | Marking the EOS path
-mark :: Int -> Bits -> HTree -> HTree
-mark i []     (Tip Nothing v)     = Tip (Just i) v
-mark i (F:bs) (Bin Nothing n l r) = Bin (Just i) n (mark (i+1) bs l) r
-mark i (T:bs) (Bin Nothing n l r) = Bin (Just i) n l (mark (i+1) bs r)
-mark _ _      _                   = error "mark"
-
-flatten :: HTree -> [HTree]
-flatten (Tip _ _)       = []
-flatten t@(Bin _ _ l r) = t : (flatten l ++ flatten r)
