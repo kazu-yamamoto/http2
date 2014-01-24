@@ -21,16 +21,16 @@ type Bits = [B]
 -- | Converting '[Bits]' to 'ByteString'.
 --   The first arguments is the length in bytes.
 fromBitsToByteString :: Int -> [Bits] -> ByteString
-fromBitsToByteString len bss = unsafeCreate len $ loop [] bss
+fromBitsToByteString len bss = unsafeCreate len $ go [] bss
   where
-    loop [] [] _       = return ()
-    loop [] (b:bs) ptr = do
+    go [] [] _       = return ()
+    go [] (b:bs) ptr = do
         (ptr', rest') <- write ptr b
-        loop rest' bs ptr'
-    loop rest (b:bs) ptr = do
+        go rest' bs ptr'
+    go rest (b:bs) ptr = do
         (ptr', rest') <- write ptr (rest ++ b) -- inefficient?
-        loop rest' bs ptr'
-    loop _ _ _      = error "loop"
+        go rest' bs ptr'
+    go _ _ _      = error "go"
     write ptr (b7:b6:b5:b4:b3:b2:b1:b0:bs) = do
         poke ptr (toWord b7 b6 b5 b4 b3 b2 b1 b0)
         write (ptr `plusPtr` 1) bs

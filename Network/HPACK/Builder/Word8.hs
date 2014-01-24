@@ -19,10 +19,10 @@ singleton x = Word8Builder 1 (x :)
 -}
 
 toByteString :: Word8Builder -> ByteString
-toByteString (Word8Builder i b) = unsafeCreate i $ \ptr -> loop ptr ws
+toByteString (Word8Builder i b) = unsafeCreate i $ \ptr -> go ptr ws
   where
     ws = b []
-    loop _   []     = return ()
-    loop ptr (x:xs) = do
+    go _   []     = return ()
+    go ptr (x:xs) = do
         poke ptr x
-        loop (ptr `plusPtr` 1) xs
+        go (ptr `plusPtr` 1) xs

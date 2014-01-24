@@ -44,16 +44,16 @@ encode :: Encoder -> HuffmanEncoding
 encode encoder (PS fptr off len) = fromBitsToByteString nBytes (run b)
   where
     (nbits,b0) = unsafePerformIO $ withForeignPtr fptr $ \ptr ->
-        loop (ptr `plusPtr` off) 0 0 empty
+        go (ptr `plusPtr` off) 0 0 empty
     (nBytes,b) = eos nbits b0
-    loop :: Ptr Word8 -> Int -> Int -> Builder Bits -> IO (Int,Builder Bits)
-    loop !ptr !cnt !nBits !builder
+    go :: Ptr Word8 -> Int -> Int -> Builder Bits -> IO (Int,Builder Bits)
+    go !ptr !cnt !nBits !builder
       | cnt == len = return (nBits,builder)
       | otherwise  = do
           i <- fromIntegral <$> peek ptr
           let (bits,bs) = enc encoder i
               builder' = builder << bs
-          loop (ptr `plusPtr` 1) (cnt + 1) (nBits + bits) builder'
+          go (ptr `plusPtr` 1) (cnt + 1) (nBits + bits) builder'
     eos nBits !builder
       | r == 0    = (q,builder)
       | otherwise = (q+1, builder << bools')
