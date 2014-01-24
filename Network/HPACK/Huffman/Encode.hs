@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ForeignFunctionInterface, BangPatterns #-}
 
 module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
@@ -9,60 +9,115 @@ module Network.HPACK.Huffman.Encode (
   ) where
 
 import Control.Applicative ((<$>))
-import Data.Array (Array, (!), listArray)
-import Data.Bits ((.&.), shiftR)
-import Data.ByteString.Internal (ByteString(..))
+import Control.Monad (void, when)
+import Data.Array
+import Data.Bits ((.|.))
+import qualified Data.ByteString as BS
+import Data.ByteString.Internal (ByteString(..), create)
 import Data.Word (Word8)
-import Foreign.ForeignPtr
+import Foreign.C.Types
+import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
-import Foreign.Storable (peek)
-import Network.HPACK.Builder
+import Foreign.Storable (peek, poke)
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
 import System.IO.Unsafe (unsafePerformIO)
 
-----------------------------------------------------------------
+data Shifted = Shifted !Int  -- Total bytes
+                       !Int  -- How many bits in the last byte
+                       ByteString -- Up to 5 bytes
+                       deriving Show
+
+-- fixme
+-- |
+--
+-- >>> toShifted [T,T,T,T] 0
+-- Shifted 1 4 "\240"
+-- >>> toShifted [T,T,T,T] 4
+-- Shifted 1 0 "\SI"
+-- >>> toShifted [T,T,T,T] 5
+-- Shifted 2 1 "\a\128"
+
+toShifted :: Bits -> Int -> Shifted
+toShifted bits n = Shifted total r bs
+  where
+    shifted = replicate n F ++ bits
+    len = length shifted
+    (q,r) = len `divMod` 8
+    total
+      | r == 0    = q
+      | otherwise = q + 1
+    bs = BS.pack $ map fromBits $ group8 shifted
+    group8 xs
+      | null zs   = pad ys : []
+      | otherwise = ys : group8 zs
+      where
+        (ys,zs) = splitAt 8 xs
+    pad xs = take 8 $ xs ++ repeat F
+
+type ShiftedArray = Array Int Shifted
+
+toShiftedArray :: Bits -> ShiftedArray
+toShiftedArray bits = listArray (0,7) $ map (toShifted bits) [0..7]
+
+-- | Type for Huffman encoding.
+newtype Encoder = Encoder (Array Int ShiftedArray) deriving Show
+
+-- | Creating 'Encoder'.
+toEncoder :: [Bits] -> Encoder
+toEncoder bss = Encoder $ listArray (0,idxEos) $ map toShiftedArray bss
 
 -- | Huffman encoding.
 type HuffmanEncoding = ByteString -> ByteString
 
-----------------------------------------------------------------
-
--- | Type for Huffman encoding.
-newtype Encoder = Encoder (Array Int (Int,Bits))
-
--- | Creating 'Encoder'.
-toEncoder :: [Bits] -> Encoder
-toEncoder bss = Encoder $ listArray (0,idxEos) (map toEnt bss)
-  where
-    toEnt bs = (len, bs)
-      where
-        !len = length bs
-
 -- | Huffman encoding.
 encode :: Encoder -> HuffmanEncoding
-encode encoder (PS fptr off len) = fromBitsToByteString nBytes (run b)
+encode (Encoder aoa) (PS fptr off len) = unsafePerformIO $ withForeignPtr fptr $ \ptr -> do
+    let beg = ptr `plusPtr` off
+        end = beg `plusPtr` len
+    size <- accumSize beg end 0 0
+    create size (\dst -> go dst 0 beg end)
   where
-    (nbits,b0) = unsafePerformIO $ withForeignPtr fptr $ \ptr ->
-        go (ptr `plusPtr` off) 0 0 empty
-    (nBytes,b) = eos nbits b0
-    go :: Ptr Word8 -> Int -> Int -> Builder Bits -> IO (Int,Builder Bits)
-    go !ptr !cnt !nBits !builder
-      | cnt == len = return (nBits,builder)
+    accumSize :: Ptr Word8 -> Ptr Word8 -> Int -> Int -> IO Int
+    accumSize src lim n acc
+      | src == lim = return acc
       | otherwise  = do
-          i <- fromIntegral <$> peek ptr
-          let (bits,bs) = enc encoder i
-              builder' = builder << bs
-          go (ptr `plusPtr` 1) (cnt + 1) (nBits + bits) builder'
-    eos nBits !builder
-      | r == 0    = (q,builder)
-      | otherwise = (q+1, builder << bools')
-      where
---        (q,r) = nBits `divMod` 8
-        q = nBits `shiftR` 3
-        r = nBits .&. 0x7
-        (_,bools) = enc encoder idxEos
-        bools' = take (8 - r) bools
+          i <- fromIntegral <$> peek src
+          let Shifted l n' _ = (aoa ! i) ! n
+          let !acc'
+               | n == 0    = acc + l
+               | otherwise = acc + l - 1
+          accumSize (src `plusPtr` 1) lim n' acc'
+    go :: Ptr Word8 -> Int -> Ptr Word8 -> Ptr Word8 -> IO ()
+    go dst n src lim
+      | src == lim = do
+          when (n /= 0) $ do
+              let Shifted _ _ bs = (aoa ! idxEos) ! n
+              w0 <- peek dst
+              let w1 = BS.head bs
+              poke dst (w0 .|. w1)
+      | otherwise  = do
+          i <- fromIntegral <$> peek src
+          let Shifted l n' bs = (aoa ! i) ! n
+          if n == 0 then
+              copy dst bs
+            else do
+              w0 <- peek dst
+              copy dst bs
+              w1 <- peek dst
+              poke dst (w0 .|. w1)
+          let dst'
+               | n' == 0   = dst `plusPtr` l
+               | otherwise = dst `plusPtr` (l - 1)
+          go dst' n' (src `plusPtr` 1) lim
 
-enc :: Encoder -> Int -> (Int,Bits)
-enc (Encoder ary) i = ary ! i
+copy :: Ptr Word8 -> ByteString -> IO ()
+copy dst (PS fptr off len) = withForeignPtr fptr $ \ptr -> do
+    let beg = ptr `plusPtr` off
+    memcpy dst beg (fromIntegral len)
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+
+memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
+memcpy dst src s = void $ c_memcpy dst src (fromIntegral s)
