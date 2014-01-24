@@ -9,6 +9,7 @@ module Network.HPACK.Huffman (
   , huffmanDecodeInResponse
   ) where
 
+import Network.HPACK.Huffman.Decode
+import Network.HPACK.Huffman.Encode
 import Network.HPACK.Huffman.Request
 import Network.HPACK.Huffman.Response
-import Network.HPACK.Huffman.Code
