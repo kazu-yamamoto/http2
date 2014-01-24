@@ -1,12 +1,11 @@
 module Network.HPACK.Huffman.ByteString where
 
 import Data.Bits ((.&.), shiftR)
-import Data.ByteString.Internal (ByteString(..))
+import Data.ByteString.Internal (ByteString(..), inlinePerformIO)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import Foreign.Storable (peek)
-import System.IO.Unsafe (unsafePerformIO)
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
@@ -20,16 +19,16 @@ import System.IO.Unsafe (unsafePerformIO)
 -- [3,4,15,3,10,11]
 
 unpack4bits :: ByteString -> [Word8]
-unpack4bits (PS fptr off len) = unsafePerformIO $
+unpack4bits (PS fptr off len) = inlinePerformIO $
   withForeignPtr fptr $ \ptr -> do
-    let beg = ptr `plusPtr` off
-        end = beg `plusPtr` (len - 1)
-    go beg end []
+    let lim = ptr `plusPtr` (off - 1)
+        end = ptr `plusPtr` (off + len - 1)
+    go lim end []
   where
-    go beg p ws
-      | beg > p = return ws
+    go lim p ws
+      | lim == p = return ws
       | otherwise = do
           w <- peek p
           let w0 = w `shiftR` 4
               w1 = w .&. 0xf
-          go beg (p `plusPtr` (-1)) (w0:w1:ws)
+          go lim (p `plusPtr` (-1)) (w0:w1:ws)
