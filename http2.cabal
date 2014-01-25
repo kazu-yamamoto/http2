@@ -101,12 +101,12 @@ Test-Suite spec
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
   Other-Modules:        DecodeSpec
+                        HeaderBlock
                         HeaderBlockSpec
+                        HexString
                         HuffmanRequestSpec
                         HuffmanResponseSpec
                         IntegerSpec
-                        HeaderBlock
-                        HexString
   Build-Depends:        base
                       , PSQueue
                       , array
@@ -123,7 +123,10 @@ Test-Suite hpack
   HS-Source-Dirs:       test-hpack, .
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
-  Other-Modules:        HPACKSpec
+  Other-Modules:        HPACK
+                        HPACKSpec
+                        HexString
+                        Types
   Build-Depends:        base
                       , PSQueue
                       , aeson
