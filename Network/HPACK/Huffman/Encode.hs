@@ -23,10 +23,23 @@ import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
 import System.IO.Unsafe (unsafePerformIO)
 
+----------------------------------------------------------------
+
+-- | Type for Huffman encoding.
+newtype Encoder = Encoder (Array Int ShiftedArray) deriving Show
+
+type ShiftedArray = Array Int Shifted
+
 data Shifted = Shifted !Int  -- Total bytes
                        !Int  -- How many bits in the last byte
                        ByteString -- Up to 5 bytes
                        deriving Show
+
+----------------------------------------------------------------
+
+-- | Creating 'Encoder'.
+toEncoder :: [Bits] -> Encoder
+toEncoder bss = Encoder $ listArray (0,idxEos) $ map toShiftedArray bss
 
 -- fixme
 -- |
@@ -55,17 +68,11 @@ toShifted bits n = Shifted total r bs
         (ys,zs) = splitAt 8 xs
     pad xs = take 8 $ xs ++ repeat F
 
-type ShiftedArray = Array Int Shifted
 
 toShiftedArray :: Bits -> ShiftedArray
 toShiftedArray bits = listArray (0,7) $ map (toShifted bits) [0..7]
 
--- | Type for Huffman encoding.
-newtype Encoder = Encoder (Array Int ShiftedArray) deriving Show
-
--- | Creating 'Encoder'.
-toEncoder :: [Bits] -> Encoder
-toEncoder bss = Encoder $ listArray (0,idxEos) $ map toShiftedArray bss
+----------------------------------------------------------------
 
 -- | Huffman encoding.
 type HuffmanEncoding = ByteString -> ByteString
