@@ -1,5 +1,5 @@
 Name:                   http2
-Version:                0.1.1
+Version:                0.1.2
 Author:                 Kazu Yamamoto <kazu@iij.ad.jp>
 Maintainer:             Kazu Yamamoto <kazu@iij.ad.jp>
 License:                BSD3
@@ -15,8 +15,7 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
---  Other-Modules:        Network.HPACK.Builder
-                        Network.HPACK.Builder
+  Other-Modules:        Network.HPACK.Builder
                         Network.HPACK.Builder.Word8
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderSet
@@ -53,15 +52,17 @@ Library
 
 Executable hpack-encode
   Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
+  HS-Source-Dirs:       test-hpack, .
   GHC-Options:          -Wall
   Main-Is:              hpack-encode.hs
   Build-Depends:        base >= 4 && < 5
+                      , PSQueue
                       , aeson
                       , aeson-pretty
                       , array
+                      , blaze-builder
                       , bytestring
-                      , http2
+                      , containers
                       , text
                       , unordered-containers
                       , vector
@@ -69,16 +70,19 @@ Executable hpack-encode
 
 Executable hpack-debug
   Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
+  HS-Source-Dirs:       test-hpack, .
   GHC-Options:          -Wall
   Main-Is:              hpack-debug.hs
   Build-Depends:        base >= 4 && < 5
+                      , PSQueue
                       , aeson
+                      , array
+                      , blaze-builder
                       , bytestring
-                      , http2
+                      , containers
                       , text
-                      , vector
                       , unordered-containers
+                      , vector
                       , word8
 
 Test-Suite doctest
