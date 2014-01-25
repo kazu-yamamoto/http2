@@ -1,10 +1,17 @@
-module Network.HPACK.Huffman.ByteString where
+{-# LANGUAGE ForeignFunctionInterface #-}
 
+module Network.HPACK.Huffman.ByteString (
+    unpack4bits
+  , copy
+  ) where
+
+import Control.Monad (void)
 import Data.Bits ((.&.), shiftR)
 import Data.ByteString.Internal (ByteString(..), inlinePerformIO)
 import Data.Word (Word8)
+import Foreign.C.Types (CSize(..))
 import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (plusPtr)
+import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
 
 -- $setup
@@ -32,3 +39,15 @@ unpack4bits (PS fptr off len) = inlinePerformIO $
           let w0 = w `shiftR` 4
               w1 = w .&. 0xf
           go lim (p `plusPtr` (-1)) (w0:w1:ws)
+
+
+copy :: Ptr Word8 -> ByteString -> IO ()
+copy dst (PS fptr off len) = withForeignPtr fptr $ \ptr -> do
+    let beg = ptr `plusPtr` off
+    memcpy dst beg (fromIntegral len)
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+
+memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
+memcpy dst src s = void $ c_memcpy dst src (fromIntegral s)

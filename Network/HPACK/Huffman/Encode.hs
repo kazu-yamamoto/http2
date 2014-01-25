@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, BangPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
@@ -9,17 +9,17 @@ module Network.HPACK.Huffman.Encode (
   ) where
 
 import Control.Applicative ((<$>))
-import Control.Monad (void, when)
+import Control.Monad (when)
 import Data.Array
 import Data.Bits ((.|.))
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..), create)
 import Data.Word (Word8)
-import Foreign.C.Types
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek, poke)
 import Network.HPACK.Huffman.Bit
+import Network.HPACK.Huffman.ByteString
 import Network.HPACK.Huffman.Params
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -117,14 +117,3 @@ encode (Encoder aoa) (PS fptr off len) = unsafePerformIO $ withForeignPtr fptr $
                | n' == 0   = dst `plusPtr` l
                | otherwise = dst `plusPtr` (l - 1)
           go dst' n' (src `plusPtr` 1) lim
-
-copy :: Ptr Word8 -> ByteString -> IO ()
-copy dst (PS fptr off len) = withForeignPtr fptr $ \ptr -> do
-    let beg = ptr `plusPtr` off
-    memcpy dst beg (fromIntegral len)
-
-foreign import ccall unsafe "string.h memcpy" c_memcpy
-    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
-
-memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
-memcpy dst src s = void $ c_memcpy dst src (fromIntegral s)
