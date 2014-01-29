@@ -41,6 +41,7 @@ data Case = Case {
     size :: Int
   , wire :: ByteString
   , headers :: HeaderSet
+  , seqno :: Int
   } deriving Show
 
 instance FromJSON Test where
@@ -61,13 +62,15 @@ instance FromJSON Case where
     parseJSON (Object o) = Case <$> o .: "header_table_size"
                                 <*> (textToByteString <$> (o .: "wire"))
                                 <*> o .: "headers"
+                                <*> o .: "seqno"
     parseJSON _          = mzero
 
 instance ToJSON Case where
-    toJSON (Case siz w hs) = object ["header_table_size" .= siz
-                                    ,"wire" .= byteStringToText w
-                                    ,"headers" .= hs
-                                    ]
+    toJSON (Case siz w hs no) = object ["header_table_size" .= siz
+                                       ,"wire" .= byteStringToText w
+                                       ,"headers" .= hs
+                                       ,"seqno" .= no
+                                       ]
 
 instance FromJSON HeaderSet where
     parseJSON (Array a) = mapM parseJSON $ V.toList a

@@ -14,10 +14,10 @@ import Types
 main :: IO ()
 main = do
     args <- getArgs
-    when (length args /= 2) $ do
-        hPutStrLn stderr "hpack-encode on/off naive|linear|diff"
+    when (length args /= 3) $ do
+        hPutStrLn stderr "hpack-encode on/off naive|linear|diff <desc>"
         exitFailure
-    let [arg1,arg2] = args
+    let [arg1,arg2,desc] = args
         huffman
           | arg1 == "on" = True
           | otherwise = False
@@ -26,17 +26,17 @@ main = do
           | arg2 == "linear" = Linear
           | otherwise        = Diff
         stgy = EncodeStrategy algo huffman
-    hpackEncode stgy
+    hpackEncode stgy desc
 
-hpackEncode :: EncodeStrategy -> IO ()
-hpackEncode stgy = do
+hpackEncode :: EncodeStrategy -> String -> IO ()
+hpackEncode stgy desc = do
     bs <- BL.getContents
     let Just tc = decode bs :: Maybe Test
     Pass hexs <- run False stgy tc
     let cs = cases tc
         cs' = zipWith update cs hexs
         tc' = tc {
-            description = "Encoded by the http2 library in Haskell. First clear the reference set and encode all headers"
+            description = desc
           , cases = cs'
           }
     BL.putStrLn $ encodePretty tc'
