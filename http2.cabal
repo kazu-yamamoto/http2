@@ -55,6 +55,7 @@ Executable hpack-encode
   HS-Source-Dirs:       test-hpack, .
   GHC-Options:          -Wall
   Main-Is:              hpack-encode.hs
+  Other-Modules:        HPACKEncode
   Build-Depends:        base >= 4 && < 5
                       , PSQueue
                       , aeson
@@ -143,7 +144,7 @@ Test-Suite hpack
   HS-Source-Dirs:       test-hpack, .
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
-  Other-Modules:        HPACK
+  Other-Modules:        HPACKDecode
                         HPACKSpec
                         HexString
                         Types

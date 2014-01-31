@@ -10,7 +10,7 @@ import System.FilePath ((</>))
 import Test.Hspec
 
 import Types
-import HPACK
+import HPACKDecode
 
 testDir :: FilePath
 testDir = "test-hpack/hpack-test-case"
@@ -37,9 +37,9 @@ test file = do
     case etc of
         Left e   -> return $ Just $ file ++ ": " ++ e
         Right tc -> do
-            res <- run False defaultEncodeStrategy tc
+            res <- run False tc
             case res of
-                Pass _ -> return Nothing
+                Pass   -> return Nothing
                 Fail e -> return $ Just $ file ++ ": " ++ e
 
 spec :: Spec

@@ -4,7 +4,7 @@ import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Lazy as BL
 
 import Types
-import HPACK
+import HPACKDecode
 
 main :: IO ()
 main = do
@@ -13,8 +13,8 @@ main = do
     res <- case etc of
         Left e   -> return $ Just e
         Right tc -> do
-            res <- run True defaultEncodeStrategy tc
+            res <- run True tc
             case res of
-                Pass _ -> return Nothing
+                Pass   -> return Nothing
                 Fail e -> return $ Just e
     print res

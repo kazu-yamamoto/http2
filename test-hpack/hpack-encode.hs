@@ -8,7 +8,7 @@ import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
 
-import HPACK
+import HPACKEncode
 import Types
 
 main :: IO ()
@@ -32,7 +32,7 @@ hpackEncode :: EncodeStrategy -> String -> IO ()
 hpackEncode stgy desc = do
     bs <- BL.getContents
     let Just tc = decode bs :: Maybe Test
-    Pass hexs <- run False stgy tc
+    hexs <- run False stgy tc
     let cs = cases tc
         cs' = zipWith update cs hexs
         tc' = tc {

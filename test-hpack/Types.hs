@@ -41,7 +41,7 @@ data Case = Case {
     size :: Int
   , wire :: ByteString
   , headers :: HeaderSet
-  , seqno :: Int
+  , seqno :: Maybe Int
   } deriving Show
 
 instance FromJSON Test where
@@ -62,7 +62,7 @@ instance FromJSON Case where
     parseJSON (Object o) = Case <$> o .: "header_table_size"
                                 <*> (textToByteString <$> (o .: "wire"))
                                 <*> o .: "headers"
-                                <*> o .: "seqno"
+                                <*> o .:? "seqno"
     parseJSON _          = mzero
 
 instance ToJSON Case where
