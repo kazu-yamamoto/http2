@@ -23,6 +23,7 @@ main = do
           | otherwise = False
         algo
           | arg2 == "naive"  = Naive
+          | arg2 == "static" = Static
           | arg2 == "linear" = Linear
           | otherwise        = Diff
         stgy = EncodeStrategy algo huffman

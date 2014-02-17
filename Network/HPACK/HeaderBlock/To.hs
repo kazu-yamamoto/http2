@@ -20,6 +20,7 @@ toHeaderBlock :: CompressionAlgo
               -> HeaderSet
               -> IO (Context, HeaderBlock)
 toHeaderBlock Naive  !ctx hs = reset ctx >>= encodeLoop naiveStep  hs
+toHeaderBlock Static !ctx hs = reset ctx >>= encodeLoop staticStep hs
 toHeaderBlock Linear !ctx hs = reset ctx >>= encodeLoop linearStep hs
 toHeaderBlock Diff   !ctx hs = encodeLoop diffStep hs (ctx, empty)
 
@@ -53,6 +54,20 @@ reset ctx = do
 naiveStep :: Step
 naiveStep (!ctx,!builder) (k,v) = do
     let builder' = builder << Literal NotAdd (Lit k) v
+    return (ctx, builder')
+
+----------------------------------------------------------------
+
+staticStep :: Step
+staticStep (!ctx,!builder) h@(k,v) = do
+    let cache = lookupHeader h ctx
+        b = case cache of
+            None                     -> Literal NotAdd (Lit k) v
+            KeyOnly  InStaticTable i -> Literal NotAdd (Idx i) v
+            KeyOnly  InHeaderTable _ -> Literal NotAdd (Lit k) v
+            KeyValue InStaticTable i -> Literal NotAdd (Idx i) v
+            KeyValue InHeaderTable _ -> Literal NotAdd (Lit k) v
+    let builder' = builder << b
     return (ctx, builder')
 
 ----------------------------------------------------------------
