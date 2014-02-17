@@ -22,18 +22,10 @@ data Conf = Conf {
 
 run :: Bool -> EncodeStrategy -> Test -> IO [ByteString]
 run _ _    (Test _ _        _ [])        = return []
-run d stgy (Test _ reqOrRsp _ ccs@(c:_)) = do
+run d stgy (Test _ _ _ ccs@(c:_)) = do
     let siz = size c
     ectx <- newContextForEncoding siz
-    let conf
-          | reqOrRsp == "request" = Conf {
-                debug = d
-              , enc = encodeRequestHeader stgy
-              }
-          | otherwise = Conf {
-                debug = d
-              , enc = encodeResponseHeader stgy
-              }
+    let conf = Conf { debug = d, enc = encodeHeader stgy }
     testLoop conf ccs ectx []
 
 testLoop :: Conf

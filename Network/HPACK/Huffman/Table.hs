@@ -1,34 +1,9 @@
-module Network.HPACK.Huffman.Request (
-    huffmanEncodeInRequest
-  , huffmanDecodeInRequest
-  ) where
+module Network.HPACK.Huffman.Table where
 
 import Network.HPACK.Huffman.Bit
-import Network.HPACK.Huffman.Decode
-import Network.HPACK.Huffman.Encode
 
-----------------------------------------------------------------
-
-encoderForRequest :: Encoder
-encoderForRequest = toEncoder huffmanRequest
-
--- | Hoffman encoding in HTTP/2.0 request.
-huffmanEncodeInRequest :: HuffmanEncoding
-huffmanEncodeInRequest = encode encoderForRequest
-
-----------------------------------------------------------------
-
-decoderForRequest :: Decoder
-decoderForRequest = toDecoder huffmanRequest
-
--- | Hoffman decoding in HTTP/2.0 request.
-huffmanDecodeInRequest :: HuffmanDecoding
-huffmanDecodeInRequest = decode decoderForRequest
-
-----------------------------------------------------------------
-
-huffmanRequest :: [Bits]
-huffmanRequest = [
+huffmanTable :: [Bits]
+huffmanTable = [
     [T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,F,T,T,T,F,T,F]
   , [T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,F,T,T,T,F,T,T]
   , [T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,F,T,T,T,T,F,F]
@@ -287,3 +262,5 @@ huffmanRequest = [
   , [T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,F,T,T,F,T,T]
   , [T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,T,F,T,T,T,F,F]
   ]
+
+

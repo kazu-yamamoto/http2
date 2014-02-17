@@ -10,29 +10,27 @@ import Network.HPACK.Builder
 import Network.HPACK.HeaderBlock.HeaderField
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.HeaderBlock.String as S
-import Network.HPACK.Huffman
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
 -- | Converting the low level format to 'HeaderBlock'.
-fromByteStream :: HuffmanDecoding -> ByteStream
-               -> Either DecodeError HeaderBlock
-fromByteStream hd inp = go inp empty
+fromByteStream :: ByteStream -> Either DecodeError HeaderBlock
+fromByteStream inp = go inp empty
   where
     go bs builder
       | BS.null bs = Right $ run builder
       | otherwise  = do
-        (hf, bs') <- toHeaderField hd bs
+        (hf, bs') <- toHeaderField bs
         go bs' (builder << hf)
 
-toHeaderField :: HuffmanDecoding -> ByteString
+toHeaderField :: ByteString
               -> Either DecodeError (HeaderField, ByteString)
-toHeaderField hd bs
+toHeaderField bs
   | BS.null bs    = Left EmptyBlock
   | w `testBit` 7 = Right $ indexed w bs'
-  | w `testBit` 6 = withoutIndexing hd w bs'
-  | otherwise     = incrementalIndexing hd w bs'
+  | w `testBit` 6 = withoutIndexing w bs'
+  | otherwise     = incrementalIndexing w bs'
   where
     w = BS.head bs
     bs' = BS.tail bs
@@ -45,24 +43,24 @@ indexed w ws = (Indexed idx , ws')
     w' = clearBit w 7
     (idx, ws') = I.parseInteger 7 w' ws
 
-withoutIndexing :: HuffmanDecoding -> Word8 -> ByteString
+withoutIndexing :: Word8 -> ByteString
                 -> Either DecodeError (HeaderField, ByteString)
-withoutIndexing hd w ws
-  | isIndexedName w = indexedName NotAdd hd w ws
-  | otherwise       = newName NotAdd hd ws
+withoutIndexing w ws
+  | isIndexedName w = indexedName NotAdd w ws
+  | otherwise       = newName NotAdd ws
 
-incrementalIndexing :: HuffmanDecoding -> Word8 -> ByteString
+incrementalIndexing :: Word8 -> ByteString
                     -> Either DecodeError (HeaderField, ByteString)
-incrementalIndexing hd w ws
-  | isIndexedName w = indexedName Add hd w ws
-  | otherwise       = newName Add hd ws
+incrementalIndexing w ws
+  | isIndexedName w = indexedName Add w ws
+  | otherwise       = newName Add ws
 
 ----------------------------------------------------------------
 
-indexedName :: Indexing -> HuffmanDecoding -> Word8 -> ByteString
+indexedName :: Indexing -> Word8 -> ByteString
             -> Either DecodeError (HeaderField, ByteString)
-indexedName indexing hd w ws = do
-    (val,ws'') <- headerStuff hd ws'
+indexedName indexing w ws = do
+    (val,ws'') <- headerStuff ws'
     let hf = Literal indexing (Idx idx) val
     return (hf, ws'')
   where
@@ -70,21 +68,21 @@ indexedName indexing hd w ws = do
     (idx,ws') = I.parseInteger 6 p ws
 
 
-newName :: Indexing -> HuffmanDecoding -> ByteString
+newName :: Indexing -> ByteString
         -> Either DecodeError (HeaderField, ByteString)
-newName indexing hd ws = do
-    (key,ws')  <- headerStuff hd ws
-    (val,ws'') <- headerStuff hd ws'
+newName indexing ws = do
+    (key,ws')  <- headerStuff ws
+    (val,ws'') <- headerStuff ws'
     let hf = Literal indexing (Lit key) val
     return (hf, ws'')
 
 ----------------------------------------------------------------
 
-headerStuff :: HuffmanDecoding -> ByteString
+headerStuff :: ByteString
             -> Either DecodeError (HeaderStuff, ByteString)
-headerStuff hd bs
+headerStuff bs
   | BS.null bs  = Left EmptyEncodedString
-  | otherwise   = S.parseString hd huff len bs''
+  | otherwise   = S.parseString huff len bs''
   where
     w = BS.head bs
     bs' = BS.tail bs

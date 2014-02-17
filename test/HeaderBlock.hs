@@ -82,12 +82,11 @@ e51h = [(":status","302")
         ]
 
 e51b :: ByteStream
-e51b = fromHexString "0882409f1886c31b39bf387f2292a2fba20320f2ab303124018b490d3209e8773093e39e7864dd7afd3d3d248747db87284955f6ff"
+e51b = fromHexString "088298a7188573d5cd111f2298ef6b3a7a0e6e8fa263d0729a6e8397d869bd873747bbbfc73090ce31743d801b6db107cd1a396244b74f"
 
 e52 :: HeaderBlock
 e52 = [
-    Indexed 4
-  , Indexed 12
+    Indexed 12
   ]
 
 e52h :: HeaderSet
@@ -98,12 +97,11 @@ e52h = [(":status","200")
         ]
 
 e52b :: ByteStream
-e52b = fromHexString "848c"
+e52b = fromHexString "8c"
 
 e53 :: HeaderBlock
 e53 = [
-    Indexed 3
-  , Indexed 4
+    Indexed 4
   , Indexed 4
   , Literal Add (Idx 3) "Mon, 21 Oct 2013 20:13:22 GMT"
   , Literal Add (Idx 29) "gzip"
@@ -111,7 +109,7 @@ e53 = [
   , Indexed 4
   , Indexed 3
   , Indexed 3
-  , Literal Add (Idx 58) "foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1"
+  ,Literal Add (Idx 58) "foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1"
   ]
 
 e53h :: HeaderSet
@@ -123,4 +121,4 @@ e53h = [("cache-control","private")
         ,("set-cookie","foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1")]
 
 e53b :: ByteStream
-e53b = fromHexString "8384840392a2fba20320f2ab303124018b490d3309e8771d84e1fbb30f848483833ab3df7dfb36d3d9e1fcfc3fafe7abfcfefcbfaf3edf2f977fd36ff7fd79f6f977fd3de16bfa46fe10d889447de1ce18e565f76c2f"
+e53b = fromHexString "84840398ef6b3a7a0e6e8fa263d0729a6e8397d869bd873f47bbbfc71d83cbd54e848483833ab3c5adb77f876fc7fbf7fdbfbebff3f7f4fb7ebbbe9f5f87e37fefedfaeefa7c3f1d5d1a23ce546436cd494bd5d1cc5f0535969b"

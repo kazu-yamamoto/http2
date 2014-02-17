@@ -1,8 +1,6 @@
 module Network.HPACK.Huffman.Decode (
   -- * Huffman decoding
-    Decoder
-  , toDecoder
-  , HuffmanDecoding
+    HuffmanDecoding
   , decode
   ) where
 
@@ -13,6 +11,7 @@ import Network.HPACK.Builder.Word8
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.ByteString
 import Network.HPACK.Huffman.Params
+import Network.HPACK.Huffman.Table
 import Network.HPACK.Huffman.Tree
 import Network.HPACK.Types (DecodeError(..))
 
@@ -35,18 +34,16 @@ type Way256 = Array Word8 Way16
 next :: Way16 -> Word8 -> Pin
 next (Way16 _ a16) w = a16 ! w
 
-newtype Decoder = Decoder Way256
-
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-decode :: Decoder -> HuffmanDecoding
-decode (Decoder way256) bs = dec way256 qs
+decode :: HuffmanDecoding
+decode bs = dec qs
   where
     qs = unpack4bits bs
 
-dec :: Way256 -> [Word8] -> Either DecodeError ByteString
-dec way256 inp = go (way256 ! 0) inp w8empty
+dec :: [Word8] -> Either DecodeError ByteString
+dec inp = go (way256 ! 0) inp w8empty
   where
     go :: Way16 -> [Word8] -> Word8Builder -> Either DecodeError ByteString
     go (Way16 Nothing  _) [] _       = Left IllegalEos
@@ -60,11 +57,11 @@ dec way256 inp = go (way256 ! 0) inp w8empty
 
 ----------------------------------------------------------------
 
-toDecoder :: [Bits] -> Decoder
-toDecoder = construct . toHTree
+way256 :: Way256
+way256 = construct $ toHTree huffmanTable
 
-construct :: HTree -> Decoder
-construct decoder = Decoder $ listArray (0,255) $ map to16ways $ flatten decoder
+construct :: HTree -> Way256
+construct decoder = listArray (0,255) $ map to16ways $ flatten decoder
   where
     to16ways x = Way16 ei a16
       where

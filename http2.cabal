@@ -6,7 +6,7 @@ License:                BSD3
 License-File:           LICENSE
 Synopsis:               HTTP/2.0 library including HPACK
 Description:            HTTP/2.0 library including HPACK.
-                        Currently only (coming) HPACK 06 is supported.
+                        Currently only HPACK 06 is supported.
 Category:               Network
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
@@ -15,7 +15,8 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
-  Other-Modules:        Network.HPACK.Builder
+--  Other-Modules:        Network.HPACK.Builder
+                        Network.HPACK.Builder
                         Network.HPACK.Builder.Word8
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderSet
@@ -26,8 +27,7 @@ Library
                         Network.HPACK.Huffman.Decode
                         Network.HPACK.Huffman.Encode
                         Network.HPACK.Huffman.Params
-                        Network.HPACK.Huffman.Request
-                        Network.HPACK.Huffman.Response
+                        Network.HPACK.Huffman.Table
                         Network.HPACK.Huffman.Tree
                         Network.HPACK.HeaderBlock
                         Network.HPACK.HeaderBlock.Decode
@@ -125,8 +125,7 @@ Test-Suite spec
                         HeaderBlock
                         HeaderBlockSpec
                         HexString
-                        HuffmanRequestSpec
-                        HuffmanResponseSpec
+                        HuffmanSpec
                         IntegerSpec
   Build-Depends:        base
                       , PSQueue

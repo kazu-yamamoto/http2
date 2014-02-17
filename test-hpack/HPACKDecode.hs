@@ -16,35 +16,22 @@ import Network.HPACK
 import Network.HPACK.Context
 import Network.HPACK.Context.HeaderSet
 import Network.HPACK.HeaderBlock
-import Network.HPACK.Huffman
 
 import HexString
 import Types
 
 data Conf = Conf {
     debug :: Bool
-  , dec :: HPACKDecoding
-  , hbk :: ByteStream -> Either DecodeError HeaderBlock
   }
 
 data Result = Pass | Fail String deriving (Eq,Show)
 
 run :: Bool -> Test -> IO Result
-run _ (Test _ _        _ [])        = return $ Pass
-run d (Test _ reqOrRsp _ ccs@(c:_)) = do
+run _ (Test _ _ _ [])        = return $ Pass
+run d (Test _ _ _ ccs@(c:_)) = do
     let siz = size c
     dctx <- newContextForDecoding siz
-    let conf
-          | reqOrRsp == "request" = Conf {
-                debug = d
-              , dec = decodeRequestHeader
-              , hbk = fromByteStream huffmanDecodeInRequest
-              }
-          | otherwise = Conf {
-                debug = d
-              , dec = decodeResponseHeader
-              , hbk = fromByteStream huffmanDecodeInResponse
-              }
+    let conf = Conf { debug = d }
     testLoop conf ccs dctx
 
 testLoop :: Conf
@@ -74,7 +61,7 @@ test conf c dctx = do
         B8.putStrLn hex
         putStrLn "---- Input header block"
         print hd
-    x <- try $ dec conf dctx inp
+    x <- try $ decodeHeader dctx inp
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)
         Right (dctx',hs') -> do
@@ -87,4 +74,4 @@ test conf c dctx = do
     hex = wire c
     inp = fromHexString hex
     hs = headers c
-    hd = hbk conf inp
+    hd = fromByteStream inp

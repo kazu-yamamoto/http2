@@ -2,9 +2,7 @@
 
 module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
-    Encoder
-  , toEncoder
-  , HuffmanEncoding
+    HuffmanEncoding
   , encode
   ) where
 
@@ -21,12 +19,12 @@ import Foreign.Storable (peek, poke)
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.ByteString
 import Network.HPACK.Huffman.Params
+import Network.HPACK.Huffman.Table
 import System.IO.Unsafe (unsafePerformIO)
 
 ----------------------------------------------------------------
 
--- | Type for Huffman encoding.
-newtype Encoder = Encoder (Array Int ShiftedArray) deriving Show
+type AOSA = Array Int ShiftedArray
 
 type ShiftedArray = Array Int Shifted
 
@@ -37,9 +35,8 @@ data Shifted = Shifted !Int  -- Total bytes
 
 ----------------------------------------------------------------
 
--- | Creating 'Encoder'.
-toEncoder :: [Bits] -> Encoder
-toEncoder bss = Encoder $ listArray (0,idxEos) $ map toShiftedArray bss
+aosa :: AOSA
+aosa = listArray (0,idxEos) $ map toShiftedArray huffmanTable
 
 -- fixme
 -- |
@@ -78,8 +75,8 @@ toShiftedArray bits = listArray (0,7) $ map (toShifted bits) [0..7]
 type HuffmanEncoding = ByteString -> ByteString
 
 -- | Huffman encoding.
-encode :: Encoder -> HuffmanEncoding
-encode (Encoder aoa) (PS fptr off len) = unsafePerformIO $ withForeignPtr fptr $ \ptr -> do
+encode :: HuffmanEncoding
+encode (PS fptr off len) = unsafePerformIO $ withForeignPtr fptr $ \ptr -> do
     let beg = ptr `plusPtr` off
         end = beg `plusPtr` len
     size <- accumSize beg end 0 0
@@ -90,7 +87,7 @@ encode (Encoder aoa) (PS fptr off len) = unsafePerformIO $ withForeignPtr fptr $
       | src == lim = return acc
       | otherwise  = do
           i <- fromIntegral <$> peek src
-          let Shifted l n' _ = (aoa ! i) ! n
+          let Shifted l n' _ = (aosa ! i) ! n
           let !acc'
                | n == 0    = acc + l
                | otherwise = acc + l - 1
@@ -99,13 +96,13 @@ encode (Encoder aoa) (PS fptr off len) = unsafePerformIO $ withForeignPtr fptr $
     go dst n src lim
       | src == lim = do
           when (n /= 0) $ do
-              let Shifted _ _ bs = (aoa ! idxEos) ! n
+              let Shifted _ _ bs = (aosa ! idxEos) ! n
               w0 <- peek dst
               let w1 = BS.head bs
               poke dst (w0 .|. w1)
       | otherwise  = do
           i <- fromIntegral <$> peek src
-          let Shifted l n' bs = (aoa ! i) ! n
+          let Shifted l n' bs = (aosa ! i) ! n
           if n == 0 then
               copy dst bs
             else do

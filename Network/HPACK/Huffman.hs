@@ -3,13 +3,9 @@ module Network.HPACK.Huffman (
     HuffmanEncoding
   , HuffmanDecoding
   -- * Encoding/decoding
-  , huffmanEncodeInRequest
-  , huffmanDecodeInRequest
-  , huffmanEncodeInResponse
-  , huffmanDecodeInResponse
+  , encode
+  , decode
   ) where
 
 import Network.HPACK.Huffman.Decode
 import Network.HPACK.Huffman.Encode
-import Network.HPACK.Huffman.Request
-import Network.HPACK.Huffman.Response
