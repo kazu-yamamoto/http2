@@ -45,7 +45,7 @@ e32b = fromHexString "1b8663654a1398ff"
 
 e33 :: HeaderBlock
 e33 = [
-    Indexed 0
+    Clear
   , Indexed 5
   , Indexed 12
   , Indexed 11
@@ -62,7 +62,7 @@ e33h = [(":method","GET")
         ]
 
 e33b :: ByteStream
-e33b = fromHexString "80858c8b8400884eb08b749790fa7f894eb08b74979a17a8ff"
+e33b = fromHexString "8080858c8b8400884eb08b749790fa7f894eb08b74979a17a8ff"
 
 ----------------------------------------------------------------
 

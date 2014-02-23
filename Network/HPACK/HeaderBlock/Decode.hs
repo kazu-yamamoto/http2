@@ -28,7 +28,7 @@ toHeaderField :: ByteString
               -> Either DecodeError (HeaderField, ByteString)
 toHeaderField bs
   | BS.null bs    = Left EmptyBlock
-  | w `testBit` 7 = Right $ indexed w bs'
+  | w `testBit` 7 = indexed w bs'
   | w `testBit` 6 = withoutIndexing w bs'
   | otherwise     = incrementalIndexing w bs'
   where
@@ -37,11 +37,20 @@ toHeaderField bs
 
 ----------------------------------------------------------------
 
-indexed :: Word8 -> ByteString -> (HeaderField, ByteString)
-indexed w ws = (Indexed idx , ws')
+indexed :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
+indexed w ws
+  | w' == 0   = clear
+  | otherwise = indexed'
   where
     w' = clearBit w 7
-    (idx, ws') = I.parseInteger 7 w' ws
+    clear = case BS.uncons ws of
+        Nothing -> Left undefined
+        Just (x, ws')
+          | x == 128  -> Right (Clear, ws')
+          | otherwise -> undefined
+    indexed' = Right (Indexed idx , ws')
+      where
+        (idx, ws') = I.parseInteger 7 w' ws
 
 withoutIndexing :: Word8 -> ByteString
                 -> Either DecodeError (HeaderField, ByteString)

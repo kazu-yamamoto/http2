@@ -22,7 +22,9 @@ emptyHeaderBlock :: HeaderBlock
 emptyHeaderBlock = []
 
 -- | Type for representation.
-data HeaderField = Indexed Index
+data HeaderField = Clear
+                 | ChangeTableSize Int
+                 | Indexed Index
                  | Literal Indexing Naming HeaderValue
                  deriving (Eq,Show)
 

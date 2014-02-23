@@ -33,8 +33,9 @@ decodeLoop []     !ctx = decodeFinal ctx
 -- | Decoding step for one 'HeaderField'. Exporting for the
 --   test purpose.
 decodeStep :: Step
+decodeStep (!ctx,!builder) Clear = return (clearRefSets ctx,builder)
+decodeStep (!ctx,!builder) (ChangeTableSize siz) = undefined
 decodeStep (!ctx,!builder) (Indexed idx)
-  | idx == 0  = return (clearRefSets ctx,builder)
   | isPresent = return (removeRef ctx idx, builder)
   | otherwise = do
       w <- whichTable idx ctx

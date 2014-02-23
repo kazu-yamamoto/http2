@@ -46,7 +46,7 @@ encodeLoop _    []     !ctx = encodeFinal ctx
 reset :: Context -> IO Ctx
 reset ctx = do
     let ctx' = clearRefSets ctx
-        initialHeaderBlock = singleton $ Indexed 0
+        initialHeaderBlock = singleton Clear
     return (ctx', initialHeaderBlock)
 
 ----------------------------------------------------------------
