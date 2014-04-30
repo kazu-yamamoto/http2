@@ -36,7 +36,7 @@ staticTableSize = 60
 --
 -- >>> toStaticEntry (SIndex 8)
 -- (42,(":status","200"))
--- >>> toStaticEntry (SIndex 49)
+-- >>> toStaticEntry (SIndex 50)
 -- (37,("range",""))
 toStaticEntry :: SIndex -> Entry
 toStaticEntry (SIndex sidx) = staticTable ! sidx
@@ -63,11 +63,12 @@ staticTableList = [
   , (":scheme","http")
   , (":scheme","https")
   , (":status","200")
-  , (":status","500")
-  , (":status","404")
-  , (":status","403")
+  , (":status","204")
+  , (":status","206")
+  , (":status","304")
   , (":status","400")
-  , (":status","401")
+  , (":status","404")
+  , (":status","500")
   , ("accept-charset","")
   , ("accept-encoding","")
   , ("accept-language","")
