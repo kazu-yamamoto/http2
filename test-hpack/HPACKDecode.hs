@@ -27,9 +27,9 @@ data Conf = Conf {
 data Result = Pass | Fail String deriving (Eq,Show)
 
 run :: Bool -> Test -> IO Result
-run _ (Test _ _ _ [])        = return $ Pass
-run d (Test _ _ _ ccs@(c:_)) = do
-    let siz = size c
+run _ (Test _ _ [])        = return $ Pass
+run d (Test _ _ ccs@(c:_)) = do
+    let siz = maybe 4096 id $ size c
     dctx <- newContextForDecoding siz
     let conf = Conf { debug = d }
     testLoop conf ccs dctx

@@ -32,13 +32,12 @@ main = do
 
 data Test = Test {
     draft :: Int
-  , context :: String
   , description :: String
   , cases :: [Case]
   } deriving Show
 
 data Case = Case {
-    size :: Int
+    size :: Maybe Int
   , wire :: ByteString
   , headers :: HeaderSet
   , seqno :: Maybe Int
@@ -46,20 +45,18 @@ data Case = Case {
 
 instance FromJSON Test where
     parseJSON (Object o) = Test <$> o .: "draft"
-                                <*> o .: "context"
                                 <*> o .: "description"
                                 <*> o .: "cases"
     parseJSON _          = mzero
 
 instance ToJSON Test where
-    toJSON (Test n ctx desc cs) = object ["draft" .= n
-                                         ,"context" .= ctx
-                                         ,"description" .= desc
-                                         ,"cases" .= cs
-                                         ]
+    toJSON (Test n desc cs) = object ["draft" .= n
+                                     ,"description" .= desc
+                                     ,"cases" .= cs
+                                     ]
 
 instance FromJSON Case where
-    parseJSON (Object o) = Case <$> o .: "header_table_size"
+    parseJSON (Object o) = Case <$> o .:? "header_table_size"
                                 <*> (textToByteString <$> (o .: "wire"))
                                 <*> o .: "headers"
                                 <*> o .:? "seqno"

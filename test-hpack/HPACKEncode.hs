@@ -21,9 +21,9 @@ data Conf = Conf {
   }
 
 run :: Bool -> EncodeStrategy -> Test -> IO [ByteString]
-run _ _    (Test _ _        _ [])        = return []
-run d stgy (Test _ _ _ ccs@(c:_)) = do
-    let siz = size c
+run _ _    (Test _        _ [])        = return []
+run d stgy (Test _ _ ccs@(c:_)) = do
+    let siz = maybe 4096 id $ size c
     ectx <- newContextForEncoding siz
     let conf = Conf { debug = d, enc = encodeHeader stgy }
     testLoop conf ccs ectx []
