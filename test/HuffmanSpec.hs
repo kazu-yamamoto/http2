@@ -14,16 +14,16 @@ import HexString
 testData :: [(ByteString, ByteString)]
 testData = [
     ("", "")
-  , ("www.example.com", "db6d883e68d1cb1225ba7f")
-  , ("no-cache", "63654a1398ff")
-  , ("custom-key", "4eb08b749790fa7f")
-  , ("custom-value", "4eb08b74979a17a8ff")
-  , ("private", "73d5cd111f")
-  , ("Mon, 21 Oct 2013 20:13:21 GMT", "ef6b3a7a0e6e8fa263d0729a6e8397d869bd873747bbbfc7")
-  , ("https://www.example.com", "ce31743d801b6db107cd1a396244b74f")
-  , ("Mon, 21 Oct 2013 20:13:22 GMT", "ef6b3a7a0e6e8fa263d0729a6e8397d869bd873f47bbbfc7")
-  , ("gzip", "cbd54e")
-  , ("foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1", "c5adb77f876fc7fbf7fdbfbebff3f7f4fb7ebbbe9f5f87e37fefedfaeefa7c3f1d5d1a23ce546436cd494bd5d1cc5f0535969b")
+  , ("www.example.com", "e7cf9bebe89b6fb16fa9b6ff")
+  , ("no-cache", "b9b9949556bf")
+  , ("custom-key", "571c5cdb737b2faf")
+  , ("custom-value", "571c5cdb73724d9c57")
+  , ("private", "bf06724b97")
+  , ("Mon, 21 Oct 2013 20:13:21 GMT", "d6dbb29884de2a718805062098513109b56ba3")
+  , ("https://www.example.com", "adcebf198e7e7cf9bebe89b6fb16fa9b6f")
+  , ("Mon, 21 Oct 2013 20:13:22 GMT", "d6dbb29884de2a718805062098513111b56ba3")
+  , ("gzip", "abdd97ff")
+  , ("foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1", "e0d6cf9f6e8f9fd3e5f6fa76fefd3c7edf9eff1f2f0f3cfe9f6fcf7f8f879f61ad4f4cc9a973a2200ec3725e18b1b74e3f")
   ]
 
 shouldBeEncoded :: ByteString -> ByteString -> Expectation
@@ -48,6 +48,6 @@ spec = do
     describe "decode" $ do
         it "decodes" $ do
             "ff" `shouldBeDecoded` Left TooLongEos
-            "fffff77f" `shouldBeDecoded` Right "\1"
-            "fffff77fff" `shouldBeDecoded` Left TooLongEos
+            "ffffeeff" `shouldBeDecoded` Right "\1"
+            "ffffeeffff" `shouldBeDecoded` Left TooLongEos
             mapM_ (\(x,y) -> y `shouldBeDecoded` Right x) testData
