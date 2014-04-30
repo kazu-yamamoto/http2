@@ -63,11 +63,15 @@ instance FromJSON Case where
     parseJSON _          = mzero
 
 instance ToJSON Case where
-    toJSON (Case siz w hs no) = object ["header_table_size" .= siz
-                                       ,"wire" .= byteStringToText w
-                                       ,"headers" .= hs
-                                       ,"seqno" .= no
-                                       ]
+    toJSON (Case (Just siz) w hs no) = object ["header_table_size" .= siz
+                                              ,"wire" .= byteStringToText w
+                                              ,"headers" .= hs
+                                              ,"seqno" .= no
+                                              ]
+    toJSON (Case Nothing    w hs no) = object ["wire" .= byteStringToText w
+                                              ,"headers" .= hs
+                                              ,"seqno" .= no
+                                              ]
 
 instance FromJSON HeaderSet where
     parseJSON (Array a) = mapM parseJSON $ V.toList a
