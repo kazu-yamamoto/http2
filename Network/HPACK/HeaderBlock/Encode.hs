@@ -26,15 +26,16 @@ fromHeaderField :: Bool -> HeaderField -> Builder
 fromHeaderField _    Clear                        = clear
 fromHeaderField _    (ChangeTableSize siz)        = change siz
 fromHeaderField _    (Indexed idx)                = index idx
-fromHeaderField huff (Literal NotAdd (Idx idx) v) = indexedName huff set01 idx v
-fromHeaderField huff (Literal NotAdd (Lit key) v) = newName     huff set01 key v
-fromHeaderField huff (Literal Add    (Idx idx) v) = indexedName huff set00 idx v
-fromHeaderField huff (Literal Add    (Lit key) v) = newName     huff set00 key v
+fromHeaderField huff (Literal Add    (Idx idx) v) = indexedName huff 6 set01 idx v
+fromHeaderField huff (Literal Add    (Lit key) v) = newName     huff set01 key v
+fromHeaderField huff (Literal NotAdd (Idx idx) v) = indexedName huff 4 set0000 idx v
+fromHeaderField huff (Literal NotAdd (Lit key) v) = newName     huff set0000 key v
+fromHeaderField _    (Literal Never  _         _) = undefined -- fixme
 
 ----------------------------------------------------------------
 
 clear :: Builder
-clear = BB.fromWord8s [128,128]
+clear = BB.fromWord8s [48]
 
 change :: Int -> Builder
 change = undefined
@@ -46,10 +47,10 @@ index i = BB.fromWord8s (w':ws)
     w' = set1 w
 
 -- Using Huffman encoding
-indexedName :: Bool -> Setter -> Int -> HeaderValue -> Builder
-indexedName huff set idx v = pre <> vlen <> val
+indexedName :: Bool -> Int -> Setter -> Int -> HeaderValue -> Builder
+indexedName huff n set idx v = pre <> vlen <> val
   where
-    (p:ps) = I.encode 6 idx
+    (p:ps) = I.encode n idx
     pre = BB.fromWord8s $ set p : ps
     value = S.encode huff v
     valueLen = BS.length value
@@ -81,10 +82,10 @@ newName huff set k v = pre <> klen <> key <> vlen <> val
 type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
-set1, set01, set00 :: Setter
+set1, set01, set0000 :: Setter
 set1  x = x `setBit` 7
 set01 x = x `setBit` 6
-set00   = id
+set0000 = id
 
 setH :: [Word8] -> [Word8]
 setH []     = error "setH"

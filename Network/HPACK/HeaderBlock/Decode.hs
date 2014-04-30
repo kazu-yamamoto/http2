@@ -29,8 +29,10 @@ toHeaderField :: ByteString
 toHeaderField bs
   | BS.null bs    = Left EmptyBlock
   | w `testBit` 7 = indexed w bs'
-  | w `testBit` 6 = withoutIndexing w bs'
-  | otherwise     = incrementalIndexing w bs'
+  | w `testBit` 6 = incrementalIndexing w bs'
+  | w `testBit` 5 = clear w bs'
+  | w `testBit` 4 = undefined -- fixme: Never
+  | otherwise     = withoutIndexing w bs'
   where
     w = BS.head bs
     bs' = BS.tail bs
@@ -38,44 +40,37 @@ toHeaderField bs
 ----------------------------------------------------------------
 
 indexed :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
-indexed w ws
-  | w' == 0   = clear
-  | otherwise = indexed'
+indexed w ws = Right (Indexed idx , ws')
   where
     w' = clearBit w 7
-    clear = case BS.uncons ws of
-        Nothing -> Left undefined
-        Just (x, ws')
-          | x == 128  -> Right (Clear, ws')
-          | otherwise -> undefined
-    indexed' = Right (Indexed idx , ws')
-      where
-        (idx, ws') = I.parseInteger 7 w' ws
-
-withoutIndexing :: Word8 -> ByteString
-                -> Either DecodeError (HeaderField, ByteString)
-withoutIndexing w ws
-  | isIndexedName w = indexedName NotAdd w ws
-  | otherwise       = newName NotAdd ws
+    (idx, ws') = I.parseInteger 7 w' ws
 
 incrementalIndexing :: Word8 -> ByteString
                     -> Either DecodeError (HeaderField, ByteString)
 incrementalIndexing w ws
-  | isIndexedName w = indexedName Add w ws
+  | isIndexedName w = indexedName Add w ws 6 mask6
   | otherwise       = newName Add ws
+
+clear :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
+clear _ ws = Right (Clear, ws) -- fixme: Maximum Header Table Size Change
+
+withoutIndexing :: Word8 -> ByteString
+                -> Either DecodeError (HeaderField, ByteString)
+withoutIndexing w ws
+  | isIndexedName w = indexedName NotAdd w ws 4 mask4
+  | otherwise       = newName NotAdd ws
 
 ----------------------------------------------------------------
 
-indexedName :: Indexing -> Word8 -> ByteString
+indexedName :: Indexing -> Word8 -> ByteString -> Int -> (Word8 -> Word8)
             -> Either DecodeError (HeaderField, ByteString)
-indexedName indexing w ws = do
+indexedName indexing w ws n mask = do
     (val,ws'') <- headerStuff ws'
     let hf = Literal indexing (Idx idx) val
     return (hf, ws'')
   where
-    p = mask6 w
-    (idx,ws') = I.parseInteger 6 p ws
-
+    p = mask w
+    (idx,ws') = I.parseInteger n p ws
 
 newName :: Indexing -> ByteString
         -> Either DecodeError (HeaderField, ByteString)
@@ -104,8 +99,11 @@ headerStuff bs
 mask6 :: Word8 -> Word8
 mask6 w = w .&. 63
 
+mask4 :: Word8 -> Word8
+mask4 w = w .&. 15
+
 isIndexedName :: Word8 -> Bool
-isIndexedName w = mask6 w /= 0
+isIndexedName w = mask6 w /= 0 -- fixme mask4
 
 ----------------------------------------------------------------
 

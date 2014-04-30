@@ -10,41 +10,41 @@ import HexString
 
 ----------------------------------------------------------------
 
-e31 :: HeaderBlock
-e31 = [
+d41 :: HeaderBlock
+d41 = [
     Indexed 2
   , Indexed 7
   , Indexed 6
   , Literal Add (Idx 4) "www.example.com"
   ]
 
-e31h :: HeaderSet
-e31h = [(":method","GET")
+d41h :: HeaderSet
+d41h = [(":method","GET")
         ,(":scheme","http")
         ,(":path","/")
         ,(":authority","www.example.com")
         ]
 
-e31b :: ByteStream
-e31b = fromHexString "828786048bdb6d883e68d1cb1225ba7f"
+d41b :: ByteStream
+d41b = fromHexString "828786448ce7cf9bebe89b6fb16fa9b6ff"
 
-e32 :: HeaderBlock
-e32 = [
-    Literal Add (Idx 27) "no-cache"
+d42 :: HeaderBlock
+d42 = [
+    Literal Add (Idx 28) "no-cache"
   ]
 
-e32h :: HeaderSet
-e32h = [("cache-control","no-cache")
+d42h :: HeaderSet
+d42h = [("cache-control","no-cache")
         ,(":method","GET")
         ,(":scheme","http")
         ,(":path","/")
         ,(":authority","www.example.com")]
 
-e32b :: ByteStream
-e32b = fromHexString "1b8663654a1398ff"
+d42b :: ByteStream
+d42b = fromHexString "5c86b9b9949556bf"
 
-e33 :: HeaderBlock
-e33 = [
+d43 :: HeaderBlock
+d43 = [
     Clear
   , Indexed 5
   , Indexed 12
@@ -53,72 +53,72 @@ e33 = [
   , Literal Add (Lit "custom-key") "custom-value"
   ]
 
-e33h :: HeaderSet
-e33h = [(":method","GET")
+d43h :: HeaderSet
+d43h = [(":method","GET")
         ,(":scheme","https")
         ,(":path","/index.html")
         ,(":authority","www.example.com")
         ,("custom-key","custom-value")
         ]
 
-e33b :: ByteStream
-e33b = fromHexString "8080858c8b8400884eb08b749790fa7f894eb08b74979a17a8ff"
+d43b :: ByteStream
+d43b = fromHexString "30858c8b844088571c5cdb737b2faf89571c5cdb73724d9c57"
 
 ----------------------------------------------------------------
 
-e51 :: HeaderBlock
-e51 = [
+d61 :: HeaderBlock
+d61 = [
     Literal Add (Idx 8) "302"
-  , Literal Add (Idx 24) "private"
-  , Literal Add (Idx 34) "Mon, 21 Oct 2013 20:13:21 GMT"
-  , Literal Add (Idx 48) "https://www.example.com"
+  , Literal Add (Idx 25) "private"
+  , Literal Add (Idx 35) "Mon, 21 Oct 2013 20:13:21 GMT"
+  , Literal Add (Idx 49) "https://www.example.com"
   ]
 
-e51h :: HeaderSet
-e51h = [(":status","302")
+d61h :: HeaderSet
+d61h = [(":status","302")
         ,("cache-control","private")
         ,("date","Mon, 21 Oct 2013 20:13:21 GMT")
         ,("location","https://www.example.com")
         ]
 
-e51b :: ByteStream
-e51b = fromHexString "088298a7188573d5cd111f2298ef6b3a7a0e6e8fa263d0729a6e8397d869bd873747bbbfc73090ce31743d801b6db107cd1a396244b74f"
+d61b :: ByteStream
+d61b = fromHexString "488240175985bf06724b976393d6dbb29884de2a718805062098513109b56ba37191adcebf198e7e7cf9bebe89b6fb16fa9b6f"
 
-e52 :: HeaderBlock
-e52 = [
+d62 :: HeaderBlock
+d62 = [
     Indexed 12
   ]
 
-e52h :: HeaderSet
-e52h = [(":status","200")
+d62h :: HeaderSet
+d62h = [(":status","200")
         ,("cache-control","private")
         ,("date","Mon, 21 Oct 2013 20:13:21 GMT")
         ,("location","https://www.example.com")
         ]
 
-e52b :: ByteStream
-e52b = fromHexString "8c"
+d62b :: ByteStream
+d62b = fromHexString "8c"
 
-e53 :: HeaderBlock
-e53 = [
+d63 :: HeaderBlock
+d63 = [
     Indexed 4
   , Indexed 4
   , Literal Add (Idx 3) "Mon, 21 Oct 2013 20:13:22 GMT"
-  , Literal Add (Idx 29) "gzip"
+  , Literal Add (Idx 30) "gzip"
   , Indexed 4
   , Indexed 4
   , Indexed 3
   , Indexed 3
-  ,Literal Add (Idx 58) "foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1"
+  ,Literal Add (Idx 59) "foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1"
   ]
 
-e53h :: HeaderSet
-e53h = [("cache-control","private")
+d63h :: HeaderSet
+d63h = [("cache-control","private")
         ,("date","Mon, 21 Oct 2013 20:13:22 GMT")
         ,("content-encoding","gzip")
         ,("location","https://www.example.com")
         ,(":status","200")
         ,("set-cookie","foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1")]
 
-e53b :: ByteStream
-e53b = fromHexString "84840398ef6b3a7a0e6e8fa263d0729a6e8397d869bd873f47bbbfc71d83cbd54e848483833ab3c5adb77f876fc7fbf7fdbfbebff3f7f4fb7ebbbe9f5f87e37fefedfaeefa7c3f1d5d1a23ce546436cd494bd5d1cc5f0535969b"
+d63b :: ByteStream
+d63b = fromHexString "84844393d6dbb29884de2a718805062098513111b56ba35e84abdd97ff848483837bb1e0d6cf9f6e8f9fd3e5f6fa76fefd3c7edf9eff1f2f0f3cfe9f6fcf7f8f879f61ad4f4cc9a973a2200ec3725e18b1b74e3f"

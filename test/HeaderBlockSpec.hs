@@ -13,21 +13,21 @@ spec :: Spec
 spec = do
     describe "toByteStream" $ do
         it "encodes HeaderBlock" $ do
-            toByteStream True e31 `shouldBe` e31b
-            toByteStream True e32 `shouldBe` e32b
-            toByteStream True e33 `shouldBe` e33b
-            toByteStream True e51 `shouldBe` e51b
-            toByteStream True e52 `shouldBe` e52b
-            toByteStream True e53 `shouldBe` e53b
+            toByteStream True d41 `shouldBe` d41b
+            toByteStream True d42 `shouldBe` d42b
+            toByteStream True d43 `shouldBe` d43b
+            toByteStream True d61 `shouldBe` d61b
+            toByteStream True d62 `shouldBe` d62b
+            toByteStream True d63 `shouldBe` d63b
 
     describe "fromByteStream" $ do
         it "encodes HeaderBlock" $ do
-            fromByteStream e31b `shouldBe` Right e31
-            fromByteStream e32b `shouldBe` Right e32
-            fromByteStream e33b `shouldBe` Right e33
-            fromByteStream e51b `shouldBe` Right e51
-            fromByteStream e52b `shouldBe` Right e52
-            fromByteStream e53b `shouldBe` Right e53
+            fromByteStream d41b `shouldBe` Right d41
+            fromByteStream d42b `shouldBe` Right d42
+            fromByteStream d43b `shouldBe` Right d43
+            fromByteStream d61b `shouldBe` Right d61
+            fromByteStream d62b `shouldBe` Right d62
+            fromByteStream d63b `shouldBe` Right d63
     describe "toByteStream & fromByteStream" $ do
         prop "duality for request" $ \k v -> do
             let key = BS.pack ('k':k)

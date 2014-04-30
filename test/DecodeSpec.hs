@@ -14,16 +14,16 @@ spec :: Spec
 spec = do
     describe "fromHeaderBlock" $ do
         it "decodes HeaderSet in request" $ do
-            (c1,h1) <- newContextForDecoding 4096 >>= flip fromHeaderBlock e31
-            h1 `shouldBeSameAs` e31h
-            (c2,h2) <- fromHeaderBlock c1 e32
-            h2 `shouldBeSameAs` e32h
-            (_,h3)  <- fromHeaderBlock c2 e33
-            h3 `shouldBeSameAs` e33h
+            (c1,h1) <- newContextForDecoding 4096 >>= flip fromHeaderBlock d41
+            h1 `shouldBeSameAs` d41h
+            (c2,h2) <- fromHeaderBlock c1 d42
+            h2 `shouldBeSameAs` d42h
+            (_,h3)  <- fromHeaderBlock c2 d43
+            h3 `shouldBeSameAs` d43h
         it "decodes HeaderSet in response" $ do
-            (c1,h1) <- newContextForDecoding 256 >>= flip fromHeaderBlock e51
-            h1 `shouldBeSameAs` e51h
-            (c2,h2) <- fromHeaderBlock c1 e52
-            h2 `shouldBeSameAs` e52h
-            (_,h3)  <- fromHeaderBlock c2 e53
-            h3 `shouldBeSameAs` e53h
+            (c1,h1) <- newContextForDecoding 256 >>= flip fromHeaderBlock d61
+            h1 `shouldBeSameAs` d61h
+            (c2,h2) <- fromHeaderBlock c1 d62
+            h2 `shouldBeSameAs` d62h
+            (_,h3)  <- fromHeaderBlock c2 d63
+            h3 `shouldBeSameAs` d63h
