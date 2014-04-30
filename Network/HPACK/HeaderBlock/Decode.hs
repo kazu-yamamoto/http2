@@ -31,7 +31,7 @@ toHeaderField bs
   | w `testBit` 7 = indexed w bs'
   | w `testBit` 6 = incrementalIndexing w bs'
   | w `testBit` 5 = clear w bs'
-  | w `testBit` 4 = undefined -- fixme: Never
+  | w `testBit` 4 = neverIndexing w bs'
   | otherwise     = withoutIndexing w bs'
   where
     w = BS.head bs
@@ -59,6 +59,12 @@ withoutIndexing :: Word8 -> ByteString
 withoutIndexing w ws
   | isIndexedName w = indexedName NotAdd w ws 4 mask4
   | otherwise       = newName NotAdd ws
+
+neverIndexing :: Word8 -> ByteString
+                -> Either DecodeError (HeaderField, ByteString)
+neverIndexing w ws
+  | isIndexedName w = indexedName Never w ws 4 mask4
+  | otherwise       = newName Never ws
 
 ----------------------------------------------------------------
 

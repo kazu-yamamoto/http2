@@ -30,7 +30,8 @@ fromHeaderField huff (Literal Add    (Idx idx) v) = indexedName huff 6 set01 idx
 fromHeaderField huff (Literal Add    (Lit key) v) = newName     huff set01 key v
 fromHeaderField huff (Literal NotAdd (Idx idx) v) = indexedName huff 4 set0000 idx v
 fromHeaderField huff (Literal NotAdd (Lit key) v) = newName     huff set0000 key v
-fromHeaderField _    (Literal Never  _         _) = undefined -- fixme
+fromHeaderField huff (Literal Never (Idx idx) v)  = indexedName huff 4 set0001 idx v
+fromHeaderField huff (Literal Never (Lit key) v)  = newName     huff set0001 key v
 
 ----------------------------------------------------------------
 
@@ -38,7 +39,7 @@ clear :: Builder
 clear = BB.fromWord8s [48]
 
 change :: Int -> Builder
-change = undefined
+change = error "change"
 
 index :: Int -> Builder
 index i = BB.fromWord8s (w':ws)
@@ -82,9 +83,10 @@ newName huff set k v = pre <> klen <> key <> vlen <> val
 type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
-set1, set01, set0000 :: Setter
+set1, set01, set0001, set0000 :: Setter
 set1  x = x `setBit` 7
 set01 x = x `setBit` 6
+set0001 x = x `setBit` 4
 set0000 = id
 
 setH :: [Word8] -> [Word8]
