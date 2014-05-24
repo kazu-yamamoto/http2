@@ -38,7 +38,6 @@ data Shifted = Shifted !Int  -- Total bytes
 aosa :: AOSA
 aosa = listArray (0,idxEos) $ map toShiftedArray huffmanTable
 
--- fixme
 -- |
 --
 -- >>> toShifted [T,T,T,T] 0
