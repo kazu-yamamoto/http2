@@ -30,7 +30,7 @@ toHeaderField bs
   | BS.null bs    = Left EmptyBlock
   | w `testBit` 7 = indexed w bs'
   | w `testBit` 6 = incrementalIndexing w bs'
-  | w `testBit` 5 = clear w bs'
+  | w `testBit` 5 = if w `testBit` 4 then clear w bs' else maxSize w bs'
   | w `testBit` 4 = neverIndexing w bs'
   | otherwise     = withoutIndexing w bs'
   where
@@ -48,23 +48,29 @@ indexed w ws = Right (Indexed idx , ws')
 incrementalIndexing :: Word8 -> ByteString
                     -> Either DecodeError (HeaderField, ByteString)
 incrementalIndexing w ws
-  | isIndexedName w = indexedName Add w ws 6 mask6
-  | otherwise       = newName Add ws
+  | isIndexedName1 w = indexedName Add w ws 6 mask6
+  | otherwise        = newName Add ws
 
 clear :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
-clear _ ws = Right (Clear, ws) -- fixme: Maximum Header Table Size Change
+clear _ ws = Right (Clear, ws)
+
+maxSize :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
+maxSize w ws = Right (ChangeTableSize siz, ws')
+  where
+    w' = mask4 w
+    (siz, ws') = I.parseInteger 4 w' ws
 
 withoutIndexing :: Word8 -> ByteString
                 -> Either DecodeError (HeaderField, ByteString)
 withoutIndexing w ws
-  | isIndexedName w = indexedName NotAdd w ws 4 mask4
-  | otherwise       = newName NotAdd ws
+  | isIndexedName2 w = indexedName NotAdd w ws 4 mask4
+  | otherwise        = newName NotAdd ws
 
 neverIndexing :: Word8 -> ByteString
                 -> Either DecodeError (HeaderField, ByteString)
 neverIndexing w ws
-  | isIndexedName w = indexedName Never w ws 4 mask4
-  | otherwise       = newName Never ws
+  | isIndexedName2 w = indexedName Never w ws 4 mask4
+  | otherwise        = newName Never ws
 
 ----------------------------------------------------------------
 
@@ -108,8 +114,11 @@ mask6 w = w .&. 63
 mask4 :: Word8 -> Word8
 mask4 w = w .&. 15
 
-isIndexedName :: Word8 -> Bool
-isIndexedName w = mask6 w /= 0 -- fixme mask4
+isIndexedName1 :: Word8 -> Bool
+isIndexedName1 w = mask6 w /= 0
+
+isIndexedName2 :: Word8 -> Bool
+isIndexedName2 w = mask4 w /= 0
 
 ----------------------------------------------------------------
 
