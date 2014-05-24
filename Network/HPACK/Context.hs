@@ -67,7 +67,7 @@ newContextForDecoding maxsiz = do
     return $ Context hdrtbl emptyReferenceSet
 
 changeContextForDecoding :: Context -> Size -> IO Context
-changeContextForDecoding ctx siz = newContextForDecoding siz -- fixme: copy table
+changeContextForDecoding _ctx siz = newContextForDecoding siz -- fixme: copy table
 
 ----------------------------------------------------------------
 
