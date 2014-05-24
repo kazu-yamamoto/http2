@@ -86,7 +86,7 @@ newName huff set k v = pre <> klen <> key <> vlen <> val
 type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
-set1, set01, set0001, set0000 :: Setter
+set1, set01, set001, set0001, set0000 :: Setter
 set1    x = x `setBit` 7
 set01   x = x `setBit` 6
 set001  x = x `setBit` 5
