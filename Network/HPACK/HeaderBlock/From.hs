@@ -34,7 +34,9 @@ decodeLoop []     !ctx = decodeFinal ctx
 --   test purpose.
 decodeStep :: Step
 decodeStep (!ctx,!builder) Clear = return (clearRefSets ctx,builder)
-decodeStep (!ctx,!builder) (ChangeTableSize siz) = error "ChangeTableSize"
+decodeStep (!ctx,!builder) (ChangeTableSize siz) = do
+    ctx' <- changeContextForDecoding ctx siz
+    return (ctx',builder)
 decodeStep (!ctx,!builder) (Indexed idx)
   | isPresent = return (removeRef ctx idx, builder)
   | otherwise = do

@@ -4,6 +4,7 @@ module Network.HPACK.Context (
   , Context
   , newContextForEncoding
   , newContextForDecoding
+  , changeContextForDecoding
   , DecodeError(..)
   , printContext
   -- * Initialization and final results
@@ -64,6 +65,9 @@ newContextForDecoding :: Size -> IO Context
 newContextForDecoding maxsiz = do
     hdrtbl <- newHeaderTableForDecoding maxsiz
     return $ Context hdrtbl emptyReferenceSet
+
+changeContextForDecoding :: Context -> Size -> IO Context
+changeContextForDecoding ctx siz = error $ "changeContextForDecoding" ++ show siz -- fixme
 
 ----------------------------------------------------------------
 
