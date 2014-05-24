@@ -39,7 +39,10 @@ clear :: Builder
 clear = BB.fromWord8s [48]
 
 change :: Int -> Builder
-change = undefined -- fixme
+change i = BB.fromWord8s (w':ws)
+  where
+    (w:ws) = I.encode 4 i
+    w' = set001 w
 
 index :: Int -> Builder
 index i = BB.fromWord8s (w':ws)
@@ -84,8 +87,9 @@ type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
 set1, set01, set0001, set0000 :: Setter
-set1  x = x `setBit` 7
-set01 x = x `setBit` 6
+set1    x = x `setBit` 7
+set01   x = x `setBit` 6
+set001  x = x `setBit` 5
 set0001 x = x `setBit` 4
 set0000 = id
 
