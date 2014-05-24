@@ -54,6 +54,11 @@ decodeStep (!ctx,!builder) (Literal NotAdd naming v) = do
     k <- fromNaming naming ctx
     let b = builder << (k,v)
     return (ctx, b)
+-- fixme: how to treat Never?
+decodeStep (!ctx,!builder) (Literal Never naming v) = do
+    k <- fromNaming naming ctx
+    let b = builder << (k,v)
+    return (ctx, b)
 decodeStep (!ctx,!builder) (Literal Add naming v) = do
     k <- fromNaming naming ctx
     let h = (k,v)
