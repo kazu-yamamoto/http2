@@ -39,7 +39,7 @@ clear :: Builder
 clear = BB.fromWord8s [48]
 
 change :: Int -> Builder
-change = error "change"
+change = undefined -- fixme
 
 index :: Int -> Builder
 index i = BB.fromWord8s (w':ws)
