@@ -168,14 +168,14 @@ adjust :: HeaderTable -> [Index] -> [Header] -> IO (HeaderTable, [Index], [Heade
 adjust hdrtbl is hs
   | tsize <= maxtsize = return (hdrtbl, is, hs)
   | otherwise         = do
-      (hdrtbl', i, h) <- removeOne hdrtbl
+      (hdrtbl', i, h) <- removeLastOne hdrtbl
       adjust hdrtbl' (i:is) (h:hs)
   where
     tsize = headerTableSize hdrtbl
     maxtsize = maxHeaderTableSize hdrtbl
 
-removeOne :: HeaderTable -> IO (HeaderTable,Index,Header)
-removeOne hdrtbl@HeaderTable{..} = do
+removeLastOne :: HeaderTable -> IO (HeaderTable,Index,Header)
+removeLastOne hdrtbl@HeaderTable{..} = do
     let i = adj maxNumOfEntries (offset + numOfEntries)
     e <- readArray circularTable i
     writeArray circularTable i dummyEntry -- let the entry GCed
