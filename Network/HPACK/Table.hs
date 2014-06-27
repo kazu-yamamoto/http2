@@ -29,14 +29,39 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
+{-
+        offset
+        v
+   +-+-+-+-+-+-+-+-+
+   | | | |z|y|x| | |
+   +-+-+-+-+-+-+-+-+
+          1 2 3      (numOfEntries = 3)
+
+After insertion:
+
+      offset
+      v
+   +-+-+-+-+-+-+-+-+
+   | | |w|z|y|x| | |
+   +-+-+-+-+-+-+-+-+
+        1 2 3 4      (numOfEntries = 4)
+-}
+
 -- | Type for header table.
 data HeaderTable = HeaderTable {
+  -- | An array
     circularTable :: !(IOArray Index Entry)
+  -- | Start point
   , offset :: !Index
+  -- | The current number of entries
   , numOfEntries :: !Int
+  -- | The size of the array
   , maxNumOfEntries :: !Int
+  -- | The current header table size (defined in HPACK)
   , headerTableSize :: !Size
+  -- | The max header table size (defined in HPACK)
   , maxHeaderTableSize :: !Size
+  -- | Header-to-index
   , reverseIndex :: Maybe (HP.HashPSQ HIndex)
   }
 
