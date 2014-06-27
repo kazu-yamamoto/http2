@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections, RecordWildCards #-}
 
 module Network.HPACK.Table (
   -- * Header table
@@ -31,10 +31,10 @@ import Network.HPACK.Types
 
 -- | Type for header table.
 data HeaderTable = HeaderTable {
-    maxNumOfEntries :: !Int
+    circularTable :: !(IOArray Index Entry)
   , offset :: !Index
   , numOfEntries :: !Int
-  , circularTable :: !(IOArray Index Entry)
+  , maxNumOfEntries :: !Int
   , headerTableSize :: !Size
   , maxHeaderTableSize :: !Size
   , reverseIndex :: Maybe (HP.HashPSQ HIndex)
@@ -47,15 +47,15 @@ adj maxN x = (x + maxN) `mod` maxN
 
 -- | Printing 'HeaderTable'.
 printHeaderTable :: HeaderTable -> IO ()
-printHeaderTable (HeaderTable maxN off n tbl tblsiz _ rev) = do
-    es <- mapM (readArray tbl . adj maxN) [beg .. end]
+printHeaderTable HeaderTable{..} = do
+    es <- mapM (readArray circularTable . adj maxNumOfEntries) [beg .. end]
     let ts = zip [1..] es
     mapM_ printEntry ts
-    putStrLn $ "      Table size: " ++ show tblsiz
-    print rev
+    putStrLn $ "      Table size: " ++ show headerTableSize
+    print reverseIndex
   where
-    beg = off + 1
-    end = off + n
+    beg = offset + 1
+    end = offset + numOfEntries
 
 printEntry :: (Index,Entry) -> IO ()
 printEntry (i,e) = do
@@ -84,26 +84,22 @@ newtype HIndex = HIndex Int deriving (Eq, Ord, Show)
 ----------------------------------------------------------------
 
 fromHIndexToIndex :: HeaderTable -> HIndex -> Index
-fromHIndexToIndex hdrtbl (HIndex hidx) = idx -- fixme :: Checkme
+fromHIndexToIndex HeaderTable{..} (HIndex hidx) = idx -- fixme :: Checkme
   where
-    maxN = maxNumOfEntries hdrtbl
-    off = offset hdrtbl
-    idx = adj maxN (maxN + hidx - off)
+    idx = adj maxNumOfEntries (maxNumOfEntries + hidx - offset)
 
 fromIndexToHIndex :: HeaderTable -> Index -> HIndex
-fromIndexToHIndex hdrtbl idx = HIndex hidx
+fromIndexToHIndex HeaderTable{..} idx = HIndex hidx
   where
-    maxN = maxNumOfEntries hdrtbl
-    off = offset hdrtbl
-    hidx = adj maxN (off + idx)
+    hidx = adj maxNumOfEntries (offset + idx)
 
 fromSIndexToIndex :: HeaderTable -> SIndex -> Index
-fromSIndexToIndex hdrtbl sidx = fromStaticIndex sidx + numOfEntries hdrtbl
+fromSIndexToIndex HeaderTable{..} sidx = fromStaticIndex sidx + numOfEntries
 
 fromIndexToSIndex :: HeaderTable -> Index -> SIndex
-fromIndexToSIndex hdrtbl idx = toStaticIndex sidx
+fromIndexToSIndex HeaderTable{..} idx = toStaticIndex sidx
   where
-    sidx = idx - numOfEntries hdrtbl
+    sidx = idx - numOfEntries
 
 ----------------------------------------------------------------
 
@@ -149,19 +145,19 @@ insertEntry e hdrtbl = do
     return (hdrtbl'', is)
 
 insertOne :: Entry -> HeaderTable -> IO HeaderTable
-insertOne e hdrtbl@(HeaderTable maxN off n tbl tsize _ mrev) = do
-    writeArray tbl i e
+insertOne e hdrtbl@HeaderTable{..} = do
+    writeArray circularTable i e
     return $ hdrtbl {
-        offset = off'
-      , numOfEntries = n + 1
-      , headerTableSize = tsize'
-      , reverseIndex = mrev'
+        offset = offset'
+      , numOfEntries = numOfEntries + 1
+      , headerTableSize = headerTableSize'
+      , reverseIndex = reverseIndex'
       }
   where
-    i = off
-    tsize' = tsize + entrySize e
-    off' = adj maxN (off - 1)
-    mrev' = case mrev of
+    i = offset
+    headerTableSize' = headerTableSize + entrySize e
+    offset' = adj maxNumOfEntries (offset - 1)
+    reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
         Just rev -> Just $ HP.insert (entryHeader e) (HIndex i) rev
 
@@ -179,17 +175,17 @@ adjust hdrtbl is hs
     maxtsize = maxHeaderTableSize hdrtbl
 
 removeOne :: HeaderTable -> IO (HeaderTable,Index,Header)
-removeOne hdrtbl@(HeaderTable maxN off n tbl tsize _ _) = do
-    let i = adj maxN (off + n)
-    e <- readArray tbl i
-    writeArray tbl i dummyEntry -- let the entry GCed
-    let tsize' = tsize - entrySize e
+removeOne hdrtbl@HeaderTable{..} = do
+    let i = adj maxNumOfEntries (offset + numOfEntries)
+    e <- readArray circularTable i
+    writeArray circularTable i dummyEntry -- let the entry GCed
+    let tsize = headerTableSize - entrySize e
         h = entryHeader e
         hdrtbl' = hdrtbl {
-            numOfEntries = n - 1
-          , headerTableSize = tsize'
+            numOfEntries = numOfEntries - 1
+          , headerTableSize = tsize
           }
-    return (hdrtbl',n - 1, h)
+    return (hdrtbl', numOfEntries - 1, h)
 
 ----------------------------------------------------------------
 
@@ -209,7 +205,7 @@ lookupTable h hdrtbl = case mrev of
 ----------------------------------------------------------------
 
 isIn :: Int -> HeaderTable -> Bool
-isIn idx hdrtbl = idx <= numOfEntries hdrtbl
+isIn idx HeaderTable{..} = idx <= numOfEntries
 
 -- | Which table does 'Index' belong to?
 which :: HeaderTable -> Index -> IO (WhichTable, Entry)
@@ -222,5 +218,4 @@ which hdrtbl idx
     sidx = fromIndexToSIndex hdrtbl idx
 
 toHeaderEntry :: HeaderTable -> HIndex -> IO Entry
-toHeaderEntry hdrtbl (HIndex hidx) = readArray (circularTable hdrtbl) hidx
-
+toHeaderEntry HeaderTable{..} (HIndex hidx) = readArray circularTable hidx
