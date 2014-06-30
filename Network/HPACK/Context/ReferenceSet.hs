@@ -6,7 +6,6 @@ module Network.HPACK.Context.ReferenceSet (
   , isMember
   , addIndex
   , removeIndex
-  , removeIndices
   , restrictIndices
   -- * Managing reference set
   , getNotEmittedIndices
@@ -18,7 +17,6 @@ module Network.HPACK.Context.ReferenceSet (
   , getCommon
   ) where
 
-import Data.List (foldl')
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Network.HPACK.Table
@@ -51,10 +49,6 @@ addIndex idx (ReferenceSet m) = ReferenceSet $ M.insert idx Emitted m
 -- | Removing 'Index' from 'ReferenceSet'.
 removeIndex :: Index -> ReferenceSet -> ReferenceSet
 removeIndex idx (ReferenceSet m) = ReferenceSet $ M.delete idx m
-
--- | Removing a set of 'Index' from 'ReferenceSet'.
-removeIndices :: [Index] -> ReferenceSet -> ReferenceSet
-removeIndices idcs (ReferenceSet m) = ReferenceSet $ foldl' (flip M.delete) m idcs
 
 restrictIndices :: Index -> ReferenceSet -> ReferenceSet
 restrictIndices idx (ReferenceSet m) =

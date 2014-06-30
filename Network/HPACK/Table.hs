@@ -199,15 +199,16 @@ shouldRenew HeaderTable{..} maxsiz = maxHeaderTableSize /= maxsiz
 ----------------------------------------------------------------
 
 -- | Inserting 'Entry' to 'HeaderTable'.
---   New 'HeaderTable' and a set of dropped OLD 'Index'
+--   New 'HeaderTable', the largest new 'Index'
+--   and a set of dropped OLD 'Index'
 --   are returned.
-insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,[Index])
+insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,Index,[Index])
 insertEntry e hdrtbl = do
     (hdrtbl', is, hs) <- insertFront e hdrtbl >>= adjustTableSize
     let hdrtbl'' = case reverseIndex hdrtbl' of
             Nothing  -> hdrtbl'
             Just rev -> hdrtbl' { reverseIndex = Just (HP.deleteList hs rev) }
-    return (hdrtbl'', is)
+    return (hdrtbl'', numOfEntries hdrtbl'', is)
 
 insertFront :: Entry -> HeaderTable -> IO HeaderTable
 insertFront e hdrtbl@HeaderTable{..} = do

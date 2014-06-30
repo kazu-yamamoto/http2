@@ -93,9 +93,9 @@ removeRef (Context hdrtbl refs) idx = ctx
 --   A reference to the new entry is added to the reference set.
 newEntryForEncoding :: Context -> Entry -> IO ([Index],Context)
 newEntryForEncoding (Context hdrtbl refs) e = do
-    (hdrtbl', is) <- insertEntry e hdrtbl
+    (hdrtbl', i, is) <- insertEntry e hdrtbl
     let ns = getCommon is refs
-        refs' = addIndex 1 $ adjustReferenceSet $ removeIndices is refs
+        refs' = addIndex 1 $ restrictIndices i $ adjustReferenceSet refs
         ctx = Context hdrtbl' refs'
     return (ns, ctx)
 
@@ -103,8 +103,8 @@ newEntryForEncoding (Context hdrtbl refs) e = do
 --   A reference to the new entry is added to the reference set.
 newEntryForDecoding :: Context -> Entry -> IO Context
 newEntryForDecoding (Context hdrtbl refs) e = do
-    (hdrtbl', is) <- insertEntry e hdrtbl
-    let refs' = addIndex 1 $ adjustReferenceSet $ removeIndices is refs
+    (hdrtbl', i, _) <- insertEntry e hdrtbl
+    let refs' = addIndex 1 $ restrictIndices i $ adjustReferenceSet refs
     return $ Context hdrtbl' refs'
 
 -- | The referenced header table entry is added to the reference set.
