@@ -5,7 +5,9 @@ module Network.HPACK.Table (
     HeaderTable
   , newHeaderTableForEncoding
   , newHeaderTableForDecoding
+  , renewHeaderTable
   , printHeaderTable
+  , shouldRenew
   -- * Insertion
   , insertEntry
   -- * Lookup
@@ -26,8 +28,11 @@ import Network.HPACK.Table.Entry
 import qualified Network.HPACK.Table.HashPSQ as HP
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
+import Control.Monad (forM)
 
 ----------------------------------------------------------------
+
+type Table = IOArray Index Entry
 
 {-
         offset
@@ -50,7 +55,7 @@ After insertion:
 -- | Type for header table.
 data HeaderTable = HeaderTable {
   -- | An array
-    circularTable :: !(IOArray Index Entry)
+    circularTable :: !Table
   -- | Start point
   , offset :: !Index
   -- | The current number of entries
@@ -156,6 +161,41 @@ newHeaderTable maxsiz mhp = do
     maxN = maxNumbers maxsiz
     end = maxN - 1
 
+renewHeaderTable :: Size -> HeaderTable -> IO (HeaderTable, Int)
+renewHeaderTable maxsiz oldhdrtbl = do
+    putStrLn $ "numOfEntries oldhdrtbl: " ++ show (numOfEntries oldhdrtbl)
+    hdrtbl <- newHeaderTable maxsiz mhp
+    newhdrtbl <- copyTable oldhdrtbl hdrtbl
+    putStrLn $ "numOfEntries newhdrtbl: " ++ show (numOfEntries newhdrtbl)
+    return (newhdrtbl, numOfEntries newhdrtbl)
+  where
+    mhp = case reverseIndex oldhdrtbl of
+        Nothing -> Nothing
+        _       -> Just HP.empty
+
+copyTable :: HeaderTable -> HeaderTable -> IO HeaderTable
+copyTable oldhdrtbl newhdrtbl = do
+    ents <- getEntries oldhdrtbl
+    putStrLn $ "length of entries: " ++ show (length ents)
+    copyEntries newhdrtbl ents
+
+getEntries :: HeaderTable -> IO [Entry]
+getEntries HeaderTable{..} = forM [1 .. numOfEntries] readTable
+  where
+    readTable i = readArray circularTable $ adj maxNumOfEntries (offset + i)
+
+copyEntries :: HeaderTable -> [Entry] -> IO HeaderTable
+copyEntries hdrtbl                 [] = return hdrtbl
+copyEntries hdrtbl@HeaderTable{..} (e:es)
+  | headerTableSize + entrySize e <= maxHeaderTableSize = do
+      hdrtbl' <- insertEnd e hdrtbl
+      copyEntries hdrtbl' es
+  | otherwise = return hdrtbl
+
+-- fixme: is this necessary?
+shouldRenew :: HeaderTable -> Size -> Bool
+shouldRenew HeaderTable{..} maxsiz = maxHeaderTableSize /= maxsiz
+
 ----------------------------------------------------------------
 
 -- | Inserting 'Entry' to 'HeaderTable'.
@@ -163,14 +203,14 @@ newHeaderTable maxsiz mhp = do
 --   are returned.
 insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,[Index])
 insertEntry e hdrtbl = do
-    (hdrtbl', is, hs) <- insertOne e hdrtbl >>= adjustTableSize
+    (hdrtbl', is, hs) <- insertFront e hdrtbl >>= adjustTableSize
     let hdrtbl'' = case reverseIndex hdrtbl' of
             Nothing  -> hdrtbl'
             Just rev -> hdrtbl' { reverseIndex = Just (HP.deleteList hs rev) }
     return (hdrtbl'', is)
 
-insertOne :: Entry -> HeaderTable -> IO HeaderTable
-insertOne e hdrtbl@HeaderTable{..} = do
+insertFront :: Entry -> HeaderTable -> IO HeaderTable
+insertFront e hdrtbl@HeaderTable{..} = do
     writeArray circularTable i e
     return $ hdrtbl {
         offset = offset'
@@ -193,14 +233,34 @@ adjust :: HeaderTable -> [Index] -> [Header] -> IO (HeaderTable, [Index], [Heade
 adjust hdrtbl is hs
   | tsize <= maxtsize = return (hdrtbl, is, hs)
   | otherwise         = do
-      (hdrtbl', i, h) <- removeLastOne hdrtbl
+      (hdrtbl', i, h) <- removeEnd hdrtbl -- fixme
       adjust hdrtbl' (i:is) (h:hs)
   where
     tsize = headerTableSize hdrtbl
     maxtsize = maxHeaderTableSize hdrtbl
 
-removeLastOne :: HeaderTable -> IO (HeaderTable,Index,Header)
-removeLastOne hdrtbl@HeaderTable{..} = do
+----------------------------------------------------------------
+
+insertEnd :: Entry -> HeaderTable -> IO HeaderTable
+insertEnd e hdrtbl@HeaderTable{..} = do
+    writeArray circularTable i e
+    return $ hdrtbl {
+        numOfEntries = numOfEntries + 1
+      , headerTableSize = headerTableSize'
+      , reverseIndex = reverseIndex'
+      }
+  where
+    i = adj maxNumOfEntries (offset + numOfEntries + 1)
+    hi = numOfEntries + 1
+    headerTableSize' = headerTableSize + entrySize e
+    reverseIndex' = case reverseIndex of
+        Nothing  -> Nothing
+        Just rev -> Just $ HP.insert (entryHeader e) (HIndex hi) rev
+
+----------------------------------------------------------------
+
+removeEnd :: HeaderTable -> IO (HeaderTable,Index,Header)
+removeEnd hdrtbl@HeaderTable{..} = do
     let i = adj maxNumOfEntries (offset + numOfEntries)
     e <- readArray circularTable i
     writeArray circularTable i dummyEntry -- let the entry GCed

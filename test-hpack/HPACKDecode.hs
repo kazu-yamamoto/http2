@@ -61,7 +61,10 @@ test conf c dctx = do
         B8.putStrLn hex
         putStrLn "---- Input header block"
         print hd
-    x <- try $ decodeHeader dctx inp
+    dctx0 <- case size c of
+        Nothing  -> return dctx
+        Just siz -> changeContextForDecoding dctx siz
+    x <- try $ decodeHeader dctx0 inp
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)
         Right (dctx',hs') -> do

@@ -67,7 +67,12 @@ newContextForDecoding maxsiz = do
     return $ Context hdrtbl emptyReferenceSet
 
 changeContextForDecoding :: Context -> Size -> IO Context
-changeContextForDecoding _ctx siz = newContextForDecoding siz -- fixme: copy table
+changeContextForDecoding ctx@(Context hdrtbl refs) siz
+  | shouldRenew hdrtbl siz = do
+    (hdrtbl',n) <- renewHeaderTable siz hdrtbl
+    let refs' = restrictIndices n refs
+    return $ Context hdrtbl' refs'
+  | otherwise = return ctx
 
 ----------------------------------------------------------------
 

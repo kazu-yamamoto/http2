@@ -7,6 +7,7 @@ module Network.HPACK.Context.ReferenceSet (
   , addIndex
   , removeIndex
   , removeIndices
+  , restrictIndices
   -- * Managing reference set
   , getNotEmittedIndices
   , adjustReferenceSet
@@ -54,6 +55,10 @@ removeIndex idx (ReferenceSet m) = ReferenceSet $ M.delete idx m
 -- | Removing a set of 'Index' from 'ReferenceSet'.
 removeIndices :: [Index] -> ReferenceSet -> ReferenceSet
 removeIndices idcs (ReferenceSet m) = ReferenceSet $ foldl' (flip M.delete) m idcs
+
+restrictIndices :: Index -> ReferenceSet -> ReferenceSet
+restrictIndices idx (ReferenceSet m) =
+    ReferenceSet $ M.filterWithKey (\k _ -> k <= idx) m
 
 ----------------------------------------------------------------
 
