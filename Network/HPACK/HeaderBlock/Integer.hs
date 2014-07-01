@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+
 module Network.HPACK.HeaderBlock.Integer (
     encode
   , decode
@@ -19,6 +21,17 @@ powerArray :: Array Int Int
 powerArray = listArray (1,8) [1,3,7,15,31,63,127,255]
 
 ----------------------------------------------------------------
+
+{-
+if I < 2^N - 1, encode I on N bits
+   else
+       encode (2^N - 1) on N bits
+       I = I - (2^N - 1)
+       while I >= 128
+            encode (I % 128 + 128) on 8 bits
+            I = I / 128
+       encode I on 8 bits
+-}
 
 -- | Integer encoding. The first argument is N of prefix.
 --
@@ -46,6 +59,19 @@ encode' i
 
 ----------------------------------------------------------------
 
+{-
+decode I from the next N bits
+   if I < 2^N - 1, return I
+   else
+       M = 0
+       repeat
+           B = next octet
+           I = I + (B & 127) * 2^M
+           M = M + 7
+       while B & 128 == 128
+       return I
+-}
+
 -- | Integer decoding. The first argument is N of prefix.
 --
 -- >>> decode 5 10 $ BS.empty
@@ -58,12 +84,19 @@ decode :: Int -> Word8 -> ByteString -> Int
 decode n w bs
   | i < p      = i
   | BS.null bs = error $ "decode: n = " ++ show n ++ ", w = " ++ show w ++ ", bs = empty"
-  | otherwise  = BS.foldr' (\x y -> fromIntegral x - 128 + y * 128) i0 bs' + i
+  | otherwise  = decode' bs 0 i
   where
     p = powerArray ! n
     i = fromIntegral w
-    i0 = fromIntegral $ BS.last bs
-    bs' = BS.init bs
+
+decode' :: ByteString -> Int -> Int -> Int
+decode' "" _ i = i
+decode' bs m i = decode' bs' m' i'
+  where
+    !b   = fromIntegral $ BS.head bs
+    !bs' = BS.tail bs
+    !i'  = i + (b .&. 127) * 2 ^ m
+    !m'  = m + 7
 
 ----------------------------------------------------------------
 
