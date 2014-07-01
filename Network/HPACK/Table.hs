@@ -114,7 +114,7 @@ newtype HIndex = HIndex Int deriving (Eq, Ord, Show)
 ----------------------------------------------------------------
 
 fromHIndexToIndex :: HeaderTable -> HIndex -> Index
-fromHIndexToIndex HeaderTable{..} (HIndex hidx) = idx -- fixme :: Checkme
+fromHIndexToIndex HeaderTable{..} (HIndex hidx) = idx
   where
     idx = adj maxNumOfEntries (maxNumOfEntries + hidx - offset)
 
@@ -192,7 +192,6 @@ copyEntries hdrtbl@HeaderTable{..} (e:es)
       copyEntries hdrtbl' es
   | otherwise = return hdrtbl
 
--- fixme: is this necessary?
 shouldRenew :: HeaderTable -> Size -> Bool
 shouldRenew HeaderTable{..} maxsiz = maxHeaderTableSize /= maxsiz
 
@@ -234,7 +233,7 @@ adjust :: HeaderTable -> [Index] -> [Header] -> IO (HeaderTable, [Index], [Heade
 adjust hdrtbl is hs
   | tsize <= maxtsize = return (hdrtbl, is, hs)
   | otherwise         = do
-      (hdrtbl', i, h) <- removeEnd hdrtbl -- fixme
+      (hdrtbl', i, h) <- removeEnd hdrtbl
       adjust hdrtbl' (i:is) (h:hs)
   where
     tsize = headerTableSize hdrtbl
