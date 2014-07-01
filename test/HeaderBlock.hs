@@ -26,7 +26,7 @@ d41h = [(":method","GET")
         ]
 
 d41b :: ByteStream
-d41b = fromHexString "828786448ce7cf9bebe89b6fb16fa9b6ff"
+d41b = fromHexString "828786448cf1e3c2e5f23a6ba0ab90f4ff"
 
 d42 :: HeaderBlock
 d42 = [
@@ -41,7 +41,7 @@ d42h = [("cache-control","no-cache")
         ,(":authority","www.example.com")]
 
 d42b :: ByteStream
-d42b = fromHexString "5c86b9b9949556bf"
+d42b = fromHexString "5c86a8eb10649cbf"
 
 d43 :: HeaderBlock
 d43 = [
@@ -62,7 +62,7 @@ d43h = [(":method","GET")
         ]
 
 d43b :: ByteStream
-d43b = fromHexString "30858c8b844088571c5cdb737b2faf89571c5cdb73724d9c57"
+d43b = fromHexString "30858c8b84408825a849e95ba97d7f8925a849e95bb8e8b4bf"
 
 ----------------------------------------------------------------
 
@@ -82,7 +82,7 @@ d61h = [(":status","302")
         ]
 
 d61b :: ByteStream
-d61b = fromHexString "488240175985bf06724b976393d6dbb29884de2a718805062098513109b56ba37191adcebf198e7e7cf9bebe89b6fb16fa9b6f"
+d61b = fromHexString "488264025985aec3771a4b6396d07abe941054d444a8200595040b8166e082a62d1bff71919d29ad171863c78f0b97c8e9ae82ae43d3"
 
 d62 :: HeaderBlock
 d62 = [
@@ -121,4 +121,4 @@ d63h = [("cache-control","private")
         ,("set-cookie","foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1")]
 
 d63b :: ByteStream
-d63b = fromHexString "84844393d6dbb29884de2a718805062098513111b56ba35e84abdd97ff848483837bb1e0d6cf9f6e8f9fd3e5f6fa76fefd3c7edf9eff1f2f0f3cfe9f6fcf7f8f879f61ad4f4cc9a973a2200ec3725e18b1b74e3f"
+d63b = fromHexString "84844396d07abe941054d444a8200595040b8166e084a62d1bff5e839bd9ab848483837bad94e7821dd7f2e6c7b335dfdfcd5b3960d5af27087f3672c1ab270fb5291f9587316065c003ed4ee5b1063d5007"
