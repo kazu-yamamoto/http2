@@ -5,7 +5,7 @@ module Network.HTTP2.Frames
 import           Control.Applicative        ((<$>), (<*>))
 import qualified Data.Attoparsec.Binary     as BI
 import qualified Data.Attoparsec.ByteString as B
-import           Data.Bits                  (shiftL, clearBit, (.|.))
+import           Data.Bits                  (clearBit, shiftL, (.&.), (.|.))
 import           Data.Int                   (Int32)
 import           Data.List                  (foldl')
 import qualified Data.Map                   as Map
@@ -72,16 +72,10 @@ frameTypeFromWord8 k =
 
 parseFrameHeader :: B.Parser FrameHeader
 parseFrameHeader = do
-    a <- B.anyWord8
+    a <- fromIntegral <$> BI.anyWord16be
     b <- B.anyWord8
-    c <- B.anyWord8
-    let length = roll [a, b, c]
+    let length = (a `shiftL` 8) .|. (fromIntegral b) :: Int24
     typ <- frameTypeFromWord8 <$> B.anyWord8
     flags <- B.anyWord8
-    streamId <- flip clearBit 31 <$> BI.anyWord32be
+    streamId <- (`clearBit` 31) <$> BI.anyWord32be
     return $ FrameHeader typ flags length streamId
-
-roll :: [Word8] -> Int24
-roll = foldl' unstep 0
-  where
-    unstep a b = a `shiftL` 8 .|. fromIntegral b
