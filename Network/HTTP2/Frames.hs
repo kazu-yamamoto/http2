@@ -1,9 +1,11 @@
+{-# LANGUAGE TupleSections #-}
+
 module Network.HTTP2.Frames
     (
     ) where
 
 import           Control.Applicative        ((<$>))
-import           Control.Monad              (void)
+import           Control.Monad              (replicateM, void, when)
 import qualified Data.Attoparsec.Binary     as BI
 import qualified Data.Attoparsec.ByteString as B
 import           Data.Bits                  (clearBit, shiftL, testBit, (.|.))
@@ -14,12 +16,15 @@ import           Data.Word                  (Word16, Word32, Word8)
 
 type Int24 = Int32
 type Int31 = Int32
+type RSTStreamErrorCode = Word32
 type HeaderBlockFragment = ByteString
 type StreamDependency = Int31
 type Exclusive = Bool
 type Weight = Int
 
 type FrameParser = FrameHeader -> B.Parser Frame
+
+type SettingsMap = Map.Map SettingID Word32
 
 data SettingID = SettingHeaderTableSize
                | SettingEnablePush
@@ -59,8 +64,8 @@ data Frame = DataFrame ByteString
                          (Maybe Weight)
                          HeaderBlockFragment
            | PriorityFrame Exclusive StreamDependency Weight
-           | RSTStreamFrame
-           | SettingsFrame
+           | RSTStreamFrame RSTStreamErrorCode
+           | SettingsFrame SettingsMap
            | PushPromiseFrame
            | PingFrame
            | GoAwayFrame
@@ -157,3 +162,19 @@ parsePriorityFrame _ = do
     let excl = testBit eAndStream 31
         stream = fromIntegral $ clearBit eAndStream 31
     return $ PriorityFrame excl stream weight
+
+parseRstStreamFrame :: FrameParser
+parseRstStreamFrame _ = BI.anyWord32be >>= return . RSTStreamFrame
+
+parseSettingsFrame :: FrameParser
+parseSettingsFrame header = do
+    when (frameLen `mod` 6 /= 0) $ fail "Incorrect frame length"
+    settings <- replicateM (frameLen `div` 6) $ do
+        rawSetting <- BI.anyWord16be
+        let settingId = settingIdFromWord16 rawSetting
+        case settingId of
+            SettingUnknown -> fail "Invalid settingID"
+            s -> (s,) <$> BI.anyWord32be
+    return $ SettingsFrame (Map.fromList settings)
+  where
+    frameLen = fromIntegral $ fhLength header
