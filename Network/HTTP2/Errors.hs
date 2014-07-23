@@ -1,5 +1,9 @@
 module Network.HTTP2.Errors
     (
+      -- * Errors
+      ErrorCode (..)
+    , errorCodeToWord32
+    , errorCodeFromWord32
     ) where
 
 import qualified Data.Map  as Map

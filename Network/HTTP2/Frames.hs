@@ -14,11 +14,15 @@ import           Data.Int                   (Int32)
 import qualified Data.Map                   as Map
 import           Data.Word                  (Word16, Word32, Word8)
 
+import Network.HTTP2.Errors (ErrorCode, errorCodeFromWord32)
+
 type Int24 = Int32
 type Int31 = Int32
 type RSTStreamErrorCode = Word32
 type HeaderBlockFragment = ByteString
 type StreamDependency = Int31
+type LastStreamId = Int31
+type PromisedStreamId = Int31
 type Exclusive = Bool
 type Weight = Int
 
@@ -66,9 +70,9 @@ data Frame = DataFrame ByteString
            | PriorityFrame Exclusive StreamDependency Weight
            | RSTStreamFrame RSTStreamErrorCode
            | SettingsFrame SettingsMap
-           | PushPromiseFrame
-           | PingFrame
-           | GoAwayFrame
+           | PushPromiseFrame PromisedStreamId HeaderBlockFragment
+           | PingFrame ByteString
+           | GoAwayFrame LastStreamId ErrorCode ByteString
            | WindowUpdateFrame
            | ContinuationFrame
            | UnknownFrame
@@ -176,5 +180,27 @@ parseSettingsFrame header = do
             SettingUnknown -> fail "Invalid settingID"
             s -> (s,) <$> BI.anyWord32be
     return $ SettingsFrame (Map.fromList settings)
+  where
+    frameLen = fromIntegral $ fhLength header
+
+parsePushPromiseFrame :: FrameParser
+parsePushPromiseFrame header = paddingParser header $ \len -> do
+    rAndStreamId <- BI.anyWord32be
+    let streamId = fromIntegral $ clearBit rAndStreamId 31
+    hbf <- B.take $ len - 4
+    return $ PushPromiseFrame streamId hbf
+
+parsePingFrame :: FrameParser
+parsePingFrame _ = B.take 8 >>= return . PingFrame
+
+parseGoAwayFrame :: FrameParser
+parseGoAwayFrame header = do
+    rAndLastStreamId <- BI.anyWord32be
+    errCode <- errorCodeFromWord32 <$> BI.anyWord32be
+    debug <- B.take $ frameLen - 8
+    let streamId = fromIntegral $ clearBit rAndLastStreamId 31
+    case errCode of
+        Nothing -> fail "Invalid error code"
+        Just err -> return $ GoAwayFrame streamId err debug
   where
     frameLen = fromIntegral $ fhLength header
