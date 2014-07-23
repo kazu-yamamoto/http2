@@ -14,7 +14,7 @@ import           Data.Int                   (Int32)
 import qualified Data.Map                   as Map
 import           Data.Word                  (Word16, Word32, Word8)
 
-import Network.HTTP2.Errors (ErrorCode, errorCodeFromWord32)
+import           Network.HTTP2.Errors       (ErrorCode, errorCodeFromWord32)
 
 type Int24 = Int32
 type Int31 = Int32
@@ -23,6 +23,7 @@ type HeaderBlockFragment = ByteString
 type StreamDependency = Int31
 type LastStreamId = Int31
 type PromisedStreamId = Int31
+type WindowSizeIncrement = Int31
 type Exclusive = Bool
 type Weight = Int
 
@@ -73,8 +74,8 @@ data Frame = DataFrame ByteString
            | PushPromiseFrame PromisedStreamId HeaderBlockFragment
            | PingFrame ByteString
            | GoAwayFrame LastStreamId ErrorCode ByteString
-           | WindowUpdateFrame
-           | ContinuationFrame
+           | WindowUpdateFrame WindowSizeIncrement
+           | ContinuationFrame HeaderBlockFragment
            | UnknownFrame
 
 settingIdToWord16 :: SettingID -> Word16
@@ -202,5 +203,20 @@ parseGoAwayFrame header = do
     case errCode of
         Nothing -> fail "Invalid error code"
         Just err -> return $ GoAwayFrame streamId err debug
+  where
+    frameLen = fromIntegral $ fhLength header
+
+parseWindowUpdateFrame :: FrameParser
+parseWindowUpdateFrame header =
+    if frameLen /= 4 then
+        fail "Invalid length for window update"
+    else
+        fromIntegral . (`clearBit` 31) <$> BI.anyWord32be >>=
+            return . WindowUpdateFrame
+  where
+    frameLen = fromIntegral $ fhLength header
+
+parseContinuationFrame :: FrameParser
+parseContinuationFrame header = B.take frameLen >>= return . ContinuationFrame
   where
     frameLen = fromIntegral $ fhLength header
