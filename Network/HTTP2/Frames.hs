@@ -93,6 +93,9 @@ data Frame = DataFrame ByteString
            | ContinuationFrame HeaderBlockFragment
            | UnknownFrame ByteString
 
+frameLen :: FrameHeader -> Int
+frameLen h = fromIntegral $ fhLength h
+
 settingIdToWord16 :: SettingID -> Word16
 settingIdToWord16 SettingHeaderTableSize      = 0x1
 settingIdToWord16 SettingEnablePush           = 0x2
@@ -165,9 +168,7 @@ parseRawFrame = do
     return $ RawFrame header payload
 
 parseUnknownFrame :: FrameParser
-parseUnknownFrame header = B.take frameLen >>= return . UnknownFrame
-  where
-    frameLen = fromIntegral $ fhLength header
+parseUnknownFrame header = B.take (frameLen header) >>= return . UnknownFrame
 
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the parser func
@@ -177,13 +178,12 @@ paddingParser :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
 paddingParser header p =
     if padded then do
         padding <- fromIntegral <$> B.anyWord8
-        val <- p $ frameLen - padding - 1
+        val <- p $ frameLen header - padding - 1
         void $ B.take padding
         return val
-    else p frameLen
+    else p (frameLen header)
   where
     flags = fhFlags header
-    frameLen = fromIntegral $ fhLength header
     padded = testBit flags 4
 
 parseDataFrame :: FrameParser
@@ -237,31 +237,30 @@ parsePushPromiseFrame header = paddingParser header $ \len -> do
     return $ PushPromiseFrame streamId hbf
 
 parsePingFrame :: FrameParser
-parsePingFrame _ = B.take 8 >>= return . PingFrame
+parsePingFrame header =
+    if frameLen header /= 8 then
+        fail "Invalid length for ping"
+    else
+        B.take 8 >>= return . PingFrame
 
 parseGoAwayFrame :: FrameParser
 parseGoAwayFrame header = do
     rAndLastStreamId <- BI.anyWord32be
     errCode <- errorCodeFromWord32 <$> BI.anyWord32be
-    debug <- B.take $ frameLen - 8
+    debug <- B.take $ frameLen header - 8
     let streamId = fromIntegral $ clearBit rAndLastStreamId 31
     case errCode of
         Nothing -> fail "Invalid error code"
         Just err -> return $ GoAwayFrame streamId err debug
-  where
-    frameLen = fromIntegral $ fhLength header
 
 parseWindowUpdateFrame :: FrameParser
 parseWindowUpdateFrame header =
-    if frameLen /= 4 then
+    if frameLen header /= 4 then
         fail "Invalid length for window update"
     else
         fromIntegral . (`clearBit` 31) <$> BI.anyWord32be >>=
             return . WindowUpdateFrame
-  where
-    frameLen = fromIntegral $ fhLength header
 
 parseContinuationFrame :: FrameParser
-parseContinuationFrame header = B.take frameLen >>= return . ContinuationFrame
-  where
-    frameLen = fromIntegral $ fhLength header
+parseContinuationFrame header = B.take (frameLen header) >>=
+    return . ContinuationFrame
