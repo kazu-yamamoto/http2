@@ -31,6 +31,8 @@ type FrameParser = FrameHeader -> B.Parser Frame
 
 type SettingsMap = Map.Map SettingID Word32
 
+type FullFrame = (FrameHeader, Frame)
+
 data SettingID = SettingHeaderTableSize
                | SettingEnablePush
                | SettingMaxConcurrentStreams
@@ -76,7 +78,7 @@ data Frame = DataFrame ByteString
            | GoAwayFrame LastStreamId ErrorCode ByteString
            | WindowUpdateFrame WindowSizeIncrement
            | ContinuationFrame HeaderBlockFragment
-           | UnknownFrame
+           | UnknownFrame ByteString
 
 settingIdToWord16 :: SettingID -> Word16
 settingIdToWord16 SettingHeaderTableSize      = 0x1
@@ -108,6 +110,30 @@ frameTypeFromWord8 k =
   where
     m = Map.fromList $ map (\f -> (frameTypeToWord8 f, f)) [minBound..maxBound]
 
+parseMap :: Map.Map FrameType FrameParser
+parseMap = Map.fromList
+    [ (FrameData, parseDataFrame)
+    , (FrameHeaders, parseHeadersFrame)
+    , (FramePriority, parsePriorityFrame)
+    , (FrameRSTStream, parseRstStreamFrame)
+    , (FrameSettings, parseSettingsFrame)
+    , (FramePushPromise, parsePushPromiseFrame)
+    , (FramePing, parsePingFrame)
+    , (FrameGoAway, parseGoAwayFrame)
+    , (FrameWindowUpdate, parseWindowUpdateFrame)
+    , (FrameContinuation, parseContinuationFrame)
+    , (FrameUnknown, parseUnknownFrame)
+    ]
+
+parseFrame :: B.Parser FullFrame
+parseFrame = do
+    header <- parseFrameHeader
+    frameParser <- case Map.lookup (fhType header) parseMap of
+        Nothing -> fail "Unable to locate parser for frame type"
+        Just fp -> return fp
+    frameBody <- frameParser header
+    return (header, frameBody)
+
 parseFrameHeader :: B.Parser FrameHeader
 parseFrameHeader = do
     a <- fromIntegral <$> BI.anyWord16be
@@ -123,6 +149,11 @@ parseRawFrame = do
     header <- parseFrameHeader
     payload <- B.take $ fromIntegral $ fhLength header
     return $ RawFrame header payload
+
+parseUnknownFrame :: FrameParser
+parseUnknownFrame header = B.take frameLen >>= return . UnknownFrame
+  where
+    frameLen = fromIntegral $ fhLength header
 
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the parser func
