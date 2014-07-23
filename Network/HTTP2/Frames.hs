@@ -16,30 +16,40 @@ import           Data.Word                  (Word16, Word32, Word8)
 
 import           Network.HTTP2.Errors       (ErrorCode, errorCodeFromWord32)
 
+-- Basic odd length HTTP/2 ints
 type Int24 = Int32
 type Int31 = Int32
-type RSTStreamErrorCode = Word32
-type HeaderBlockFragment = ByteString
-type StreamDependency = Int31
-type LastStreamId = Int31
-type PromisedStreamId = Int31
-type WindowSizeIncrement = Int31
-type Exclusive = Bool
-type Weight = Int
 
+-- Custom type aliases for HTTP/2 parts
+type RSTStreamErrorCode  = Word32
+type HeaderBlockFragment = ByteString
+type StreamDependency    = Int31
+type LastStreamId        = Int31
+type PromisedStreamId    = Int31
+type WindowSizeIncrement = Int31
+type Exclusive           = Bool
+type Weight              = Int
+
+-- Our basic FrameParser type
 type FrameParser = FrameHeader -> B.Parser Frame
 
+-- Valid settings map
 type SettingsMap = Map.Map SettingID Word32
 
+-- A full frame of the header with the frame contents
 type FullFrame = (FrameHeader, Frame)
 
+-- Valid SettingID's
 data SettingID = SettingHeaderTableSize
                | SettingEnablePush
                | SettingMaxConcurrentStreams
                | SettingInitialWindowSize
+               | SettingMaxFrameSize
+               | SettingMaxHeaderBlockSize
                | SettingUnknown
                deriving (Show, Eq, Ord, Enum, Bounded)
 
+-- Valid frame types
 data FrameType = FrameData
                | FrameHeaders
                | FramePriority
@@ -53,6 +63,7 @@ data FrameType = FrameData
                | FrameUnknown
                deriving (Show, Eq, Ord, Enum, Bounded)
 
+-- A complete frame header
 data FrameHeader = FrameHeader
     { fhType     :: FrameType
     , fhFlags    :: Word8
@@ -60,6 +71,8 @@ data FrameHeader = FrameHeader
     , fhStreamId :: Word32
     } deriving (Show, Eq)
 
+-- The raw frame is the header with the payload body, but not a parsed
+-- full frame
 data RawFrame = RawFrame
     { _frameHeader  :: FrameHeader
     , _framePayload :: ByteString
@@ -85,6 +98,8 @@ settingIdToWord16 SettingHeaderTableSize      = 0x1
 settingIdToWord16 SettingEnablePush           = 0x2
 settingIdToWord16 SettingMaxConcurrentStreams = 0x3
 settingIdToWord16 SettingInitialWindowSize    = 0x4
+settingIdToWord16 SettingMaxFrameSize         = 0x5
+settingIdToWord16 SettingMaxHeaderBlockSize   = 0x6
 
 settingIdFromWord16 :: Word16 -> SettingID
 settingIdFromWord16 k =
@@ -125,13 +140,12 @@ parseMap = Map.fromList
     , (FrameUnknown, parseUnknownFrame)
     ]
 
-parseFrame :: B.Parser FullFrame
-parseFrame = do
-    header <- parseFrameHeader
-    frameParser <- case Map.lookup (fhType header) parseMap of
+parseFrameBody :: RawFrame -> Either String FullFrame
+parseFrameBody (RawFrame header body) = do
+    fp <- case Map.lookup (fhType header) parseMap of
         Nothing -> fail "Unable to locate parser for frame type"
         Just fp -> return fp
-    frameBody <- frameParser header
+    frameBody <- B.parseOnly (fp header) body
     return (header, frameBody)
 
 parseFrameHeader :: B.Parser FrameHeader
