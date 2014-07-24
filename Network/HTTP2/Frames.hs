@@ -5,6 +5,7 @@ module Network.HTTP2.Frames
     ) where
 
 import           Control.Applicative        ((<$>))
+import           Control.Exception          (throw)
 import           Control.Monad              (replicateM, void, when)
 import qualified Data.Attoparsec.Binary     as BI
 import qualified Data.Attoparsec.ByteString as B
@@ -14,7 +15,8 @@ import           Data.Int                   (Int32)
 import qualified Data.Map                   as Map
 import           Data.Word                  (Word16, Word32, Word8)
 
-import           Network.HTTP2.Errors       (ErrorCode, errorCodeFromWord32)
+import           Network.HTTP2.Errors       (ErrorCode (..),
+                                             errorCodeFromWord32)
 
 -- Basic odd length HTTP/2 ints
 type Int24 = Int32
@@ -127,6 +129,42 @@ frameTypeFromWord8 k =
     Map.findWithDefault FrameUnknown k m
   where
     m = Map.fromList $ map (\f -> (frameTypeToWord8 f, f)) [minBound..maxBound]
+
+-- | Check the frame header against the settings to ensure that the length of the
+-- frame does not exceed our designated frame size (Section 4.2)
+checkHeaderLen :: SettingsMap -> FrameHeader -> Maybe ErrorCode
+checkHeaderLen settings (FrameHeader _ _ len _)
+    | len > maxFrameSize = Just FrameSizeError
+    | otherwise          = Nothing
+  where
+    minSize = round $ 2 ** 14
+    maxFrameSize =
+        fromIntegral $ Map.findWithDefault minSize SettingMaxFrameSize settings
+
+-- | Check the various types of frames for basic errors
+checkFrameErrors :: SettingsMap -> FrameHeader -> Maybe ErrorCode
+checkFrameErrors settings (FrameHeader ft flags len sid)
+    -- These frames must have a non-zero StreamID
+    -- (Sections 6.1, 6.2, 6.3, 6.4, 6.10)
+    | ft `elem` nonZeroFrameTypes && sid == 0   = Just ProtocolError
+    -- Settings/Pings/GoAway must use a StreamID of 0 (Section 6.5, 6.7, 6.8)
+    | ft `elem` zeroFrameTypes && sid /= 0      = Just ProtocolError
+    -- Push must be enabled for push frames (Section 6.6)
+    | ft == FramePushPromise && not pushEnabled = Just ProtocolError
+  where
+    zeroFrameTypes = [ FrameSettings
+                     , FramePing
+                     , FrameGoAway
+                     ]
+    nonZeroFrameTypes = [ FrameData
+                        , FrameHeaders
+                        , FramePriority
+                        , FrameRSTStream
+                        , FramePushPromise
+                        , FrameContinuation
+                        ]
+    pushEnabled = Map.findWithDefault 1 SettingEnablePush settings /= 0
+checkFrameErrors _ _ = Nothing
 
 parseMap :: Map.Map FrameType FrameParser
 parseMap = Map.fromList
