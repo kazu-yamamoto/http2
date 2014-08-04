@@ -66,7 +66,9 @@ data HeaderTable = HeaderTable {
   , headerTableSize :: !Size
   -- | The max header table size (defined in HPACK)
   , maxHeaderTableSize :: !Size
-  -- | Header-to-index
+  -- | Header to the index in Header Table for encoder.
+  --   Static Table is not included.
+  --   Nothing for decoder.
   , reverseIndex :: Maybe (HP.HashPSQ HIndex)
   }
 
@@ -81,7 +83,7 @@ printHeaderTable HeaderTable{..} = do
     es <- mapM (readArray circularTable . adj maxNumOfEntries) [beg .. end]
     let ts = zip [1..] es
     mapM_ printEntry ts
-    putStrLn $ "      Table size: " ++ show headerTableSize
+    putStrLn $ "      Table size: " ++ show headerTableSize ++ "/" ++ show maxHeaderTableSize
     print reverseIndex
   where
     beg = offset + 1
@@ -109,6 +111,7 @@ data HeaderCache = None
 
 ----------------------------------------------------------------
 
+-- Physical array index for Header Table.
 newtype HIndex = HIndex Int deriving (Eq, Ord, Show)
 
 ----------------------------------------------------------------
@@ -116,20 +119,18 @@ newtype HIndex = HIndex Int deriving (Eq, Ord, Show)
 fromHIndexToIndex :: HeaderTable -> HIndex -> Index
 fromHIndexToIndex HeaderTable{..} (HIndex hidx) = idx
   where
-    idx = adj maxNumOfEntries (maxNumOfEntries + hidx - offset)
+    idx = adj maxNumOfEntries (hidx - offset) + staticTableSize
 
 fromIndexToHIndex :: HeaderTable -> Index -> HIndex
 fromIndexToHIndex HeaderTable{..} idx = HIndex hidx
   where
-    hidx = adj maxNumOfEntries (offset + idx)
+    hidx = adj maxNumOfEntries (idx + offset - staticTableSize)
 
 fromSIndexToIndex :: HeaderTable -> SIndex -> Index
-fromSIndexToIndex HeaderTable{..} sidx = fromStaticIndex sidx + numOfEntries
+fromSIndexToIndex _ sidx = fromStaticIndex sidx
 
 fromIndexToSIndex :: HeaderTable -> Index -> SIndex
-fromIndexToSIndex HeaderTable{..} idx = toStaticIndex sidx
-  where
-    sidx = idx - numOfEntries
+fromIndexToSIndex _ idx = toStaticIndex idx
 
 ----------------------------------------------------------------
 
@@ -161,23 +162,16 @@ newHeaderTable maxsiz mhp = do
     maxN = maxNumbers maxsiz
     end = maxN - 1
 
-renewHeaderTable :: Size -> HeaderTable -> IO (HeaderTable, Int)
-renewHeaderTable maxsiz oldhdrtbl = do
-    putStrLn $ "numOfEntries oldhdrtbl: " ++ show (numOfEntries oldhdrtbl)
-    hdrtbl <- newHeaderTable maxsiz mhp
-    newhdrtbl <- copyTable oldhdrtbl hdrtbl
-    putStrLn $ "numOfEntries newhdrtbl: " ++ show (numOfEntries newhdrtbl)
-    return (newhdrtbl, numOfEntries newhdrtbl)
+renewHeaderTable :: Size -> HeaderTable -> IO HeaderTable
+renewHeaderTable maxsiz oldhdrtbl =
+    newHeaderTable maxsiz mhp >>= copyTable oldhdrtbl
   where
     mhp = case reverseIndex oldhdrtbl of
         Nothing -> Nothing
         _       -> Just HP.empty
 
 copyTable :: HeaderTable -> HeaderTable -> IO HeaderTable
-copyTable oldhdrtbl newhdrtbl = do
-    ents <- getEntries oldhdrtbl
-    putStrLn $ "length of entries: " ++ show (length ents)
-    copyEntries newhdrtbl ents
+copyTable oldhdrtbl newhdrtbl = getEntries oldhdrtbl >>= copyEntries newhdrtbl
 
 getEntries :: HeaderTable -> IO [Entry]
 getEntries HeaderTable{..} = forM [1 .. numOfEntries] readTable
@@ -201,13 +195,13 @@ shouldRenew HeaderTable{..} maxsiz = maxHeaderTableSize /= maxsiz
 --   New 'HeaderTable', the largest new 'Index'
 --   and a set of dropped OLD 'Index'
 --   are returned.
-insertEntry :: Entry -> HeaderTable -> IO (HeaderTable,Index,[Index])
+insertEntry :: Entry -> HeaderTable -> IO HeaderTable
 insertEntry e hdrtbl = do
-    (hdrtbl', is, hs) <- insertFront e hdrtbl >>= adjustTableSize
+    (hdrtbl', hs) <- insertFront e hdrtbl >>= adjustTableSize
     let hdrtbl'' = case reverseIndex hdrtbl' of
             Nothing  -> hdrtbl'
             Just rev -> hdrtbl' { reverseIndex = Just (HP.deleteList hs rev) }
-    return (hdrtbl'', numOfEntries hdrtbl'', is)
+    return hdrtbl''
 
 insertFront :: Entry -> HeaderTable -> IO HeaderTable
 insertFront e hdrtbl@HeaderTable{..} = do
@@ -226,15 +220,15 @@ insertFront e hdrtbl@HeaderTable{..} = do
         Nothing  -> Nothing
         Just rev -> Just $ HP.insert (entryHeader e) (HIndex i) rev
 
-adjustTableSize :: HeaderTable -> IO (HeaderTable, [Index], [Header])
-adjustTableSize hdrtbl = adjust hdrtbl [] []
+adjustTableSize :: HeaderTable -> IO (HeaderTable, [Header])
+adjustTableSize hdrtbl = adjust hdrtbl []
 
-adjust :: HeaderTable -> [Index] -> [Header] -> IO (HeaderTable, [Index], [Header])
-adjust hdrtbl is hs
-  | tsize <= maxtsize = return (hdrtbl, is, hs)
+adjust :: HeaderTable -> [Header] -> IO (HeaderTable, [Header])
+adjust hdrtbl hs
+  | tsize <= maxtsize = return (hdrtbl, hs)
   | otherwise         = do
-      (hdrtbl', i, h) <- removeEnd hdrtbl
-      adjust hdrtbl' (i:is) (h:hs)
+      (hdrtbl', h) <- removeEnd hdrtbl
+      adjust hdrtbl' (h:hs)
   where
     tsize = headerTableSize hdrtbl
     maxtsize = maxHeaderTableSize hdrtbl
@@ -251,15 +245,14 @@ insertEnd e hdrtbl@HeaderTable{..} = do
       }
   where
     i = adj maxNumOfEntries (offset + numOfEntries + 1)
-    hi = numOfEntries + 1
     headerTableSize' = headerTableSize + entrySize e
     reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
-        Just rev -> Just $ HP.insert (entryHeader e) (HIndex hi) rev
+        Just rev -> Just $ HP.insert (entryHeader e) (HIndex i) rev
 
 ----------------------------------------------------------------
 
-removeEnd :: HeaderTable -> IO (HeaderTable,Index,Header)
+removeEnd :: HeaderTable -> IO (HeaderTable,Header)
 removeEnd hdrtbl@HeaderTable{..} = do
     let i = adj maxNumOfEntries (offset + numOfEntries)
     e <- readArray circularTable i
@@ -270,27 +263,28 @@ removeEnd hdrtbl@HeaderTable{..} = do
             numOfEntries = numOfEntries - 1
           , headerTableSize = tsize
           }
-    return (hdrtbl', numOfEntries - 1, h)
+    return (hdrtbl', h)
 
 ----------------------------------------------------------------
 
 lookupTable :: Header -> HeaderTable -> HeaderCache
-lookupTable h hdrtbl = case mrev of
+lookupTable h hdrtbl = case reverseIndex hdrtbl of
     Nothing            -> None
     Just rev -> case HP.search h rev of
         HP.N -> case HP.search h staticHashPSQ of
             HP.N       -> None
             HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
             HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
-        HP.K  hidx     -> KeyOnly  InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+        HP.K hidx -> case HP.search h staticHashPSQ of
+            HP.N       -> KeyOnly  InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+            HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
+            HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
         HP.KV hidx     -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
-  where
-    mrev = reverseIndex hdrtbl
 
 ----------------------------------------------------------------
 
 isIn :: Int -> HeaderTable -> Bool
-isIn idx HeaderTable{..} = idx <= numOfEntries
+isIn idx HeaderTable{..} = idx > staticTableSize
 
 -- | Which table does 'Index' belong to?
 which :: HeaderTable -> Index -> IO (WhichTable, Entry)

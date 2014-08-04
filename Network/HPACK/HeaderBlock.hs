@@ -4,6 +4,7 @@ module Network.HPACK.HeaderBlock (
   -- * Header block from/to Low level
   , toByteStream
   , fromByteStream
+  , fromByteStreamDebug
   -- * Header block from/to header set
   , toHeaderBlock
   , fromHeaderBlock

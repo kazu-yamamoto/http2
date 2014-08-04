@@ -19,7 +19,6 @@ Library
                         Network.HPACK.Builder.Word8
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderSet
-                        Network.HPACK.Context.ReferenceSet
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit
                         Network.HPACK.Huffman.ByteString

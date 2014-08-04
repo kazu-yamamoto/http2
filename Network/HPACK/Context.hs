@@ -7,19 +7,10 @@ module Network.HPACK.Context (
   , changeContextForDecoding
   , DecodeError(..)
   , printContext
-  -- * Initialization and final results
-  , emitNotEmittedForEncoding
-  , emitNotEmittedForDecoding
   -- * Processing
-  , clearRefSets
-  , removeRef
   , newEntryForEncoding
   , newEntryForDecoding
-  , pushRef
   -- * Auxiliary functions
-  , isPresentIn
-  , Sequence(..)
-  , checkAndUpdate
   , getEntry
   -- * Table
   , whichTable
@@ -28,7 +19,6 @@ module Network.HPACK.Context (
 
 import Control.Applicative ((<$>))
 import Network.HPACK.Context.HeaderSet
-import Network.HPACK.Context.ReferenceSet
 import Network.HPACK.Table
 import Network.HPACK.Types
 
@@ -38,118 +28,43 @@ import Network.HPACK.Types
 --   This is destructive!
 data Context = Context {
     headerTable  :: !HeaderTable -- ^ A cache of headers
-  , referenceSet :: ReferenceSet -- ^ Reference set
   }
 
 -- | Printing 'Context'
 printContext :: Context -> IO ()
-printContext (Context hdrtbl refs) = do
+printContext (Context hdrtbl) = do
     putStrLn "<<<Header table>>>"
     printHeaderTable hdrtbl
     putStr "\n"
-    putStrLn "<<<Reference set>>>"
-    print refs
 
 ----------------------------------------------------------------
 
 -- | Creating a new 'Context'.
 --   The first argument is the size of a header table.
 newContextForEncoding :: Size -> IO Context
-newContextForEncoding maxsiz = do
-    hdrtbl <- newHeaderTableForEncoding maxsiz
-    return $ Context hdrtbl emptyReferenceSet
+newContextForEncoding maxsiz = Context <$> newHeaderTableForEncoding maxsiz
 
 -- | Creating a new 'Context'.
 --   The first argument is the size of a header table.
 newContextForDecoding :: Size -> IO Context
-newContextForDecoding maxsiz = do
-    hdrtbl <- newHeaderTableForDecoding maxsiz
-    return $ Context hdrtbl emptyReferenceSet
+newContextForDecoding maxsiz = Context <$> newHeaderTableForDecoding maxsiz
 
 changeContextForDecoding :: Context -> Size -> IO Context
-changeContextForDecoding ctx@(Context hdrtbl refs) siz
-  | shouldRenew hdrtbl siz = do
-    (hdrtbl',n) <- renewHeaderTable siz hdrtbl
-    let refs' = restrictIndices n refs
-    return $ Context hdrtbl' refs'
-  | otherwise = return ctx
+changeContextForDecoding ctx@(Context hdrtbl) siz
+  | shouldRenew hdrtbl siz = Context <$> renewHeaderTable siz hdrtbl
+  | otherwise              = return ctx
 
 ----------------------------------------------------------------
 
--- | The reference set is emptied.
-clearRefSets :: Context -> Context
-clearRefSets ctx = ctx {
-    referenceSet = emptyReferenceSet
-  }
-
--- | The entry is removed from the reference set.
-removeRef :: Context -> Index -> Context
-removeRef (Context hdrtbl refs) idx = ctx
-  where
-    refs' = removeIndex idx refs
-    ctx = Context hdrtbl refs'
-
 -- | The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
-newEntryForEncoding :: Context -> Entry -> IO ([Index],Context)
-newEntryForEncoding (Context hdrtbl refs) e = do
-    (hdrtbl', i, is) <- insertEntry e hdrtbl
-    let ns = getCommon is refs
-        refs' = addIndex 1 $ restrictIndices i $ adjustReferenceSet refs
-        ctx = Context hdrtbl' refs'
-    return (ns, ctx)
+newEntryForEncoding :: Context -> Entry -> IO Context
+newEntryForEncoding (Context hdrtbl) e = Context <$> insertEntry e hdrtbl
 
 -- | The header field is inserted at the beginning of the header table.
 --   A reference to the new entry is added to the reference set.
 newEntryForDecoding :: Context -> Entry -> IO Context
-newEntryForDecoding (Context hdrtbl refs) e = do
-    (hdrtbl', i, _) <- insertEntry e hdrtbl
-    let refs' = addIndex 1 $ restrictIndices i $ adjustReferenceSet refs
-    return $ Context hdrtbl' refs'
-
--- | The referenced header table entry is added to the reference set.
-pushRef :: Context -> Index -> Context
-pushRef (Context hdrtbl refs) idx = ctx
-  where
-    -- isPresentIn ensures that idx does not exist in
-    -- newref and oldref.
-    refs' = addIndex idx refs
-    ctx = Context hdrtbl refs'
-
-----------------------------------------------------------------
-
--- | Emitting non-emitted headers.
-emitNotEmittedForEncoding :: Context -> IO ([Index],Context)
-emitNotEmittedForEncoding (Context hdrtbl refs) = do
-    let (removedIndces,refs') = renewForEncoding refs
-        ctx' = Context hdrtbl refs'
-    return (removedIndces, ctx')
-
--- | Emitting non-emitted headers.
-emitNotEmittedForDecoding :: Context -> IO (HeaderSet,Context)
-emitNotEmittedForDecoding ctx@(Context hdrtbl refs) = do
-    hs <- getNotEmitted ctx
-    let refs' = renewForDecoding refs
-        ctx'  = Context hdrtbl refs'
-    return (hs,ctx')
-
-getNotEmitted :: Context -> IO HeaderSet
-getNotEmitted ctx = do
-    let is = getNotEmittedIndices $ referenceSet ctx
-        hdrtbl = headerTable ctx
-    map (fromEntry . snd) <$> mapM (which hdrtbl) is
-
-----------------------------------------------------------------
-
--- | Is 'Index' present in the reference set?
-isPresentIn :: Index -> Context -> Bool
-isPresentIn idx ctx = idx `isMember` referenceSet ctx
-
-checkAndUpdate :: Index -> Context -> (Sequence, Context)
-checkAndUpdate idx ctx = (s, ctx')
-  where
-    (s,refs') = lookupAndUpdate idx $ referenceSet ctx
-    ctx' = ctx { referenceSet = refs' }
+newEntryForDecoding (Context hdrtbl) e = Context <$> insertEntry e hdrtbl
 
 ----------------------------------------------------------------
 

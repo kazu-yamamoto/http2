@@ -8,6 +8,7 @@ module HPACKDecode (
   , CompressionAlgo(..)
   ) where
 
+import Control.Applicative ((<$>))
 import Control.Exception
 import Control.Monad (when)
 import qualified Data.ByteString.Char8 as B8
@@ -60,7 +61,7 @@ test conf c dctx = do
         putStrLn "---- Input Hex"
         B8.putStrLn hex
         putStrLn "---- Input header block"
-        print hd
+        print bshd'
     dctx0 <- case size c of
         Nothing  -> return dctx
         Just siz -> changeContextForDecoding dctx siz
@@ -77,4 +78,6 @@ test conf c dctx = do
     hex = wire c
     inp = fromHexString hex
     hs = headers c
-    hd = fromByteStream inp
+    bshd = fromByteStreamDebug inp
+    hd = map snd <$> bshd
+    bshd' = map (\(x,y)->(toHexString x,y)) <$> bshd

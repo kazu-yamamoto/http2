@@ -23,7 +23,6 @@ toByteStream huff hbs = BB.toByteString $ foldl' (<>) mempty $ map toBB hbs
     toBB = fromHeaderField huff
 
 fromHeaderField :: Bool -> HeaderField -> Builder
-fromHeaderField _    Clear                        = clear
 fromHeaderField _    (ChangeTableSize siz)        = change siz
 fromHeaderField _    (Indexed idx)                = index idx
 fromHeaderField huff (Literal Add    (Idx idx) v) = indexedName huff 6 set01 idx v
@@ -35,13 +34,10 @@ fromHeaderField huff (Literal Never (Lit key) v)  = newName     huff set0001 key
 
 ----------------------------------------------------------------
 
-clear :: Builder
-clear = BB.fromWord8s [48]
-
 change :: Int -> Builder
 change i = BB.fromWord8s (w':ws)
   where
-    (w:ws) = I.encode 4 i
+    (w:ws) = I.encode 5 i
     w' = set001 w
 
 index :: Int -> Builder

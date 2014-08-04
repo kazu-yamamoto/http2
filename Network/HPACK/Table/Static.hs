@@ -7,6 +7,7 @@ module Network.HPACK.Table.Static (
   , isSIndexValid
   , toStaticEntry
   , staticHashPSQ
+  , staticTableSize -- fixme
   ) where
 
 import Data.Array (Array, listArray, (!))
@@ -30,10 +31,12 @@ isSIndexValid (SIndex sidx) = 1 <= sidx && sidx <= staticTableSize
 
 -- | The size of static table.
 staticTableSize :: Size
-staticTableSize = 60
+staticTableSize = length staticTableList
 
 -- | Get 'Entry' from the static table.
 --
+-- >>> toStaticEntry (SIndex 1)
+-- (42,(":authority",""))
 -- >>> toStaticEntry (SIndex 8)
 -- (42,(":status","200"))
 -- >>> toStaticEntry (SIndex 50)
@@ -43,7 +46,7 @@ toStaticEntry (SIndex sidx) = staticTable ! sidx
 
 -- | Pre-defined static table.
 staticTable :: Array Index Entry
-staticTable = listArray (1,60) $ map toEntry staticTableList
+staticTable = listArray (1,staticTableSize) $ map toEntry staticTableList
 
 staticHashPSQ :: HP.HashPSQ SIndex
 staticHashPSQ = HP.fromList alist

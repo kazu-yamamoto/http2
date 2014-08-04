@@ -14,7 +14,7 @@ import Control.Monad
 import Types
 
 hdir :: FilePath
-hdir = "test-hpack/hpack-test-case/haskell-http2"
+hdir = "test-hpack/hpack-test-case/nghttp2"
 
 wdir1 :: FilePath
 wdir1 = "test-hpack/hpack-test-case/haskell-http2-naive"
@@ -23,16 +23,17 @@ wdir2 :: FilePath
 wdir2 = "test-hpack/hpack-test-case/haskell-http2-naive-huffman"
 
 wdir3 :: FilePath
-wdir3 = "test-hpack/hpack-test-case/haskell-http2-linear"
+wdir3 = "test-hpack/hpack-test-case/haskell-http2-static"
 
 wdir4 :: FilePath
-wdir4 = "test-hpack/hpack-test-case/haskell-http2-linear-huffman"
+wdir4 = "test-hpack/hpack-test-case/haskell-http2-static-huffman"
 
 wdir5 :: FilePath
-wdir5 = "test-hpack/hpack-test-case/haskell-http2-diff"
+wdir5 = "test-hpack/hpack-test-case/haskell-http2-linear"
 
 wdir6 :: FilePath
-wdir6 = "test-hpack/hpack-test-case/haskell-http2-diff-huffman"
+wdir6 = "test-hpack/hpack-test-case/haskell-http2-linear-huffman"
+
 
 
 main :: IO ()
