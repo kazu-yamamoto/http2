@@ -16,15 +16,15 @@ import Network.HPACK.Table
 type Ctx = (Context, Builder Header)
 type Step = Ctx -> HeaderField -> IO Ctx
 
--- | Decoding 'HeaderBlock' to 'HeaderSet'.
+-- | Decoding 'HeaderBlock' to 'HeaderList'.
 fromHeaderBlock :: Context
                 -> HeaderBlock
-                -> IO (Context, HeaderSet)
+                -> IO (Context, HeaderList)
 fromHeaderBlock !ctx rs = decodeLoop rs (ctx,empty)
 
 ----------------------------------------------------------------
 
-decodeLoop :: HeaderBlock -> Ctx -> IO (Context, HeaderSet)
+decodeLoop :: HeaderBlock -> Ctx -> IO (Context, HeaderList)
 decodeLoop (r:rs) !ctx = decodeStep ctx r >>= decodeLoop rs
 decodeLoop []     !ctx = decodeFinal ctx
 
@@ -62,7 +62,7 @@ decodeStep (!ctx,!builder) (Literal Add naming v) = do
     c <- newEntryForDecoding ctx e
     return (c,b)
 
-decodeFinal :: Ctx -> IO (Context, HeaderSet)
+decodeFinal :: Ctx -> IO (Context, HeaderList)
 decodeFinal (!ctx, !builder) = return (ctx, run builder)
 
 ----------------------------------------------------------------

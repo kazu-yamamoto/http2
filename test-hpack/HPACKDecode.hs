@@ -15,7 +15,7 @@ import qualified Data.ByteString.Char8 as B8
 import Data.List (sort)
 import Network.HPACK
 import Network.HPACK.Context
-import Network.HPACK.Context.HeaderSet
+import Network.HPACK.Context.HeaderList
 import Network.HPACK.HeaderBlock
 
 import HexString
@@ -54,8 +54,8 @@ test conf c dctx = do
     -- context is destructive!!!
     when (debug conf) $ do
         putStrLn "--------------------------------"
-        putStrLn "---- Input headerset"
-        printHeaderSet $ sort hs
+        putStrLn "---- Input headerlist"
+        printHeaderList $ sort hs
         putStrLn "---- Input context"
         printContext dctx
         putStrLn "---- Input Hex"

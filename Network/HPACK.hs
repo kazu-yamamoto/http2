@@ -1,4 +1,4 @@
--- | HPACK: encoding and decoding a header set.
+-- | HPACK: encoding and decoding a header list.
 module Network.HPACK (
   -- * Encoding and decoding
     HPACKEncoding
@@ -16,7 +16,7 @@ module Network.HPACK (
   -- * Errors for decoding
   , DecodeError(..)
   -- * Headers
-  , HeaderSet
+  , HeaderList
   , Header
   , HeaderName
   , HeaderValue
@@ -29,29 +29,29 @@ module Network.HPACK (
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Exception (throwIO)
-import Network.HPACK.Context (Context, newContextForEncoding, newContextForDecoding, HeaderSet)
+import Network.HPACK.Context (Context, newContextForEncoding, newContextForDecoding, HeaderList)
 import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteStream, fromByteStream)
 import Network.HPACK.Table (Size)
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | HPACK encoding, from 'HeaderSet' to 'ByteStream'.
-type HPACKEncoding = Context -> HeaderSet  -> IO (Context, ByteStream)
+-- | HPACK encoding, from 'HeaderList' to 'ByteStream'.
+type HPACKEncoding = Context -> HeaderList  -> IO (Context, ByteStream)
 
--- | HPACK decoding, from 'ByteStream' to 'HeaderSet'.
-type HPACKDecoding = Context -> ByteStream -> IO (Context, HeaderSet)
+-- | HPACK decoding, from 'ByteStream' to 'HeaderList'.
+type HPACKDecoding = Context -> ByteStream -> IO (Context, HeaderList)
 
 ----------------------------------------------------------------
 
--- | Converting 'HeaderSet' for HTTP request to the low level format.
+-- | Converting 'HeaderList' for HTTP request to the low level format.
 encodeHeader :: EncodeStrategy -> HPACKEncoding
 encodeHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBS = toByteStream (useHuffman stgy)
 
--- | Converting the low level format for HTTP request to 'HeaderSet'.
+-- | Converting the low level format for HTTP request to 'HeaderList'.
 --   'DecodeError' would be thrown.
 decodeHeader :: HPACKDecoding
 decodeHeader ctx bs = either throwIO (fromHeaderBlock ctx) ehb

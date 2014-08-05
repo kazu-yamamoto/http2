@@ -18,7 +18,7 @@ d41 = [
   , Literal Add (Idx 1) "www.example.com"
   ]
 
-d41h :: HeaderSet
+d41h :: HeaderList
 d41h = [(":method","GET")
        ,(":scheme","http")
        ,(":path","/")
@@ -37,7 +37,7 @@ d42 = [
   , Literal Add (Idx 24) "no-cache"
   ]
 
-d42h :: HeaderSet
+d42h :: HeaderList
 d42h = [(":method","GET")
        ,(":scheme","http")
        ,(":path","/")
@@ -56,7 +56,7 @@ d43 = [
   , Literal Add (Lit "custom-key") "custom-value"
   ]
 
-d43h :: HeaderSet
+d43h :: HeaderList
 d43h = [(":method","GET")
        ,(":scheme","https")
        ,(":path","/index.html")
@@ -77,7 +77,7 @@ d61 = [
   , Literal Add (Idx 46) "https://www.example.com"
   ]
 
-d61h :: HeaderSet
+d61h :: HeaderList
 d61h = [(":status","302")
        ,("cache-control","private")
        ,("date","Mon, 21 Oct 2013 20:13:21 GMT")
@@ -95,7 +95,7 @@ d62 = [
   , Indexed 63
   ]
 
-d62h :: HeaderSet
+d62h :: HeaderList
 d62h = [(":status","307")
        ,("cache-control","private")
        ,("date","Mon, 21 Oct 2013 20:13:21 GMT")
@@ -115,7 +115,7 @@ d63 = [
   ,Literal Add (Idx 55) "foo=ASDJKHQKBZXOQWEOPIUAXQWEOIU; max-age=3600; version=1"
   ]
 
-d63h :: HeaderSet
+d63h :: HeaderList
 d63h = [(":status","200")
        ,("cache-control","private")
        ,("date","Mon, 21 Oct 2013 20:13:22 GMT")

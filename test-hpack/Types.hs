@@ -4,7 +4,7 @@
 module Types (
     Test(..)
   , Case(..)
-  , HeaderSet
+  , HeaderList
   ) where
 
 import Control.Applicative
@@ -39,7 +39,7 @@ data Test = Test {
 data Case = Case {
     size :: Maybe Int
   , wire :: ByteString
-  , headers :: HeaderSet
+  , headers :: HeaderList
   , seqno :: Maybe Int
   } deriving Show
 
@@ -73,11 +73,11 @@ instance ToJSON Case where
                                               ,"seqno" .= no
                                               ]
 
-instance FromJSON HeaderSet where
+instance FromJSON HeaderList where
     parseJSON (Array a) = mapM parseJSON $ V.toList a
     parseJSON _         = mzero
 
-instance ToJSON HeaderSet where
+instance ToJSON HeaderList where
     toJSON hs = toJSON $ map toJSON hs
 
 instance FromJSON Header where

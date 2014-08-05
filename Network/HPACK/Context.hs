@@ -1,6 +1,6 @@
 module Network.HPACK.Context (
   -- * Types
-    HeaderSet   -- re-exporting
+    HeaderList   -- re-exporting
   , Context
   , newContextForEncoding
   , newContextForDecoding
@@ -18,7 +18,7 @@ module Network.HPACK.Context (
   ) where
 
 import Control.Applicative ((<$>))
-import Network.HPACK.Context.HeaderSet
+import Network.HPACK.Context.HeaderList
 import Network.HPACK.Table
 import Network.HPACK.Types
 

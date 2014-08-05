@@ -13,10 +13,10 @@ import Network.HPACK.Types
 type Ctx = (Context, Builder HeaderField)
 type Step = Ctx -> Header -> IO Ctx
 
--- | Encoding 'HeaderSet' to 'HeaderBlock'.
+-- | Encoding 'HeaderList' to 'HeaderBlock'.
 toHeaderBlock :: CompressionAlgo
               -> Context
-              -> HeaderSet
+              -> HeaderList
               -> IO (Context, HeaderBlock)
 toHeaderBlock Naive  !ctx hs = encodeLoop naiveStep  hs (ctx,empty)
 toHeaderBlock Static !ctx hs = encodeLoop staticStep hs (ctx,empty)
@@ -28,7 +28,7 @@ encodeFinal :: Ctx -> IO (Context, HeaderBlock)
 encodeFinal (!ctx, !builder) = return (ctx, run builder)
 
 encodeLoop :: Step
-           -> HeaderSet
+           -> HeaderList
            -> Ctx
            -> IO (Context, HeaderBlock)
 encodeLoop step (h:hs) !ctx = step ctx h >>= encodeLoop step hs

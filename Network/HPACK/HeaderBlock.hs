@@ -5,7 +5,7 @@ module Network.HPACK.HeaderBlock (
   , toByteStream
   , fromByteStream
   , fromByteStreamDebug
-  -- * Header block from/to header set
+  -- * Header block from/to header list
   , toHeaderBlock
   , fromHeaderBlock
   ) where
