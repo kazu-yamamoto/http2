@@ -5,12 +5,12 @@ module Network.HPACK.Table (
     HeaderTable
   , newHeaderTableForEncoding
   , newHeaderTableForDecoding
+  , shouldRenew
   , renewHeaderTable
   , printHeaderTable
-  , shouldRenew
   -- * Insertion
   , insertEntry
-  -- * Lookup
+  -- * Header to index
   , HeaderCache(..)
   , lookupTable
   -- * Entry
@@ -105,6 +105,7 @@ printEntry (i,e) = do
 -- | Which table does `Index` refer to?
 data WhichTable = InHeaderTable | InStaticTable deriving (Eq,Show)
 
+-- | Is header key-value stored in the tables?
 data HeaderCache = None
                  | KeyOnly WhichTable Index
                  | KeyValue WhichTable Index deriving Show
@@ -162,6 +163,7 @@ newHeaderTable maxsiz mhp = do
     maxN = maxNumbers maxsiz
     end = maxN - 1
 
+-- | Renewing 'HeaderTable' with necessary entries copied.
 renewHeaderTable :: Size -> HeaderTable -> IO HeaderTable
 renewHeaderTable maxsiz oldhdrtbl =
     newHeaderTable maxsiz mhp >>= copyTable oldhdrtbl
@@ -186,6 +188,7 @@ copyEntries hdrtbl@HeaderTable{..} (e:es)
       copyEntries hdrtbl' es
   | otherwise = return hdrtbl
 
+-- | Is the size of 'HeaderTable' really changed?
 shouldRenew :: HeaderTable -> Size -> Bool
 shouldRenew HeaderTable{..} maxsiz = maxHeaderTableSize /= maxsiz
 
@@ -267,6 +270,7 @@ removeEnd hdrtbl@HeaderTable{..} = do
 
 ----------------------------------------------------------------
 
+-- | Resolving an index from a header.
 lookupTable :: Header -> HeaderTable -> HeaderCache
 lookupTable h hdrtbl = case reverseIndex hdrtbl of
     Nothing            -> None

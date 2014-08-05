@@ -15,8 +15,7 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
---  Other-Modules:        Network.HPACK.Builder
-                        Network.HPACK.Builder
+  Other-Modules:        Network.HPACK.Builder
                         Network.HPACK.Builder.Word8
                         Network.HPACK.Context
                         Network.HPACK.Context.HeaderList

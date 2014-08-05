@@ -25,6 +25,8 @@ fromByteStream inp = go inp empty
         (hf, bs') <- toHeaderField bs
         go bs' (builder << hf)
 
+-- | Converting the low level format to 'HeaderBlock'.
+--   'HeaderBlock' forms a pair with corresponding 'ByteString'.
 fromByteStreamDebug :: ByteStream -> Either DecodeError [(ByteString,HeaderField)]
 fromByteStreamDebug inp = go inp empty
   where

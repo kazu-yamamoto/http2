@@ -49,6 +49,7 @@ newContextForEncoding maxsiz = Context <$> newHeaderTableForEncoding maxsiz
 newContextForDecoding :: Size -> IO Context
 newContextForDecoding maxsiz = Context <$> newHeaderTableForDecoding maxsiz
 
+-- | Changing the size of Header Table in 'Context'.
 changeContextForDecoding :: Context -> Size -> IO Context
 changeContextForDecoding ctx@(Context hdrtbl) siz
   | shouldRenew hdrtbl siz = Context <$> renewHeaderTable siz hdrtbl

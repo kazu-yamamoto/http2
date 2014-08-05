@@ -74,9 +74,10 @@ entryHeaderValue (_,(_,v)) = v
 
 ----------------------------------------------------------------
 
--- | Dummy 'Entry' to initialize a table.
+-- | Dummy 'Entry' to initialize a header table.
 dummyEntry :: Entry
 dummyEntry = (0,("dummy","dummy"))
 
+-- | How many entries can be stored in a header table?
 maxNumbers :: Size -> Int
 maxNumbers siz = siz `div` headerSizeMagicNumber
