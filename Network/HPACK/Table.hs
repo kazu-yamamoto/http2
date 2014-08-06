@@ -271,19 +271,25 @@ removeEnd hdrtbl@HeaderTable{..} = do
 ----------------------------------------------------------------
 
 -- | Resolving an index from a header.
+--   Static table is prefer to header table.
 lookupTable :: Header -> HeaderTable -> HeaderCache
 lookupTable h hdrtbl = case reverseIndex hdrtbl of
     Nothing            -> None
     Just rev -> case HP.search h rev of
-        HP.N -> case HP.search h staticHashPSQ of
+        HP.N       -> case mstatic of
             HP.N       -> None
             HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
             HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
-        HP.K hidx -> case HP.search h staticHashPSQ of
+        HP.K hidx  -> case mstatic of
             HP.N       -> KeyOnly  InHeaderTable (fromHIndexToIndex hdrtbl hidx)
             HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
             HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
-        HP.KV hidx     -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+        HP.KV hidx -> case mstatic of
+            HP.N       -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+            HP.K  _    -> KeyValue InHeaderTable (fromHIndexToIndex hdrtbl hidx)
+            HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+  where
+    mstatic = HP.search h staticHashPSQ
 
 ----------------------------------------------------------------
 
