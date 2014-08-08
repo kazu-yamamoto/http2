@@ -8,13 +8,14 @@ module HPACKDecode (
   , CompressionAlgo(..)
   ) where
 
+import Control.Applicative ((<$>))
 import Control.Exception
 import Control.Monad (when)
 import qualified Data.ByteString.Char8 as B8
 import Data.List (sort)
 import Network.HPACK
 import Network.HPACK.Context
-import Network.HPACK.Context.HeaderSet
+import Network.HPACK.Context.HeaderList
 import Network.HPACK.HeaderBlock
 
 import HexString
@@ -53,14 +54,14 @@ test conf c dctx = do
     -- context is destructive!!!
     when (debug conf) $ do
         putStrLn "--------------------------------"
-        putStrLn "---- Input headerset"
-        printHeaderSet $ sort hs
+        putStrLn "---- Input headerlist"
+        printHeaderList $ sort hs
         putStrLn "---- Input context"
         printContext dctx
         putStrLn "---- Input Hex"
         B8.putStrLn hex
         putStrLn "---- Input header block"
-        print hd
+        print bshd'
     dctx0 <- case size c of
         Nothing  -> return dctx
         Just siz -> changeContextForDecoding dctx siz
@@ -77,4 +78,6 @@ test conf c dctx = do
     hex = wire c
     inp = fromHexString hex
     hs = headers c
-    hd = fromByteStream inp
+    bshd = fromByteStreamDebug inp
+    hd = map snd <$> bshd
+    bshd' = map (\(x,y)->(toHexString x,y)) <$> bshd

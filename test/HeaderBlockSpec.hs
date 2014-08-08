@@ -28,6 +28,7 @@ spec = do
             fromByteStream d61b `shouldBe` Right d61
             fromByteStream d62b `shouldBe` Right d62
             fromByteStream d63b `shouldBe` Right d63
+
     describe "toByteStream & fromByteStream" $ do
         prop "duality for request" $ \k v -> do
             let key = BS.pack ('k':k)

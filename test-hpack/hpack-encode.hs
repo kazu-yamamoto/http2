@@ -15,7 +15,7 @@ main :: IO ()
 main = do
     args <- getArgs
     when (length args /= 3) $ do
-        hPutStrLn stderr "hpack-encode on/off naive|linear|diff <desc>"
+        hPutStrLn stderr "hpack-encode on/off naive|linear <desc>"
         exitFailure
     let [arg1,arg2,desc] = args
         huffman
@@ -24,8 +24,7 @@ main = do
         algo
           | arg2 == "naive"  = Naive
           | arg2 == "static" = Static
-          | arg2 == "linear" = Linear
-          | otherwise        = Diff
+          | otherwise        = Linear
         stgy = EncodeStrategy algo huffman
     hpackEncode stgy desc
 

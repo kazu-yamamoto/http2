@@ -16,15 +16,15 @@ import Network.HPACK.Table
 type Ctx = (Context, Builder Header)
 type Step = Ctx -> HeaderField -> IO Ctx
 
--- | Decoding 'HeaderBlock' to 'HeaderSet'.
+-- | Decoding 'HeaderBlock' to 'HeaderList'.
 fromHeaderBlock :: Context
                 -> HeaderBlock
-                -> IO (Context, HeaderSet)
+                -> IO (Context, HeaderList)
 fromHeaderBlock !ctx rs = decodeLoop rs (ctx,empty)
 
 ----------------------------------------------------------------
 
-decodeLoop :: HeaderBlock -> Ctx -> IO (Context, HeaderSet)
+decodeLoop :: HeaderBlock -> Ctx -> IO (Context, HeaderList)
 decodeLoop (r:rs) !ctx = decodeStep ctx r >>= decodeLoop rs
 decodeLoop []     !ctx = decodeFinal ctx
 
@@ -33,30 +33,23 @@ decodeLoop []     !ctx = decodeFinal ctx
 -- | Decoding step for one 'HeaderField'. Exporting for the
 --   test purpose.
 decodeStep :: Step
-decodeStep (!ctx,!builder) Clear = return (clearRefSets ctx,builder)
 decodeStep (!ctx,!builder) (ChangeTableSize siz) = do
     ctx' <- changeContextForDecoding ctx siz
     return (ctx',builder)
-decodeStep (!ctx,!builder) (Indexed idx)
-  | isPresent = return (removeRef ctx idx, builder)
-  | otherwise = do
+decodeStep (!ctx,!builder) (Indexed idx) = do
       w <- whichTable idx ctx
       case w of
           (InStaticTable, e) -> do
-              c <- newEntryForDecoding ctx e
               let b = builder << fromEntry e
-              return (c,b)
+              return (ctx,b)
           (InHeaderTable, e) -> do
-              let c = pushRef ctx idx
+              let c = ctx
                   b = builder << fromEntry e
               return (c,b)
-  where
-    isPresent = idx `isPresentIn` ctx
 decodeStep (!ctx,!builder) (Literal NotAdd naming v) = do
     k <- fromNaming naming ctx
     let b = builder << (k,v)
     return (ctx, b)
--- fixme: how to treat Never?
 decodeStep (!ctx,!builder) (Literal Never naming v) = do
     k <- fromNaming naming ctx
     let b = builder << (k,v)
@@ -69,11 +62,8 @@ decodeStep (!ctx,!builder) (Literal Add naming v) = do
     c <- newEntryForDecoding ctx e
     return (c,b)
 
-decodeFinal :: Ctx -> IO (Context, HeaderSet)
-decodeFinal (!ctx, !builder) = do
-    (hs,!ctx') <- emitNotEmittedForDecoding ctx
-    let hs' = run builder ++ hs
-    return (ctx', hs')
+decodeFinal :: Ctx -> IO (Context, HeaderList)
+decodeFinal (!ctx, !builder) = return (ctx, run builder)
 
 ----------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 module Network.HPACK.HeaderBlock.Decode (
     fromByteStream
+  , fromByteStreamDebug
   ) where
 
 import Data.Bits (testBit, clearBit, (.&.))
@@ -24,13 +25,26 @@ fromByteStream inp = go inp empty
         (hf, bs') <- toHeaderField bs
         go bs' (builder << hf)
 
+-- | Converting the low level format to 'HeaderBlock'.
+--   'HeaderBlock' forms a pair with corresponding 'ByteString'.
+fromByteStreamDebug :: ByteStream -> Either DecodeError [(ByteString,HeaderField)]
+fromByteStreamDebug inp = go inp empty
+  where
+    go bs builder
+      | BS.null bs = Right $ run builder
+      | otherwise  = do
+        (hf, bs') <- toHeaderField bs
+        let len = BS.length bs - BS.length bs'
+            consumed = BS.take len bs
+        go bs' (builder << (consumed,hf))
+
 toHeaderField :: ByteString
               -> Either DecodeError (HeaderField, ByteString)
 toHeaderField bs
   | BS.null bs    = Left EmptyBlock
   | w `testBit` 7 = indexed w bs'
   | w `testBit` 6 = incrementalIndexing w bs'
-  | w `testBit` 5 = if w `testBit` 4 then clear w bs' else maxSize w bs'
+  | w `testBit` 5 = maxSize w bs'
   | w `testBit` 4 = neverIndexing w bs'
   | otherwise     = withoutIndexing w bs'
   where
@@ -51,14 +65,11 @@ incrementalIndexing w ws
   | isIndexedName1 w = indexedName Add w ws 6 mask6
   | otherwise        = newName Add ws
 
-clear :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
-clear _ ws = Right (Clear, ws)
-
 maxSize :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
 maxSize w ws = Right (ChangeTableSize siz, ws')
   where
-    w' = mask4 w
-    (siz, ws') = I.parseInteger 4 w' ws
+    w' = mask5 w
+    (siz, ws') = I.parseInteger 5 w' ws
 
 withoutIndexing :: Word8 -> ByteString
                 -> Either DecodeError (HeaderField, ByteString)
@@ -110,6 +121,9 @@ headerStuff bs
 
 mask6 :: Word8 -> Word8
 mask6 w = w .&. 63
+
+mask5 :: Word8 -> Word8
+mask5 w = w .&. 31
 
 mask4 :: Word8 -> Word8
 mask4 w = w .&. 15

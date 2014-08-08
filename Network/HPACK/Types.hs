@@ -42,7 +42,6 @@ type Index = Int
 data CompressionAlgo = Naive  -- ^ No compression
                      | Static -- ^ Using the static table only
                      | Linear -- ^ Using indices only
-                     | Diff   -- ^ Calculating difference
 
 -- | Strategy for HPACK encoding.
 data EncodeStrategy = EncodeStrategy {
