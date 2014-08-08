@@ -6,7 +6,7 @@ module Network.HTTP2.Frames
 
 import           Control.Applicative        ((<$>))
 import           Control.Exception          (throw)
-import           Control.Monad              (replicateM, void, when)
+import           Control.Monad              (replicateM, void, when, (>=>))
 import qualified Data.Attoparsec.Binary     as BI
 import qualified Data.Attoparsec.ByteString as B
 import           Data.Bits                  (clearBit, shiftL, testBit, (.|.))
@@ -193,11 +193,11 @@ parseFrameHeader :: B.Parser FrameHeader
 parseFrameHeader = do
     a <- fromIntegral <$> BI.anyWord16be
     b <- B.anyWord8
-    let length = (a `shiftL` 8) .|. fromIntegral b :: Int24
+    let frameLength = (a `shiftL` 8) .|. fromIntegral b :: Int24
     typ <- frameTypeFromWord8 <$> B.anyWord8
     flags <- B.anyWord8
     streamId <- (`clearBit` 31) <$> BI.anyWord32be
-    return $ FrameHeader typ flags length streamId
+    return $ FrameHeader typ flags frameLength streamId
 
 parseRawFrame :: B.Parser RawFrame
 parseRawFrame = do
@@ -206,7 +206,7 @@ parseRawFrame = do
     return $ RawFrame header payload
 
 parseUnknownFrame :: FrameParser
-parseUnknownFrame header = B.take (frameLen header) >>= return . UnknownFrame
+parseUnknownFrame header = UnknownFrame <$> B.take (frameLen header)
 
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the parser func
@@ -225,20 +225,19 @@ paddingParser header p =
     padded = testBit flags 4
 
 parseDataFrame :: FrameParser
-parseDataFrame header = paddingParser header $ \len ->
-    B.take len >>= return . DataFrame
+parseDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
 
 parseHeadersFrame :: FrameParser
 parseHeadersFrame header = paddingParser header $ \len ->
     if priority then do
         eAndStream <- BI.anyWord32be
         weight <- Just . (+1) . fromIntegral <$> B.anyWord8
-        let excl = Just $ testBit eAndStream 31
+        let excl   = Just $ testBit eAndStream 31
             stream = Just . fromIntegral $ clearBit eAndStream 31
         d <- B.take $ len - 5
         return $ HeaderFrame excl stream weight d
-    else do
-        B.take len >>= return . (HeaderFrame Nothing Nothing Nothing)
+    else
+        HeaderFrame Nothing Nothing Nothing <$> B.take len
   where
     flags = fhFlags header
     priority = testBit flags 6
@@ -252,20 +251,20 @@ parsePriorityFrame _ = do
     return $ PriorityFrame excl stream weight
 
 parseRstStreamFrame :: FrameParser
-parseRstStreamFrame _ = BI.anyWord32be >>= return . RSTStreamFrame
+parseRstStreamFrame _ =  RSTStreamFrame <$> BI.anyWord32be
 
 parseSettingsFrame :: FrameParser
 parseSettingsFrame header = do
-    when (frameLen `mod` 6 /= 0) $ fail "Incorrect frame length"
-    settings <- replicateM (frameLen `div` 6) $ do
+    when (frameLength `mod` 6 /= 0) $ fail "Incorrect frame length"
+    settings <- replicateM (frameLength `div` 6) $ do
         rawSetting <- BI.anyWord16be
         let settingId = settingIdFromWord16 rawSetting
         case settingId of
             SettingUnknown -> fail "Invalid settingID"
-            s -> (s,) <$> BI.anyWord32be
+            s              -> (s,) <$> BI.anyWord32be
     return $ SettingsFrame (Map.fromList settings)
   where
-    frameLen = fromIntegral $ fhLength header
+    frameLength = fromIntegral $ fhLength header
 
 parsePushPromiseFrame :: FrameParser
 parsePushPromiseFrame header = paddingParser header $ \len -> do
@@ -279,7 +278,7 @@ parsePingFrame header =
     if frameLen header /= 8 then
         fail "Invalid length for ping"
     else
-        B.take 8 >>= return . PingFrame
+        PingFrame <$> B.take 8
 
 parseGoAwayFrame :: FrameParser
 parseGoAwayFrame header = do
@@ -296,9 +295,7 @@ parseWindowUpdateFrame header =
     if frameLen header /= 4 then
         fail "Invalid length for window update"
     else
-        fromIntegral . (`clearBit` 31) <$> BI.anyWord32be >>=
-            return . WindowUpdateFrame
+        WindowUpdateFrame <$> (fromIntegral . (`clearBit` 31) <$> BI.anyWord32be)
 
 parseContinuationFrame :: FrameParser
-parseContinuationFrame header = B.take (frameLen header) >>=
-    return . ContinuationFrame
+parseContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
