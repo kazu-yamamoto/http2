@@ -151,6 +151,7 @@ checkFrameErrors settings (FrameHeader ft flags len sid)
     | ft `elem` zeroFrameTypes && sid /= 0      = Just ProtocolError
     -- Push must be enabled for push frames (Section 6.6)
     | ft == FramePushPromise && not pushEnabled = Just ProtocolError
+    | otherwise                                 = Nothing
   where
     zeroFrameTypes = [ FrameSettings
                      , FramePing
@@ -164,7 +165,6 @@ checkFrameErrors settings (FrameHeader ft flags len sid)
                         , FrameContinuation
                         ]
     pushEnabled = Map.findWithDefault 1 SettingEnablePush settings /= 0
-checkFrameErrors _ _ = Nothing
 
 parseMap :: Map.Map FrameType FrameParser
 parseMap = Map.fromList
