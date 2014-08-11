@@ -8,6 +8,7 @@ module Network.HPACK.Table (
   , shouldRenew
   , renewHeaderTable
   , printHeaderTable
+  , isHeaderTableEmpty
   -- * Insertion
   , insertEntry
   -- * Header to index
@@ -99,6 +100,11 @@ printEntry (i,e) = do
     BS.putStr $ entryHeaderName e
     putStr ": "
     BS.putStrLn $ entryHeaderValue e
+
+----------------------------------------------------------------
+
+isHeaderTableEmpty :: HeaderTable -> Bool
+isHeaderTableEmpty hdrtbl = numOfEntries hdrtbl == 0
 
 ----------------------------------------------------------------
 
@@ -227,14 +233,11 @@ adjustTableSize :: HeaderTable -> IO (HeaderTable, [Header])
 adjustTableSize hdrtbl = adjust hdrtbl []
 
 adjust :: HeaderTable -> [Header] -> IO (HeaderTable, [Header])
-adjust hdrtbl hs
-  | tsize <= maxtsize = return (hdrtbl, hs)
+adjust hdrtbl@HeaderTable{..} hs
+  | headerTableSize <= maxHeaderTableSize = return (hdrtbl, hs)
   | otherwise         = do
       (hdrtbl', h) <- removeEnd hdrtbl
       adjust hdrtbl' (h:hs)
-  where
-    tsize = headerTableSize hdrtbl
-    maxtsize = maxHeaderTableSize hdrtbl
 
 ----------------------------------------------------------------
 

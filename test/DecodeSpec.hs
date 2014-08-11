@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module DecodeSpec where
 
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
+import Network.HPACK.Table.Static
 import Test.Hspec
 
 import HeaderBlock
@@ -23,3 +26,28 @@ spec = do
             h2 `shouldBe` d62h
             (_,h3)  <- fromHeaderBlock c2 d63
             h3 `shouldBe` d63h
+        it "decodes HeaderList even if an entry is larger than HeaderTable" $ do
+            (c1,h1) <- newContextForDecoding 64 >>= flip fromHeaderBlock hb1
+            h1 `shouldBe` hl1
+            isContextTableEmpty c1 `shouldBe` True
+
+hb1 :: HeaderBlock
+hb1 = [Literal Add (Lit "custom-key") "custom-value"
+       -- this is larger than the header table
+      ,Literal Add (Lit "loooooooooooooooooooooooooooooooooooooooooog-key")
+                        "loooooooooooooooooooooooooooooooooooooooooog-value"
+      ]
+
+hl1 :: HeaderList
+hl1 = [("custom-key","custom-value")
+      ,("loooooooooooooooooooooooooooooooooooooooooog-key"
+       ,"loooooooooooooooooooooooooooooooooooooooooog-value")
+      ]
+
+hb2 :: HeaderBlock
+hb2 = [Indexed (staticTableSize + 1)]
+
+hl2 :: HeaderList
+hl2 = [("loooooooooooooooooooooooooooooooooooooooooog-key"
+       ,"loooooooooooooooooooooooooooooooooooooooooog-value")
+      ]

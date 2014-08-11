@@ -2,11 +2,13 @@ module Network.HPACK.Context (
   -- * Types
     HeaderList   -- re-exporting
   , Context
+  , DecodeError(..)
+  -- * Context
   , newContextForEncoding
   , newContextForDecoding
   , changeContextForDecoding
-  , DecodeError(..)
   , printContext
+  , isContextTableEmpty
   -- * Processing
   , newEntryForEncoding
   , newEntryForDecoding
@@ -54,6 +56,11 @@ changeContextForDecoding :: Context -> Size -> IO Context
 changeContextForDecoding ctx@(Context hdrtbl) siz
   | shouldRenew hdrtbl siz = Context <$> renewHeaderTable siz hdrtbl
   | otherwise              = return ctx
+
+----------------------------------------------------------------
+
+isContextTableEmpty :: Context -> Bool
+isContextTableEmpty (Context hdrtbl) = isHeaderTableEmpty hdrtbl
 
 ----------------------------------------------------------------
 
