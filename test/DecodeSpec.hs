@@ -4,7 +4,6 @@ module DecodeSpec where
 
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
-import Network.HPACK.Table.Static
 import Test.Hspec
 
 import HeaderBlock
@@ -41,13 +40,5 @@ hb1 = [Literal Add (Lit "custom-key") "custom-value"
 hl1 :: HeaderList
 hl1 = [("custom-key","custom-value")
       ,("loooooooooooooooooooooooooooooooooooooooooog-key"
-       ,"loooooooooooooooooooooooooooooooooooooooooog-value")
-      ]
-
-hb2 :: HeaderBlock
-hb2 = [Indexed (staticTableSize + 1)]
-
-hl2 :: HeaderList
-hl2 = [("loooooooooooooooooooooooooooooooooooooooooog-key"
        ,"loooooooooooooooooooooooooooooooooooooooooog-value")
       ]
