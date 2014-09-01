@@ -1,134 +1,24 @@
 {-# LANGUAGE TupleSections #-}
 
-module Network.HTTP2.Frames
-    (
-    ) where
+module Network.HTTP2.Decode where
 
 import           Control.Applicative        ((<$>))
-import           Control.Exception          (throw)
 import           Control.Monad              (replicateM, void, when, (>=>))
 import qualified Data.Attoparsec.Binary     as BI
 import qualified Data.Attoparsec.ByteString as B
 import           Data.Bits                  (clearBit, shiftL, testBit, (.|.))
-import           Data.ByteString            (ByteString)
-import           Data.Int                   (Int32)
 import qualified Data.Map                   as Map
-import           Data.Word                  (Word16, Word32, Word8)
 
-import           Network.HTTP2.Errors       (ErrorCode (..),
-                                             errorCodeFromWord32)
-
--- Basic odd length HTTP/2 ints
-type Int24 = Int32
-type Int31 = Int32
-
--- Custom type aliases for HTTP/2 parts
-type RSTStreamErrorCode  = Word32
-type HeaderBlockFragment = ByteString
-type StreamDependency    = Int31
-type LastStreamId        = Int31
-type PromisedStreamId    = Int31
-type WindowSizeIncrement = Int31
-type Exclusive           = Bool
-type Weight              = Int
+import Network.HTTP2.Types
 
 -- Our basic FrameParser type
 type FrameParser = FrameHeader -> B.Parser Frame
 
--- Valid settings map
-type SettingsMap = Map.Map SettingID Word32
-
 -- A full frame of the header with the frame contents
 type FullFrame = (FrameHeader, Frame)
 
--- Valid SettingID's
-data SettingID = SettingHeaderTableSize
-               | SettingEnablePush
-               | SettingMaxConcurrentStreams
-               | SettingInitialWindowSize
-               | SettingMaxFrameSize
-               | SettingMaxHeaderBlockSize
-               | SettingUnknown
-               deriving (Show, Eq, Ord, Enum, Bounded)
-
--- Valid frame types
-data FrameType = FrameData
-               | FrameHeaders
-               | FramePriority
-               | FrameRSTStream
-               | FrameSettings
-               | FramePushPromise
-               | FramePing
-               | FrameGoAway
-               | FrameWindowUpdate
-               | FrameContinuation
-               | FrameUnknown
-               deriving (Show, Eq, Ord, Enum, Bounded)
-
--- A complete frame header
-data FrameHeader = FrameHeader
-    { fhType     :: FrameType
-    , fhFlags    :: Word8
-    , fhLength   :: Int24
-    , fhStreamId :: Word32
-    } deriving (Show, Eq)
-
--- The raw frame is the header with the payload body, but not a parsed
--- full frame
-data RawFrame = RawFrame
-    { _frameHeader  :: FrameHeader
-    , _framePayload :: ByteString
-    } deriving (Show, Eq)
-
-data Frame = DataFrame ByteString
-           | HeaderFrame (Maybe Exclusive)
-                         (Maybe StreamDependency)
-                         (Maybe Weight)
-                         HeaderBlockFragment
-           | PriorityFrame Exclusive StreamDependency Weight
-           | RSTStreamFrame RSTStreamErrorCode
-           | SettingsFrame SettingsMap
-           | PushPromiseFrame PromisedStreamId HeaderBlockFragment
-           | PingFrame ByteString
-           | GoAwayFrame LastStreamId ErrorCode ByteString
-           | WindowUpdateFrame WindowSizeIncrement
-           | ContinuationFrame HeaderBlockFragment
-           | UnknownFrame ByteString
-
 frameLen :: FrameHeader -> Int
 frameLen h = fromIntegral $ fhLength h
-
-settingIdToWord16 :: SettingID -> Word16
-settingIdToWord16 SettingHeaderTableSize      = 0x1
-settingIdToWord16 SettingEnablePush           = 0x2
-settingIdToWord16 SettingMaxConcurrentStreams = 0x3
-settingIdToWord16 SettingInitialWindowSize    = 0x4
-settingIdToWord16 SettingMaxFrameSize         = 0x5
-settingIdToWord16 SettingMaxHeaderBlockSize   = 0x6
-
-settingIdFromWord16 :: Word16 -> SettingID
-settingIdFromWord16 k =
-    Map.findWithDefault SettingUnknown k m
-  where
-    m = Map.fromList $ map (\s -> (settingIdToWord16 s, s)) [minBound..maxBound]
-
-frameTypeToWord8 :: FrameType -> Word8
-frameTypeToWord8 FrameData         = 0x0
-frameTypeToWord8 FrameHeaders      = 0x1
-frameTypeToWord8 FramePriority     = 0x2
-frameTypeToWord8 FrameRSTStream    = 0x3
-frameTypeToWord8 FrameSettings     = 0x4
-frameTypeToWord8 FramePushPromise  = 0x5
-frameTypeToWord8 FramePing         = 0x6
-frameTypeToWord8 FrameGoAway       = 0x7
-frameTypeToWord8 FrameWindowUpdate = 0x8
-frameTypeToWord8 FrameContinuation = 0x9
-
-frameTypeFromWord8 :: Word8 -> FrameType
-frameTypeFromWord8 k =
-    Map.findWithDefault FrameUnknown k m
-  where
-    m = Map.fromList $ map (\f -> (frameTypeToWord8 f, f)) [minBound..maxBound]
 
 -- | Check the frame header against the settings to ensure that the length of the
 -- frame does not exceed our designated frame size (Section 4.2)
@@ -137,6 +27,7 @@ checkHeaderLen settings (FrameHeader _ _ len _)
     | len > maxFrameSize = Just FrameSizeError
     | otherwise          = Nothing
   where
+    -- fixme
     minSize = round $ 2 ** 14
     maxFrameSize =
         fromIntegral $ Map.findWithDefault minSize SettingMaxFrameSize settings

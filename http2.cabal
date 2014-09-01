@@ -41,8 +41,8 @@ Library
                         Network.HPACK.Table.HashPSQ
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
-                        Network.HTTP2.Errors
-                        Network.HTTP2.Frames
+                        Network.HTTP2.Decode
+                        Network.HTTP2.Types
   Build-Depends:        base >= 4 && < 5
                       , attoparsec >= 0.12.1
                       , attoparsec-binary >= 0.2
