@@ -34,7 +34,7 @@ checkHeaderLen settings (FrameHeader _ _ len _)
 
 -- | Check the various types of frames for basic errors
 checkFrameErrors :: SettingsMap -> FrameHeader -> Maybe ErrorCode
-checkFrameErrors settings (FrameHeader ft flags len sid)
+checkFrameErrors settings (FrameHeader ft _flags _len sid)
     -- These frames must have a non-zero StreamID
     -- (Sections 6.1, 6.2, 6.3, 6.4, 6.10)
     | ft `elem` nonZeroFrameTypes && sid == 0   = Just ProtocolError
@@ -178,8 +178,8 @@ parseGoAwayFrame header = do
     debug <- B.take $ frameLen header - 8
     let streamId = fromIntegral $ clearBit rAndLastStreamId 31
     case errCode of
-        Nothing -> fail "Invalid error code"
-        Just err -> return $ GoAwayFrame streamId err debug
+        UnknownError -> fail "Invalid error code"
+        err          -> return $ GoAwayFrame streamId err debug
 
 parseWindowUpdateFrame :: FrameParser
 parseWindowUpdateFrame header =
