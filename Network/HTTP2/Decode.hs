@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections, BangPatterns #-}
 
 module Network.HTTP2.Decode where
 
@@ -34,12 +34,12 @@ checkHeaderLen settings (FrameHeader _ _ len _)
 
 -- | Check the various types of frames for basic errors
 checkFrameErrors :: SettingsMap -> FrameHeader -> Maybe ErrorCode
-checkFrameErrors settings (FrameHeader ft _flags _len sid)
+checkFrameErrors settings (FrameHeader _len ft _flags sid)
     -- These frames must have a non-zero StreamID
     -- (Sections 6.1, 6.2, 6.3, 6.4, 6.10)
-    | ft `elem` nonZeroFrameTypes && sid == 0   = Just ProtocolError
+    | ft `elem` nonZeroFrameTypes && sid == streamIdentifierForSeetings   = Just ProtocolError
     -- Settings/Pings/GoAway must use a StreamID of 0 (Section 6.5, 6.7, 6.8)
-    | ft `elem` zeroFrameTypes && sid /= 0      = Just ProtocolError
+    | ft `elem` zeroFrameTypes && sid /= streamIdentifierForSeetings      = Just ProtocolError
     -- Push must be enabled for push frames (Section 6.6)
     | ft == FramePushPromise && not pushEnabled = Just ProtocolError
     | otherwise                                 = Nothing
@@ -83,15 +83,15 @@ parseFrameHeader :: B.Parser FrameHeader
 parseFrameHeader = do
     a <- fromIntegral <$> BI.anyWord16be
     b <- B.anyWord8
-    let frameLength = (a `shiftL` 8) .|. fromIntegral b :: Int24
+    let frameLength = (a `shiftL` 8) .|. fromIntegral b :: FrameLength
     tp <- B.anyWord8
     let mtyp = frameTypeFromWord8 tp
     case mtyp of
         Nothing  -> fail $ "Unknown frame type: " ++ show tp
         Just typ -> do
             flags <- B.anyWord8
-            streamId <- (`clearBit` 31) <$> BI.anyWord32be
-            return $ FrameHeader typ flags frameLength streamId
+            (streamId, _) <- steramIdentifier
+            return $ FrameHeader frameLength typ flags streamId
 
 parseRawFrame :: B.Parser RawFrame
 parseRawFrame = do
@@ -125,12 +125,10 @@ parseDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
 parseHeadersFrame :: FrameParser
 parseHeadersFrame header = paddingParser header $ \len ->
     if priority then do
-        eAndStream <- BI.anyWord32be
-        weight <- Just . (+1) . fromIntegral <$> B.anyWord8
-        let excl   = Just $ testBit eAndStream 31
-            stream = Just . fromIntegral $ clearBit eAndStream 31
+        (streamId, excl) <- steramIdentifier
+        weight <- (+1) . fromIntegral <$> B.anyWord8
         d <- B.take $ len - 5
-        return $ HeaderFrame excl stream weight d
+        return $ HeaderFrame (Just excl) (Just streamId) (Just weight) d
     else
         HeaderFrame Nothing Nothing Nothing <$> B.take len
   where
@@ -139,14 +137,17 @@ parseHeadersFrame header = paddingParser header $ \len ->
 
 parsePriorityFrame :: FrameParser
 parsePriorityFrame _ = do
-    eAndStream <- BI.anyWord32be
+    (streamId, excl) <- steramIdentifier
     weight <- (+1) . fromIntegral <$> B.anyWord8
-    let excl = testBit eAndStream 31
-        stream = fromIntegral $ clearBit eAndStream 31
-    return $ PriorityFrame excl stream weight
+    return $ PriorityFrame excl streamId weight
 
 parseRstStreamFrame :: FrameParser
-parseRstStreamFrame _ =  RSTStreamFrame <$> BI.anyWord32be
+parseRstStreamFrame _ = do
+    w32 <- BI.anyWord32be
+    let merr = errorCodeFromWord32 w32
+    case merr of
+        Nothing  -> fail $ "Unknown error code in RST_STREAM" ++ show w32
+        Just err -> return $ RSTStreamFrame err
 
 parseSettingsFrame :: FrameParser
 parseSettingsFrame header = do
@@ -163,8 +164,7 @@ parseSettingsFrame header = do
 
 parsePushPromiseFrame :: FrameParser
 parsePushPromiseFrame header = paddingParser header $ \len -> do
-    rAndStreamId <- BI.anyWord32be
-    let streamId = fromIntegral $ clearBit rAndStreamId 31
+    (streamId, _) <- steramIdentifier
     hbf <- B.take $ len - 4
     return $ PushPromiseFrame streamId hbf
 
@@ -177,21 +177,27 @@ parsePingFrame header =
 
 parseGoAwayFrame :: FrameParser
 parseGoAwayFrame header = do
-    rAndLastStreamId <- BI.anyWord32be
+    (streamId, _) <- steramIdentifier
     ec <- BI.anyWord32be
     let merrCode = errorCodeFromWord32 ec
     debug <- B.take $ frameLen header - 8
-    let streamId = fromIntegral $ clearBit rAndLastStreamId 31
     case merrCode of
         Nothing      -> fail $ "Unknown error code: " ++ show ec
         Just errCode -> return $ GoAwayFrame streamId errCode debug
 
 parseWindowUpdateFrame :: FrameParser
-parseWindowUpdateFrame header =
-    if frameLen header /= 4 then
-        fail "Invalid length for window update"
-    else
-        WindowUpdateFrame <$> (fromIntegral . (`clearBit` 31) <$> BI.anyWord32be)
+parseWindowUpdateFrame header
+  | frameLen header /= 4 = fail "Invalid length for window update"
+  | otherwise            = do
+      (streamId, _) <- steramIdentifier
+      return $ WindowUpdateFrame streamId
 
 parseContinuationFrame :: FrameParser
 parseContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
+
+steramIdentifier :: B.Parser (StreamIdentifier, Bool)
+steramIdentifier = do
+    w32 <- BI.anyWord32be
+    let !streamdId = StreamIdentifier $ clearBit w32 31
+        !exclusive = testBit w32 31
+    return (streamdId, exclusive)

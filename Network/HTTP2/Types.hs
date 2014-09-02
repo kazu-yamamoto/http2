@@ -1,25 +1,53 @@
 module Network.HTTP2.Types where
 
 import Data.ByteString (ByteString)
-import Data.Int (Int32)
-import Data.Word (Word8, Word16, Word32)
 import qualified Data.Map as Map -- FIXME
+import Data.Word (Word8, Word16, Word32)
 
 ----------------------------------------------------------------
 
--- Basic odd length HTTP/2 ints
-type Int24 = Int32
-type Int31 = Int32
+data ErrorCode = NoError
+               | ProtocolError
+               | InternalError
+               | FlowControlError
+               | SettingsTimeout
+               | StreamClosed
+               | FrameSizeError
+               | RefusedStream
+               | Cancel
+               | CompressionError
+               | ConnectError
+               | EnhanceYourCalm
+               | InadequateSecurity
+               deriving (Show, Eq, Ord, Enum, Bounded)
 
--- Custom type aliases for HTTP/2 parts
-type RSTStreamErrorCode  = Word32
-type HeaderBlockFragment = ByteString
-type StreamDependency    = Int31
-type LastStreamId        = Int31
-type PromisedStreamId    = Int31
-type WindowSizeIncrement = Int31
-type Exclusive           = Bool
-type Weight              = Int
+-- |
+--
+-- >>> errorCodeToWord32 NoError
+-- 0
+-- >>> errorCodeToWord32 InadequateSecurity
+-- 12
+errorCodeToWord32 :: ErrorCode -> Word32
+errorCodeToWord32 = fromIntegral . fromEnum
+
+minErrorCode :: Word32
+minErrorCode = fromIntegral $ fromEnum (minBound :: ErrorCode)
+
+maxErrorCode :: Word32
+maxErrorCode = fromIntegral $ fromEnum (maxBound :: ErrorCode)
+
+-- |
+--
+-- >>> errorCodeFromWord32 0
+-- Just NoError
+-- >>> errorCodeFromWord32 0xc
+-- Just InadequateSecurity
+-- >>> errorCodeFromWord32 0xd
+-- Nothing
+errorCodeFromWord32 :: Word32 -> Maybe ErrorCode
+errorCodeFromWord32 x
+  | minErrorCode <= x && x <= maxErrorCode = Just . toEnum . fromIntegral $ x
+  | otherwise                              = Nothing
 
 ----------------------------------------------------------------
 
@@ -108,19 +136,35 @@ frameTypeFromWord8 x
 
 ----------------------------------------------------------------
 
+type FrameLength         = Int -- Word24 but Int is more natural
+type FrameFlags          = Word8
+
+newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Eq)
+type StreamDependency    = StreamIdentifier
+type LastStreamId        = StreamIdentifier
+type PromisedStreamId    = StreamIdentifier
+type WindowSizeIncrement = StreamIdentifier
+
+streamIdentifierForSeetings :: StreamIdentifier
+streamIdentifierForSeetings = StreamIdentifier 0
+
+type HeaderBlockFragment = ByteString
+type Exclusive           = Bool
+type Weight              = Int
+
 -- A complete frame header
 data FrameHeader = FrameHeader
-    { fhType     :: FrameType
-    , fhFlags    :: Word8
-    , fhLength   :: Int24
-    , fhStreamId :: Word32
+    { fhLength   :: FrameLength
+    , fhType     :: FrameType
+    , fhFlags    :: FrameFlags
+    , fhStreamId :: StreamIdentifier
     } deriving (Show, Eq)
 
 -- The raw frame is the header with the payload body, but not a parsed
 -- full frame
 data RawFrame = RawFrame
-    { _frameHeader  :: FrameHeader
-    , _framePayload :: ByteString
+    { frameHeader  :: FrameHeader
+    , framePayload :: ByteString
     } deriving (Show, Eq)
 
 data Frame = DataFrame ByteString
@@ -129,7 +173,7 @@ data Frame = DataFrame ByteString
                          (Maybe Weight)
                          HeaderBlockFragment
            | PriorityFrame Exclusive StreamDependency Weight
-           | RSTStreamFrame RSTStreamErrorCode
+           | RSTStreamFrame ErrorCode
            | SettingsFrame SettingsMap
            | PushPromiseFrame PromisedStreamId HeaderBlockFragment
            | PingFrame ByteString
@@ -140,48 +184,3 @@ data Frame = DataFrame ByteString
 
 -- Valid settings map
 type SettingsMap = Map.Map Settings Word32 -- fixme
-
-----------------------------------------------------------------
-
-data ErrorCode = NoError
-               | ProtocolError
-               | InternalError
-               | FlowControlError
-               | SettingsTimeout
-               | StreamClosed
-               | FrameSizeError
-               | RefusedStream
-               | Cancel
-               | CompressionError
-               | ConnectError
-               | EnhanceYourCalm
-               | InadequateSecurity
-               deriving (Show, Eq, Ord, Enum, Bounded)
-
--- |
---
--- >>> errorCodeToWord32 NoError
--- 0
--- >>> errorCodeToWord32 InadequateSecurity
--- 12
-errorCodeToWord32 :: ErrorCode -> Word32
-errorCodeToWord32 = fromIntegral . fromEnum
-
-minErrorCode :: Word32
-minErrorCode = fromIntegral $ fromEnum (minBound :: ErrorCode)
-
-maxErrorCode :: Word32
-maxErrorCode = fromIntegral $ fromEnum (maxBound :: ErrorCode)
-
--- |
---
--- >>> errorCodeFromWord32 0
--- Just NoError
--- >>> errorCodeFromWord32 0xc
--- Just InadequateSecurity
--- >>> errorCodeFromWord32 0xd
--- Nothing
-errorCodeFromWord32 :: Word32 -> Maybe ErrorCode
-errorCodeFromWord32 x
-  | minErrorCode <= x && x <= maxErrorCode = Just . toEnum . fromIntegral $ x
-  | otherwise                              = Nothing
