@@ -11,6 +11,8 @@ import qualified Data.Map as Map
 
 import Network.HTTP2.Types
 
+----------------------------------------------------------------
+
 -- Our basic FrameParser type
 type FrameParser = FrameHeader -> B.Parser Frame
 
@@ -59,6 +61,8 @@ checkFrameErrors settings (FrameHeader _len ft _flags sid)
         Nothing -> True
         Just x  -> x /= 0
 
+----------------------------------------------------------------
+
 -- fixme
 deocdeMap :: Map.Map FrameType FrameParser
 deocdeMap = Map.fromList
@@ -73,6 +77,8 @@ deocdeMap = Map.fromList
     , (FrameWindowUpdate, deocdeWindowUpdateFrame)
     , (FrameContinuation, deocdeContinuationFrame)
     ]
+
+----------------------------------------------------------------
 
 -- fixme
 deocdeFrameBody :: RawFrame -> Either String FullFrame
