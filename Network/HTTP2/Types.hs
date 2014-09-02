@@ -1,7 +1,6 @@
 module Network.HTTP2.Types where
 
 import Data.ByteString (ByteString)
-import qualified Data.Map as Map -- FIXME
 import Data.Word (Word8, Word16, Word32)
 
 ----------------------------------------------------------------
@@ -51,13 +50,13 @@ errorCodeFromWord32 x
 
 ----------------------------------------------------------------
 
-data Settings = SettingsHeaderTableSize
-              | SettingsEnablePush
-              | SettingsMaxConcurrentStreams
-              | SettingsInitialWindowSize
-              | SettingsMaxFrameSize
-              | SettingsMaxHeaderBlockSize
-              deriving (Show, Eq, Ord, Enum, Bounded)
+data SettingsId = SettingsHeaderTableSize
+                | SettingsEnablePush
+                | SettingsMaxConcurrentStreams
+                | SettingsInitialWindowSize
+                | SettingsMaxFrameSize
+                | SettingsMaxHeaderBlockSize
+                deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- |
 --
@@ -65,14 +64,14 @@ data Settings = SettingsHeaderTableSize
 -- 1
 -- >>> settingsToWord16 SettingsMaxHeaderBlockSize
 -- 6
-settingsToWord16 :: Settings -> Word16
+settingsToWord16 :: SettingsId -> Word16
 settingsToWord16 x = fromIntegral (fromEnum x) + 1
 
-minSettings :: Word16
-minSettings = fromIntegral $ fromEnum (minBound :: Settings)
+minSettingsId :: Word16
+minSettingsId = fromIntegral $ fromEnum (minBound :: SettingsId)
 
-maxSettings :: Word16
-maxSettings = fromIntegral $ fromEnum (maxBound :: Settings)
+maxSettingsId :: Word16
+maxSettingsId = fromIntegral $ fromEnum (maxBound :: SettingsId)
 
 -- |
 --
@@ -84,10 +83,10 @@ maxSettings = fromIntegral $ fromEnum (maxBound :: Settings)
 -- Just SettingsMaxHeaderBlockSize
 -- >>> settingsFromWord16 7
 -- Nothing
-settingsFromWord16 :: Word16 -> Maybe Settings
+settingsFromWord16 :: Word16 -> Maybe SettingsId
 settingsFromWord16 x
-  | minSettings <= n && n <= maxSettings = Just . toEnum . fromIntegral $ n
-  | otherwise                            = Nothing
+  | minSettingsId <= n && n <= maxSettingsId = Just . toEnum . fromIntegral $ n
+  | otherwise                                = Nothing
   where
     n = x - 1
 
@@ -137,6 +136,10 @@ frameTypeFromWord8 x
 ----------------------------------------------------------------
 
 type FrameLength         = Int -- Word24 but Int is more natural
+
+maxFrameSize :: FrameLength
+maxFrameSize = 2^(14::Int)
+
 type FrameFlags          = Word8
 
 newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Eq)
@@ -174,7 +177,7 @@ data Frame = DataFrame ByteString
                          HeaderBlockFragment
            | PriorityFrame Exclusive StreamDependency Weight
            | RSTStreamFrame ErrorCode
-           | SettingsFrame SettingsMap
+           | SettingsFrame Settings
            | PushPromiseFrame PromisedStreamId HeaderBlockFragment
            | PingFrame ByteString
            | GoAwayFrame LastStreamId ErrorCode ByteString
@@ -182,5 +185,4 @@ data Frame = DataFrame ByteString
            | ContinuationFrame HeaderBlockFragment
            | UnknownFrame ByteString
 
--- Valid settings map
-type SettingsMap = Map.Map Settings Word32 -- fixme
+type Settings = [(SettingsId,Word32)]

@@ -3,7 +3,7 @@
 module Network.HTTP2.Decode where
 
 import           Control.Applicative        ((<$>))
-import           Control.Monad              (replicateM, void, when, (>=>))
+import           Control.Monad              (replicateM, void, (>=>))
 import qualified Data.Attoparsec.Binary     as BI
 import qualified Data.Attoparsec.ByteString as B
 import           Data.Bits                  (clearBit, shiftL, testBit, (.|.))
@@ -20,20 +20,20 @@ type FullFrame = (FrameHeader, Frame)
 frameLen :: FrameHeader -> Int
 frameLen h = fromIntegral $ fhLength h
 
--- | Check the frame header against the settings to ensure that the length of the
--- frame does not exceed our designated frame size (Section 4.2)
-checkHeaderLen :: SettingsMap -> FrameHeader -> Maybe ErrorCode
-checkHeaderLen settings (FrameHeader _ _ len _)
-    | len > maxFrameSize = Just FrameSizeError
-    | otherwise          = Nothing
+-- | Check the frame header against the settings to ensure that the
+-- length of the frame does not exceed our designated frame size
+-- (Section 4.2)
+checkHeaderLen :: Settings -> FrameHeader -> Maybe ErrorCode
+checkHeaderLen settings (FrameHeader len _ _ _)
+    | len > maxSize = Just FrameSizeError
+    | otherwise     = Nothing
   where
-    -- fixme
-    minSize = round $ 2 ** 14
-    maxFrameSize =
-        fromIntegral $ Map.findWithDefault minSize SettingsMaxFrameSize settings
+    maxSize = case lookup SettingsMaxFrameSize settings of
+        Just x  -> fromIntegral x
+        Nothing -> maxFrameSize
 
 -- | Check the various types of frames for basic errors
-checkFrameErrors :: SettingsMap -> FrameHeader -> Maybe ErrorCode
+checkFrameErrors :: Settings -> FrameHeader -> Maybe ErrorCode
 checkFrameErrors settings (FrameHeader _len ft _flags sid)
     -- These frames must have a non-zero StreamID
     -- (Sections 6.1, 6.2, 6.3, 6.4, 6.10)
@@ -55,8 +55,11 @@ checkFrameErrors settings (FrameHeader _len ft _flags sid)
                         , FramePushPromise
                         , FrameContinuation
                         ]
-    pushEnabled = Map.findWithDefault 1 SettingsEnablePush settings /= 0
+    pushEnabled = case lookup SettingsEnablePush settings of
+        Nothing -> True
+        Just x  -> x /= 0
 
+-- fixme
 parseMap :: Map.Map FrameType FrameParser
 parseMap = Map.fromList
     [ (FrameData, parseDataFrame)
@@ -71,6 +74,7 @@ parseMap = Map.fromList
     , (FrameContinuation, parseContinuationFrame)
     ]
 
+-- fixme
 parseFrameBody :: RawFrame -> Either String FullFrame
 parseFrameBody (RawFrame header body) = do
     fp <- case Map.lookup (fhType header) parseMap of
@@ -150,17 +154,19 @@ parseRstStreamFrame _ = do
         Just err -> return $ RSTStreamFrame err
 
 parseSettingsFrame :: FrameParser
-parseSettingsFrame header = do
-    when (frameLength `mod` 6 /= 0) $ fail "Incorrect frame length"
-    settings <- replicateM (frameLength `div` 6) $ do
+parseSettingsFrame header
+  | isNotValid = fail "Incorrect frame length"
+  | otherwise  = SettingsFrame <$> settings
+  where
+    frameLength = fromIntegral $ fhLength header
+    n = frameLength `div` 6
+    isNotValid = frameLength `mod` 6 /= 0
+    settings = replicateM n $ do
         rawSetting <- BI.anyWord16be
         let msettings = settingsFromWord16 rawSetting
         case msettings of
-            Nothing -> fail $ "Invalid settings: " ++ show rawSetting
+            Nothing -> fail $ "Unknown settings: " ++ show rawSetting
             Just s  -> (s,) <$> BI.anyWord32be
-    return $ SettingsFrame (Map.fromList settings)
-  where
-    frameLength = fromIntegral $ fhLength header
 
 parsePushPromiseFrame :: FrameParser
 parsePushPromiseFrame header = paddingParser header $ \len -> do
