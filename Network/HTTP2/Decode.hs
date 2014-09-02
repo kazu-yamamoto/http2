@@ -60,31 +60,31 @@ checkFrameErrors settings (FrameHeader _len ft _flags sid)
         Just x  -> x /= 0
 
 -- fixme
-parseMap :: Map.Map FrameType FrameParser
-parseMap = Map.fromList
-    [ (FrameData, parseDataFrame)
-    , (FrameHeaders, parseHeadersFrame)
-    , (FramePriority, parsePriorityFrame)
-    , (FrameRSTStream, parseRstStreamFrame)
-    , (FrameSettings, parseSettingsFrame)
-    , (FramePushPromise, parsePushPromiseFrame)
-    , (FramePing, parsePingFrame)
-    , (FrameGoAway, parseGoAwayFrame)
-    , (FrameWindowUpdate, parseWindowUpdateFrame)
-    , (FrameContinuation, parseContinuationFrame)
+deocdeMap :: Map.Map FrameType FrameParser
+deocdeMap = Map.fromList
+    [ (FrameData, deocdeDataFrame)
+    , (FrameHeaders, deocdeHeadersFrame)
+    , (FramePriority, deocdePriorityFrame)
+    , (FrameRSTStream, deocdeRstStreamFrame)
+    , (FrameSettings, deocdeSettingsFrame)
+    , (FramePushPromise, deocdePushPromiseFrame)
+    , (FramePing, deocdePingFrame)
+    , (FrameGoAway, deocdeGoAwayFrame)
+    , (FrameWindowUpdate, deocdeWindowUpdateFrame)
+    , (FrameContinuation, deocdeContinuationFrame)
     ]
 
 -- fixme
-parseFrameBody :: RawFrame -> Either String FullFrame
-parseFrameBody (RawFrame header body) = do
-    fp <- case Map.lookup (fhType header) parseMap of
+deocdeFrameBody :: RawFrame -> Either String FullFrame
+deocdeFrameBody (RawFrame header body) = do
+    fp <- case Map.lookup (fhType header) deocdeMap of
         Nothing -> fail "Unable to locate parser for frame type"
         Just fp -> return fp
     frameBody <- B.parseOnly (fp header) body
     return (header, frameBody)
 
-parseFrameHeader :: B.Parser FrameHeader
-parseFrameHeader = do
+deocdeFrameHeader :: B.Parser FrameHeader
+deocdeFrameHeader = do
     a <- fromIntegral <$> BI.anyWord16be
     b <- B.anyWord8
     let frameLength = (a `shiftL` 8) .|. fromIntegral b :: FrameLength
@@ -97,15 +97,15 @@ parseFrameHeader = do
             (streamId, _) <- steramIdentifier
             return $ FrameHeader frameLength typ flags streamId
 
-parseRawFrame :: B.Parser RawFrame
-parseRawFrame = do
-    header <- parseFrameHeader
+deocdeRawFrame :: B.Parser RawFrame
+deocdeRawFrame = do
+    header <- deocdeFrameHeader
     payload <- B.take $ fromIntegral $ fhLength header
     return $ RawFrame header payload
 
 -- fixme
-parseUnknownFrame :: FrameParser
-parseUnknownFrame header = UnknownFrame <$> B.take (frameLen header)
+deocdeUnknownFrame :: FrameParser
+deocdeUnknownFrame header = UnknownFrame <$> B.take (frameLen header)
 
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the parser func
@@ -123,11 +123,11 @@ paddingParser header p =
     flags = fhFlags header
     padded = testBit flags 4
 
-parseDataFrame :: FrameParser
-parseDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
+deocdeDataFrame :: FrameParser
+deocdeDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
 
-parseHeadersFrame :: FrameParser
-parseHeadersFrame header = paddingParser header $ \len ->
+deocdeHeadersFrame :: FrameParser
+deocdeHeadersFrame header = paddingParser header $ \len ->
     if priority then do
         (streamId, excl) <- steramIdentifier
         weight <- (+1) . fromIntegral <$> B.anyWord8
@@ -139,22 +139,22 @@ parseHeadersFrame header = paddingParser header $ \len ->
     flags = fhFlags header
     priority = testBit flags 6
 
-parsePriorityFrame :: FrameParser
-parsePriorityFrame _ = do
+deocdePriorityFrame :: FrameParser
+deocdePriorityFrame _ = do
     (streamId, excl) <- steramIdentifier
     weight <- (+1) . fromIntegral <$> B.anyWord8
     return $ PriorityFrame excl streamId weight
 
-parseRstStreamFrame :: FrameParser
-parseRstStreamFrame _ = do
+deocdeRstStreamFrame :: FrameParser
+deocdeRstStreamFrame _ = do
     w32 <- BI.anyWord32be
     let merr = errorCodeFromWord32 w32
     case merr of
         Nothing  -> fail $ "Unknown error code in RST_STREAM" ++ show w32
         Just err -> return $ RSTStreamFrame err
 
-parseSettingsFrame :: FrameParser
-parseSettingsFrame header
+deocdeSettingsFrame :: FrameParser
+deocdeSettingsFrame header
   | isNotValid = fail "Incorrect frame length"
   | otherwise  = SettingsFrame <$> settings
   where
@@ -168,21 +168,21 @@ parseSettingsFrame header
             Nothing -> fail $ "Unknown settings: " ++ show rawSetting
             Just s  -> (s,) <$> BI.anyWord32be
 
-parsePushPromiseFrame :: FrameParser
-parsePushPromiseFrame header = paddingParser header $ \len -> do
+deocdePushPromiseFrame :: FrameParser
+deocdePushPromiseFrame header = paddingParser header $ \len -> do
     (streamId, _) <- steramIdentifier
     hbf <- B.take $ len - 4
     return $ PushPromiseFrame streamId hbf
 
-parsePingFrame :: FrameParser
-parsePingFrame header =
+deocdePingFrame :: FrameParser
+deocdePingFrame header =
     if frameLen header /= 8 then
         fail "Invalid length for ping"
     else
         PingFrame <$> B.take 8
 
-parseGoAwayFrame :: FrameParser
-parseGoAwayFrame header = do
+deocdeGoAwayFrame :: FrameParser
+deocdeGoAwayFrame header = do
     (streamId, _) <- steramIdentifier
     ec <- BI.anyWord32be
     let merrCode = errorCodeFromWord32 ec
@@ -191,15 +191,15 @@ parseGoAwayFrame header = do
         Nothing      -> fail $ "Unknown error code: " ++ show ec
         Just errCode -> return $ GoAwayFrame streamId errCode debug
 
-parseWindowUpdateFrame :: FrameParser
-parseWindowUpdateFrame header
+deocdeWindowUpdateFrame :: FrameParser
+deocdeWindowUpdateFrame header
   | frameLen header /= 4 = fail "Invalid length for window update"
   | otherwise            = do
       (streamId, _) <- steramIdentifier
       return $ WindowUpdateFrame streamId
 
-parseContinuationFrame :: FrameParser
-parseContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
+deocdeContinuationFrame :: FrameParser
+deocdeContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
 
 steramIdentifier :: B.Parser (StreamIdentifier, Bool)
 steramIdentifier = do
