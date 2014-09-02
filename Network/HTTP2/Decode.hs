@@ -97,7 +97,9 @@ deocdeFrameHeader = do
     tp <- B.anyWord8
     let mtyp = frameTypeFromWord8 tp
     case mtyp of
-        Nothing  -> fail $ "Unknown frame type: " ++ show tp
+        Nothing  -> do
+            -- fixme: consume
+            fail $ "Unknown frame type: " ++ show tp
         Just typ -> do
             flags <- B.anyWord8
             (streamId, _) <- steramIdentifier
