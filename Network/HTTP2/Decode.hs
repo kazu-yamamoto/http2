@@ -78,7 +78,7 @@ decodeFrameHeader = do
             fail $ "Unknown frame type: " ++ show tp
         Just typ -> do
             flags <- B.anyWord8
-            (streamId, _) <- steramIdentifier
+            (streamId, _) <- streamIdentifier
             return $ FrameHeader frameLength typ flags streamId
 
 ----------------------------------------------------------------
@@ -137,7 +137,7 @@ decodeDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
 decodeHeadersFrame :: FramePayloadDecoder
 decodeHeadersFrame header = paddingParser header $ \len ->
     if priority then do
-        (streamId, excl) <- steramIdentifier
+        (streamId, excl) <- streamIdentifier
         weight <- (+1) . fromIntegral <$> B.anyWord8
         d <- B.take $ len - 5
         return $ HeaderFrame (Just excl) (Just streamId) (Just weight) d
@@ -149,7 +149,7 @@ decodeHeadersFrame header = paddingParser header $ \len ->
 
 decodePriorityFrame :: FramePayloadDecoder
 decodePriorityFrame _ = do
-    (streamId, excl) <- steramIdentifier
+    (streamId, excl) <- streamIdentifier
     weight <- (+1) . fromIntegral <$> B.anyWord8
     return $ PriorityFrame excl streamId weight
 
@@ -178,7 +178,7 @@ decodeSettingsFrame header
 
 decodePushPromiseFrame :: FramePayloadDecoder
 decodePushPromiseFrame header = paddingParser header $ \len -> do
-    (streamId, _) <- steramIdentifier
+    (streamId, _) <- streamIdentifier
     hbf <- B.take $ len - 4
     return $ PushPromiseFrame streamId hbf
 
@@ -191,7 +191,7 @@ decodePingFrame header =
 
 decodeGoAwayFrame :: FramePayloadDecoder
 decodeGoAwayFrame header = do
-    (streamId, _) <- steramIdentifier
+    (streamId, _) <- streamIdentifier
     ec <- BI.anyWord32be
     let merrCode = errorCodeFromWord32 ec
     debug <- B.take $ frameLen header - 8
@@ -203,14 +203,14 @@ decodeWindowUpdateFrame :: FramePayloadDecoder
 decodeWindowUpdateFrame header
   | frameLen header /= 4 = fail "Invalid length for window update"
   | otherwise            = do
-      (streamId, _) <- steramIdentifier
+      (streamId, _) <- streamIdentifier
       return $ WindowUpdateFrame streamId
 
 decodeContinuationFrame :: FramePayloadDecoder
 decodeContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
 
-steramIdentifier :: B.Parser (StreamIdentifier, Bool)
-steramIdentifier = do
+streamIdentifier :: B.Parser (StreamIdentifier, Bool)
+streamIdentifier = do
     w32 <- BI.anyWord32be
     let !streamdId = StreamIdentifier $ clearBit w32 31
         !exclusive = testBit w32 31
