@@ -78,8 +78,6 @@ deocdeMap = Map.fromList
     , (FrameContinuation, deocdeContinuationFrame)
     ]
 
-----------------------------------------------------------------
-
 -- fixme
 deocdeFrameBody :: RawFrame -> Either String FullFrame
 deocdeFrameBody (RawFrame header body) = do
@@ -88,6 +86,8 @@ deocdeFrameBody (RawFrame header body) = do
         Just fp -> return fp
     frameBody <- B.parseOnly (fp header) body
     return (header, frameBody)
+
+----------------------------------------------------------------
 
 deocdeFrameHeader :: B.Parser FrameHeader
 deocdeFrameHeader = do
@@ -102,6 +102,8 @@ deocdeFrameHeader = do
             flags <- B.anyWord8
             (streamId, _) <- steramIdentifier
             return $ FrameHeader frameLength typ flags streamId
+
+----------------------------------------------------------------
 
 deocdeRawFrame :: B.Parser RawFrame
 deocdeRawFrame = do
