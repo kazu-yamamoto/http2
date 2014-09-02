@@ -58,15 +58,15 @@ checkFrameErrors settings (FrameHeader _len ft _flags sid)
 ----------------------------------------------------------------
 
 -- fixme :: error code
-deocdeFrame :: B.Parser Frame
-deocdeFrame = do
-    header <- deocdeFrameHeader
+decodeFrame :: B.Parser Frame
+decodeFrame = do
+    header <- decodeFrameHeader
     Frame header <$> decodeFramePayload header
 
 ----------------------------------------------------------------
 
-deocdeFrameHeader :: B.Parser FrameHeader
-deocdeFrameHeader = do
+decodeFrameHeader :: B.Parser FrameHeader
+decodeFrameHeader = do
     a <- fromIntegral <$> BI.anyWord16be
     b <- B.anyWord8
     let frameLength = (a `shiftL` 8) .|. fromIntegral b :: FrameLength
@@ -86,23 +86,23 @@ deocdeFrameHeader = do
 type FramePayloadDecoder = FrameHeader -> B.Parser FramePayload
 
 -- fixme :: Array
-deocdeMap :: Map.Map FrameType FramePayloadDecoder
-deocdeMap = Map.fromList
-    [ (FrameData, deocdeDataFrame)
-    , (FrameHeaders, deocdeHeadersFrame)
-    , (FramePriority, deocdePriorityFrame)
-    , (FrameRSTStream, deocdeRstStreamFrame)
-    , (FrameSettings, deocdeSettingsFrame)
-    , (FramePushPromise, deocdePushPromiseFrame)
-    , (FramePing, deocdePingFrame)
-    , (FrameGoAway, deocdeGoAwayFrame)
-    , (FrameWindowUpdate, deocdeWindowUpdateFrame)
-    , (FrameContinuation, deocdeContinuationFrame)
+decodeMap :: Map.Map FrameType FramePayloadDecoder
+decodeMap = Map.fromList
+    [ (FrameData, decodeDataFrame)
+    , (FrameHeaders, decodeHeadersFrame)
+    , (FramePriority, decodePriorityFrame)
+    , (FrameRSTStream, decodeRstStreamFrame)
+    , (FrameSettings, decodeSettingsFrame)
+    , (FramePushPromise, decodePushPromiseFrame)
+    , (FramePing, decodePingFrame)
+    , (FrameGoAway, decodeGoAwayFrame)
+    , (FrameWindowUpdate, decodeWindowUpdateFrame)
+    , (FrameContinuation, decodeContinuationFrame)
     ]
 
 decodeFramePayload :: FramePayloadDecoder
 decodeFramePayload header = do
-    decodePayload <- case Map.lookup (fhType header) deocdeMap of
+    decodePayload <- case Map.lookup (fhType header) decodeMap of
         Nothing -> do
             -- fixme: consume
             fail "Unable to locate parser for frame type"
@@ -112,8 +112,8 @@ decodeFramePayload header = do
 ----------------------------------------------------------------
 
 -- fixme
-deocdeUnknownFrame :: FramePayloadDecoder
-deocdeUnknownFrame header = UnknownFrame <$> B.take (frameLen header)
+decodeUnknownFrame :: FramePayloadDecoder
+decodeUnknownFrame header = UnknownFrame <$> B.take (frameLen header)
 
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the parser func
@@ -131,11 +131,11 @@ paddingParser header p =
     flags = fhFlags header
     padded = testBit flags 4
 
-deocdeDataFrame :: FramePayloadDecoder
-deocdeDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
+decodeDataFrame :: FramePayloadDecoder
+decodeDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
 
-deocdeHeadersFrame :: FramePayloadDecoder
-deocdeHeadersFrame header = paddingParser header $ \len ->
+decodeHeadersFrame :: FramePayloadDecoder
+decodeHeadersFrame header = paddingParser header $ \len ->
     if priority then do
         (streamId, excl) <- steramIdentifier
         weight <- (+1) . fromIntegral <$> B.anyWord8
@@ -147,22 +147,22 @@ deocdeHeadersFrame header = paddingParser header $ \len ->
     flags = fhFlags header
     priority = testBit flags 6
 
-deocdePriorityFrame :: FramePayloadDecoder
-deocdePriorityFrame _ = do
+decodePriorityFrame :: FramePayloadDecoder
+decodePriorityFrame _ = do
     (streamId, excl) <- steramIdentifier
     weight <- (+1) . fromIntegral <$> B.anyWord8
     return $ PriorityFrame excl streamId weight
 
-deocdeRstStreamFrame :: FramePayloadDecoder
-deocdeRstStreamFrame _ = do
+decodeRstStreamFrame :: FramePayloadDecoder
+decodeRstStreamFrame _ = do
     w32 <- BI.anyWord32be
     let merr = errorCodeFromWord32 w32
     case merr of
         Nothing  -> fail $ "Unknown error code in RST_STREAM" ++ show w32
         Just err -> return $ RSTStreamFrame err
 
-deocdeSettingsFrame :: FramePayloadDecoder
-deocdeSettingsFrame header
+decodeSettingsFrame :: FramePayloadDecoder
+decodeSettingsFrame header
   | isNotValid = fail "Incorrect frame length"
   | otherwise  = SettingsFrame <$> settings
   where
@@ -176,21 +176,21 @@ deocdeSettingsFrame header
             Nothing -> fail $ "Unknown settings: " ++ show rawSetting
             Just s  -> (s,) <$> BI.anyWord32be
 
-deocdePushPromiseFrame :: FramePayloadDecoder
-deocdePushPromiseFrame header = paddingParser header $ \len -> do
+decodePushPromiseFrame :: FramePayloadDecoder
+decodePushPromiseFrame header = paddingParser header $ \len -> do
     (streamId, _) <- steramIdentifier
     hbf <- B.take $ len - 4
     return $ PushPromiseFrame streamId hbf
 
-deocdePingFrame :: FramePayloadDecoder
-deocdePingFrame header =
+decodePingFrame :: FramePayloadDecoder
+decodePingFrame header =
     if frameLen header /= 8 then
         fail "Invalid length for ping"
     else
         PingFrame <$> B.take 8
 
-deocdeGoAwayFrame :: FramePayloadDecoder
-deocdeGoAwayFrame header = do
+decodeGoAwayFrame :: FramePayloadDecoder
+decodeGoAwayFrame header = do
     (streamId, _) <- steramIdentifier
     ec <- BI.anyWord32be
     let merrCode = errorCodeFromWord32 ec
@@ -199,15 +199,15 @@ deocdeGoAwayFrame header = do
         Nothing      -> fail $ "Unknown error code: " ++ show ec
         Just errCode -> return $ GoAwayFrame streamId errCode debug
 
-deocdeWindowUpdateFrame :: FramePayloadDecoder
-deocdeWindowUpdateFrame header
+decodeWindowUpdateFrame :: FramePayloadDecoder
+decodeWindowUpdateFrame header
   | frameLen header /= 4 = fail "Invalid length for window update"
   | otherwise            = do
       (streamId, _) <- steramIdentifier
       return $ WindowUpdateFrame streamId
 
-deocdeContinuationFrame :: FramePayloadDecoder
-deocdeContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
+decodeContinuationFrame :: FramePayloadDecoder
+decodeContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
 
 steramIdentifier :: B.Parser (StreamIdentifier, Bool)
 steramIdentifier = do
