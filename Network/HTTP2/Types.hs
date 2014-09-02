@@ -1,5 +1,6 @@
 module Network.HTTP2.Types where
 
+import Data.Array.IArray (Ix)
 import Data.ByteString (ByteString)
 import Data.Word (Word8, Word16, Word32)
 
@@ -103,7 +104,7 @@ data FrameType = FrameData
                | FrameGoAway
                | FrameWindowUpdate
                | FrameContinuation
-               deriving (Show, Eq, Ord, Enum, Bounded)
+               deriving (Show, Eq, Ord, Enum, Bounded, Ix)
 
 -- |
 --

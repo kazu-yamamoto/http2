@@ -6,8 +6,8 @@ import Control.Applicative ((<$>))
 import Control.Monad (replicateM, void, (>=>))
 import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
+import Data.Array.IArray (Array, listArray, (!))
 import Data.Bits (clearBit, shiftL, testBit, (.|.))
-import qualified Data.Map as Map
 
 import Network.HTTP2.Types
 
@@ -85,29 +85,24 @@ decodeFrameHeader = do
 
 type FramePayloadDecoder = FrameHeader -> B.Parser FramePayload
 
--- fixme :: Array
-decodeMap :: Map.Map FrameType FramePayloadDecoder
-decodeMap = Map.fromList
-    [ (FrameData, decodeDataFrame)
-    , (FrameHeaders, decodeHeadersFrame)
-    , (FramePriority, decodePriorityFrame)
-    , (FrameRSTStream, decodeRstStreamFrame)
-    , (FrameSettings, decodeSettingsFrame)
-    , (FramePushPromise, decodePushPromiseFrame)
-    , (FramePing, decodePingFrame)
-    , (FrameGoAway, decodeGoAwayFrame)
-    , (FrameWindowUpdate, decodeWindowUpdateFrame)
-    , (FrameContinuation, decodeContinuationFrame)
+payloadDecoders :: Array FrameType FramePayloadDecoder
+payloadDecoders = listArray (minBound :: FrameType, maxBound :: FrameType)
+    [ decodeDataFrame
+    , decodeHeadersFrame
+    , decodePriorityFrame
+    , decodeRstStreamFrame
+    , decodeSettingsFrame
+    , decodePushPromiseFrame
+    , decodePingFrame
+    , decodeGoAwayFrame
+    , decodeWindowUpdateFrame
+    , decodeContinuationFrame
     ]
 
 decodeFramePayload :: FramePayloadDecoder
-decodeFramePayload header = do
-    decodePayload <- case Map.lookup (fhType header) decodeMap of
-        Nothing -> do
-            -- fixme: consume
-            fail "Unable to locate parser for frame type"
-        Just fp -> return fp
-    decodePayload header
+decodeFramePayload header = decodePayload header
+  where
+    decodePayload = payloadDecoders ! (fhType header)
 
 ----------------------------------------------------------------
 
