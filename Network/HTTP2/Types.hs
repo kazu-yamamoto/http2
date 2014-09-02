@@ -155,6 +155,11 @@ type HeaderBlockFragment = ByteString
 type Exclusive           = Bool
 type Weight              = Int
 
+data Frame = Frame
+    { frameHeader  :: FrameHeader
+    , framePayload :: FramePayload
+    } deriving (Show, Eq)
+
 -- A complete frame header
 data FrameHeader = FrameHeader
     { fhLength   :: FrameLength
@@ -163,26 +168,21 @@ data FrameHeader = FrameHeader
     , fhStreamId :: StreamIdentifier
     } deriving (Show, Eq)
 
--- The raw frame is the header with the payload body, but not a parsed
--- full frame
-data RawFrame = RawFrame
-    { frameHeader  :: FrameHeader
-    , framePayload :: ByteString
-    } deriving (Show, Eq)
-
-data Frame = DataFrame ByteString
-           | HeaderFrame (Maybe Exclusive)
-                         (Maybe StreamDependency)
-                         (Maybe Weight)
-                         HeaderBlockFragment
-           | PriorityFrame Exclusive StreamDependency Weight
-           | RSTStreamFrame ErrorCode
-           | SettingsFrame Settings
-           | PushPromiseFrame PromisedStreamId HeaderBlockFragment
-           | PingFrame ByteString
-           | GoAwayFrame LastStreamId ErrorCode ByteString
-           | WindowUpdateFrame WindowSizeIncrement
-           | ContinuationFrame HeaderBlockFragment
-           | UnknownFrame ByteString
+data FramePayload =
+    DataFrame ByteString
+  | HeaderFrame (Maybe Exclusive)
+                (Maybe StreamDependency)
+                (Maybe Weight)
+                HeaderBlockFragment
+  | PriorityFrame Exclusive StreamDependency Weight
+  | RSTStreamFrame ErrorCode
+  | SettingsFrame Settings
+  | PushPromiseFrame PromisedStreamId HeaderBlockFragment
+  | PingFrame ByteString
+  | GoAwayFrame LastStreamId ErrorCode ByteString
+  | WindowUpdateFrame WindowSizeIncrement
+  | ContinuationFrame HeaderBlockFragment
+  | UnknownFrame ByteString -- fixme
+  deriving (Show, Eq)
 
 type Settings = [(SettingsId,Word32)]
