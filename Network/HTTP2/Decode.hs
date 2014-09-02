@@ -2,12 +2,12 @@
 
 module Network.HTTP2.Decode where
 
-import           Control.Applicative        ((<$>))
-import           Control.Monad              (replicateM, void, (>=>))
-import qualified Data.Attoparsec.Binary     as BI
+import Control.Applicative ((<$>))
+import Control.Monad (replicateM, void, (>=>))
+import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
-import           Data.Bits                  (clearBit, shiftL, testBit, (.|.))
-import qualified Data.Map                   as Map
+import Data.Bits (clearBit, shiftL, testBit, (.|.))
+import qualified Data.Map as Map
 
 import Network.HTTP2.Types
 
