@@ -30,7 +30,7 @@ checkHeaderLen settings (FrameHeader _ _ len _)
     -- fixme
     minSize = round $ 2 ** 14
     maxFrameSize =
-        fromIntegral $ Map.findWithDefault minSize SettingMaxFrameSize settings
+        fromIntegral $ Map.findWithDefault minSize SettingsMaxFrameSize settings
 
 -- | Check the various types of frames for basic errors
 checkFrameErrors :: SettingsMap -> FrameHeader -> Maybe ErrorCode
@@ -55,7 +55,7 @@ checkFrameErrors settings (FrameHeader ft _flags _len sid)
                         , FramePushPromise
                         , FrameContinuation
                         ]
-    pushEnabled = Map.findWithDefault 1 SettingEnablePush settings /= 0
+    pushEnabled = Map.findWithDefault 1 SettingsEnablePush settings /= 0
 
 parseMap :: Map.Map FrameType FrameParser
 parseMap = Map.fromList
@@ -69,7 +69,6 @@ parseMap = Map.fromList
     , (FrameGoAway, parseGoAwayFrame)
     , (FrameWindowUpdate, parseWindowUpdateFrame)
     , (FrameContinuation, parseContinuationFrame)
-    , (FrameUnknown, parseUnknownFrame)
     ]
 
 parseFrameBody :: RawFrame -> Either String FullFrame
@@ -85,10 +84,14 @@ parseFrameHeader = do
     a <- fromIntegral <$> BI.anyWord16be
     b <- B.anyWord8
     let frameLength = (a `shiftL` 8) .|. fromIntegral b :: Int24
-    typ <- frameTypeFromWord8 <$> B.anyWord8
-    flags <- B.anyWord8
-    streamId <- (`clearBit` 31) <$> BI.anyWord32be
-    return $ FrameHeader typ flags frameLength streamId
+    tp <- B.anyWord8
+    let mtyp = frameTypeFromWord8 tp
+    case mtyp of
+        Nothing  -> fail $ "Unknown frame type: " ++ show tp
+        Just typ -> do
+            flags <- B.anyWord8
+            streamId <- (`clearBit` 31) <$> BI.anyWord32be
+            return $ FrameHeader typ flags frameLength streamId
 
 parseRawFrame :: B.Parser RawFrame
 parseRawFrame = do
@@ -96,6 +99,7 @@ parseRawFrame = do
     payload <- B.take $ fromIntegral $ fhLength header
     return $ RawFrame header payload
 
+-- fixme
 parseUnknownFrame :: FrameParser
 parseUnknownFrame header = UnknownFrame <$> B.take (frameLen header)
 
@@ -149,10 +153,10 @@ parseSettingsFrame header = do
     when (frameLength `mod` 6 /= 0) $ fail "Incorrect frame length"
     settings <- replicateM (frameLength `div` 6) $ do
         rawSetting <- BI.anyWord16be
-        let settingId = settingIdFromWord16 rawSetting
-        case settingId of
-            SettingUnknown -> fail "Invalid settingID"
-            s              -> (s,) <$> BI.anyWord32be
+        let msettings = settingsFromWord16 rawSetting
+        case msettings of
+            Nothing -> fail $ "Invalid settings: " ++ show rawSetting
+            Just s  -> (s,) <$> BI.anyWord32be
     return $ SettingsFrame (Map.fromList settings)
   where
     frameLength = fromIntegral $ fhLength header
@@ -174,12 +178,13 @@ parsePingFrame header =
 parseGoAwayFrame :: FrameParser
 parseGoAwayFrame header = do
     rAndLastStreamId <- BI.anyWord32be
-    errCode <- errorCodeFromWord32 <$> BI.anyWord32be
+    ec <- BI.anyWord32be
+    let merrCode = errorCodeFromWord32 ec
     debug <- B.take $ frameLen header - 8
     let streamId = fromIntegral $ clearBit rAndLastStreamId 31
-    case errCode of
-        UnknownError -> fail "Invalid error code"
-        err          -> return $ GoAwayFrame streamId err debug
+    case merrCode of
+        Nothing      -> fail $ "Unknown error code: " ++ show ec
+        Just errCode -> return $ GoAwayFrame streamId errCode debug
 
 parseWindowUpdateFrame :: FrameParser
 parseWindowUpdateFrame header =
