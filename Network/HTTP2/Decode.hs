@@ -151,6 +151,7 @@ decodeSettingsFrame header
         rawSetting <- BI.anyWord16be
         let msettings = settingsFromWord16 rawSetting
         case msettings of
+            -- fixme: this must be ignored
             Nothing -> fail $ "Unknown settings: " ++ show rawSetting
             Just s  -> (s,) <$> BI.anyWord32be
 
