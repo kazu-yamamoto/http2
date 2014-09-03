@@ -15,9 +15,6 @@ import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
-frameLen :: FrameHeader -> Int
-frameLen h = fromIntegral $ fhLength h
-
 -- | Check the frame header against the settings to ensure that the
 -- length of the frame does not exceed our designated frame size
 -- (Section 4.2)
@@ -207,3 +204,6 @@ streamIdentifier = do
     let !streamdId = StreamIdentifier $ clearBit w32 31
         !exclusive = testBit w32 31
     return (streamdId, exclusive)
+
+frameLen :: FrameHeader -> Int
+frameLen h = fromIntegral $ fhLength h
