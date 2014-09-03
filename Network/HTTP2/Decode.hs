@@ -5,40 +5,67 @@ module Network.HTTP2.Decode (
   ) where
 
 import Control.Applicative ((<$>))
-import Control.Monad (void, (>=>))
+import Control.Monad (void, (>=>), when)
+import Data.Array (Array, listArray, (!))
 import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
-import Data.Array (Array, listArray, (!))
 import Data.Bits (clearBit, shiftL, testBit, (.|.))
 
 import Network.HTTP2.Types
 
 ----------------------------------------------------------------
+-- atto-parsec can return only String as an error type, sigh.
 
--- | Check the frame header against the settings to ensure that the
--- length of the frame does not exceed our designated frame size
--- (Section 4.2)
-checkHeaderLen :: Settings -> FrameHeader -> Maybe ErrorCode
-checkHeaderLen settings (FrameHeader len _ _ _)
-    | len > maxSize = Just FrameSizeError
-    | otherwise     = Nothing
+-- This is a special case: frame type is unknown
+-- and its frame is just ignored.
+noError :: String
+noError = show noError
+
+protocolError :: String
+protocolError = show ProtocolError
+
+frameSizeError :: String
+frameSizeError = show FrameSizeError
+
+----------------------------------------------------------------
+
+-- Error code is encoded in String.
+-- We can convert it to 'Either ErrorCode Frame'.
+decodeFrame :: Settings -> B.Parser Frame
+decodeFrame settings = do
+    header <- decodeFrameHeader settings
+    Frame header <$> decodeFramePayload header
+
+----------------------------------------------------------------
+
+decodeFrameHeader :: Settings -> B.Parser FrameHeader
+decodeFrameHeader settings = do
+    a <- fromIntegral <$> BI.anyWord16be
+    b <- B.anyWord8
+    let frameLength = (a `shiftL` 8) .|. fromIntegral b :: FrameLength
+    when (frameLength > maxSize) $ fail frameSizeError
+    tp <- B.anyWord8
+    let mtyp = frameTypeFromWord8 tp
+    case mtyp of
+        Nothing  -> do
+            void $ B.take frameLength
+            fail noError
+        Just typ -> do
+            flags <- B.anyWord8
+            (streamId, _) <- streamIdentifier
+            when (typ `elem` nonZeroFrameTypes &&
+                  streamId == streamIdentifierForSeetings) $
+                fail protocolError
+            when (typ `elem` zeroFrameTypes &&
+                  streamId /= streamIdentifierForSeetings) $
+                fail protocolError
+            when (typ == FramePushPromise && not pushEnabled) $
+                fail protocolError
+            return $ FrameHeader frameLength typ flags streamId
   where
     maxSize = case lookup SettingsMaxFrameSize settings of
         Just x  -> fromIntegral x
         Nothing -> maxFrameSize
-
--- | Check the various types of frames for basic errors
-checkFrameErrors :: Settings -> FrameHeader -> Maybe ErrorCode
-checkFrameErrors settings (FrameHeader _len ft _flags sid)
-    -- These frames must have a non-zero StreamID
-    -- (Sections 6.1, 6.2, 6.3, 6.4, 6.10)
-    | ft `elem` nonZeroFrameTypes && sid == streamIdentifierForSeetings   = Just ProtocolError
-    -- Settings/Pings/GoAway must use a StreamID of 0 (Section 6.5, 6.7, 6.8)
-    | ft `elem` zeroFrameTypes && sid /= streamIdentifierForSeetings      = Just ProtocolError
-    -- Push must be enabled for push frames (Section 6.6)
-    | ft == FramePushPromise && not pushEnabled = Just ProtocolError
-    | otherwise                                 = Nothing
-  where
     zeroFrameTypes = [ FrameSettings
                      , FramePing
                      , FrameGoAway
@@ -53,32 +80,6 @@ checkFrameErrors settings (FrameHeader _len ft _flags sid)
     pushEnabled = case lookup SettingsEnablePush settings of
         Nothing -> True
         Just x  -> x /= 0
-
-----------------------------------------------------------------
-
--- fixme :: error code
-decodeFrame :: B.Parser Frame
-decodeFrame = do
-    header <- decodeFrameHeader
-    Frame header <$> decodeFramePayload header
-
-----------------------------------------------------------------
-
-decodeFrameHeader :: B.Parser FrameHeader
-decodeFrameHeader = do
-    a <- fromIntegral <$> BI.anyWord16be
-    b <- B.anyWord8
-    let frameLength = (a `shiftL` 8) .|. fromIntegral b :: FrameLength
-    tp <- B.anyWord8
-    let mtyp = frameTypeFromWord8 tp
-    case mtyp of
-        Nothing  -> do
-            void $ B.take frameLength
-            fail $ "Unknown frame type: " ++ show tp
-        Just typ -> do
-            flags <- B.anyWord8
-            (streamId, _) <- streamIdentifier
-            return $ FrameHeader frameLength typ flags streamId
 
 ----------------------------------------------------------------
 
@@ -133,8 +134,7 @@ decodeRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
 
 decodeSettingsFrame :: FramePayloadDecoder
 decodeSettingsFrame FrameHeader{..}
-  -- Goaway: ProtocolError
-  | isNotValid = fail "Incorrect frame length"
+  | isNotValid = fail protocolError
   | otherwise  = SettingsFrame <$> settings num []
   where
     num = fhLength `div` 6
@@ -158,8 +158,7 @@ decodePushPromiseFrame header = decodeWithPadding header $ \len -> do
 
 decodePingFrame :: FramePayloadDecoder
 decodePingFrame header
-  -- Goaway: FrameSizeError
-  | frameLen header /= 8 = fail "Invalid length for ping"
+  | frameLen header /= 8 = fail frameSizeError
   | otherwise            = PingFrame <$> B.take 8
 
 decodeGoAwayFrame :: FramePayloadDecoder
@@ -171,8 +170,7 @@ decodeGoAwayFrame header = do
 
 decodeWindowUpdateFrame :: FramePayloadDecoder
 decodeWindowUpdateFrame header
-  -- Goaway: FrameSizeError (not sure)
-  | frameLen header /= 4 = fail "Invalid length for window update"
+  | frameLen header /= 4 = fail frameSizeError -- not sure
   | otherwise            = do
       (streamId, _) <- streamIdentifier
       return $ WindowUpdateFrame streamId
