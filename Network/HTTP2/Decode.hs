@@ -102,6 +102,7 @@ payloadDecoders = listArray (minBound :: FrameType, maxBound :: FrameType)
 decodeFramePayload :: FramePayloadDecoder
 decodeFramePayload header = decodePayload header
   where
+    -- header always contain a valid FrameType
     decodePayload = payloadDecoders ! fhType header
 
 ----------------------------------------------------------------
