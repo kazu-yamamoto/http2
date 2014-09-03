@@ -132,12 +132,7 @@ decodePriorityFrame _ = do
     return $ PriorityFrame excl streamId weight
 
 decodeRstStreamFrame :: FramePayloadDecoder
-decodeRstStreamFrame _ = do
-    w32 <- BI.anyWord32be
-    let merr = errorCodeFromWord32 w32
-    case merr of
-        Nothing  -> fail $ "Unknown error code in RST_STREAM" ++ show w32
-        Just err -> return $ RSTStreamFrame err
+decodeRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
 
 decodeSettingsFrame :: FramePayloadDecoder
 decodeSettingsFrame FrameHeader{..}
@@ -173,12 +168,9 @@ decodePingFrame header =
 decodeGoAwayFrame :: FramePayloadDecoder
 decodeGoAwayFrame header = do
     (streamId, _) <- streamIdentifier
-    ec <- BI.anyWord32be
-    let merrCode = errorCodeFromWord32 ec
+    errCode <- errorCodeFromWord32 <$> BI.anyWord32be
     debug <- B.take $ frameLen header - 8
-    case merrCode of
-        Nothing      -> fail $ "Unknown error code: " ++ show ec
-        Just errCode -> return $ GoAwayFrame streamId errCode debug
+    return $ GoAwayFrame streamId errCode debug
 
 decodeWindowUpdateFrame :: FramePayloadDecoder
 decodeWindowUpdateFrame header

@@ -44,10 +44,10 @@ maxErrorCode = fromIntegral $ fromEnum (maxBound :: ErrorCode)
 -- Just InadequateSecurity
 -- >>> errorCodeFromWord32 0xd
 -- Nothing
-errorCodeFromWord32 :: Word32 -> Maybe ErrorCode
+errorCodeFromWord32 :: Word32 -> Either Word32 ErrorCode
 errorCodeFromWord32 x
-  | minErrorCode <= x && x <= maxErrorCode = Just . toEnum . fromIntegral $ x
-  | otherwise                              = Nothing
+  | minErrorCode <= x && x <= maxErrorCode = Right . toEnum . fromIntegral $ x
+  | otherwise                              = Left x
 
 ----------------------------------------------------------------
 
@@ -179,11 +179,11 @@ data FramePayload =
                 (Maybe Weight)
                 HeaderBlockFragment
   | PriorityFrame Exclusive StreamDependency Weight
-  | RSTStreamFrame ErrorCode
+  | RSTStreamFrame (Either Word32 ErrorCode)
   | SettingsFrame Settings
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame LastStreamId ErrorCode ByteString
+  | GoAwayFrame LastStreamId (Either Word32 ErrorCode) ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame ByteString -- fixme
