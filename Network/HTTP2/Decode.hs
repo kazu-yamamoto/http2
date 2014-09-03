@@ -1,11 +1,11 @@
-{-# LANGUAGE TupleSections, BangPatterns #-}
+{-# LANGUAGE TupleSections, BangPatterns, RecordWildCards #-}
 
 module Network.HTTP2.Decode (
     decodeFrame
   ) where
 
 import Control.Applicative ((<$>))
-import Control.Monad (replicateM, void, (>=>))
+import Control.Monad (void, (>=>))
 import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
 import Data.Array (Array, listArray, (!))
@@ -140,20 +140,22 @@ decodeRstStreamFrame _ = do
         Just err -> return $ RSTStreamFrame err
 
 decodeSettingsFrame :: FramePayloadDecoder
-decodeSettingsFrame header
+decodeSettingsFrame FrameHeader{..}
   | isNotValid = fail "Incorrect frame length"
-  | otherwise  = SettingsFrame <$> settings
+  | otherwise  = SettingsFrame <$> settings num []
   where
-    frameLength = fromIntegral $ fhLength header
-    n = frameLength `div` 6
-    isNotValid = frameLength `mod` 6 /= 0
-    settings = replicateM n $ do
+    num = fhLength `div` 6
+    isNotValid = fhLength `mod` 6 /= 0
+    settings 0 kvs = return kvs
+    settings n kvs = do
         rawSetting <- BI.anyWord16be
         let msettings = settingsFromWord16 rawSetting
+            n' = n - 1
         case msettings of
-            -- fixme: this must be ignored
-            Nothing -> fail $ "Unknown settings: " ++ show rawSetting
-            Just s  -> (s,) <$> BI.anyWord32be
+            Nothing -> settings n' kvs -- ignoring unknown one (Section 6.5.2)
+            Just k  -> do
+                v <- BI.anyWord32be
+                settings n' ((k,v):kvs)
 
 decodePushPromiseFrame :: FramePayloadDecoder
 decodePushPromiseFrame header = decodeWithPadding header $ \len -> do
