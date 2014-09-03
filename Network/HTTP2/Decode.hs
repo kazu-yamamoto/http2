@@ -63,7 +63,7 @@ decodeFrameHeader settings = do
                 fail protocolError
             return $ FrameHeader frameLength typ flags streamId
   where
-    maxSize = case lookup SettingsMaxFrameSize settings of
+    maxSize = case settings ! SettingsMaxFrameSize of
         Just x  -> fromIntegral x
         Nothing -> maxFrameSize
     zeroFrameTypes = [ FrameSettings
@@ -77,7 +77,7 @@ decodeFrameHeader settings = do
                         , FramePushPromise
                         , FrameContinuation
                         ]
-    pushEnabled = case lookup SettingsEnablePush settings of
+    pushEnabled = case settings ! SettingsEnablePush of
         Nothing -> True
         Just x  -> x /= 0
 
@@ -139,7 +139,7 @@ decodeSettingsFrame FrameHeader{..}
   where
     num = fhLength `div` 6
     isNotValid = fhLength `mod` 6 /= 0
-    settings 0 builder = return (builder [])
+    settings 0 builder = return $ toSettings $ builder []
     settings n builder = do
         rawSetting <- BI.anyWord16be
         let msettings = settingsFromWord16 rawSetting

@@ -1,8 +1,10 @@
 module Network.HTTP2.Types where
 
-import Data.Array.IArray (Ix)
+import Data.Array (Array, Ix)
+import Data.Array.ST (newArray, writeArray, runSTArray)
 import Data.ByteString (ByteString)
 import Data.Word (Word8, Word16, Word32)
+import Control.Monad (forM_)
 
 ----------------------------------------------------------------
 
@@ -57,7 +59,7 @@ data SettingsId = SettingsHeaderTableSize
                 | SettingsInitialWindowSize
                 | SettingsMaxFrameSize
                 | SettingsMaxHeaderBlockSize
-                deriving (Show, Eq, Ord, Enum, Bounded)
+                deriving (Show, Eq, Ord, Enum, Bounded, Ix)
 
 -- |
 --
@@ -188,4 +190,12 @@ data FramePayload =
   | ContinuationFrame HeaderBlockFragment
   deriving (Show, Eq)
 
-type Settings = [(SettingsId,Word32)]
+type Settings = Array SettingsId (Maybe Word32)
+
+toSettings :: [(SettingsId,Word32)] -> Settings
+toSettings kvs = runSTArray $ do
+    arr <- newArray rng Nothing
+    forM_ kvs $ \(k,v) -> writeArray arr k (Just v)
+    return arr
+  where
+    rng = (minBound :: SettingsId, maxBound :: SettingsId)
