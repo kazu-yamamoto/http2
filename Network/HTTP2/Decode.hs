@@ -107,10 +107,6 @@ decodeFramePayload header = decodePayload header
 
 ----------------------------------------------------------------
 
--- fixme
-decodeUnknownFrame :: FramePayloadDecoder
-decodeUnknownFrame header = UnknownFrame <$> B.take (frameLen header)
-
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the parser func
 -- passed in with the length of the unpadded portion between the
