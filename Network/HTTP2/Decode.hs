@@ -8,7 +8,7 @@ import Control.Applicative ((<$>))
 import Control.Monad (replicateM, void, (>=>))
 import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
-import Data.Array.IArray (Array, listArray, (!))
+import Data.Array (Array, listArray, (!))
 import Data.Bits (clearBit, shiftL, testBit, (.|.))
 
 import Network.HTTP2.Types
