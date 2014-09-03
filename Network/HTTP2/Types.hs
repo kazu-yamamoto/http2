@@ -149,6 +149,9 @@ type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
 type WindowSizeIncrement = StreamIdentifier
 
+fromStreamIdentifier :: StreamIdentifier -> Word32
+fromStreamIdentifier (StreamIdentifier w32) = w32
+
 streamIdentifierForSeetings :: StreamIdentifier
 streamIdentifierForSeetings = StreamIdentifier 0
 
