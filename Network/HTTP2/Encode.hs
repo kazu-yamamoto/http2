@@ -1,6 +1,8 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Encode where
+module Network.HTTP2.Encode (
+    encodeFrame
+  ) where
 
 import Blaze.ByteString.Builder
 import Data.Monoid ((<>))
