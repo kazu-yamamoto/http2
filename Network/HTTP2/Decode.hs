@@ -159,11 +159,9 @@ decodePushPromiseFrame header = decodeWithPadding header $ \len -> do
     return $ PushPromiseFrame streamId hbf
 
 decodePingFrame :: FramePayloadDecoder
-decodePingFrame header =
-    if frameLen header /= 8 then
-        fail "Invalid length for ping"
-    else
-        PingFrame <$> B.take 8
+decodePingFrame header
+  | frameLen header /= 8 = fail "Invalid length for ping"
+  | otherwise            = PingFrame <$> B.take 8
 
 decodeGoAwayFrame :: FramePayloadDecoder
 decodeGoAwayFrame header = do
