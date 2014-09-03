@@ -135,20 +135,20 @@ decodeRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
 decodeSettingsFrame :: FramePayloadDecoder
 decodeSettingsFrame FrameHeader{..}
   | isNotValid = fail protocolError
-  | otherwise  = SettingsFrame <$> settings num []
+  | otherwise  = SettingsFrame <$> settings num id
   where
     num = fhLength `div` 6
     isNotValid = fhLength `mod` 6 /= 0
-    settings 0 kvs = return kvs
-    settings n kvs = do
+    settings 0 builder = return (builder [])
+    settings n builder = do
         rawSetting <- BI.anyWord16be
         let msettings = settingsFromWord16 rawSetting
             n' = n - 1
         case msettings of
-            Nothing -> settings n' kvs -- ignoring unknown one (Section 6.5.2)
+            Nothing -> settings n' builder -- ignoring unknown one (Section 6.5.2)
             Just k  -> do
                 v <- BI.anyWord32be
-                settings n' ((k,v):kvs)
+                settings n' (((k,v):) . builder)
 
 decodePushPromiseFrame :: FramePayloadDecoder
 decodePushPromiseFrame header = decodeWithPadding header $ \len -> do
