@@ -107,27 +107,11 @@ decodeFramePayload header = decodePayload header
 
 ----------------------------------------------------------------
 
--- | Helper function to pull off the padding if its there, and will
--- eat up the trailing padding automatically. Calls the parser func
--- passed in with the length of the unpadded portion between the
--- padding octet and the actual padding
-paddingParser :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
-paddingParser header p =
-    if padded then do
-        padding <- fromIntegral <$> B.anyWord8
-        val <- p $ frameLen header - padding - 1
-        void $ B.take padding
-        return val
-    else p (frameLen header)
-  where
-    flags = fhFlags header
-    padded = testBit flags 4
-
 decodeDataFrame :: FramePayloadDecoder
-decodeDataFrame header = paddingParser header $ B.take >=> (return . DataFrame)
+decodeDataFrame header = decodeWithPadding header $ B.take >=> (return . DataFrame)
 
 decodeHeadersFrame :: FramePayloadDecoder
-decodeHeadersFrame header = paddingParser header $ \len ->
+decodeHeadersFrame header = decodeWithPadding header $ \len ->
     if priority then do
         (streamId, excl) <- streamIdentifier
         weight <- (+1) . fromIntegral <$> B.anyWord8
@@ -169,7 +153,7 @@ decodeSettingsFrame header
             Just s  -> (s,) <$> BI.anyWord32be
 
 decodePushPromiseFrame :: FramePayloadDecoder
-decodePushPromiseFrame header = paddingParser header $ \len -> do
+decodePushPromiseFrame header = decodeWithPadding header $ \len -> do
     (streamId, _) <- streamIdentifier
     hbf <- B.take $ len - 4
     return $ PushPromiseFrame streamId hbf
@@ -200,6 +184,24 @@ decodeWindowUpdateFrame header
 
 decodeContinuationFrame :: FramePayloadDecoder
 decodeContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
+
+----------------------------------------------------------------
+
+-- | Helper function to pull off the padding if its there, and will
+-- eat up the trailing padding automatically. Calls the parser func
+-- passed in with the length of the unpadded portion between the
+-- padding octet and the actual padding
+decodeWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
+decodeWithPadding header p
+  | padded = do
+      padding <- fromIntegral <$> B.anyWord8
+      val <- p $ frameLen header - padding - 1
+      void $ B.take padding
+      return val
+  | otherwise = p $ frameLen header
+  where
+    flags = fhFlags header
+    padded = testBit flags 4
 
 streamIdentifier :: B.Parser (StreamIdentifier, Bool)
 streamIdentifier = do
