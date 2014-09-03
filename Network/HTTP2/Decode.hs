@@ -1,6 +1,8 @@
 {-# LANGUAGE TupleSections, BangPatterns #-}
 
-module Network.HTTP2.Decode where
+module Network.HTTP2.Decode (
+    decodeFrame
+  ) where
 
 import Control.Applicative ((<$>))
 import Control.Monad (replicateM, void, (>=>))
