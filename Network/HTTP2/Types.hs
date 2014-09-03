@@ -186,7 +186,6 @@ data FramePayload =
   | GoAwayFrame LastStreamId (Either Word32 ErrorCode) ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
-  | UnknownFrame ByteString -- fixme
   deriving (Show, Eq)
 
 type Settings = [(SettingsId,Word32)]

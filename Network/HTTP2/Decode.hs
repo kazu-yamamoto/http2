@@ -76,7 +76,7 @@ decodeFrameHeader = do
     let mtyp = frameTypeFromWord8 tp
     case mtyp of
         Nothing  -> do
-            -- fixme: consume
+            void $ B.take frameLength
             fail $ "Unknown frame type: " ++ show tp
         Just typ -> do
             flags <- B.anyWord8
@@ -136,6 +136,7 @@ decodeRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
 
 decodeSettingsFrame :: FramePayloadDecoder
 decodeSettingsFrame FrameHeader{..}
+  -- Goaway: ProtocolError
   | isNotValid = fail "Incorrect frame length"
   | otherwise  = SettingsFrame <$> settings num []
   where
@@ -160,6 +161,7 @@ decodePushPromiseFrame header = decodeWithPadding header $ \len -> do
 
 decodePingFrame :: FramePayloadDecoder
 decodePingFrame header
+  -- Goaway: FrameSizeError
   | frameLen header /= 8 = fail "Invalid length for ping"
   | otherwise            = PingFrame <$> B.take 8
 
@@ -172,6 +174,7 @@ decodeGoAwayFrame header = do
 
 decodeWindowUpdateFrame :: FramePayloadDecoder
 decodeWindowUpdateFrame header
+  -- Goaway: FrameSizeError (not sure)
   | frameLen header /= 4 = fail "Invalid length for window update"
   | otherwise            = do
       (streamId, _) <- streamIdentifier
