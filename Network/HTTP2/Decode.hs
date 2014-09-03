@@ -102,7 +102,7 @@ payloadDecoders = listArray (minBound :: FrameType, maxBound :: FrameType)
 decodeFramePayload :: FramePayloadDecoder
 decodeFramePayload header = decodePayload header
   where
-    decodePayload = payloadDecoders ! (fhType header)
+    decodePayload = payloadDecoders ! fhType header
 
 ----------------------------------------------------------------
 
