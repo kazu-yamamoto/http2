@@ -131,9 +131,12 @@ Test-Suite spec
                         HPACK.HeaderBlockSpec
                         HPACK.HuffmanSpec
                         HPACK.IntegerSpec
+                        HTTP2.FrameSpec
   Build-Depends:        base
                       , PSQueue
                       , array
+                      , attoparsec
+                      , attoparsec-binary
                       , blaze-builder
                       , bytestring
                       , containers

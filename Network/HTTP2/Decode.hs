@@ -2,6 +2,8 @@
 
 module Network.HTTP2.Decode (
     decodeFrame
+  , decodeFrameHeader
+  , decodeFramePayload
   ) where
 
 import Control.Applicative ((<$>))

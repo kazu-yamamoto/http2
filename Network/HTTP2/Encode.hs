@@ -2,6 +2,8 @@
 
 module Network.HTTP2.Encode (
     encodeFrame
+  , encodeFrameHeader
+  , encodeFramePayload
   ) where
 
 import Blaze.ByteString.Builder
