@@ -3,7 +3,12 @@ module Main where
 import Test.DocTest
 
 main :: IO ()
-main = doctest [
-    "-XOverloadedStrings"
-  , "Network/HPACK.hs"
-  ]
+main = do
+    doctest [
+        "-XOverloadedStrings"
+      , "Network/HPACK.hs"
+      ]
+    doctest [
+        "-XOverloadedStrings"
+      , "Network/HTTP2.hs"
+      ]

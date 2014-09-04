@@ -125,12 +125,12 @@ Test-Suite spec
   HS-Source-Dirs:       test, .
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
-  Other-Modules:        DecodeSpec
-                        HeaderBlock
-                        HeaderBlockSpec
-                        HexString
-                        HuffmanSpec
-                        IntegerSpec
+  Other-Modules:        HexString
+                        HPACK.DecodeSpec
+                        HPACK.HeaderBlock
+                        HPACK.HeaderBlockSpec
+                        HPACK.HuffmanSpec
+                        HPACK.IntegerSpec
   Build-Depends:        base
                       , PSQueue
                       , array

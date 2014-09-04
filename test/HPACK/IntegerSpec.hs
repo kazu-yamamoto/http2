@@ -1,4 +1,4 @@
-module IntegerSpec where
+module HPACK.IntegerSpec where
 
 import Network.HPACK.HeaderBlock.Integer
 import Test.Hspec

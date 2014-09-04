@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module HeaderBlockSpec where
+module HPACK.HeaderBlockSpec where
 
 import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.HeaderBlock
 import Test.Hspec
 import Test.Hspec.QuickCheck
 
-import HeaderBlock
+import HPACK.HeaderBlock
 
 spec :: Spec
 spec = do

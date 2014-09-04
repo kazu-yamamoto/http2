@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module HuffmanSpec where
+module HPACK.HuffmanSpec where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS

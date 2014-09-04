@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DecodeSpec where
+module HPACK.DecodeSpec where
 
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
 import Test.Hspec
 
-import HeaderBlock
+import HPACK.HeaderBlock
 
 spec :: Spec
 spec = do

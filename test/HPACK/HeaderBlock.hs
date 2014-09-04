@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module HeaderBlock where
+module HPACK.HeaderBlock where
 
 import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
