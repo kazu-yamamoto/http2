@@ -12,7 +12,7 @@ module Network.HTTP2.Decode (
   ) where
 
 import Control.Applicative ((<$>))
-import Control.Monad (void, (>=>), when)
+import Control.Monad (void, when)
 import Data.Array (Array, listArray, (!))
 import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
@@ -144,7 +144,8 @@ parseFramePayload header = parsePayload header
 ----------------------------------------------------------------
 
 parseDataFrame :: FramePayloadParser
-parseDataFrame header = parseWithPadding header $ B.take >=> (return . DataFrame)
+parseDataFrame header = parseWithPadding header $ \len ->
+    DataFrame <$> B.take len
 
 parseHeadersFrame :: FramePayloadParser
 parseHeadersFrame header = parseWithPadding header $ \len ->
