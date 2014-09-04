@@ -3,28 +3,39 @@
 module Network.HTTP2.Encode (
     encodeFrame
   , encodeFrameHeader
-  , encodeFramePayload
+  , buildFrame
+  , buildFrameHeader
+  , buildFramePayload
   ) where
 
-import Blaze.ByteString.Builder
-import Data.Monoid ((<>))
+import Blaze.ByteString.Builder (Builder)
+import qualified Blaze.ByteString.Builder as BB
 import Data.Bits
+import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as BL
+import Data.Monoid ((<>))
 
 import Network.HTTP2.Types
 
-encodeFrame :: Frame -> Builder
+encodeFrame :: FrameHeader -> ByteString
 encodeFrame = undefined
 
-encodeFrameHeader :: FrameHeader -> Builder
-encodeFrameHeader FrameHeader{..} = len <> typ <> flags <> streamId
+encodeFrameHeader :: FrameHeader -> ByteString
+encodeFrameHeader frame = BL.toStrict $ BB.toLazyByteString $ buildFrameHeader frame
+
+buildFrame :: Frame -> Builder
+buildFrame = undefined
+
+buildFrameHeader :: FrameHeader -> Builder
+buildFrameHeader FrameHeader{..} = len <> typ <> flags <> streamId
   where
     -- fixme: 2^14 check
-    len1 = fromWord16be (fromIntegral (fhLength `shiftR` 8))
-    len2 = fromWord8 (fromIntegral (fhLength .&. 0xff))
+    len1 = BB.fromWord16be (fromIntegral (fhLength `shiftR` 8))
+    len2 = BB.fromWord8 (fromIntegral (fhLength .&. 0xff))
     len = len1 <> len2
-    typ = fromWord8 $ frameTypeToWord8 fhType
-    flags = fromWord8 fhFlags
-    streamId = fromWord32be $ fromStreamIdentifier fhStreamId
+    typ = BB.fromWord8 $ frameTypeToWord8 fhType
+    flags = BB.fromWord8 fhFlags
+    streamId = BB.fromWord32be $ fromStreamIdentifier fhStreamId
 
-encodeFramePayload :: FramePayload-> Builder
-encodeFramePayload = undefined
+buildFramePayload :: FramePayload-> Builder
+buildFramePayload = undefined
