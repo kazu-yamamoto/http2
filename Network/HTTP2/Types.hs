@@ -171,7 +171,7 @@ data FrameHeader = FrameHeader
     { payloadLength :: PayloadLength
     , frameType     :: FrameType
     , flags         :: FrameFlags
-    , fhStreamId :: StreamIdentifier
+    , streamId      :: StreamIdentifier
     } deriving (Show, Eq)
 
 data FramePayload =

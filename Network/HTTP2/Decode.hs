@@ -78,9 +78,9 @@ parseFrameHeader settings = do
             fail noError
         Just typ -> do
             flags <- B.anyWord8
-            (streamId, _) <- streamIdentifier
-            when (isProtocolError settings typ streamId) $ fail protocolError
-            return $ FrameHeader len typ flags streamId
+            (sid, _) <- streamIdentifier
+            when (isProtocolError settings typ sid) $ fail protocolError
+            return $ FrameHeader len typ flags sid
 
 doesExceed :: Settings -> PayloadLength -> Bool
 doesExceed settings len = len > maxLength
@@ -107,9 +107,9 @@ nonZeroFrameTypes = [
   ]
 
 isProtocolError :: Settings -> FrameType -> StreamIdentifier -> Bool
-isProtocolError settings typ streamId
-  | typ `elem` nonZeroFrameTypes && streamId == streamIdentifierForSeetings = True
-  | typ `elem` zeroFrameTypes && streamId /= streamIdentifierForSeetings = True
+isProtocolError settings typ sid
+  | typ `elem` nonZeroFrameTypes && sid == streamIdentifierForSeetings = True
+  | typ `elem` zeroFrameTypes && sid /= streamIdentifierForSeetings = True
   | typ == FramePushPromise && not pushEnabled = True
   | otherwise = False
   where
@@ -149,10 +149,10 @@ parseDataFrame header = parseWithPadding header $ B.take >=> (return . DataFrame
 parseHeadersFrame :: FramePayloadParser
 parseHeadersFrame header = parseWithPadding header $ \len ->
     if priority then do
-        (streamId, excl) <- streamIdentifier
+        (sid, excl) <- streamIdentifier
         weight <- (+1) <$> intFromWord8
         d <- B.take $ len - 5
-        return $ HeaderFrame (Just excl) (Just streamId) (Just weight) d
+        return $ HeaderFrame (Just excl) (Just sid) (Just weight) d
     else
         HeaderFrame Nothing Nothing Nothing <$> B.take len
   where
@@ -160,9 +160,9 @@ parseHeadersFrame header = parseWithPadding header $ \len ->
 
 parsePriorityFrame :: FramePayloadParser
 parsePriorityFrame _ = do
-    (streamId, excl) <- streamIdentifier
+    (sid, excl) <- streamIdentifier
     weight <- (+1) <$> intFromWord8
-    return $ PriorityFrame excl streamId weight
+    return $ PriorityFrame excl sid weight
 
 parseRstStreamFrame :: FramePayloadParser
 parseRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
@@ -187,9 +187,9 @@ parseSettingsFrame FrameHeader{..}
 
 parsePushPromiseFrame :: FramePayloadParser
 parsePushPromiseFrame header = parseWithPadding header $ \len -> do
-    (streamId, _) <- streamIdentifier
+    (sid, _) <- streamIdentifier
     hbf <- B.take $ len - 4
-    return $ PushPromiseFrame streamId hbf
+    return $ PushPromiseFrame sid hbf
 
 parsePingFrame :: FramePayloadParser
 parsePingFrame FrameHeader{..}
@@ -198,17 +198,17 @@ parsePingFrame FrameHeader{..}
 
 parseGoAwayFrame :: FramePayloadParser
 parseGoAwayFrame FrameHeader{..} = do
-    (streamId, _) <- streamIdentifier
+    (sid, _) <- streamIdentifier
     errCode <- errorCodeFromWord32 <$> BI.anyWord32be
     debug <- B.take $ payloadLength - 8
-    return $ GoAwayFrame streamId errCode debug
+    return $ GoAwayFrame sid errCode debug
 
 parseWindowUpdateFrame :: FramePayloadParser
 parseWindowUpdateFrame FrameHeader{..}
   | payloadLength /= 4 = fail frameSizeError -- not sure
   | otherwise          = do
-      (streamId, _) <- streamIdentifier
-      return $ WindowUpdateFrame streamId
+      (sid, _) <- streamIdentifier
+      return $ WindowUpdateFrame sid
 
 parseContinuationFrame :: FramePayloadParser
 parseContinuationFrame FrameHeader{..} =
