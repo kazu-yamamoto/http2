@@ -197,6 +197,10 @@ defaultSettings = listArray settingsRange [Nothing|_<-xs]
   where
     xs = [minBound :: SettingsId .. maxBound :: SettingsId]
 
+-- |
+--
+-- >>> toSettings [(SettingsHeaderTableSize,10),(SettingsInitialWindowSize,20),(SettingsHeaderTableSize,30)]
+-- array (SettingsHeaderTableSize,SettingsMaxHeaderBlockSize) [(SettingsHeaderTableSize,Just 30),(SettingsEnablePush,Nothing),(SettingsMaxConcurrentStreams,Nothing),(SettingsInitialWindowSize,Just 20),(SettingsMaxFrameSize,Nothing),(SettingsMaxHeaderBlockSize,Nothing)]
 toSettings :: [(SettingsId,Word32)] -> Settings
 toSettings kvs = runSTArray $ do
     arr <- newArray settingsRange Nothing
