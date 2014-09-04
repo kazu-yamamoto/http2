@@ -22,7 +22,7 @@ encodeFrameHeader FrameHeader{..} = len <> typ <> flags <> streamId
     len1 = fromWord16be (fromIntegral (fhLength `shiftR` 8))
     len2 = fromWord8 (fromIntegral (fhLength .&. 0xff))
     len = len1 <> len2
-    typ = fromWord8 $ frameTypeToWord8 fhType
+    typ = fromWord8 fhType
     flags = fromWord8 fhFlags
     streamId = fromWord32be $ fromStreamIdentifier fhStreamId
 

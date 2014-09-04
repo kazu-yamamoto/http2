@@ -139,6 +139,7 @@ frameTypeFromWord8 x
 ----------------------------------------------------------------
 
 type PayloadLength = Int -- Word24 but Int is more natural
+type FrameTypeId = Word8
 
 maxPayloadLength :: PayloadLength
 maxPayloadLength = 2^(14::Int)
@@ -169,7 +170,7 @@ data Frame = Frame
 -- A complete frame header
 data FrameHeader = FrameHeader
     { fhLength   :: PayloadLength
-    , fhType     :: FrameType
+    , fhType     :: FrameTypeId
     , fhFlags    :: FrameFlags
     , fhStreamId :: StreamIdentifier
     } deriving (Show, Eq)
@@ -188,6 +189,7 @@ data FramePayload =
   | GoAwayFrame LastStreamId (Either Word32 ErrorCode) ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
+  | UnkownFrame ByteString
   deriving (Show, Eq)
 
 type Settings = Array SettingsId (Maybe Word32)

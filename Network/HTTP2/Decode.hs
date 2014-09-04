@@ -18,11 +18,6 @@ import Network.HTTP2.Types
 ----------------------------------------------------------------
 -- atto-parsec can return only String as an error type, sigh.
 
--- This is a special case: frame type is unknown
--- and its frame is just ignored.
-noError :: String
-noError = show noError
-
 protocolError :: String
 protocolError = show ProtocolError
 
@@ -47,16 +42,15 @@ decodeFrameHeader settings = do
     let len = (w16 `shiftL` 8) .|. fromIntegral w8
     when (doesExceed settings len) $ fail frameSizeError
     tp <- B.anyWord8
+    flags <- B.anyWord8
+    (streamId, _) <- streamIdentifier
     let mtyp = frameTypeFromWord8 tp
     case mtyp of
         Nothing  -> do
-            ignore len
-            fail noError
+            return $ FrameHeader len tp flags streamId
         Just typ -> do
-            flags <- B.anyWord8
-            (streamId, _) <- streamIdentifier
             when (isProtocolError settings typ streamId) $ fail protocolError
-            return $ FrameHeader len typ flags streamId
+            return $ FrameHeader len tp flags streamId
 
 doesExceed :: Settings -> PayloadLength -> Bool
 doesExceed settings len = len > maxLength
@@ -112,10 +106,12 @@ payloadDecoders = listArray (minBound :: FrameType, maxBound :: FrameType)
     ]
 
 decodeFramePayload :: FramePayloadDecoder
-decodeFramePayload header = decodePayload header
+decodeFramePayload header = payloadDecoder header
   where
-    -- header always contain a valid FrameType
-    decodePayload = payloadDecoders ! fhType header
+    frameType = frameTypeFromWord8 $ fhType header
+    decodePayload Nothing = decodeUnknownFrame
+    decodePayload (Just typ) = payloadDecoders ! typ
+    payloadDecoder = decodePayload frameType
 
 ----------------------------------------------------------------
 
@@ -189,6 +185,9 @@ decodeWindowUpdateFrame header
 
 decodeContinuationFrame :: FramePayloadDecoder
 decodeContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
+
+decodeUnknownFrame :: FramePayloadDecoder
+decodeUnknownFrame header = UnkownFrame <$> B.take (frameLen header)
 
 ----------------------------------------------------------------
 
