@@ -172,8 +172,8 @@ parseSettingsFrame FrameHeader{..}
   | isNotValid = fail protocolError
   | otherwise  = SettingsFrame <$> settings num id
   where
-    num = fhLength `div` 6
-    isNotValid = fhLength `mod` 6 /= 0
+    num = payloadLength `div` 6
+    isNotValid = payloadLength `mod` 6 /= 0
     settings 0 builder = return $ toSettings $ builder []
     settings n builder = do
         rawSetting <- BI.anyWord16be
@@ -192,26 +192,27 @@ parsePushPromiseFrame header = parseWithPadding header $ \len -> do
     return $ PushPromiseFrame streamId hbf
 
 parsePingFrame :: FramePayloadParser
-parsePingFrame header
-  | frameLen header /= 8 = fail frameSizeError
-  | otherwise            = PingFrame <$> B.take 8
+parsePingFrame FrameHeader{..}
+  | payloadLength /= 8 = fail frameSizeError
+  | otherwise          = PingFrame <$> B.take 8
 
 parseGoAwayFrame :: FramePayloadParser
-parseGoAwayFrame header = do
+parseGoAwayFrame FrameHeader{..} = do
     (streamId, _) <- streamIdentifier
     errCode <- errorCodeFromWord32 <$> BI.anyWord32be
-    debug <- B.take $ frameLen header - 8
+    debug <- B.take $ payloadLength - 8
     return $ GoAwayFrame streamId errCode debug
 
 parseWindowUpdateFrame :: FramePayloadParser
-parseWindowUpdateFrame header
-  | frameLen header /= 4 = fail frameSizeError -- not sure
-  | otherwise            = do
+parseWindowUpdateFrame FrameHeader{..}
+  | payloadLength /= 4 = fail frameSizeError -- not sure
+  | otherwise          = do
       (streamId, _) <- streamIdentifier
       return $ WindowUpdateFrame streamId
 
 parseContinuationFrame :: FramePayloadParser
-parseContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
+parseContinuationFrame FrameHeader{..} =
+    ContinuationFrame <$> B.take payloadLength
 
 ----------------------------------------------------------------
 
@@ -223,10 +224,10 @@ parseWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
 parseWithPadding header p
   | padded = do
       padding <- intFromWord8
-      val <- p $ frameLen header - padding - 1 -- fixme: -1?
+      val <- p $ payloadLength header - padding - 1 -- fixme: -1?
       ignore padding
       return val
-  | otherwise = p $ frameLen header
+  | otherwise = p $ payloadLength header
   where
     padded = testPadded $ fhFlags header
 
@@ -236,9 +237,6 @@ streamIdentifier = do
     let !streamdId = StreamIdentifier $ clearBit w32 31
         !exclusive = testBit w32 31
     return (streamdId, exclusive)
-
-frameLen :: FrameHeader -> Int
-frameLen h = fromIntegral $ fhLength h
 
 ignore :: Int -> B.Parser ()
 ignore n = void $ B.take n
