@@ -50,7 +50,7 @@ decodeFrameHeader settings = do
     let mtyp = frameTypeFromWord8 tp
     case mtyp of
         Nothing  -> do
-            void $ B.take len
+            ignore len
             fail noError
         Just typ -> do
             flags <- B.anyWord8
@@ -200,13 +200,13 @@ decodeWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
 decodeWithPadding header p
   | padded = do
       padding <- fromIntegral <$> B.anyWord8
-      val <- p $ frameLen header - padding - 1
-      void $ B.take padding
+      val <- p $ frameLen header - padding - 1 -- fixme: -1?
+      ignore padding
       return val
   | otherwise = p $ frameLen header
   where
     flags = fhFlags header
-    padded = testBit flags 4
+    padded = testBit flags 3 -- PADDED is 0x8
 
 streamIdentifier :: B.Parser (StreamIdentifier, Bool)
 streamIdentifier = do
@@ -217,3 +217,6 @@ streamIdentifier = do
 
 frameLen :: FrameHeader -> Int
 frameLen h = fromIntegral $ fhLength h
+
+ignore :: Int -> B.Parser ()
+ignore n = void $ B.take n
