@@ -1,6 +1,6 @@
 module Network.HTTP2.Types where
 
-import Data.Array (Array, Ix)
+import Data.Array (Array, Ix, listArray)
 import Data.Array.ST (newArray, writeArray, runSTArray)
 import Data.ByteString (ByteString)
 import Data.Word (Word8, Word16, Word32)
@@ -192,10 +192,16 @@ data FramePayload =
 
 type Settings = Array SettingsId (Maybe Word32)
 
+defaultSettings :: Settings
+defaultSettings = listArray settingsRange [Nothing|_<-xs]
+  where
+    xs = [minBound :: SettingsId .. maxBound :: SettingsId]
+
 toSettings :: [(SettingsId,Word32)] -> Settings
 toSettings kvs = runSTArray $ do
-    arr <- newArray rng Nothing
+    arr <- newArray settingsRange Nothing
     forM_ kvs $ \(k,v) -> writeArray arr k (Just v)
     return arr
-  where
-    rng = (minBound :: SettingsId, maxBound :: SettingsId)
+
+settingsRange :: (SettingsId, SettingsId)
+settingsRange = (minBound, maxBound)
