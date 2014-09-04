@@ -66,9 +66,9 @@ parseFrame settings = do
 
 parseFrameHeader :: Settings -> B.Parser FrameHeader
 parseFrameHeader settings = do
-    w16 <- fromIntegral <$> BI.anyWord16be
-    w8 <- fromIntegral <$> B.anyWord8
-    let len = (w16 `shiftL` 8) .|. w8
+    i0 <- intFromWord16be
+    i1 <- intFromWord8
+    let len = (i0 `shiftL` 8) .|. i1
     when (doesExceed settings len) $ fail frameSizeError
     tp <- B.anyWord8
     let mtyp = frameTypeFromWord8 tp
@@ -150,7 +150,7 @@ parseHeadersFrame :: FramePayloadParser
 parseHeadersFrame header = parseWithPadding header $ \len ->
     if priority then do
         (streamId, excl) <- streamIdentifier
-        weight <- (+1) . fromIntegral <$> B.anyWord8
+        weight <- (+1) <$> intFromWord8
         d <- B.take $ len - 5
         return $ HeaderFrame (Just excl) (Just streamId) (Just weight) d
     else
@@ -161,7 +161,7 @@ parseHeadersFrame header = parseWithPadding header $ \len ->
 parsePriorityFrame :: FramePayloadParser
 parsePriorityFrame _ = do
     (streamId, excl) <- streamIdentifier
-    weight <- (+1) . fromIntegral <$> B.anyWord8
+    weight <- (+1) <$> intFromWord8
     return $ PriorityFrame excl streamId weight
 
 parseRstStreamFrame :: FramePayloadParser
@@ -222,7 +222,7 @@ parseContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
 parseWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
 parseWithPadding header p
   | padded = do
-      padding <- fromIntegral <$> B.anyWord8
+      padding <- intFromWord8
       val <- p $ frameLen header - padding - 1 -- fixme: -1?
       ignore padding
       return val
@@ -242,6 +242,12 @@ frameLen h = fromIntegral $ fhLength h
 
 ignore :: Int -> B.Parser ()
 ignore n = void $ B.take n
+
+intFromWord8 :: B.Parser Int
+intFromWord8 = fromIntegral <$> B.anyWord8
+
+intFromWord16be :: B.Parser Int
+intFromWord16be = fromIntegral <$> BI.anyWord16be
 
 ----------------------------------------------------------------
 -- Flags
