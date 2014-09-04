@@ -40,43 +40,53 @@ decodeFrame settings = do
 
 decodeFrameHeader :: Settings -> B.Parser FrameHeader
 decodeFrameHeader settings = do
-    a <- fromIntegral <$> BI.anyWord16be
-    b <- B.anyWord8
-    let frameLength = (a `shiftL` 8) .|. fromIntegral b :: FrameLength
-    when (frameLength > maxSize) $ fail frameSizeError
+    w16 <- fromIntegral <$> BI.anyWord16be
+    w8 <- B.anyWord8
+    let len = (w16 `shiftL` 8) .|. fromIntegral w8
+    when (doesExceed settings len) $ fail frameSizeError
     tp <- B.anyWord8
     let mtyp = frameTypeFromWord8 tp
     case mtyp of
         Nothing  -> do
-            void $ B.take frameLength
+            void $ B.take len
             fail noError
         Just typ -> do
             flags <- B.anyWord8
             (streamId, _) <- streamIdentifier
-            when (typ `elem` nonZeroFrameTypes &&
-                  streamId == streamIdentifierForSeetings) $
-                fail protocolError
-            when (typ `elem` zeroFrameTypes &&
-                  streamId /= streamIdentifierForSeetings) $
-                fail protocolError
-            when (typ == FramePushPromise && not pushEnabled) $
-                fail protocolError
-            return $ FrameHeader frameLength typ flags streamId
+            when (isProtocolError settings typ streamId) $ fail protocolError
+            return $ FrameHeader len typ flags streamId
+
+doesExceed :: Settings -> FrameLength -> Bool
+doesExceed settings len = len > maxSize
   where
     maxSize = case settings ! SettingsMaxFrameSize of
         Just x  -> fromIntegral x
         Nothing -> maxFrameSize
-    zeroFrameTypes = [ FrameSettings
-                     , FramePing
-                     , FrameGoAway
-                     ]
-    nonZeroFrameTypes = [ FrameData
-                        , FrameHeaders
-                        , FramePriority
-                        , FrameRSTStream
-                        , FramePushPromise
-                        , FrameContinuation
-                        ]
+
+zeroFrameTypes :: [FrameType]
+zeroFrameTypes = [
+    FrameSettings
+  , FramePing
+  , FrameGoAway
+  ]
+
+nonZeroFrameTypes :: [FrameType]
+nonZeroFrameTypes = [
+    FrameData
+  , FrameHeaders
+  , FramePriority
+  , FrameRSTStream
+  , FramePushPromise
+  , FrameContinuation
+  ]
+
+isProtocolError :: Settings -> FrameType -> StreamIdentifier -> Bool
+isProtocolError settings typ streamId
+  | typ `elem` nonZeroFrameTypes && streamId == streamIdentifierForSeetings = True
+  | typ `elem` zeroFrameTypes && streamId /= streamIdentifierForSeetings = True
+  | typ == FramePushPromise && not pushEnabled = True
+  | otherwise = False
+  where
     pushEnabled = case settings ! SettingsEnablePush of
         Nothing -> True
         Just x  -> x /= 0
