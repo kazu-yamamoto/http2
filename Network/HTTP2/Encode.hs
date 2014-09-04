@@ -3,6 +3,7 @@
 module Network.HTTP2.Encode (
     encodeFrame
   , encodeFrameHeader
+  , encodeFramePayload
   , buildFrame
   , buildFrameHeader
   , buildFramePayload
@@ -17,14 +18,27 @@ import Data.Monoid ((<>))
 
 import Network.HTTP2.Types
 
-encodeFrame :: FrameHeader -> ByteString
-encodeFrame = undefined
+----------------------------------------------------------------
+
+encodeFrame :: Frame -> ByteString
+encodeFrame = run . buildFrame
 
 encodeFrameHeader :: FrameHeader -> ByteString
-encodeFrameHeader frame = BL.toStrict $ BB.toLazyByteString $ buildFrameHeader frame
+encodeFrameHeader = run . buildFrameHeader
+
+encodeFramePayload :: FramePayload -> ByteString
+encodeFramePayload = run . buildFramePayload
+
+run :: Builder -> ByteString
+run = BL.toStrict . BB.toLazyByteString
+
+----------------------------------------------------------------
 
 buildFrame :: Frame -> Builder
-buildFrame = undefined
+buildFrame Frame{..} = buildFrameHeader frameHeader
+                    <> buildFramePayload framePayload
+
+----------------------------------------------------------------
 
 buildFrameHeader :: FrameHeader -> Builder
 buildFrameHeader FrameHeader{..} = len <> typ <> flags <> streamId
@@ -37,5 +51,19 @@ buildFrameHeader FrameHeader{..} = len <> typ <> flags <> streamId
     flags = BB.fromWord8 fhFlags
     streamId = BB.fromWord32be $ fromStreamIdentifier fhStreamId
 
-buildFramePayload :: FramePayload-> Builder
-buildFramePayload = undefined
+----------------------------------------------------------------
+
+buildFramePayload :: FramePayload -> Builder
+
+-- fixme: padding
+buildFramePayload (DataFrame body) = BB.fromByteString body
+
+buildFramePayload (HeaderFrame _ _ _ _) = undefined
+buildFramePayload (PriorityFrame _ _ _) = undefined
+buildFramePayload (RSTStreamFrame _) = undefined
+buildFramePayload (SettingsFrame _) = undefined
+buildFramePayload (PushPromiseFrame _ _) = undefined
+buildFramePayload (PingFrame _) = undefined
+buildFramePayload (GoAwayFrame _ _ _) = undefined
+buildFramePayload (WindowUpdateFrame _) = undefined
+buildFramePayload (ContinuationFrame _) = undefined
