@@ -31,6 +31,38 @@ frameSizeError = show FrameSizeError
 
 ----------------------------------------------------------------
 
+-- |
+-- >>> testEndStream 0x1
+-- True
+testEndStream :: FrameFlags -> Bool
+testEndStream x = x `testBit` 0
+
+-- |
+-- >>> testAck 0x1
+-- True
+testAck :: FrameFlags -> Bool
+testAck x = x `testBit` 0 -- fixme: is the spec intentional?
+
+-- |
+-- >>> testEndHeader 0x4
+-- True
+testEndHeader :: FrameFlags -> Bool
+testEndHeader x = x `testBit` 2
+
+-- |
+-- >>> testPadded 0x8
+-- True
+testPadded :: FrameFlags -> Bool
+testPadded x = x `testBit` 3
+
+-- |
+-- >>> testPriority 0x20
+-- True
+testPriority :: FrameFlags -> Bool
+testPriority x = x `testBit` 5
+
+----------------------------------------------------------------
+
 -- Error code is encoded in String.
 -- We can convert it to 'Either ErrorCode Frame'.
 decodeFrame :: Settings -> B.Parser Frame
@@ -132,8 +164,7 @@ decodeHeadersFrame header = decodeWithPadding header $ \len ->
     else
         HeaderFrame Nothing Nothing Nothing <$> B.take len
   where
-    flags = fhFlags header
-    priority = testBit flags 6
+    priority = testPriority $ fhFlags header
 
 decodePriorityFrame :: FramePayloadDecoder
 decodePriorityFrame _ = do
@@ -205,8 +236,7 @@ decodeWithPadding header p
       return val
   | otherwise = p $ frameLen header
   where
-    flags = fhFlags header
-    padded = testBit flags 3 -- PADDED is 0x8
+    padded = testPadded $ fhFlags header
 
 streamIdentifier :: B.Parser (StreamIdentifier, Bool)
 streamIdentifier = do
