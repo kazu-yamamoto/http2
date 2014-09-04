@@ -149,21 +149,16 @@ parseDataFrame header = parseWithPadding header $ \len ->
 
 parseHeadersFrame :: FramePayloadParser
 parseHeadersFrame header = parseWithPadding header $ \len ->
-    if priority then do
-        (sid, excl) <- streamIdentifier'
-        weight <- (+1) <$> intFromWord8
-        d <- B.take $ len - 5
-        return $ HeaderFrame (Just excl) (Just sid) (Just weight) d
+    if hasPriority then do
+        p <- priority
+        HeaderFrame (Just p) <$> B.take (len - 5)
     else
-        HeaderFrame Nothing Nothing Nothing <$> B.take len
+        HeaderFrame Nothing <$> B.take len
   where
-    priority = testPriority $ flags header
+    hasPriority = testPriority $ flags header
 
 parsePriorityFrame :: FramePayloadParser
-parsePriorityFrame _ = do
-    (sid, excl) <- streamIdentifier'
-    weight <- (+1) <$> intFromWord8
-    return $ PriorityFrame excl sid weight
+parsePriorityFrame _ = PriorityFrame <$> priority
 
 parseRstStreamFrame :: FramePayloadParser
 parseRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
@@ -240,6 +235,13 @@ streamIdentifier' = do
     let !streamdId = StreamIdentifier $ clearBit w32 31
         !exclusive = testBit w32 31
     return (streamdId, exclusive)
+
+priority :: B.Parser Priority
+priority = do
+    (sid, excl) <- streamIdentifier'
+    Priority excl sid <$> w
+  where
+    w = (+1) <$> intFromWord8
 
 ignore :: Int -> B.Parser ()
 ignore n = void $ B.take n

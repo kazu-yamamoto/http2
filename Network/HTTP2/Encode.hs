@@ -58,8 +58,8 @@ buildFramePayload :: FramePayload -> Builder
 -- fixme: padding
 buildFramePayload (DataFrame body) = BB.fromByteString body
 
-buildFramePayload (HeaderFrame _ _ _ _) = undefined
-buildFramePayload (PriorityFrame _ _ _) = undefined
+buildFramePayload (HeaderFrame _ _ ) = undefined
+buildFramePayload (PriorityFrame _) = undefined
 buildFramePayload (RSTStreamFrame _) = undefined
 buildFramePayload (SettingsFrame _) = undefined
 buildFramePayload (PushPromiseFrame _ _) = undefined

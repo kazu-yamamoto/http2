@@ -158,8 +158,6 @@ streamIdentifierForSeetings :: StreamIdentifier
 streamIdentifierForSeetings = StreamIdentifier 0
 
 type HeaderBlockFragment = ByteString
-type Exclusive           = Bool
-type Weight              = Int
 
 data Frame = Frame
     { frameHeader  :: FrameHeader
@@ -176,11 +174,8 @@ data FrameHeader = FrameHeader
 
 data FramePayload =
     DataFrame ByteString
-  | HeaderFrame (Maybe Exclusive)
-                (Maybe StreamDependency)
-                (Maybe Weight)
-                HeaderBlockFragment
-  | PriorityFrame Exclusive StreamDependency Weight
+  | HeaderFrame (Maybe Priority) HeaderBlockFragment
+  | PriorityFrame Priority
   | RSTStreamFrame (Either Word32 ErrorCode)
   | SettingsFrame Settings
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
@@ -209,3 +204,9 @@ toSettings kvs = runSTArray $ do
 
 settingsRange :: (SettingsId, SettingsId)
 settingsRange = (minBound, maxBound)
+
+data Priority = Priority {
+    exclusive :: Bool
+  , streamDependency :: StreamIdentifier
+  , weight :: Int
+  } deriving (Eq, Show)
