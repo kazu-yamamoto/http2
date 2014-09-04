@@ -139,7 +139,7 @@ parseFramePayload :: FramePayloadParser
 parseFramePayload header = parsePayload header
   where
     -- header always contain a valid FrameType
-    parsePayload = payloadParsers ! fhType header
+    parsePayload = payloadParsers ! frameType header
 
 ----------------------------------------------------------------
 

@@ -47,7 +47,7 @@ buildFrameHeader FrameHeader{..} = len <> typ <> flags <> streamId
     len1 = BB.fromWord16be (fromIntegral (payloadLength `shiftR` 8))
     len2 = BB.fromWord8 (fromIntegral (payloadLength .&. 0xff))
     len = len1 <> len2
-    typ = BB.fromWord8 $ frameTypeToWord8 fhType
+    typ = BB.fromWord8 $ frameTypeToWord8 frameType
     flags = BB.fromWord8 fhFlags
     streamId = BB.fromWord32be $ fromStreamIdentifier fhStreamId
 

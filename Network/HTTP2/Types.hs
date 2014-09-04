@@ -169,7 +169,7 @@ data Frame = Frame
 -- A complete frame header
 data FrameHeader = FrameHeader
     { payloadLength   :: PayloadLength
-    , fhType     :: FrameType
+    , frameType     :: FrameType
     , fhFlags    :: FrameFlags
     , fhStreamId :: StreamIdentifier
     } deriving (Show, Eq)
