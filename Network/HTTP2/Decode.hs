@@ -99,8 +99,8 @@ parseFrame settings = do
 parseFrameHeader :: Settings -> B.Parser FrameHeader
 parseFrameHeader settings = do
     w16 <- fromIntegral <$> BI.anyWord16be
-    w8 <- B.anyWord8
-    let len = (w16 `shiftL` 8) .|. fromIntegral w8
+    w8 <- fromIntegral <$> B.anyWord8
+    let len = (w16 `shiftL` 8) .|. w8
     when (doesExceed settings len) $ fail frameSizeError
     tp <- B.anyWord8
     let mtyp = frameTypeFromWord8 tp
