@@ -41,14 +41,14 @@ buildFrame Frame{..} = buildFrameHeader frameHeader
 ----------------------------------------------------------------
 
 buildFrameHeader :: FrameHeader -> Builder
-buildFrameHeader FrameHeader{..} = len <> typ <> flags <> streamId
+buildFrameHeader FrameHeader{..} = len <> typ <> flg <> streamId
   where
     -- fixme: 2^14 check
     len1 = BB.fromWord16be (fromIntegral (payloadLength `shiftR` 8))
     len2 = BB.fromWord8 (fromIntegral (payloadLength .&. 0xff))
     len = len1 <> len2
     typ = BB.fromWord8 $ frameTypeToWord8 frameType
-    flags = BB.fromWord8 fhFlags
+    flg = BB.fromWord8 flags
     streamId = BB.fromWord32be $ fromStreamIdentifier fhStreamId
 
 ----------------------------------------------------------------

@@ -156,7 +156,7 @@ parseHeadersFrame header = parseWithPadding header $ \len ->
     else
         HeaderFrame Nothing Nothing Nothing <$> B.take len
   where
-    priority = testPriority $ fhFlags header
+    priority = testPriority $ flags header
 
 parsePriorityFrame :: FramePayloadParser
 parsePriorityFrame _ = do
@@ -221,15 +221,15 @@ parseContinuationFrame FrameHeader{..} =
 -- passed in with the length of the unpadded portion between the
 -- padding octet and the actual padding
 parseWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
-parseWithPadding header p
+parseWithPadding FrameHeader{..} p
   | padded = do
       padding <- intFromWord8
-      val <- p $ payloadLength header - padding - 1 -- fixme: -1?
+      val <- p $ payloadLength - padding - 1 -- fixme: -1?
       ignore padding
       return val
-  | otherwise = p $ payloadLength header
+  | otherwise = p payloadLength
   where
-    padded = testPadded $ fhFlags header
+    padded = testPadded flags
 
 streamIdentifier :: B.Parser (StreamIdentifier, Bool)
 streamIdentifier = do
