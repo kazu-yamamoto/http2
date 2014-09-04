@@ -77,10 +77,10 @@ parseFrameHeader settings = do
             ignore len
             fail noError
         Just typ -> do
-            flags <- B.anyWord8
+            flg <- B.anyWord8
             (sid, _) <- streamIdentifier
             when (isProtocolError settings typ sid) $ fail protocolError
-            return $ FrameHeader len typ flags sid
+            return $ FrameHeader len typ flg sid
 
 doesExceed :: Settings -> PayloadLength -> Bool
 doesExceed settings len = len > maxLength
