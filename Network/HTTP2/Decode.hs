@@ -207,9 +207,7 @@ parseGoAwayFrame FrameHeader{..} = do
 parseWindowUpdateFrame :: FramePayloadParser
 parseWindowUpdateFrame FrameHeader{..}
   | payloadLength /= 4 = fail frameSizeError -- not sure
-  | otherwise          = do
-      (sid, _) <- streamIdentifier
-      return $ WindowUpdateFrame sid
+  | otherwise          = WindowUpdateFrame . fst <$> streamIdentifier
 
 parseContinuationFrame :: FramePayloadParser
 parseContinuationFrame FrameHeader{..} =
