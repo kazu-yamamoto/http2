@@ -37,38 +37,6 @@ frameSizeError = show FrameSizeError
 
 ----------------------------------------------------------------
 
--- |
--- >>> testEndStream 0x1
--- True
-testEndStream :: FrameFlags -> Bool
-testEndStream x = x `testBit` 0
-
--- |
--- >>> testAck 0x1
--- True
-testAck :: FrameFlags -> Bool
-testAck x = x `testBit` 0 -- fixme: is the spec intentional?
-
--- |
--- >>> testEndHeader 0x4
--- True
-testEndHeader :: FrameFlags -> Bool
-testEndHeader x = x `testBit` 2
-
--- |
--- >>> testPadded 0x8
--- True
-testPadded :: FrameFlags -> Bool
-testPadded x = x `testBit` 3
-
--- |
--- >>> testPriority 0x20
--- True
-testPriority :: FrameFlags -> Bool
-testPriority x = x `testBit` 5
-
-----------------------------------------------------------------
-
 decodeFrame :: Settings -> ByteString -> Either ErrorCode Frame
 decodeFrame settings bs = case B.parseOnly (parseFrame settings) bs of
     Right frame -> Right frame
@@ -274,3 +242,36 @@ frameLen h = fromIntegral $ fhLength h
 
 ignore :: Int -> B.Parser ()
 ignore n = void $ B.take n
+
+----------------------------------------------------------------
+-- Flags
+
+-- |
+-- >>> testEndStream 0x1
+-- True
+testEndStream :: FrameFlags -> Bool
+testEndStream x = x `testBit` 0
+
+-- |
+-- >>> testAck 0x1
+-- True
+testAck :: FrameFlags -> Bool
+testAck x = x `testBit` 0 -- fixme: is the spec intentional?
+
+-- |
+-- >>> testEndHeader 0x4
+-- True
+testEndHeader :: FrameFlags -> Bool
+testEndHeader x = x `testBit` 2
+
+-- |
+-- >>> testPadded 0x8
+-- True
+testPadded :: FrameFlags -> Bool
+testPadded x = x `testBit` 3
+
+-- |
+-- >>> testPriority 0x20
+-- True
+testPriority :: FrameFlags -> Bool
+testPriority x = x `testBit` 5
