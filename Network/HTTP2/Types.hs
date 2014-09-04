@@ -57,7 +57,7 @@ data SettingsId = SettingsHeaderTableSize
                 | SettingsEnablePush
                 | SettingsMaxConcurrentStreams
                 | SettingsInitialWindowSize
-                | SettingsMaxFrameSize
+                | SettingsMaxFrameSize -- this means payload size
                 | SettingsMaxHeaderBlockSize
                 deriving (Show, Eq, Ord, Enum, Bounded, Ix)
 
@@ -138,10 +138,10 @@ frameTypeFromWord8 x
 
 ----------------------------------------------------------------
 
-type FrameLength         = Int -- Word24 but Int is more natural
+type PayloadLength = Int -- Word24 but Int is more natural
 
-maxFrameSize :: FrameLength
-maxFrameSize = 2^(14::Int)
+maxPayloadLength :: PayloadLength
+maxPayloadLength = 2^(14::Int)
 
 type FrameFlags          = Word8
 
@@ -168,7 +168,7 @@ data Frame = Frame
 
 -- A complete frame header
 data FrameHeader = FrameHeader
-    { fhLength   :: FrameLength
+    { fhLength   :: PayloadLength
     , fhType     :: FrameType
     , fhFlags    :: FrameFlags
     , fhStreamId :: StreamIdentifier

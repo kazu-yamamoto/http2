@@ -58,12 +58,12 @@ decodeFrameHeader settings = do
             when (isProtocolError settings typ streamId) $ fail protocolError
             return $ FrameHeader len typ flags streamId
 
-doesExceed :: Settings -> FrameLength -> Bool
-doesExceed settings len = len > maxSize
+doesExceed :: Settings -> PayloadLength -> Bool
+doesExceed settings len = len > maxLength
   where
-    maxSize = case settings ! SettingsMaxFrameSize of
+    maxLength = case settings ! SettingsMaxFrameSize of
         Just x  -> fromIntegral x
-        Nothing -> maxFrameSize
+        Nothing -> maxPayloadLength
 
 zeroFrameTypes :: [FrameType]
 zeroFrameTypes = [
