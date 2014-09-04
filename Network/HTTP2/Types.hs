@@ -41,11 +41,11 @@ maxErrorCode = fromIntegral $ fromEnum (maxBound :: ErrorCode)
 -- |
 --
 -- >>> errorCodeFromWord32 0
--- Just NoError
+-- Right NoError
 -- >>> errorCodeFromWord32 0xc
--- Just InadequateSecurity
+-- Right InadequateSecurity
 -- >>> errorCodeFromWord32 0xd
--- Nothing
+-- Left 13
 errorCodeFromWord32 :: Word32 -> Either Word32 ErrorCode
 errorCodeFromWord32 x
   | minErrorCode <= x && x <= maxErrorCode = Right . toEnum . fromIntegral $ x
