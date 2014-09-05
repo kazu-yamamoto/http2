@@ -5,6 +5,7 @@ import Data.Array.ST (newArray, writeArray, runSTArray)
 import Data.ByteString (ByteString)
 import Data.Word (Word8, Word16, Word32)
 import Control.Monad (forM_)
+import Data.Bits (setBit, testBit, clearBit)
 
 ----------------------------------------------------------------
 
@@ -166,7 +167,72 @@ type PayloadLength = Int -- Word24 but Int is more natural
 maxPayloadLength :: PayloadLength
 maxPayloadLength = 2^(14::Int)
 
-type FrameFlags          = Word8
+----------------------------------------------------------------
+-- Flags
+
+type FrameFlags = Word8
+
+-- |
+-- >>> testEndStream 0x1
+-- True
+testEndStream :: FrameFlags -> Bool
+testEndStream x = x `testBit` 0
+
+-- |
+-- >>> testAck 0x1
+-- True
+testAck :: FrameFlags -> Bool
+testAck x = x `testBit` 0 -- fixme: is the spec intentional?
+
+-- |
+-- >>> testEndHeader 0x4
+-- True
+testEndHeader :: FrameFlags -> Bool
+testEndHeader x = x `testBit` 2
+
+-- |
+-- >>> testPadded 0x8
+-- True
+testPadded :: FrameFlags -> Bool
+testPadded x = x `testBit` 3
+
+-- |
+-- >>> testPriority 0x20
+-- True
+testPriority :: FrameFlags -> Bool
+testPriority x = x `testBit` 5
+
+-- |
+-- >>> setEndStream 0
+-- 1
+setEndStream :: FrameFlags -> FrameFlags
+setEndStream x = x `setBit` 0
+
+-- |
+-- >>> setAck 0
+-- 1
+setAck :: FrameFlags -> FrameFlags
+setAck x = x `setBit` 0 -- fixme: is the spec intentional?
+
+-- |
+-- >>> setEndHeader 0
+-- 4
+setEndHeader :: FrameFlags -> FrameFlags
+setEndHeader x = x `setBit` 2
+
+-- |
+-- >>> setPadded 0
+-- 8
+setPadded :: FrameFlags -> FrameFlags
+setPadded x = x `setBit` 3
+
+-- |
+-- >>> setPriority 0
+-- 32
+setPriority :: FrameFlags -> FrameFlags
+setPriority x = x `setBit` 5
+
+----------------------------------------------------------------
 
 newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Eq)
 type StreamDependency    = StreamIdentifier
@@ -174,13 +240,23 @@ type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
 type WindowSizeIncrement = StreamIdentifier
 
+toStreamIdentifier :: Word32 -> StreamIdentifier
+toStreamIdentifier w = StreamIdentifier (w `clearBit` 31)
+
 fromStreamIdentifier :: StreamIdentifier -> Word32
 fromStreamIdentifier (StreamIdentifier w32) = w32
+
+isExclusive :: Word32 -> Bool
+isExclusive w = w `testBit` 31
 
 streamIdentifierForSeetings :: StreamIdentifier
 streamIdentifierForSeetings = StreamIdentifier 0
 
+----------------------------------------------------------------
+
 type HeaderBlockFragment = ByteString
+
+----------------------------------------------------------------
 
 data Frame = Frame
     { frameHeader  :: FrameHeader

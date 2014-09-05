@@ -6,9 +6,6 @@ module Network.HTTP2.Decode (
   , parseFrame
   , parseFrameHeader
   , parseFramePayload
-  , testEndStream
-  , testAck
-  , testEndHeader
   ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -16,7 +13,7 @@ import Control.Monad (void, when)
 import Data.Array (Array, listArray, (!))
 import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
-import Data.Bits (clearBit, shiftL, testBit, (.|.))
+import Data.Bits (shiftL, (.|.))
 import Data.ByteString (ByteString)
 
 import Network.HTTP2.Types
@@ -225,13 +222,13 @@ parseWithPadding FrameHeader{..} p
     padded = testPadded flags
 
 streamIdentifier :: B.Parser StreamIdentifier
-streamIdentifier = StreamIdentifier . (`clearBit` 31) <$> BI.anyWord32be
+streamIdentifier = toStreamIdentifier <$> BI.anyWord32be
 
 streamIdentifier' :: B.Parser (StreamIdentifier, Bool)
 streamIdentifier' = do
     w32 <- BI.anyWord32be
-    let !streamdId = StreamIdentifier $ clearBit w32 31
-        !exclusive = testBit w32 31
+    let !streamdId = toStreamIdentifier w32
+        !exclusive = isExclusive w32
     return (streamdId, exclusive)
 
 priority :: B.Parser Priority
@@ -249,36 +246,3 @@ intFromWord8 = fromIntegral <$> B.anyWord8
 
 intFromWord16be :: B.Parser Int
 intFromWord16be = fromIntegral <$> BI.anyWord16be
-
-----------------------------------------------------------------
--- Flags
-
--- |
--- >>> testEndStream 0x1
--- True
-testEndStream :: FrameFlags -> Bool
-testEndStream x = x `testBit` 0
-
--- |
--- >>> testAck 0x1
--- True
-testAck :: FrameFlags -> Bool
-testAck x = x `testBit` 0 -- fixme: is the spec intentional?
-
--- |
--- >>> testEndHeader 0x4
--- True
-testEndHeader :: FrameFlags -> Bool
-testEndHeader x = x `testBit` 2
-
--- |
--- >>> testPadded 0x8
--- True
-testPadded :: FrameFlags -> Bool
-testPadded x = x `testBit` 3
-
--- |
--- >>> testPriority 0x20
--- True
-testPriority :: FrameFlags -> Bool
-testPriority x = x `testBit` 5
