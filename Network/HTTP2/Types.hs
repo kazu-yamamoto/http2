@@ -250,6 +250,9 @@ fromStreamIdentifier (StreamIdentifier w32) = w32
 isExclusive :: Word32 -> Bool
 isExclusive w = w `testBit` 31
 
+setExclusive :: Word32 -> Word32
+setExclusive w = w `setBit` 31
+
 streamIdentifierForSeetings :: StreamIdentifier
 streamIdentifierForSeetings = StreamIdentifier 0
 
@@ -274,7 +277,7 @@ data FrameHeader = FrameHeader
 
 data FramePayload =
     DataFrame ByteString
-  | HeaderFrame (Maybe Priority) HeaderBlockFragment
+  | HeadersFrame (Maybe Priority) HeaderBlockFragment
   | PriorityFrame Priority
   | RSTStreamFrame ErrorCode
   | SettingsFrame Settings

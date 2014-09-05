@@ -16,7 +16,7 @@ import Data.Bits
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import Data.Monoid ((<>), mempty)
+import Data.Monoid ((<>))
 
 import Network.HTTP2.Types
 
@@ -70,27 +70,62 @@ buildFrameHeader fid FrameHeader{..} = len <> typ <> flg <> sid
 buildFramePayload :: EncodeInfo -> FramePayload
                   -> (FrameTypeId, (FrameHeader, Builder))
 buildFramePayload einfo (DataFrame body) =
-    (frameTypeToWord8 FrameData, buildFramPyloadData einfo body)
+    (frameTypeToWord8 FrameData, buildFramePayloadData einfo body)
+buildFramePayload einfo (HeadersFrame mpri hdr) =
+    (frameTypeToWord8 FrameHeaders, buildFramePayloadHeaders einfo mpri hdr)
 buildFramePayload _ _ = undefined
 
-buildFramPyloadData :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
-buildFramPyloadData EncodeInfo{..} body = (header, plen <> dat <> padding)
+----------------------------------------------------------------
+
+buildPadding :: EncodeInfo -> Builder -> PayloadLength -> (FrameHeader, Builder)
+buildPadding EncodeInfo{ encodePadding = Nothing, ..} builder len =
+    (header, builder)
   where
-    dat = BB.fromByteString body
-    blen = B.length body
-    (len, plen, padding) = case encodePadding of
-        Nothing  -> (blen, mempty, mempty)
-        Just pad -> let padlen = B.length pad
-                    in (blen + padlen + 1, BB.fromWord8 (fromIntegral padlen),
-                        BB.fromByteString pad)
-    flags = 0
-    header = FrameHeader len flags encodeStreamId
+    header = FrameHeader len encodeFlags encodeStreamId
+buildPadding EncodeInfo{ encodePadding = Just padding, ..} btarget targetLength =
+    (header, builder)
+  where
+    header = FrameHeader len newflags encodeStreamId
+    builder = bpadlen <> btarget <> bpadding
+    bpadlen = BB.fromWord8 $ fromIntegral paddingLength
+    bpadding = BB.fromByteString padding
+    paddingLength = B.length padding
+    len = targetLength + paddingLength + 1
+    newflags = setPadded encodeFlags
+
+buildPriority :: Priority -> Builder
+buildPriority Priority{..} = builder
+  where
+    builder = bstream <> bweight
+    stream = fromStreamIdentifier streamDependency
+    estream
+      | exclusive = setExclusive stream
+      | otherwise = stream
+    bstream = BB.fromWord32be estream
+    bweight = BB.fromWord8 $ fromIntegral $ weight - 1
+
+----------------------------------------------------------------
+
+buildFramePayloadData :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
+buildFramePayloadData einfo body = buildPadding einfo builder len
+  where
+    builder = BB.fromByteString body
+    len = B.length body
+
+buildFramePayloadHeaders :: EncodeInfo -> Maybe Priority -> ByteString
+                         -> (FrameHeader, Builder)
+buildFramePayloadHeaders einfo Nothing hdr =
+    buildPadding einfo builder len
+  where
+    builder = BB.fromByteString hdr
+    len = B.length hdr
+buildFramePayloadHeaders einfo (Just pri) hdr =
+    buildPadding einfo builder len
+  where
+    builder = buildPriority pri <> BB.fromByteString hdr
+    len = B.length hdr + 5
 
 {-
--- fixme: padding
-buildFramePayload (HeaderFrame (Just p) hdr) = buildPriority p <> BB.fromByteString hdr
-buildFramePayload (HeaderFrame Nothing hdr) = BB.fromByteString hdr
-
 buildFramePayload (PriorityFrame p) = buildPriority p
 
 buildFramePayload (RSTStreamFrame e) = buildErrorCode e
@@ -107,9 +142,6 @@ buildFramePayload (WindowUpdateFrame _) = undefined
 
 buildFramePayload (ContinuationFrame hdr) = BB.fromByteString hdr
 buildFramePayload (UnknownFrame _ _) = undefined
-
-buildPriority :: Priority -> Builder
-buildPriority = undefined
 
 buildErrorCode :: ErrorCode -> Builder
 buildErrorCode = undefined

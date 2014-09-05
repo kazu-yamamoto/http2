@@ -139,9 +139,9 @@ parseHeadersFrame :: FramePayloadParser
 parseHeadersFrame header = parseWithPadding header $ \len ->
     if hasPriority then do
         p <- priority
-        HeaderFrame (Just p) <$> B.take (len - 5)
+        HeadersFrame (Just p) <$> B.take (len - 5)
     else
-        HeaderFrame Nothing <$> B.take len
+        HeadersFrame Nothing <$> B.take len
   where
     hasPriority = testPriority $ flags header
 
