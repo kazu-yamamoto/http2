@@ -13,12 +13,15 @@ spec :: Spec
 spec = do
     describe "encodeFrameHeader & decodeFrameHeader" $ do
         it "encode/decodes frames properly" $ do
-            let header = FrameHeader 500 0 0 (StreamIdentifier 10)
-                eheader = decodeFrameHeader defaultSettings $ encodeFrameHeader header
-            eheader `shouldBe` Right header
+            let flgs = 0
+                fid = 1
+                header = FrameHeader 500 flgs (StreamIdentifier 10)
+                eheader = decodeFrameHeader defaultSettings $ encodeFrameHeader fid header
+            eheader `shouldBe` Right (fid, header)
 
     describe "encodeFrame & decodeFrame" $ do
         it "encode/decodes frames properly" $ do
-            let payload = DataFrame "Hello, world!"
-                Right frame = decodeFrame defaultSettings $ encodeFrame payload 0 Nothing
+            let einfo = EncodeInfo 0 (StreamIdentifier 2) Nothing
+                payload = DataFrame "Hello, world!"
+                Right frame = decodeFrame defaultSettings $ encodeFrame einfo payload
             framePayload frame `shouldBe` payload

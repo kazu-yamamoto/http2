@@ -118,6 +118,8 @@ settingsFromWord16 x
 
 ----------------------------------------------------------------
 
+type FrameTypeId = Word8
+
 -- Valid frame types
 data FrameType = FrameData
                | FrameHeaders
@@ -137,13 +139,13 @@ data FrameType = FrameData
 -- 0
 -- >>> frameTypeToWord8 FrameContinuation
 -- 9
-frameTypeToWord8 :: FrameType -> Word8
+frameTypeToWord8 :: FrameType -> FrameTypeId
 frameTypeToWord8 = fromIntegral . fromEnum
 
-minFrameType :: Word8
+minFrameType :: FrameTypeId
 minFrameType = fromIntegral $ fromEnum (minBound :: FrameType)
 
-maxFrameType :: Word8
+maxFrameType :: FrameTypeId
 maxFrameType = fromIntegral $ fromEnum (maxBound :: FrameType)
 
 -- |
@@ -154,7 +156,7 @@ maxFrameType = fromIntegral $ fromEnum (maxBound :: FrameType)
 -- Just FrameContinuation
 -- >>> frameTypeFromWord8 10
 -- Nothing
-frameTypeFromWord8 :: Word8 -> Maybe FrameType
+frameTypeFromWord8 :: FrameTypeId -> Maybe FrameType
 frameTypeFromWord8 x
   | minFrameType <= x && x <= maxFrameType = Just . toEnum . fromIntegral $ x
   | otherwise                              = Nothing
@@ -162,7 +164,6 @@ frameTypeFromWord8 x
 ----------------------------------------------------------------
 
 type PayloadLength = Int -- Word24 but Int is more natural
-type FrameTypeId = Word8
 
 maxPayloadLength :: PayloadLength
 maxPayloadLength = 2^(14::Int)
