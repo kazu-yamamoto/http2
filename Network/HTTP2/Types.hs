@@ -247,8 +247,8 @@ toStreamIdentifier w = StreamIdentifier (w `clearBit` 31)
 fromStreamIdentifier :: StreamIdentifier -> Word32
 fromStreamIdentifier (StreamIdentifier w32) = w32
 
-isExclusive :: Word32 -> Bool
-isExclusive w = w `testBit` 31
+testExclusive :: Word32 -> Bool
+testExclusive w = w `testBit` 31
 
 setExclusive :: Word32 -> Word32
 setExclusive w = w `setBit` 31

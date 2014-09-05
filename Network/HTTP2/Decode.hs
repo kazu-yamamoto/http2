@@ -227,7 +227,7 @@ streamIdentifier' :: B.Parser (StreamIdentifier, Bool)
 streamIdentifier' = do
     w32 <- BI.anyWord32be
     let !streamdId = toStreamIdentifier w32
-        !exclusive = isExclusive w32
+        !exclusive = testExclusive w32
     return (streamdId, exclusive)
 
 priority :: B.Parser Priority
