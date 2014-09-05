@@ -21,9 +21,10 @@ data ErrorCode = NoError
                | ConnectError
                | EnhanceYourCalm
                | InadequateSecurity
-               deriving (Show, Eq, Ord, Enum, Bounded)
-
-type WErrorCode = Either Word32 ErrorCode
+               -- Our extensions
+               | UnknownFrameType
+               | UnknownErrorCode Word32
+               deriving (Show, Eq, Ord)
 
 -- |
 --
@@ -32,26 +33,46 @@ type WErrorCode = Either Word32 ErrorCode
 -- >>> errorCodeToWord32 InadequateSecurity
 -- 12
 errorCodeToWord32 :: ErrorCode -> Word32
-errorCodeToWord32 = fromIntegral . fromEnum
-
-minErrorCode :: Word32
-minErrorCode = fromIntegral $ fromEnum (minBound :: ErrorCode)
-
-maxErrorCode :: Word32
-maxErrorCode = fromIntegral $ fromEnum (maxBound :: ErrorCode)
+errorCodeToWord32 NoError              = 0x0
+errorCodeToWord32 ProtocolError        = 0x1
+errorCodeToWord32 InternalError        = 0x2
+errorCodeToWord32 FlowControlError     = 0x3
+errorCodeToWord32 SettingsTimeout      = 0x4
+errorCodeToWord32 StreamClosed         = 0x5
+errorCodeToWord32 FrameSizeError       = 0x6
+errorCodeToWord32 RefusedStream        = 0x7
+errorCodeToWord32 Cancel               = 0x8
+errorCodeToWord32 CompressionError     = 0x9
+errorCodeToWord32 ConnectError         = 0xa
+errorCodeToWord32 EnhanceYourCalm      = 0xb
+errorCodeToWord32 InadequateSecurity   = 0xc
+errorCodeToWord32 UnknownFrameType     = 0xd
+errorCodeToWord32 (UnknownErrorCode w) = w
 
 -- |
 --
 -- >>> errorCodeFromWord32 0
--- Right NoError
+-- NoError
 -- >>> errorCodeFromWord32 0xc
--- Right InadequateSecurity
+-- InadequateSecurity
 -- >>> errorCodeFromWord32 0xd
--- Left 13
-errorCodeFromWord32 :: Word32 -> WErrorCode
-errorCodeFromWord32 x
-  | minErrorCode <= x && x <= maxErrorCode = Right . toEnum . fromIntegral $ x
-  | otherwise                              = Left x
+-- UnknownFrameType
+errorCodeFromWord32 :: Word32 -> ErrorCode
+errorCodeFromWord32 0x0 = NoError
+errorCodeFromWord32 0x1 = ProtocolError
+errorCodeFromWord32 0x2 = InternalError
+errorCodeFromWord32 0x3 = FlowControlError
+errorCodeFromWord32 0x4 = SettingsTimeout
+errorCodeFromWord32 0x5 = StreamClosed
+errorCodeFromWord32 0x6 = FrameSizeError
+errorCodeFromWord32 0x7 = RefusedStream
+errorCodeFromWord32 0x8 = Cancel
+errorCodeFromWord32 0x9 = CompressionError
+errorCodeFromWord32 0xa = ConnectError
+errorCodeFromWord32 0xb = EnhanceYourCalm
+errorCodeFromWord32 0xc = InadequateSecurity
+errorCodeFromWord32 0xd = UnknownFrameType
+errorCodeFromWord32 w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
 
@@ -178,11 +199,11 @@ data FramePayload =
     DataFrame ByteString
   | HeaderFrame (Maybe Priority) HeaderBlockFragment
   | PriorityFrame Priority
-  | RSTStreamFrame WErrorCode
+  | RSTStreamFrame ErrorCode
   | SettingsFrame Settings
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame LastStreamId WErrorCode ByteString
+  | GoAwayFrame LastStreamId ErrorCode ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
   deriving (Show, Eq)

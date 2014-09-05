@@ -24,16 +24,14 @@ import Network.HTTP2.Types
 ----------------------------------------------------------------
 -- atto-parsec can return only String as an error type, sigh.
 
--- This is a special case: frame type is unknown
--- and its frame is just ignored.
-noError :: String
-noError = show noError
-
 protocolError :: String
 protocolError = show ProtocolError
 
 frameSizeError :: String
 frameSizeError = show FrameSizeError
+
+unknownFrameType :: String
+unknownFrameType = show UnknownFrameType
 
 ----------------------------------------------------------------
 
@@ -49,9 +47,10 @@ decodeFrameHeader settings bs = case B.parseOnly (parseFrameHeader settings) bs 
 
 toErrorCode :: String -> ErrorCode
 toErrorCode estr
-  | estr == protocolError  = ProtocolError
-  | estr == frameSizeError = FrameSizeError
-  | otherwise              = NoError
+  | estr == protocolError    = ProtocolError
+  | estr == frameSizeError   = FrameSizeError
+  | estr == unknownFrameType = UnknownFrameType
+  | otherwise                = NoError -- never reached
 
 ----------------------------------------------------------------
 
@@ -73,7 +72,7 @@ parseFrameHeader settings = do
     case mtyp of
         Nothing  -> do
             ignore len
-            fail noError
+            fail unknownFrameType
         Just typ -> do
             flg <- B.anyWord8
             sid <- streamIdentifier

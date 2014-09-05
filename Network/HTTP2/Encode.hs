@@ -81,9 +81,8 @@ buildFramePayload (ContinuationFrame hdr) = BB.fromByteString hdr
 buildPriority :: Priority -> Builder
 buildPriority = undefined
 
-buildErrorCode :: WErrorCode -> Builder
-buildErrorCode (Right e) = undefined
-buildErrorCode (Left e) = undefined
+buildErrorCode :: ErrorCode -> Builder
+buildErrorCode = undefined
 
 buildStreamIdentifier :: StreamIdentifier -> Builder
 buildStreamIdentifier = undefined
