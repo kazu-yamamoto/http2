@@ -27,9 +27,6 @@ protocolError = show ProtocolError
 frameSizeError :: String
 frameSizeError = show FrameSizeError
 
-unknownFrameType :: String
-unknownFrameType = show UnknownFrameType
-
 ----------------------------------------------------------------
 
 decodeFrame :: Settings -> ByteString -> Either ErrorCode Frame
@@ -46,8 +43,7 @@ toErrorCode :: String -> ErrorCode
 toErrorCode estr
   | estr == protocolError    = ProtocolError
   | estr == frameSizeError   = FrameSizeError
-  | estr == unknownFrameType = UnknownFrameType
-  | otherwise                = NoError -- never reached
+  | otherwise                = UnknownError estr -- fixme
 
 ----------------------------------------------------------------
 
@@ -206,7 +202,7 @@ parseContinuationFrame FrameHeader{..} = ContinuationFrame <$> payload
     payload = B.take payloadLength
 
 parseUnknownFrame :: FramePayloadParser
-parseUnknownFrame FrameHeader{..} = UnkownFrame <$> payload
+parseUnknownFrame FrameHeader{..} = UnknownFrame <$> payload
   where
     payload = B.take payloadLength
 

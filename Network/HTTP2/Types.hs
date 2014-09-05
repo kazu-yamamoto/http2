@@ -22,9 +22,9 @@ data ErrorCode = NoError
                | ConnectError
                | EnhanceYourCalm
                | InadequateSecurity
-               -- Our extensions
-               | UnknownFrameType
+               -- our extensions
                | UnknownErrorCode Word32
+               | UnknownError String
                deriving (Show, Eq, Ord)
 
 -- |
@@ -47,8 +47,8 @@ errorCodeToWord32 CompressionError     = 0x9
 errorCodeToWord32 ConnectError         = 0xa
 errorCodeToWord32 EnhanceYourCalm      = 0xb
 errorCodeToWord32 InadequateSecurity   = 0xc
-errorCodeToWord32 UnknownFrameType     = 0xd
 errorCodeToWord32 (UnknownErrorCode w) = w
+errorCodeToWord32 _                    = 255 -- never reached
 
 -- |
 --
@@ -57,7 +57,7 @@ errorCodeToWord32 (UnknownErrorCode w) = w
 -- >>> errorCodeFromWord32 0xc
 -- InadequateSecurity
 -- >>> errorCodeFromWord32 0xd
--- UnknownFrameType
+-- UnknownErrorCode 13
 errorCodeFromWord32 :: Word32 -> ErrorCode
 errorCodeFromWord32 0x0 = NoError
 errorCodeFromWord32 0x1 = ProtocolError
@@ -72,7 +72,6 @@ errorCodeFromWord32 0x9 = CompressionError
 errorCodeFromWord32 0xa = ConnectError
 errorCodeFromWord32 0xb = EnhanceYourCalm
 errorCodeFromWord32 0xc = InadequateSecurity
-errorCodeFromWord32 0xd = UnknownFrameType
 errorCodeFromWord32 w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
@@ -284,7 +283,7 @@ data FramePayload =
   | GoAwayFrame LastStreamId ErrorCode ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
-  | UnkownFrame ByteString
+  | UnknownFrame ByteString
   deriving (Show, Eq)
 
 type Settings = Array SettingsId (Maybe Word32)

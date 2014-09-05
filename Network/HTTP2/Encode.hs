@@ -59,7 +59,7 @@ buildFrameHeader FrameHeader{..} = len <> typ <> flg <> sid
 
 buildFramePayload :: FramePayload -> FrameFlags -> Maybe Padding
                   -> (FrameHeader, Builder)
-buildFramePayload = undefined
+buildFramePayload payload _ _ = (undefined, buildPayload payload)
 
 buildPayload :: FramePayload -> Builder
 
@@ -85,6 +85,7 @@ buildPayload (GoAwayFrame sid e bs) =
 buildPayload (WindowUpdateFrame _) = undefined
 
 buildPayload (ContinuationFrame hdr) = BB.fromByteString hdr
+buildPayload (UnknownFrame _) = undefined
 
 buildPriority :: Priority -> Builder
 buildPriority = undefined
