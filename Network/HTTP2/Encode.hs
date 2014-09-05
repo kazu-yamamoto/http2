@@ -12,11 +12,13 @@ module Network.HTTP2.Encode (
 
 import Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as BB
+import Data.Array (assocs)
 import Data.Bits
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import Data.Monoid ((<>))
+import Data.Maybe (isJust)
+import Data.Monoid ((<>), mempty)
 
 import Network.HTTP2.Types
 
@@ -143,10 +145,11 @@ buildFramePayloadHeaders einfo Nothing hdr =
     builder = BB.fromByteString hdr
     len = B.length hdr
 buildFramePayloadHeaders einfo (Just pri) hdr =
-    buildPadding einfo builder len
+    buildPadding einfo' builder len
   where
     builder = buildPriority pri <> BB.fromByteString hdr
     len = B.length hdr + 5
+    einfo' = einfo { encodeFlags = setPriority (encodeFlags einfo) }
 
 buildFramePayloadPriority :: EncodeInfo -> Priority -> (FrameHeader, Builder)
 buildFramePayloadPriority EncodeInfo{..} p = (header, builder)
@@ -161,7 +164,15 @@ buildFramePayloadRSTStream EncodeInfo{..} e = (header, builder)
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadSettings :: EncodeInfo -> Settings -> (FrameHeader, Builder)
-buildFramePayloadSettings _einfo _settings = undefined
+buildFramePayloadSettings EncodeInfo{..} settings = (header, builder)
+  where
+    alist = assocs settings
+    builder = foldr op mempty alist
+    (_, Nothing) `op` x = x
+    (key, Just val) `op` x = BB.fromWord16be (settingsToWord16 key)
+                          <> BB.fromWord32be val <> x
+    len = length (filter (isJust . snd) alist) * 6
+    header = FrameHeader len encodeFlags encodeStreamId
 
 buildFramePayloadPushPromise :: EncodeInfo -> StreamIdentifier -> HeaderBlockFragment -> (FrameHeader, Builder)
 buildFramePayloadPushPromise einfo sid hdr = buildPadding einfo builder len
