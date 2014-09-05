@@ -58,12 +58,32 @@ buildFramePayload :: FramePayload -> Builder
 -- fixme: padding
 buildFramePayload (DataFrame body) = BB.fromByteString body
 
-buildFramePayload (HeaderFrame _ _ ) = undefined
-buildFramePayload (PriorityFrame _) = undefined
-buildFramePayload (RSTStreamFrame _) = undefined
+-- fixme: padding
+buildFramePayload (HeaderFrame (Just p) hdr) = buildPriority p <> BB.fromByteString hdr
+buildFramePayload (HeaderFrame Nothing hdr) = BB.fromByteString hdr
+
+buildFramePayload (PriorityFrame p) = buildPriority p
+
+buildFramePayload (RSTStreamFrame e) = buildErrorCode e
+
 buildFramePayload (SettingsFrame _) = undefined
 buildFramePayload (PushPromiseFrame _ _) = undefined
-buildFramePayload (PingFrame _) = undefined
-buildFramePayload (GoAwayFrame _ _ _) = undefined
+
+buildFramePayload (PingFrame bs) = BB.fromByteString bs
+
+buildFramePayload (GoAwayFrame sid e bs) =
+    buildStreamIdentifier sid <> buildErrorCode e <> BB.fromByteString bs
+
 buildFramePayload (WindowUpdateFrame _) = undefined
-buildFramePayload (ContinuationFrame _) = undefined
+
+buildFramePayload (ContinuationFrame hdr) = BB.fromByteString hdr
+
+buildPriority :: Priority -> Builder
+buildPriority = undefined
+
+buildErrorCode :: WErrorCode -> Builder
+buildErrorCode (Right e) = undefined
+buildErrorCode (Left e) = undefined
+
+buildStreamIdentifier :: StreamIdentifier -> Builder
+buildStreamIdentifier = undefined

@@ -55,8 +55,6 @@ toErrorCode estr
 
 ----------------------------------------------------------------
 
--- Error code is encoded in String.
--- We can convert it to 'Either ErrorCode Frame'.
 parseFrame :: Settings -> B.Parser Frame
 parseFrame settings = do
     header <- parseFrameHeader settings
@@ -218,9 +216,10 @@ parseContinuationFrame FrameHeader{..} = ContinuationFrame <$> payload
 parseWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
 parseWithPadding FrameHeader{..} p
   | padded = do
-      padding <- intFromWord8
-      val <- p $ payloadLength - padding - 1 -- fixme: -1?
-      ignore padding
+      padlen <- intFromWord8
+      -- padding length consumes 1 byte.
+      val <- p $ payloadLength - padlen - 1
+      ignore padlen
       return val
   | otherwise = p payloadLength
   where

@@ -23,6 +23,8 @@ data ErrorCode = NoError
                | InadequateSecurity
                deriving (Show, Eq, Ord, Enum, Bounded)
 
+type WErrorCode = Either Word32 ErrorCode
+
 -- |
 --
 -- >>> errorCodeToWord32 NoError
@@ -46,7 +48,7 @@ maxErrorCode = fromIntegral $ fromEnum (maxBound :: ErrorCode)
 -- Right InadequateSecurity
 -- >>> errorCodeFromWord32 0xd
 -- Left 13
-errorCodeFromWord32 :: Word32 -> Either Word32 ErrorCode
+errorCodeFromWord32 :: Word32 -> WErrorCode
 errorCodeFromWord32 x
   | minErrorCode <= x && x <= maxErrorCode = Right . toEnum . fromIntegral $ x
   | otherwise                              = Left x
@@ -176,11 +178,11 @@ data FramePayload =
     DataFrame ByteString
   | HeaderFrame (Maybe Priority) HeaderBlockFragment
   | PriorityFrame Priority
-  | RSTStreamFrame (Either Word32 ErrorCode)
+  | RSTStreamFrame WErrorCode
   | SettingsFrame Settings
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame LastStreamId (Either Word32 ErrorCode) ByteString
+  | GoAwayFrame LastStreamId WErrorCode ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
   deriving (Show, Eq)
