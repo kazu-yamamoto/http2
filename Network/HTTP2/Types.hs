@@ -267,7 +267,6 @@ data Frame = Frame
 -- A complete frame header
 data FrameHeader = FrameHeader
     { payloadLength :: PayloadLength
-    , frameType     :: FrameTypeId
     , flags         :: FrameFlags
     , streamId      :: StreamIdentifier
     } deriving (Show, Eq)
@@ -283,7 +282,7 @@ data FramePayload =
   | GoAwayFrame LastStreamId ErrorCode ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
-  | UnknownFrame ByteString
+  | UnknownFrame FrameTypeId ByteString
   deriving (Show, Eq)
 
 type Settings = Array SettingsId (Maybe Word32)
