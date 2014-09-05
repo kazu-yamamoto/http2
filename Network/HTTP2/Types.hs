@@ -255,6 +255,7 @@ streamIdentifierForSeetings = StreamIdentifier 0
 ----------------------------------------------------------------
 
 type HeaderBlockFragment = ByteString
+type Padding = ByteString
 
 ----------------------------------------------------------------
 

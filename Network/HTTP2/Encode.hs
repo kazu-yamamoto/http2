@@ -20,23 +20,27 @@ import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
-encodeFrame :: Frame -> ByteString
-encodeFrame = run . buildFrame
+encodeFrame :: FramePayload -> FrameFlags -> Maybe Padding -> ByteString
+encodeFrame payload flags mpadding = run $ buildFrame payload flags mpadding
 
 encodeFrameHeader :: FrameHeader -> ByteString
 encodeFrameHeader = run . buildFrameHeader
 
-encodeFramePayload :: FramePayload -> ByteString
-encodeFramePayload = run . buildFramePayload
+encodeFramePayload :: FramePayload -> FrameFlags -> Maybe Padding -> ByteString
+encodeFramePayload payload flags mpadding = run payloadBuilder
+  where
+    (_, payloadBuilder) = buildFramePayload payload flags mpadding
 
 run :: Builder -> ByteString
 run = BL.toStrict . BB.toLazyByteString
 
 ----------------------------------------------------------------
 
-buildFrame :: Frame -> Builder
-buildFrame Frame{..} = buildFrameHeader frameHeader
-                    <> buildFramePayload framePayload
+buildFrame :: FramePayload -> FrameFlags -> Maybe Padding -> Builder
+buildFrame payload flags mpadding = headerBuilder <> payloadBuilder
+  where
+    (header, payloadBuilder) = buildFramePayload payload flags mpadding
+    headerBuilder = buildFrameHeader header
 
 ----------------------------------------------------------------
 
@@ -53,30 +57,34 @@ buildFrameHeader FrameHeader{..} = len <> typ <> flg <> sid
 
 ----------------------------------------------------------------
 
-buildFramePayload :: FramePayload -> Builder
+buildFramePayload :: FramePayload -> FrameFlags -> Maybe Padding
+                  -> (FrameHeader, Builder)
+buildFramePayload = undefined
+
+buildPayload :: FramePayload -> Builder
 
 -- fixme: padding
-buildFramePayload (DataFrame body) = BB.fromByteString body
+buildPayload (DataFrame body) = BB.fromByteString body
 
 -- fixme: padding
-buildFramePayload (HeaderFrame (Just p) hdr) = buildPriority p <> BB.fromByteString hdr
-buildFramePayload (HeaderFrame Nothing hdr) = BB.fromByteString hdr
+buildPayload (HeaderFrame (Just p) hdr) = buildPriority p <> BB.fromByteString hdr
+buildPayload (HeaderFrame Nothing hdr) = BB.fromByteString hdr
 
-buildFramePayload (PriorityFrame p) = buildPriority p
+buildPayload (PriorityFrame p) = buildPriority p
 
-buildFramePayload (RSTStreamFrame e) = buildErrorCode e
+buildPayload (RSTStreamFrame e) = buildErrorCode e
 
-buildFramePayload (SettingsFrame _) = undefined
-buildFramePayload (PushPromiseFrame _ _) = undefined
+buildPayload (SettingsFrame _) = undefined
+buildPayload (PushPromiseFrame _ _) = undefined
 
-buildFramePayload (PingFrame bs) = BB.fromByteString bs
+buildPayload (PingFrame bs) = BB.fromByteString bs
 
-buildFramePayload (GoAwayFrame sid e bs) =
+buildPayload (GoAwayFrame sid e bs) =
     buildStreamIdentifier sid <> buildErrorCode e <> BB.fromByteString bs
 
-buildFramePayload (WindowUpdateFrame _) = undefined
+buildPayload (WindowUpdateFrame _) = undefined
 
-buildFramePayload (ContinuationFrame hdr) = BB.fromByteString hdr
+buildPayload (ContinuationFrame hdr) = BB.fromByteString hdr
 
 buildPriority :: Priority -> Builder
 buildPriority = undefined

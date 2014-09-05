@@ -4,7 +4,7 @@ module HTTP2.FrameSpec where
 
 import Test.Hspec
 
-import qualified Data.ByteString.Char8 as B
+import Data.ByteString.Char8 ()
 import Network.HTTP2.Decode
 import Network.HTTP2.Encode
 import Network.HTTP2.Types
@@ -19,9 +19,6 @@ spec = do
 
     describe "encodeFrame & decodeFrame" $ do
         it "encode/decodes frames properly" $ do
-            let body = "Hello, world!"
-                len = B.length body
-                header = FrameHeader len FrameData 0 (StreamIdentifier 10)
-                frame = Frame header (DataFrame body)
-                eframe = decodeFrame defaultSettings $ encodeFrame frame
-            eframe `shouldBe` Right frame
+            let payload = DataFrame "Hello, world!"
+                Right frame = decodeFrame defaultSettings $ encodeFrame payload 0 Nothing
+            framePayload frame `shouldBe` payload
