@@ -5,6 +5,7 @@ import Data.Array.ST (newArray, writeArray, runSTArray)
 import Data.ByteString (ByteString)
 import Data.Word (Word8, Word16, Word32)
 import Control.Monad (forM_)
+import Data.Bits (setBit, testBit, clearBit)
 
 ----------------------------------------------------------------
 
@@ -21,7 +22,10 @@ data ErrorCode = NoError
                | ConnectError
                | EnhanceYourCalm
                | InadequateSecurity
-               deriving (Show, Eq, Ord, Enum, Bounded)
+               -- Our extensions
+               | UnknownFrameType
+               | UnknownErrorCode Word32
+               deriving (Show, Eq, Ord)
 
 -- |
 --
@@ -30,26 +34,46 @@ data ErrorCode = NoError
 -- >>> errorCodeToWord32 InadequateSecurity
 -- 12
 errorCodeToWord32 :: ErrorCode -> Word32
-errorCodeToWord32 = fromIntegral . fromEnum
-
-minErrorCode :: Word32
-minErrorCode = fromIntegral $ fromEnum (minBound :: ErrorCode)
-
-maxErrorCode :: Word32
-maxErrorCode = fromIntegral $ fromEnum (maxBound :: ErrorCode)
+errorCodeToWord32 NoError              = 0x0
+errorCodeToWord32 ProtocolError        = 0x1
+errorCodeToWord32 InternalError        = 0x2
+errorCodeToWord32 FlowControlError     = 0x3
+errorCodeToWord32 SettingsTimeout      = 0x4
+errorCodeToWord32 StreamClosed         = 0x5
+errorCodeToWord32 FrameSizeError       = 0x6
+errorCodeToWord32 RefusedStream        = 0x7
+errorCodeToWord32 Cancel               = 0x8
+errorCodeToWord32 CompressionError     = 0x9
+errorCodeToWord32 ConnectError         = 0xa
+errorCodeToWord32 EnhanceYourCalm      = 0xb
+errorCodeToWord32 InadequateSecurity   = 0xc
+errorCodeToWord32 UnknownFrameType     = 0xd
+errorCodeToWord32 (UnknownErrorCode w) = w
 
 -- |
 --
 -- >>> errorCodeFromWord32 0
--- Right NoError
+-- NoError
 -- >>> errorCodeFromWord32 0xc
--- Right InadequateSecurity
+-- InadequateSecurity
 -- >>> errorCodeFromWord32 0xd
--- Left 13
-errorCodeFromWord32 :: Word32 -> Either Word32 ErrorCode
-errorCodeFromWord32 x
-  | minErrorCode <= x && x <= maxErrorCode = Right . toEnum . fromIntegral $ x
-  | otherwise                              = Left x
+-- UnknownFrameType
+errorCodeFromWord32 :: Word32 -> ErrorCode
+errorCodeFromWord32 0x0 = NoError
+errorCodeFromWord32 0x1 = ProtocolError
+errorCodeFromWord32 0x2 = InternalError
+errorCodeFromWord32 0x3 = FlowControlError
+errorCodeFromWord32 0x4 = SettingsTimeout
+errorCodeFromWord32 0x5 = StreamClosed
+errorCodeFromWord32 0x6 = FrameSizeError
+errorCodeFromWord32 0x7 = RefusedStream
+errorCodeFromWord32 0x8 = Cancel
+errorCodeFromWord32 0x9 = CompressionError
+errorCodeFromWord32 0xa = ConnectError
+errorCodeFromWord32 0xb = EnhanceYourCalm
+errorCodeFromWord32 0xc = InadequateSecurity
+errorCodeFromWord32 0xd = UnknownFrameType
+errorCodeFromWord32 w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
 
@@ -144,7 +168,72 @@ type FrameTypeId = Word8
 maxPayloadLength :: PayloadLength
 maxPayloadLength = 2^(14::Int)
 
-type FrameFlags          = Word8
+----------------------------------------------------------------
+-- Flags
+
+type FrameFlags = Word8
+
+-- |
+-- >>> testEndStream 0x1
+-- True
+testEndStream :: FrameFlags -> Bool
+testEndStream x = x `testBit` 0
+
+-- |
+-- >>> testAck 0x1
+-- True
+testAck :: FrameFlags -> Bool
+testAck x = x `testBit` 0 -- fixme: is the spec intentional?
+
+-- |
+-- >>> testEndHeader 0x4
+-- True
+testEndHeader :: FrameFlags -> Bool
+testEndHeader x = x `testBit` 2
+
+-- |
+-- >>> testPadded 0x8
+-- True
+testPadded :: FrameFlags -> Bool
+testPadded x = x `testBit` 3
+
+-- |
+-- >>> testPriority 0x20
+-- True
+testPriority :: FrameFlags -> Bool
+testPriority x = x `testBit` 5
+
+-- |
+-- >>> setEndStream 0
+-- 1
+setEndStream :: FrameFlags -> FrameFlags
+setEndStream x = x `setBit` 0
+
+-- |
+-- >>> setAck 0
+-- 1
+setAck :: FrameFlags -> FrameFlags
+setAck x = x `setBit` 0 -- fixme: is the spec intentional?
+
+-- |
+-- >>> setEndHeader 0
+-- 4
+setEndHeader :: FrameFlags -> FrameFlags
+setEndHeader x = x `setBit` 2
+
+-- |
+-- >>> setPadded 0
+-- 8
+setPadded :: FrameFlags -> FrameFlags
+setPadded x = x `setBit` 3
+
+-- |
+-- >>> setPriority 0
+-- 32
+setPriority :: FrameFlags -> FrameFlags
+setPriority x = x `setBit` 5
+
+----------------------------------------------------------------
 
 newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Eq)
 type StreamDependency    = StreamIdentifier
@@ -152,15 +241,24 @@ type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
 type WindowSizeIncrement = StreamIdentifier
 
+toStreamIdentifier :: Word32 -> StreamIdentifier
+toStreamIdentifier w = StreamIdentifier (w `clearBit` 31)
+
 fromStreamIdentifier :: StreamIdentifier -> Word32
 fromStreamIdentifier (StreamIdentifier w32) = w32
+
+isExclusive :: Word32 -> Bool
+isExclusive w = w `testBit` 31
 
 streamIdentifierForSeetings :: StreamIdentifier
 streamIdentifierForSeetings = StreamIdentifier 0
 
+----------------------------------------------------------------
+
 type HeaderBlockFragment = ByteString
-type Exclusive           = Bool
-type Weight              = Int
+type Padding = ByteString
+
+----------------------------------------------------------------
 
 data Frame = Frame
     { frameHeader  :: FrameHeader
@@ -169,24 +267,21 @@ data Frame = Frame
 
 -- A complete frame header
 data FrameHeader = FrameHeader
-    { fhLength   :: PayloadLength
-    , fhType     :: FrameTypeId
-    , fhFlags    :: FrameFlags
-    , fhStreamId :: StreamIdentifier
+    { payloadLength :: PayloadLength
+    , frameType     :: FrameTypeId
+    , flags         :: FrameFlags
+    , streamId      :: StreamIdentifier
     } deriving (Show, Eq)
 
 data FramePayload =
     DataFrame ByteString
-  | HeaderFrame (Maybe Exclusive)
-                (Maybe StreamDependency)
-                (Maybe Weight)
-                HeaderBlockFragment
-  | PriorityFrame Exclusive StreamDependency Weight
-  | RSTStreamFrame (Either Word32 ErrorCode)
+  | HeaderFrame (Maybe Priority) HeaderBlockFragment
+  | PriorityFrame Priority
+  | RSTStreamFrame ErrorCode
   | SettingsFrame Settings
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame LastStreamId (Either Word32 ErrorCode) ByteString
+  | GoAwayFrame LastStreamId ErrorCode ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
   | UnkownFrame ByteString
@@ -211,3 +306,9 @@ toSettings kvs = runSTArray $ do
 
 settingsRange :: (SettingsId, SettingsId)
 settingsRange = (minBound, maxBound)
+
+data Priority = Priority {
+    exclusive :: Bool
+  , streamDependency :: StreamIdentifier
+  , weight :: Int
+  } deriving (Eq, Show)

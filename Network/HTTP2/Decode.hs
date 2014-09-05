@@ -3,15 +3,18 @@
 module Network.HTTP2.Decode (
     decodeFrame
   , decodeFrameHeader
-  , decodeFramePayload
+  , parseFrame
+  , parseFrameHeader
+  , parseFramePayload
   ) where
 
-import Control.Applicative ((<$>))
-import Control.Monad (void, (>=>), when)
+import Control.Applicative ((<$>), (<*>))
+import Control.Monad (void, when)
 import Data.Array (Array, listArray, (!))
 import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
-import Data.Bits (clearBit, shiftL, testBit, (.|.))
+import Data.Bits (shiftL, (.|.))
+import Data.ByteString (ByteString)
 
 import Network.HTTP2.Types
 
@@ -24,33 +27,55 @@ protocolError = show ProtocolError
 frameSizeError :: String
 frameSizeError = show FrameSizeError
 
-----------------------------------------------------------------
-
--- Error code is encoded in String.
--- We can convert it to 'Either ErrorCode Frame'.
-decodeFrame :: Settings -> B.Parser Frame
-decodeFrame settings = do
-    header <- decodeFrameHeader settings
-    Frame header <$> decodeFramePayload header
+unknownFrameType :: String
+unknownFrameType = show UnknownFrameType
 
 ----------------------------------------------------------------
 
-decodeFrameHeader :: Settings -> B.Parser FrameHeader
-decodeFrameHeader settings = do
-    w16 <- fromIntegral <$> BI.anyWord16be
-    w8 <- B.anyWord8
-    let len = (w16 `shiftL` 8) .|. fromIntegral w8
+decodeFrame :: Settings -> ByteString -> Either ErrorCode Frame
+decodeFrame settings bs = case B.parseOnly (parseFrame settings) bs of
+    Right frame -> Right frame
+    Left  estr  -> Left $ toErrorCode estr
+
+decodeFrameHeader :: Settings -> ByteString -> Either ErrorCode FrameHeader
+decodeFrameHeader settings bs = case B.parseOnly (parseFrameHeader settings) bs of
+    Right fh   -> Right fh
+    Left  estr -> Left $ toErrorCode estr
+
+toErrorCode :: String -> ErrorCode
+toErrorCode estr
+  | estr == protocolError    = ProtocolError
+  | estr == frameSizeError   = FrameSizeError
+  | estr == unknownFrameType = UnknownFrameType
+  | otherwise                = NoError -- never reached
+
+----------------------------------------------------------------
+
+parseFrame :: Settings -> B.Parser Frame
+parseFrame settings = do
+    header <- parseFrameHeader settings
+    Frame header <$> parseFramePayload header
+
+----------------------------------------------------------------
+
+parseFrameHeader :: Settings -> B.Parser FrameHeader
+parseFrameHeader settings = do
+    i0 <- intFromWord16be
+    i1 <- intFromWord8
+    let len = (i0 `shiftL` 8) .|. i1
     when (doesExceed settings len) $ fail frameSizeError
     tp <- B.anyWord8
-    flags <- B.anyWord8
-    (streamId, _) <- streamIdentifier
+    flg <- B.anyWord8
+    sid <- streamIdentifier
     let mtyp = frameTypeFromWord8 tp
     case mtyp of
         Nothing  -> do
-            return $ FrameHeader len tp flags streamId
+            return $ FrameHeader len tp flg sid
         Just typ -> do
-            when (isProtocolError settings typ streamId) $ fail protocolError
-            return $ FrameHeader len tp flags streamId
+            flg <- B.anyWord8
+            sid <- streamIdentifier
+            when (isProtocolError settings typ sid) $ fail protocolError
+            return $ FrameHeader len tp flg sid
 
 doesExceed :: Settings -> PayloadLength -> Bool
 doesExceed settings len = len > maxLength
@@ -77,9 +102,9 @@ nonZeroFrameTypes = [
   ]
 
 isProtocolError :: Settings -> FrameType -> StreamIdentifier -> Bool
-isProtocolError settings typ streamId
-  | typ `elem` nonZeroFrameTypes && streamId == streamIdentifierForSeetings = True
-  | typ `elem` zeroFrameTypes && streamId /= streamIdentifierForSeetings = True
+isProtocolError settings typ sid
+  | typ `elem` nonZeroFrameTypes && sid == streamIdentifierForSeetings = True
+  | typ `elem` zeroFrameTypes && sid /= streamIdentifierForSeetings = True
   | typ == FramePushPromise && not pushEnabled = True
   | otherwise = False
   where
@@ -89,64 +114,58 @@ isProtocolError settings typ streamId
 
 ----------------------------------------------------------------
 
-type FramePayloadDecoder = FrameHeader -> B.Parser FramePayload
+type FramePayloadParser = FrameHeader -> B.Parser FramePayload
 
-payloadDecoders :: Array FrameType FramePayloadDecoder
-payloadDecoders = listArray (minBound :: FrameType, maxBound :: FrameType)
-    [ decodeDataFrame
-    , decodeHeadersFrame
-    , decodePriorityFrame
-    , decodeRstStreamFrame
-    , decodeSettingsFrame
-    , decodePushPromiseFrame
-    , decodePingFrame
-    , decodeGoAwayFrame
-    , decodeWindowUpdateFrame
-    , decodeContinuationFrame
+payloadParsers :: Array FrameType FramePayloadParser
+payloadParsers = listArray (minBound :: FrameType, maxBound :: FrameType)
+    [ parseDataFrame
+    , parseHeadersFrame
+    , parsePriorityFrame
+    , parseRstStreamFrame
+    , parseSettingsFrame
+    , parsePushPromiseFrame
+    , parsePingFrame
+    , parseGoAwayFrame
+    , parseWindowUpdateFrame
+    , parseContinuationFrame
     ]
 
-decodeFramePayload :: FramePayloadDecoder
-decodeFramePayload header = payloadDecoder header
+parseFramePayload :: FramePayloadParser
+parseFramePayload header = (parsePayload fType) header
   where
-    frameType = frameTypeFromWord8 $ fhType header
-    decodePayload Nothing = decodeUnknownFrame
-    decodePayload (Just typ) = payloadDecoders ! typ
-    payloadDecoder = decodePayload frameType
+    fType = frameTypeFromWord8 $ frameType header
+    parsePayload Nothing = parseUnknownFrame
+    parsePayload (Just typ) = payloadParsers ! typ
 
 ----------------------------------------------------------------
 
-decodeDataFrame :: FramePayloadDecoder
-decodeDataFrame header = decodeWithPadding header $ B.take >=> (return . DataFrame)
+parseDataFrame :: FramePayloadParser
+parseDataFrame header = parseWithPadding header $ \len ->
+    DataFrame <$> B.take len
 
-decodeHeadersFrame :: FramePayloadDecoder
-decodeHeadersFrame header = decodeWithPadding header $ \len ->
-    if priority then do
-        (streamId, excl) <- streamIdentifier
-        weight <- (+1) . fromIntegral <$> B.anyWord8
-        d <- B.take $ len - 5
-        return $ HeaderFrame (Just excl) (Just streamId) (Just weight) d
+parseHeadersFrame :: FramePayloadParser
+parseHeadersFrame header = parseWithPadding header $ \len ->
+    if hasPriority then do
+        p <- priority
+        HeaderFrame (Just p) <$> B.take (len - 5)
     else
-        HeaderFrame Nothing Nothing Nothing <$> B.take len
+        HeaderFrame Nothing <$> B.take len
   where
-    flags = fhFlags header
-    priority = testBit flags 6
+    hasPriority = testPriority $ flags header
 
-decodePriorityFrame :: FramePayloadDecoder
-decodePriorityFrame _ = do
-    (streamId, excl) <- streamIdentifier
-    weight <- (+1) . fromIntegral <$> B.anyWord8
-    return $ PriorityFrame excl streamId weight
+parsePriorityFrame :: FramePayloadParser
+parsePriorityFrame _ = PriorityFrame <$> priority
 
-decodeRstStreamFrame :: FramePayloadDecoder
-decodeRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
+parseRstStreamFrame :: FramePayloadParser
+parseRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
 
-decodeSettingsFrame :: FramePayloadDecoder
-decodeSettingsFrame FrameHeader{..}
+parseSettingsFrame :: FramePayloadParser
+parseSettingsFrame FrameHeader{..}
   | isNotValid = fail protocolError
   | otherwise  = SettingsFrame <$> settings num id
   where
-    num = fhLength `div` 6
-    isNotValid = fhLength `mod` 6 /= 0
+    num = payloadLength `div` 6
+    isNotValid = payloadLength `mod` 6 /= 0
     settings 0 builder = return $ toSettings $ builder []
     settings n builder = do
         rawSetting <- BI.anyWord16be
@@ -158,36 +177,38 @@ decodeSettingsFrame FrameHeader{..}
                 v <- BI.anyWord32be
                 settings n' (((k,v):) . builder)
 
-decodePushPromiseFrame :: FramePayloadDecoder
-decodePushPromiseFrame header = decodeWithPadding header $ \len -> do
-    (streamId, _) <- streamIdentifier
-    hbf <- B.take $ len - 4
-    return $ PushPromiseFrame streamId hbf
+parsePushPromiseFrame :: FramePayloadParser
+parsePushPromiseFrame header = parseWithPadding header $ \len ->
+    PushPromiseFrame <$> streamIdentifier <*> hbf len
+  where
+    hbf len = B.take $ len - 4
 
-decodePingFrame :: FramePayloadDecoder
-decodePingFrame header
-  | frameLen header /= 8 = fail frameSizeError
-  | otherwise            = PingFrame <$> B.take 8
+parsePingFrame :: FramePayloadParser
+parsePingFrame FrameHeader{..}
+  | payloadLength /= 8 = fail frameSizeError
+  | otherwise          = PingFrame <$> B.take 8
 
-decodeGoAwayFrame :: FramePayloadDecoder
-decodeGoAwayFrame header = do
-    (streamId, _) <- streamIdentifier
-    errCode <- errorCodeFromWord32 <$> BI.anyWord32be
-    debug <- B.take $ frameLen header - 8
-    return $ GoAwayFrame streamId errCode debug
+parseGoAwayFrame :: FramePayloadParser
+parseGoAwayFrame FrameHeader{..} =
+    GoAwayFrame <$> streamIdentifier <*> errCode <*> debug
+  where
+    errCode = errorCodeFromWord32 <$> BI.anyWord32be
+    debug = B.take $ payloadLength - 8
 
-decodeWindowUpdateFrame :: FramePayloadDecoder
-decodeWindowUpdateFrame header
-  | frameLen header /= 4 = fail frameSizeError -- not sure
-  | otherwise            = do
-      (streamId, _) <- streamIdentifier
-      return $ WindowUpdateFrame streamId
+parseWindowUpdateFrame :: FramePayloadParser
+parseWindowUpdateFrame FrameHeader{..}
+  | payloadLength /= 4 = fail frameSizeError -- not sure
+  | otherwise          = WindowUpdateFrame <$> streamIdentifier
 
-decodeContinuationFrame :: FramePayloadDecoder
-decodeContinuationFrame header = ContinuationFrame <$> B.take (frameLen header)
+parseContinuationFrame :: FramePayloadParser
+parseContinuationFrame FrameHeader{..} = ContinuationFrame <$> payload
+  where
+    payload = B.take payloadLength
 
-decodeUnknownFrame :: FramePayloadDecoder
-decodeUnknownFrame header = UnkownFrame <$> B.take (frameLen header)
+parseUnknownFrame :: FramePayloadParser
+parseUnknownFrame FrameHeader{..} = UnkownFrame <$> payload
+  where
+    payload = B.take payloadLength
 
 ----------------------------------------------------------------
 
@@ -195,27 +216,40 @@ decodeUnknownFrame header = UnkownFrame <$> B.take (frameLen header)
 -- eat up the trailing padding automatically. Calls the parser func
 -- passed in with the length of the unpadded portion between the
 -- padding octet and the actual padding
-decodeWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
-decodeWithPadding header p
+parseWithPadding :: FrameHeader -> (Int -> B.Parser a) -> B.Parser a
+parseWithPadding FrameHeader{..} p
   | padded = do
-      padding <- fromIntegral <$> B.anyWord8
-      val <- p $ frameLen header - padding - 1 -- fixme: -1?
-      ignore padding
+      padlen <- intFromWord8
+      -- padding length consumes 1 byte.
+      val <- p $ payloadLength - padlen - 1
+      ignore padlen
       return val
-  | otherwise = p $ frameLen header
+  | otherwise = p payloadLength
   where
-    flags = fhFlags header
-    padded = testBit flags 3 -- PADDED is 0x8
+    padded = testPadded flags
 
-streamIdentifier :: B.Parser (StreamIdentifier, Bool)
-streamIdentifier = do
+streamIdentifier :: B.Parser StreamIdentifier
+streamIdentifier = toStreamIdentifier <$> BI.anyWord32be
+
+streamIdentifier' :: B.Parser (StreamIdentifier, Bool)
+streamIdentifier' = do
     w32 <- BI.anyWord32be
-    let !streamdId = StreamIdentifier $ clearBit w32 31
-        !exclusive = testBit w32 31
+    let !streamdId = toStreamIdentifier w32
+        !exclusive = isExclusive w32
     return (streamdId, exclusive)
 
-frameLen :: FrameHeader -> Int
-frameLen h = fromIntegral $ fhLength h
+priority :: B.Parser Priority
+priority = do
+    (sid, excl) <- streamIdentifier'
+    Priority excl sid <$> w
+  where
+    w = (+1) <$> intFromWord8
 
 ignore :: Int -> B.Parser ()
 ignore n = void $ B.take n
+
+intFromWord8 :: B.Parser Int
+intFromWord8 = fromIntegral <$> B.anyWord8
+
+intFromWord16be :: B.Parser Int
+intFromWord16be = fromIntegral <$> BI.anyWord16be
