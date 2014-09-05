@@ -190,7 +190,7 @@ parseGoAwayFrame FrameHeader{..} =
 parseWindowUpdateFrame :: FramePayloadParser
 parseWindowUpdateFrame FrameHeader{..}
   | payloadLength /= 4 = fail frameSizeError -- not sure
-  | otherwise          = WindowUpdateFrame <$> streamIdentifier
+  | otherwise          = WindowUpdateFrame <$> BI.anyWord32be
 
 parseContinuationFrame :: FramePayloadParser
 parseContinuationFrame FrameHeader{..} = ContinuationFrame <$> payload

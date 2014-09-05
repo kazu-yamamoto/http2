@@ -239,7 +239,6 @@ newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Eq)
 type StreamDependency    = StreamIdentifier
 type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
-type WindowSizeIncrement = StreamIdentifier
 
 toStreamIdentifier :: Word32 -> StreamIdentifier
 toStreamIdentifier w = StreamIdentifier (w `clearBit` 31)
@@ -258,6 +257,7 @@ streamIdentifierForSeetings = StreamIdentifier 0
 
 ----------------------------------------------------------------
 
+type WindowSizeIncrement = Word32
 type HeaderBlockFragment = ByteString
 type Padding = ByteString
 
