@@ -20,12 +20,18 @@ spec = do
                   }
                 fid = frameTypeToWord8 FramePriority
                 wire = encodeFrameHeader fid header
-                eheader = decodeFrameHeader defaultSettings wire
-            eheader `shouldBe` Right (fid, header)
+                Right fibHeader = decodeFrameHeader defaultSettings wire
+            fibHeader `shouldBe` (fid, header)
 
     describe "encodeFrame & decodeFrame" $ do
         it "encode/decodes frames properly" $ do
-            let einfo = EncodeInfo 0 (StreamIdentifier 2) Nothing
+            let einfo = EncodeInfo {
+                    encodeFlags = defaultFlags
+                  , encodeStreamId = StreamIdentifier 2
+                  , encodePadding = Nothing
+                  }
                 payload = DataFrame "Hello, world!"
-                Right frame = decodeFrame defaultSettings $ encodeFrame einfo payload
-            framePayload frame `shouldBe` payload
+                wire = encodeFrame einfo payload
+                Right frame = decodeFrame defaultSettings wire
+                payload' = framePayload frame
+            payload' `shouldBe` payload
