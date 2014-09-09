@@ -35,13 +35,13 @@ data EncodeInfo = EncodeInfo {
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
 encodeFrame einfo payload = run $ buildFrame einfo payload
 
-encodeFrameHeader :: FrameTypeId -> FrameHeader -> ByteString
-encodeFrameHeader fid header = run $ buildFrameHeader fid header
+encodeFrameHeader :: FrameType -> FrameHeader -> ByteString
+encodeFrameHeader ftype header = run $ buildFrameHeader ftype header
 
 encodeFramePayload :: EncodeInfo -> FramePayload -> ByteString
 encodeFramePayload einfo payload = run payloadBuilder
   where
-    (_, (_, payloadBuilder)) = buildFramePayload einfo payload
+    (_, payloadBuilder) = buildFramePayload einfo payload
 
 run :: Builder -> ByteString
 run = BL.toStrict . BB.toLazyByteString
@@ -51,15 +51,17 @@ run = BL.toStrict . BB.toLazyByteString
 buildFrame :: EncodeInfo -> FramePayload -> Builder
 buildFrame einfo payload = headerBuilder <> payloadBuilder
   where
-    (fid, (header, payloadBuilder)) = buildFramePayload einfo payload
-    headerBuilder = buildFrameHeader fid header
+    (header, payloadBuilder) = buildFramePayload einfo payload
+    ftype = framePayloadToFrameType payload
+    headerBuilder = buildFrameHeader ftype header
 
 ----------------------------------------------------------------
 
-buildFrameHeader :: FrameTypeId -> FrameHeader -> Builder
-buildFrameHeader fid FrameHeader{..} = len <> typ <> flg <> sid
+buildFrameHeader :: FrameType -> FrameHeader -> Builder
+buildFrameHeader ftype FrameHeader{..} = len <> typ <> flg <> sid
   where
     -- fixme: 2^14 check
+    fid = frameTypeToWord8 ftype
     len1 = BB.fromWord16be (fromIntegral (payloadLength `shiftR` 8))
     len2 = BB.fromWord8 (fromIntegral (payloadLength .&. 0xff))
     len = len1 <> len2
@@ -69,28 +71,27 @@ buildFrameHeader fid FrameHeader{..} = len <> typ <> flg <> sid
 
 ----------------------------------------------------------------
 
-buildFramePayload :: EncodeInfo -> FramePayload
-                  -> (FrameTypeId, (FrameHeader, Builder))
+buildFramePayload :: EncodeInfo -> FramePayload -> (FrameHeader, Builder)
 buildFramePayload einfo (DataFrame body) =
-    (frameTypeToWord8 FrameData, buildFramePayloadData einfo body)
+    buildFramePayloadData einfo body
 buildFramePayload einfo (HeadersFrame mpri hdr) =
-    (frameTypeToWord8 FrameHeaders, buildFramePayloadHeaders einfo mpri hdr)
+    buildFramePayloadHeaders einfo mpri hdr
 buildFramePayload einfo (PriorityFrame pri) =
-    (frameTypeToWord8 FramePriority, buildFramePayloadPriority einfo pri)
+    buildFramePayloadPriority einfo pri
 buildFramePayload einfo (RSTStreamFrame e) =
-    (frameTypeToWord8 FrameRSTStream, buildFramePayloadRSTStream einfo e)
+    buildFramePayloadRSTStream einfo e
 buildFramePayload einfo (SettingsFrame settings) =
-    (frameTypeToWord8 FrameSettings, buildFramePayloadSettings einfo settings)
+    buildFramePayloadSettings einfo settings
 buildFramePayload einfo (PushPromiseFrame sid hdr) =
-    (frameTypeToWord8 FramePushPromise, buildFramePayloadPushPromise einfo sid hdr)
+    buildFramePayloadPushPromise einfo sid hdr
 buildFramePayload einfo (PingFrame odata) =
-    (frameTypeToWord8 FramePing, buildFramePayloadPing einfo odata)
+    buildFramePayloadPing einfo odata
 buildFramePayload einfo (GoAwayFrame sid e debug) =
-    (frameTypeToWord8 FrameGoAway, buildFramePayloadGoAway einfo sid e debug)
+    buildFramePayloadGoAway einfo sid e debug
 buildFramePayload einfo (WindowUpdateFrame size) =
-    (frameTypeToWord8 FrameWindowUpdate, buildFramePayloadWindowUpdate einfo size)
+    buildFramePayloadWindowUpdate einfo size
 buildFramePayload einfo (ContinuationFrame hdr) =
-    (frameTypeToWord8 FrameContinuation, buildFramePayloadContinuation einfo hdr)
+    buildFramePayloadContinuation einfo hdr
 buildFramePayload _einfo (UnknownFrame _ _) = undefined
 
 ----------------------------------------------------------------

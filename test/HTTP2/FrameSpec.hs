@@ -18,8 +18,9 @@ spec = do
                   , flags = defaultFlags
                   , streamId = StreamIdentifier 10
                   }
-                fid = frameTypeToWord8 FramePriority
-                wire = encodeFrameHeader fid header
+                ftype = FramePriority
+                fid = frameTypeToWord8 ftype
+                wire = encodeFrameHeader ftype header
                 Right fibHeader = decodeFrameHeader defaultSettings wire
             fibHeader `shouldBe` (fid, header)
 

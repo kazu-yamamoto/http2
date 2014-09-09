@@ -317,3 +317,18 @@ data Priority = Priority {
   , streamDependency :: StreamIdentifier
   , weight :: Int
   } deriving (Eq, Show)
+
+----------------------------------------------------------------
+
+framePayloadToFrameType :: FramePayload -> FrameType
+framePayloadToFrameType (DataFrame _)          = FrameData
+framePayloadToFrameType (HeadersFrame _ _)     = FrameHeaders
+framePayloadToFrameType (PriorityFrame _)      = FramePriority
+framePayloadToFrameType (RSTStreamFrame _)     = FrameRSTStream
+framePayloadToFrameType (SettingsFrame _)      = FrameSettings
+framePayloadToFrameType (PushPromiseFrame _ _) = FramePushPromise
+framePayloadToFrameType (PingFrame _)          = FramePing
+framePayloadToFrameType (GoAwayFrame _ _ _)    = FrameGoAway
+framePayloadToFrameType (WindowUpdateFrame _)  = FrameWindowUpdate
+framePayloadToFrameType (ContinuationFrame _)  = FrameContinuation
+framePayloadToFrameType (UnknownFrame _ _)     = error "framePayloadToFrameType"
