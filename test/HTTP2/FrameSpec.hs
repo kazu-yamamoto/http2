@@ -35,3 +35,14 @@ spec = do
                 Right frame = decodeFrame defaultSettings wire
                 payload' = framePayload frame
             payload' `shouldBe` payload
+        it "encode/decodes padded frames properly" $ do
+            let einfo = EncodeInfo {
+                    encodeFlags = defaultFlags
+                  , encodeStreamId = StreamIdentifier 2
+                  , encodePadding = Just "padding!"
+                  }
+                payload = DataFrame "Hello, world!"
+                wire = encodeFrame einfo payload
+                Right frame = decodeFrame defaultSettings wire
+                payload' = framePayload frame
+            payload' `shouldBe` payload
