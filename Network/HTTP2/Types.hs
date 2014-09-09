@@ -173,6 +173,9 @@ maxPayloadLength = 2^(14::Int)
 
 type FrameFlags = Word8
 
+defaultFlags :: FrameFlags
+defaultFlags = 0
+
 -- |
 -- >>> testEndStream 0x1
 -- True

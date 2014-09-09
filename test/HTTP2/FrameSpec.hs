@@ -13,10 +13,14 @@ spec :: Spec
 spec = do
     describe "encodeFrameHeader & decodeFrameHeader" $ do
         it "encode/decodes frames properly" $ do
-            let flgs = 0
-                fid = 1
-                header = FrameHeader 500 flgs (StreamIdentifier 10)
-                eheader = decodeFrameHeader defaultSettings $ encodeFrameHeader fid header
+            let header = FrameHeader {
+                    payloadLength = 500
+                  , flags = defaultFlags
+                  , streamId = StreamIdentifier 10
+                  }
+                fid = frameTypeToWord8 FramePriority
+                wire = encodeFrameHeader fid header
+                eheader = decodeFrameHeader defaultSettings wire
             eheader `shouldBe` Right (fid, header)
 
     describe "encodeFrame & decodeFrame" $ do
