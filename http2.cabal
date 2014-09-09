@@ -68,6 +68,7 @@ Executable hpack-encode
                       , blaze-builder
                       , bytestring
                       , containers
+                      , hex
                       , text
                       , unordered-containers
                       , vector
@@ -85,6 +86,7 @@ Executable hpack-debug
                       , blaze-builder
                       , bytestring
                       , containers
+                      , hex
                       , text
                       , unordered-containers
                       , vector
@@ -125,8 +127,7 @@ Test-Suite spec
   HS-Source-Dirs:       test, .
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
-  Other-Modules:        HexString
-                        HPACK.DecodeSpec
+  Other-Modules:        HPACK.DecodeSpec
                         HPACK.HeaderBlock
                         HPACK.HeaderBlockSpec
                         HPACK.HuffmanSpec
@@ -140,6 +141,7 @@ Test-Suite spec
                       , blaze-builder
                       , bytestring
                       , containers
+                      , hex
                       , hspec >= 1.3
                       , unordered-containers
                       , word8
@@ -152,7 +154,6 @@ Test-Suite hpack
   Main-Is:              Spec.hs
   Other-Modules:        HPACKDecode
                         HPACKSpec
-                        HexString
                         Types
   Build-Depends:        base
                       , PSQueue
@@ -164,11 +165,12 @@ Test-Suite hpack
                       , containers
                       , directory
                       , filepath
+                      , hex
+                      , hspec >= 1.3
                       , text
                       , unordered-containers
                       , vector
                       , word8
-                      , hspec >= 1.3
 
 Source-Repository head
   Type:                 git

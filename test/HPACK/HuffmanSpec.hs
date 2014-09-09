@@ -3,13 +3,14 @@
 module HPACK.HuffmanSpec where
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
+import Data.Char (toLower)
+import Data.Hex
+import Data.Maybe (fromJust)
 import Network.HPACK
 import Network.HPACK.Huffman
 import Test.Hspec
 import Test.Hspec.QuickCheck
-
-import HexString
 
 testData :: [(ByteString, ByteString)]
 testData = [
@@ -29,12 +30,12 @@ testData = [
 shouldBeEncoded :: ByteString -> ByteString -> Expectation
 shouldBeEncoded inp out = enc inp `shouldBe` out
   where
-    enc = toHexString . encode
+    enc = BS.map toLower . hex . encode
 
 shouldBeDecoded :: ByteString -> Either DecodeError ByteString -> Expectation
 shouldBeDecoded inp out = dec inp `shouldBe` out
   where
-    dec = decode . fromHexString
+    dec = decode . fromJust . unhex
 
 spec :: Spec
 spec = do

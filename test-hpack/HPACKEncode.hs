@@ -9,10 +9,10 @@ module HPACKEncode (
 
 import Control.Monad (when)
 import Data.ByteString (ByteString)
+import Data.Hex
 import Network.HPACK
 import Network.HPACK.Context
 
-import HexString
 import Types
 
 data Conf = Conf {
@@ -34,9 +34,9 @@ testLoop :: Conf
          -> [ByteString]
          -> IO [ByteString]
 testLoop _    []     _    hexs = return $ reverse hexs
-testLoop conf (c:cs) ectx hexs = do
-    (ectx',hex) <- test conf c ectx
-    testLoop conf cs ectx' (hex:hexs)
+testLoop conf (c:cs) ectx hxs = do
+    (ectx',hx) <- test conf c ectx
+    testLoop conf cs ectx' (hx:hxs)
 
 test :: Conf
      -> Case
@@ -44,7 +44,7 @@ test :: Conf
      -> IO (Context, ByteString)
 test conf c ectx = do
     (ectx',out) <- enc conf ectx hs
-    let hex' = toHexString out
+    let hex' = hex out
     when (debug conf) $ do
         putStrLn "---- Output context"
         printContext ectx'

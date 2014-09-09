@@ -12,13 +12,13 @@ import Control.Applicative ((<$>))
 import Control.Exception
 import Control.Monad (when)
 import qualified Data.ByteString.Char8 as B8
+import Data.Hex
 import Data.List (sort)
 import Network.HPACK
 import Network.HPACK.Context
 import Network.HPACK.Context.HeaderList
 import Network.HPACK.HeaderBlock
 
-import HexString
 import Types
 
 data Conf = Conf {
@@ -59,7 +59,7 @@ test conf c dctx = do
         putStrLn "---- Input context"
         printContext dctx
         putStrLn "---- Input Hex"
-        B8.putStrLn hex
+        B8.putStrLn wirehex
         putStrLn "---- Input header block"
         print bshd'
     dctx0 <- case size c of
@@ -73,11 +73,11 @@ test conf c dctx = do
             if pass then
                 return $ Right (dctx')
               else
-                return $ Left $ "Headers are different in " ++ B8.unpack hex ++ ":\n" ++ show hd ++ "\n" ++ show hs ++ "\n" ++ show hs'
+                return $ Left $ "Headers are different in " ++ B8.unpack wirehex ++ ":\n" ++ show hd ++ "\n" ++ show hs ++ "\n" ++ show hs'
   where
-    hex = wire c
-    inp = fromHexString hex
+    wirehex = wire c
+    Just inp = unhex wirehex
     hs = headers c
     bshd = fromByteStreamDebug inp
     hd = map snd <$> bshd
-    bshd' = map (\(x,y)->(toHexString x,y)) <$> bshd
+    bshd' = map (\(x,y)->(hex x,y)) <$> bshd
