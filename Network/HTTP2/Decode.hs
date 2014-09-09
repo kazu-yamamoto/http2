@@ -15,6 +15,7 @@ import qualified Data.Attoparsec.Binary as BI
 import qualified Data.Attoparsec.ByteString as B
 import Data.Bits (shiftL, (.|.))
 import Data.ByteString (ByteString)
+import Data.List (isPrefixOf)
 
 import Network.HTTP2.Types
 
@@ -42,9 +43,14 @@ decodeFrameHeader settings bs = case B.parseOnly (parseFrameHeader settings) bs 
 
 toErrorCode :: String -> ErrorCode
 toErrorCode estr
-  | estr == protocolError    = ProtocolError
-  | estr == frameSizeError   = FrameSizeError
-  | otherwise                = UnknownError estr -- fixme
+  | estr' == protocolError  = ProtocolError
+  | estr' == frameSizeError = FrameSizeError
+  | otherwise               = UnknownError estr' -- fixme
+  where
+    estr'
+      -- attoparsec specific, sigh.
+      | "Failed reading: " `isPrefixOf` estr = drop 16 estr
+      | otherwise                            = estr
 
 ----------------------------------------------------------------
 
