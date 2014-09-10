@@ -209,8 +209,4 @@ buildFramePayloadContinuation EncodeInfo{..} hdr = (header, builder)
     header = FrameHeader len encodeFlags encodeStreamId
 
 buildFramePayloadUnknown :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
-buildFramePayloadUnknown EncodeInfo{..} opaque = (header, builder)
-  where
-    builder = BB.fromByteString opaque
-    len = B.length opaque
-    header = FrameHeader len encodeFlags encodeStreamId
+buildFramePayloadUnknown = buildFramePayloadData
