@@ -18,11 +18,10 @@ spec = do
                   , flags = defaultFlags
                   , streamId = StreamIdentifier 10
                   }
-                ftype = FramePriority
-                fid = frameTypeToWord8 ftype
-                wire = encodeFrameHeader ftype header
+                ftid = frameTypeToWord8 FramePriority
+                wire = encodeFrameHeader ftid header
                 Right fibHeader = decodeFrameHeader defaultSettings wire
-            fibHeader `shouldBe` (fid, header)
+            fibHeader `shouldBe` (ftid, header)
 
     describe "encodeFrame & decodeFrame" $ do
         it "encode/decodes frames properly" $ do

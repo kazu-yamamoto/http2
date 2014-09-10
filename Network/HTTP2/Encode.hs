@@ -35,8 +35,8 @@ data EncodeInfo = EncodeInfo {
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
 encodeFrame einfo payload = run $ buildFrame einfo payload
 
-encodeFrameHeader :: FrameType -> FrameHeader -> ByteString
-encodeFrameHeader ftype header = run $ buildFrameHeader ftype header
+encodeFrameHeader :: FrameTypeId -> FrameHeader -> ByteString
+encodeFrameHeader ftid header = run $ buildFrameHeader ftid header
 
 encodeFramePayload :: EncodeInfo -> FramePayload -> ByteString
 encodeFramePayload einfo payload = run payloadBuilder
@@ -52,20 +52,19 @@ buildFrame :: EncodeInfo -> FramePayload -> Builder
 buildFrame einfo payload = headerBuilder <> payloadBuilder
   where
     (header, payloadBuilder) = buildFramePayload einfo payload
-    ftype = framePayloadToFrameType payload
-    headerBuilder = buildFrameHeader ftype header
+    ftid = framePayloadToFrameTypeId payload
+    headerBuilder = buildFrameHeader ftid header
 
 ----------------------------------------------------------------
 
-buildFrameHeader :: FrameType -> FrameHeader -> Builder
-buildFrameHeader ftype FrameHeader{..} = len <> typ <> flg <> sid
+buildFrameHeader :: FrameTypeId -> FrameHeader -> Builder
+buildFrameHeader ftid FrameHeader{..} = len <> typ <> flg <> sid
   where
     -- fixme: 2^14 check
-    fid = frameTypeToWord8 ftype
     len1 = BB.fromWord16be (fromIntegral (payloadLength `shiftR` 8))
     len2 = BB.fromWord8 (fromIntegral (payloadLength .&. 0xff))
     len = len1 <> len2
-    typ = BB.fromWord8 fid
+    typ = BB.fromWord8 ftid
     flg = BB.fromWord8 flags
     sid = BB.fromWord32be $ fromStreamIdentifier streamId
 
@@ -92,7 +91,8 @@ buildFramePayload einfo (WindowUpdateFrame size) =
     buildFramePayloadWindowUpdate einfo size
 buildFramePayload einfo (ContinuationFrame hdr) =
     buildFramePayloadContinuation einfo hdr
-buildFramePayload _einfo (UnknownFrame _ _) = undefined
+buildFramePayload einfo (UnknownFrame _ opaque) =
+    buildFramePayloadUnknown einfo opaque
 
 ----------------------------------------------------------------
 
@@ -206,4 +206,11 @@ buildFramePayloadContinuation EncodeInfo{..} hdr = (header, builder)
   where
     builder = BB.fromByteString hdr
     len = B.length hdr
+    header = FrameHeader len encodeFlags encodeStreamId
+
+buildFramePayloadUnknown :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
+buildFramePayloadUnknown EncodeInfo{..} opaque = (header, builder)
+  where
+    builder = BB.fromByteString opaque
+    len = B.length opaque
     header = FrameHeader len encodeFlags encodeStreamId

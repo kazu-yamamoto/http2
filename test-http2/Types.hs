@@ -48,7 +48,7 @@ instance ToJSON FramePayload where
 instance ToJSON (Frame,Pad) where
     toJSON (Frame{..},pad) = object [
         "length" .= payloadLength frameHeader
-      , "type" .= frameTypeToWord8 (framePayloadToFrameType framePayload)
+      , "type" .= framePayloadToFrameTypeId framePayload
       , "flags" .= flags frameHeader
       , "stream_identifier" .= fromStreamIdentifier (streamId frameHeader)
       , "frame_payload" .= (toJSON framePayload +++ toJSON pad)

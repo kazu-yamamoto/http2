@@ -320,15 +320,15 @@ data Priority = Priority {
 
 ----------------------------------------------------------------
 
-framePayloadToFrameType :: FramePayload -> FrameType
-framePayloadToFrameType (DataFrame _)          = FrameData
-framePayloadToFrameType (HeadersFrame _ _)     = FrameHeaders
-framePayloadToFrameType (PriorityFrame _)      = FramePriority
-framePayloadToFrameType (RSTStreamFrame _)     = FrameRSTStream
-framePayloadToFrameType (SettingsFrame _)      = FrameSettings
-framePayloadToFrameType (PushPromiseFrame _ _) = FramePushPromise
-framePayloadToFrameType (PingFrame _)          = FramePing
-framePayloadToFrameType (GoAwayFrame _ _ _)    = FrameGoAway
-framePayloadToFrameType (WindowUpdateFrame _)  = FrameWindowUpdate
-framePayloadToFrameType (ContinuationFrame _)  = FrameContinuation
-framePayloadToFrameType (UnknownFrame _ _)     = error "framePayloadToFrameType"
+framePayloadToFrameTypeId :: FramePayload -> FrameTypeId
+framePayloadToFrameTypeId (DataFrame _)          = frameTypeToWord8 FrameData
+framePayloadToFrameTypeId (HeadersFrame _ _)     = frameTypeToWord8 FrameHeaders
+framePayloadToFrameTypeId (PriorityFrame _)      = frameTypeToWord8 FramePriority
+framePayloadToFrameTypeId (RSTStreamFrame _)     = frameTypeToWord8 FrameRSTStream
+framePayloadToFrameTypeId (SettingsFrame _)      = frameTypeToWord8 FrameSettings
+framePayloadToFrameTypeId (PushPromiseFrame _ _) = frameTypeToWord8 FramePushPromise
+framePayloadToFrameTypeId (PingFrame _)          = frameTypeToWord8 FramePing
+framePayloadToFrameTypeId (GoAwayFrame _ _ _)    = frameTypeToWord8 FrameGoAway
+framePayloadToFrameTypeId (WindowUpdateFrame _)  = frameTypeToWord8 FrameWindowUpdate
+framePayloadToFrameTypeId (ContinuationFrame _)  = frameTypeToWord8 FrameContinuation
+framePayloadToFrameTypeId (UnknownFrame w8 _)    = w8
