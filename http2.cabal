@@ -112,6 +112,25 @@ Executable hpack-stat
                       , vector
                       , word8
 
+Executable frame-encode
+  Default-Language:     Haskell2010
+  HS-Source-Dirs:       test-frame, .
+  GHC-Options:          -Wall
+  Main-Is:              frame-encode.hs
+  Other-Modules:        Case
+                        JSON
+  Build-Depends:        base >= 4 && < 5
+                      , aeson
+                      , aeson-pretty
+                      , array
+                      , attoparsec
+                      , attoparsec-binary
+                      , blaze-builder
+                      , bytestring
+                      , hex
+                      , text
+                      , unordered-containers
+
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010

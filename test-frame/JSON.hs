@@ -22,9 +22,9 @@ byteStringToText = T.pack . B8.unpack
 data Err = Err {
     code :: [Word32]
   , reason :: String
-  }
+  } deriving (Show, Read)
 
-data Pad = Pad (Maybe Padding)
+data Pad = Pad (Maybe Padding) deriving (Show, Read)
 
 data Case = Case {
     draft :: Int
@@ -33,7 +33,7 @@ data Case = Case {
   , frame :: Frame
   , padding :: Pad
   , err :: Maybe Err
-  }
+  } deriving (Show, Read)
 
 instance ToJSON Err where
     toJSON Err{..} = object ["code" .= code, "description" .= reason ]
@@ -61,7 +61,7 @@ instance ToJSON Case where
     toJSON Case{..} = object [
         "drat" .= draft
       , "description" .= description
-      , "wire" .= ("fixme" :: String)
+      , "wire" .= byteStringToText wire
       , "frame" .= (frame,padding)
       , "err" .= err
       ]
