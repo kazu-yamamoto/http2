@@ -15,6 +15,7 @@ import Data.HashMap.Strict (union)
 import Data.Word (Word32)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Hex
 
 import Network.HTTP2.Decode
 import Network.HTTP2.Encode
@@ -73,23 +74,33 @@ instance ToJSON Case where
 Object x +++ Object y = Object $ x `union` y
 _ +++ _ = error "+++"
 
-testEncodeInfo = EncodeInfo {
-    encodeFlags = defaultFlags
-  , encodeStreamId = StreamIdentifier 2
-  , encodePadding = Just "howdy!"
+data CaseSource = CaseSource {
+    cs_description :: String
+  , cs_encodeinfo :: EncodeInfo
+  , cs_payload :: FramePayload
+  } deriving (Show,Read)
+
+testSource :: CaseSource
+testSource = CaseSource {
+    cs_description = "noraml data frame"
+  , cs_encodeinfo = EncodeInfo {
+      encodeFlags = defaultFlags
+    , encodeStreamId = StreamIdentifier 2
+    , encodePadding = Just "howdy!"
+    }
+  , cs_payload = DataFrame "Hello, world!"
   }
 
-testPayload = DataFrame "Hello, world!"
+data CaseWire = CaseWire {
+    wire_description :: String
+  , wire_hex :: ByteString
+  } deriving (Show,Read)
 
-testFrame = frame
+sourceToWire :: CaseSource -> CaseWire
+sourceToWire CaseSource{..} = CaseWire {
+    wire_description = cs_description
+  , wire_hex = wire
+  }
   where
-    Right frame = decodeFrame defaultSettings $ encodeFrame testEncodeInfo testPayload
-
-testCase = Case {
-    draft = 14
-  , description = "nomarl data frame"
-  , wire = ""
-  , frame = testFrame
-  , err = Nothing
-  , padding = Pad $ Just "howdy!"
-  }
+    frame = encodeFrame cs_encodeinfo cs_payload
+    wire = hex frame

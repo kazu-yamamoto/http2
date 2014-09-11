@@ -28,7 +28,7 @@ data EncodeInfo = EncodeInfo {
       encodeFlags    :: FrameFlags
     , encodeStreamId :: StreamIdentifier
     , encodePadding  :: Maybe Padding
-    }
+    } deriving (Show,Read)
 
 ----------------------------------------------------------------
 

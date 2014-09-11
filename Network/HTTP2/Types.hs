@@ -25,7 +25,7 @@ data ErrorCode = NoError
                -- our extensions
                | UnknownErrorCode Word32
                | UnknownError String
-               deriving (Show, Eq, Ord)
+               deriving (Show, Read, Eq, Ord)
 
 -- |
 --
@@ -82,7 +82,7 @@ data SettingsId = SettingsHeaderTableSize
                 | SettingsInitialWindowSize
                 | SettingsMaxFrameSize -- this means payload size
                 | SettingsMaxHeaderBlockSize
-                deriving (Show, Eq, Ord, Enum, Bounded, Ix)
+                deriving (Show, Read, Eq, Ord, Enum, Bounded, Ix)
 
 -- |
 --
@@ -238,7 +238,7 @@ setPriority x = x `setBit` 5
 
 ----------------------------------------------------------------
 
-newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Eq)
+newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Read, Eq)
 type StreamDependency    = StreamIdentifier
 type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
@@ -269,14 +269,14 @@ type Padding = ByteString
 data Frame = Frame
     { frameHeader  :: FrameHeader
     , framePayload :: FramePayload
-    } deriving (Show, Eq)
+    } deriving (Show, Read, Eq)
 
 -- A complete frame header
 data FrameHeader = FrameHeader
     { payloadLength :: PayloadLength
     , flags         :: FrameFlags
     , streamId      :: StreamIdentifier
-    } deriving (Show, Eq)
+    } deriving (Show, Read, Eq)
 
 data FramePayload =
     DataFrame ByteString
@@ -290,7 +290,7 @@ data FramePayload =
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameTypeId ByteString
-  deriving (Show, Eq)
+  deriving (Show, Read, Eq)
 
 type Settings = Array SettingsId (Maybe Word32)
 
@@ -316,7 +316,7 @@ data Priority = Priority {
     exclusive :: Bool
   , streamDependency :: StreamIdentifier
   , weight :: Int
-  } deriving (Eq, Show)
+  } deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------
 
