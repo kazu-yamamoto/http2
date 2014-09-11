@@ -6,18 +6,17 @@ module JSON where
 
 import Control.Applicative ((<$>))
 import Data.Aeson
+import Data.Array (assocs)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.HashMap.Strict (union)
+import Data.Maybe (fromJust, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word (Word32)
 
-import Network.HTTP2.Types
-import Data.Array (assocs)
-import Data.Maybe (isJust)
-import Data.Maybe (fromJust)
+import Network.HTTP2
 
 ----------------------------------------------------------------
 

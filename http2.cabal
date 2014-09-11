@@ -54,67 +54,67 @@ Library
                       , containers
                       , unordered-containers
 
-Executable hpack-encode
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack, .
-  GHC-Options:          -Wall
-  Main-Is:              hpack-encode.hs
-  Other-Modules:        HPACKEncode
-  Build-Depends:        base >= 4 && < 5
-                      , PSQueue
-                      , aeson
-                      , aeson-pretty
-                      , array
-                      , blaze-builder
-                      , bytestring
-                      , containers
-                      , hex
-                      , text
-                      , unordered-containers
-                      , vector
-                      , word8
+-- Executable hpack-encode
+--   Default-Language:     Haskell2010
+--   HS-Source-Dirs:       test-hpack, .
+--   GHC-Options:          -Wall
+--   Main-Is:              hpack-encode.hs
+--   Other-Modules:        HPACKEncode
+--   Build-Depends:        base >= 4 && < 5
+--                       , PSQueue
+--                       , aeson
+--                       , aeson-pretty
+--                       , array
+--                       , blaze-builder
+--                       , bytestring
+--                       , containers
+--                       , hex
+--                       , text
+--                       , unordered-containers
+--                       , vector
+--                       , word8
 
-Executable hpack-debug
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack, .
-  GHC-Options:          -Wall
-  Main-Is:              hpack-debug.hs
-  Build-Depends:        base >= 4 && < 5
-                      , PSQueue
-                      , aeson
-                      , array
-                      , blaze-builder
-                      , bytestring
-                      , containers
-                      , hex
-                      , text
-                      , unordered-containers
-                      , vector
-                      , word8
+-- Executable hpack-debug
+--   Default-Language:     Haskell2010
+--   HS-Source-Dirs:       test-hpack, .
+--   GHC-Options:          -Wall
+--   Main-Is:              hpack-debug.hs
+--   Build-Depends:        base >= 4 && < 5
+--                       , PSQueue
+--                       , aeson
+--                       , array
+--                       , blaze-builder
+--                       , bytestring
+--                       , containers
+--                       , hex
+--                       , text
+--                       , unordered-containers
+--                       , vector
+--                       , word8
 
-Executable hpack-stat
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack, .
-  GHC-Options:          -Wall
-  Main-Is:              hpack-stat.hs
-  Build-Depends:        base >= 4 && < 5
-                      , PSQueue
-                      , aeson
-                      , aeson-pretty
-                      , array
-                      , blaze-builder
-                      , bytestring
-                      , containers
-                      , directory
-                      , filepath
-                      , text
-                      , unordered-containers
-                      , vector
-                      , word8
+-- Executable hpack-stat
+--   Default-Language:     Haskell2010
+--   HS-Source-Dirs:       test-hpack, .
+--   GHC-Options:          -Wall
+--   Main-Is:              hpack-stat.hs
+--   Build-Depends:        base >= 4 && < 5
+--                       , PSQueue
+--                       , aeson
+--                       , aeson-pretty
+--                       , array
+--                       , blaze-builder
+--                       , bytestring
+--                       , containers
+--                       , directory
+--                       , filepath
+--                       , text
+--                       , unordered-containers
+--                       , vector
+--                       , word8
 
 Executable frame-encode
   Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-frame, .
+  HS-Source-Dirs:       test-frame
   GHC-Options:          -Wall
   Main-Is:              frame-encode.hs
   Other-Modules:        Case
@@ -123,11 +123,9 @@ Executable frame-encode
                       , aeson
                       , aeson-pretty
                       , array
-                      , attoparsec
-                      , attoparsec-binary
-                      , blaze-builder
                       , bytestring
                       , hex
+                      , http2
                       , text
                       , unordered-containers
 

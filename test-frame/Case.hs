@@ -8,9 +8,7 @@ import Data.Hex
 import Data.Maybe (fromJust)
 
 import JSON
-import Network.HTTP2.Decode
-import Network.HTTP2.Encode
-import Network.HTTP2.Types
+import Network.HTTP2
 
 data CaseSource = CaseSource {
     cs_description :: String
