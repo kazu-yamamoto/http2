@@ -1,0 +1,9 @@
+CaseSource {
+    cs_description = "noraml headers frame"
+  , cs_encodeinfo = EncodeInfo {
+      encodeFlags = 0
+    , encodeStreamId = StreamIdentifier 1
+    , encodePadding = Nothing
+    }
+  , cs_payload = HeadersFrame Nothing "this is dummy"
+  }

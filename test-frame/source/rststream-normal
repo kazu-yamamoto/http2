@@ -1,0 +1,16 @@
+CaseSource {
+    cs_description = "noraml rst stream frame"
+  , cs_encodeinfo = EncodeInfo {
+      encodeFlags = 0
+    , encodeStreamId = StreamIdentifier 5
+    , encodePadding = Nothing
+    }
+  , cs_payload = SettingsFrame (array (SettingsHeaderTableSize,SettingsMaxHeaderBlockSize) [
+      (SettingsHeaderTableSize,Just 8192)
+    , (SettingsEnablePush,Nothing)
+    , (SettingsMaxConcurrentStreams,Just 5000)
+    , (SettingsInitialWindowSize,Nothing)
+    , (SettingsMaxFrameSize,Nothing)
+    , (SettingsMaxHeaderBlockSize,Nothing)
+    ])
+  }

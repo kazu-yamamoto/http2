@@ -1,0 +1,9 @@
+CaseSource {
+    cs_description = "noraml headers frame including priority"
+  , cs_encodeinfo = EncodeInfo {
+      encodeFlags = 0
+    , encodeStreamId = StreamIdentifier 3
+    , encodePadding = Just "This is padding."
+    }
+  , cs_payload = HeadersFrame (Just Priority {exclusive = True, streamDependency = StreamIdentifier 20, weight = 10}) "this is dummy"
+  }
