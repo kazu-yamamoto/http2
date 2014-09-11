@@ -1,0 +1,1 @@
+CaseWire {wire_description = "noraml goaway frame", wire_hex = "0000170700000000000000001E00000009687061636B2069732062726F6B656E", wire_padding = Pad Nothing, wire_error = Nothing}

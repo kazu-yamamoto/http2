@@ -1,0 +1,9 @@
+CaseSource {
+    cs_description = "noraml goaway frame"
+  , cs_encodeinfo = EncodeInfo {
+      encodeFlags = 0
+    , encodeStreamId = StreamIdentifier 0
+    , encodePadding = Nothing
+    }
+  , cs_payload = GoAwayFrame (StreamIdentifier 30) CompressionError "hpack is broken"
+  }

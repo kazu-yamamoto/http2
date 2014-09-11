@@ -1,0 +1,1 @@
+CaseWire {wire_description = "noraml headers frame", wire_hex = "00000D010000000001746869732069732064756D6D79", wire_padding = Pad Nothing, wire_error = Nothing}

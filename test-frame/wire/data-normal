@@ -1,0 +1,1 @@
+CaseWire {wire_description = "noraml data frame", wire_hex = "0000140008000000020648656C6C6F2C20776F726C6421486F77647921", wire_padding = Pad (Just "Howdy!"), wire_error = Nothing}

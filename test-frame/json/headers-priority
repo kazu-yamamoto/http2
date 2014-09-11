@@ -1,0 +1,22 @@
+{
+    "drat": 14,
+    "wire": "000023012800000003108000001409746869732069732064756D6D79546869732069732070616464696E672E",
+    "frame": {
+        "length": 35,
+        "frame_payload": {
+            "priority": {
+                "stream_dependency": 20,
+                "weight": 10,
+                "exclusive": true
+            },
+            "header_block_fragment": "this is dummy",
+            "padding_length": 16,
+            "padding": "This is padding."
+        },
+        "flags": 40,
+        "stream_identifier": 3,
+        "type": 1
+    },
+    "err": null,
+    "description": "noraml headers frame including priority"
+}

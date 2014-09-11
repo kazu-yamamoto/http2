@@ -1,0 +1,9 @@
+CaseSource {
+    cs_description = "noraml ping frame"
+  , cs_encodeinfo = EncodeInfo {
+      encodeFlags = 0
+    , encodeStreamId = StreamIdentifier 0
+    , encodePadding = Nothing
+    }
+  , cs_payload = PingFrame "deadbeef"
+  }

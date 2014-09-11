@@ -1,0 +1,17 @@
+{
+    "drat": 14,
+    "wire": "000004080000000032000003E8",
+    "frame": {
+        "length": 4,
+        "frame_payload": {
+            "window_size_increment": 1000,
+            "padding_length": null,
+            "padding": null
+        },
+        "flags": 0,
+        "stream_identifier": 50,
+        "type": 8
+    },
+    "err": null,
+    "description": "noraml window update frame"
+}

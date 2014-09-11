@@ -1,0 +1,9 @@
+CaseSource {
+    cs_description = "noraml push promise frame"
+  , cs_encodeinfo = EncodeInfo {
+      encodeFlags = 0
+    , encodeStreamId = StreamIdentifier 9
+    , encodePadding = Just "Howdy!"
+    }
+  , cs_payload = PushPromiseFrame (StreamIdentifier 11) "this is dummy"
+  }
