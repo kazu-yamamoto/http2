@@ -2,6 +2,7 @@
 
 module Case where
 
+import Control.Applicative ((<$>))
 import Data.ByteString (ByteString)
 import Data.Hex
 import Data.Maybe (fromJust)
@@ -16,17 +17,6 @@ data CaseSource = CaseSource {
   , cs_encodeinfo :: EncodeInfo
   , cs_payload :: FramePayload
   } deriving (Show,Read)
-
-testSource :: CaseSource
-testSource = CaseSource {
-    cs_description = "noraml data frame"
-  , cs_encodeinfo = EncodeInfo {
-      encodeFlags = defaultFlags
-    , encodeStreamId = StreamIdentifier 2
-    , encodePadding = Just "howdy!"
-    }
-  , cs_payload = DataFrame "Hello, world!"
-  }
 
 data CaseWire = CaseWire {
     wire_description :: String
@@ -51,10 +41,16 @@ wireToCase CaseWire { wire_error = Nothing, ..} = Case {
     draft = 14
   , description = wire_description
   , wire = wire_hex
-  , frame = frm
+  , frame = Right frm
   , padding = wire_padding
-  , err = Nothing
   }
   where
+    -- this code is unsafe
     Right frm = decodeFrame defaultSettings $ fromJust $ unhex wire_hex
-wireToCase CaseWire {..} = undefined
+wireToCase CaseWire { wire_error = Just e, ..} = Case {
+    draft = 14
+  , description = wire_description
+  , wire = wire_hex
+  , frame = Left $ errorCodeToWord32 <$> e
+  , padding = wire_padding
+  }

@@ -15,41 +15,105 @@ import qualified Data.Text as T
 import Data.Word (Word32)
 
 import Network.HTTP2.Types
+import Data.Array (assocs)
+import Data.Maybe (isJust)
+import Data.Maybe (fromJust)
+
+----------------------------------------------------------------
 
 byteStringToText :: ByteString -> Text
 byteStringToText = T.pack . B8.unpack
 
-data Err = Err {
-    code :: [Word32]
-  , reason :: String
-  } deriving (Show, Read)
+(+++) :: Value -> Value -> Value
+Object x +++ Object y = Object $ x `union` y
+_ +++ _ = error "+++"
 
+----------------------------------------------------------------
+
+type EFrame = Either [Word32] Frame
 data Pad = Pad (Maybe Padding) deriving (Show, Read)
+
+----------------------------------------------------------------
 
 data Case = Case {
     draft :: Int
   , description :: String
   , wire :: ByteString
-  , frame :: Frame
+  , frame :: EFrame
   , padding :: Pad
-  , err :: Maybe Err
   } deriving (Show, Read)
 
-instance ToJSON Err where
-    toJSON Err{..} = object ["code" .= code, "description" .= reason ]
+----------------------------------------------------------------
+
+instance ToJSON StreamIdentifier where
+    toJSON (StreamIdentifier s) = toJSON s
+
+instance ToJSON Priority where
+    toJSON (Priority e s w) = object [
+        "exclusive" .= e
+      , "stream_dependency" .= s
+      , "weight" .= w
+      ]
+
+instance ToJSON ErrorCode where
+    toJSON e = toJSON $ errorCodeToWord32 e
+
+----------------------------------------------------------------
 
 instance ToJSON FramePayload where
-    toJSON (DataFrame bs) = object ["data" .= byteStringToText bs]
-    -- fixme
+    toJSON (DataFrame body) = object [
+        "data" .= byteStringToText body
+      ]
+    toJSON (HeadersFrame mpri hdr) = object [
+        "priority" .= mpri
+      , "header_block_fragment" .= byteStringToText hdr
+      ]
+    toJSON (PriorityFrame pri) = object [
+        "priority" .= pri
+      ]
+    toJSON (RSTStreamFrame e) = object [
+        "error_code" .= e
+      ]
+    toJSON (SettingsFrame settings) = object [
+        "settings" .= alist3
+      ]
+      where
+        alist1 = assocs settings
+        alist2 = filter (isJust.snd) alist1
+        alist3 = (\(x,y) -> (settingsToWord16 x, fromJust y)) <$> alist2
+    toJSON (PushPromiseFrame sid hdr) = object [
+        "promised_stream_id" .= sid
+      , "header_block_fragment" .= byteStringToText hdr
+      ]
+    toJSON (PingFrame odata) = object [
+        "opaque_data" .= byteStringToText odata
+      ]
+    toJSON (GoAwayFrame sid e debug) = object [
+        "last_stream_id" .= sid
+      , "error_code" .= e
+      , "additional_debug_data" .= byteStringToText debug
+      ]
+    toJSON (WindowUpdateFrame size) = object [
+        "window_size_increment" .= size
+      ]
+    toJSON (ContinuationFrame hdr) = object [
+        "header_block_fragment" .= byteStringToText hdr
+      ]
+    toJSON (UnknownFrame _ opaque) = object [
+        "payload" .= byteStringToText opaque
+      ]
 
-instance ToJSON (Frame,Pad) where
-    toJSON (Frame{..},pad) = object [
+----------------------------------------------------------------
+
+instance ToJSON (EFrame,Pad) where
+    toJSON (Right Frame{..},pad) = object [
         "length" .= payloadLength frameHeader
       , "type" .= framePayloadToFrameTypeId framePayload
       , "flags" .= flags frameHeader
       , "stream_identifier" .= fromStreamIdentifier (streamId frameHeader)
       , "frame_payload" .= (toJSON framePayload +++ toJSON pad)
       ]
+    toJSON (Left _, _) = Null
 
 instance ToJSON Pad where
     toJSON (Pad padding) = object [
@@ -57,15 +121,17 @@ instance ToJSON Pad where
       , "padding" .= (byteStringToText <$> padding)
       ]
 
+instance ToJSON EFrame where
+    toJSON (Right _) = Null
+    toJSON (Left e) = toJSON e
+
+----------------------------------------------------------------
+
 instance ToJSON Case where
     toJSON Case{..} = object [
         "drat" .= draft
       , "description" .= description
       , "wire" .= byteStringToText wire
       , "frame" .= (frame,padding)
-      , "err" .= err
+      , "err" .= frame
       ]
-
-(+++) :: Value -> Value -> Value
-Object x +++ Object y = Object $ x `union` y
-_ +++ _ = error "+++"

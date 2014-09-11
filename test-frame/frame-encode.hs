@@ -1,24 +1,25 @@
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+
 module Main where
 
-import Control.Applicative ((<$>))
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy.Char8 as BL
-import Data.HashMap.Strict (union)
-import Data.Hex
-import Data.Maybe (fromJust)
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Word (Word32)
+import System.Environment (getArgs)
 
 import Case
-import JSON
-import Network.HTTP2.Decode
-import Network.HTTP2.Encode
-import Network.HTTP2.Types
 
 main :: IO ()
-main = undefined
+main = do
+    args <- getArgs
+    xs <- getContents
+    if length args /= 0 then -- "-s"
+        printWire xs
+      else
+        printJSON xs
+
+printWire :: String -> IO ()
+printWire = print . sourceToWire . read
+
+printJSON :: String -> IO ()
+printJSON = BL.putStrLn . encodePretty . toJSON . wireToCase . read
