@@ -9,7 +9,7 @@ import System.Directory (getDirectoryContents, doesDirectoryExist, doesFileExist
 import System.FilePath ((</>))
 import Test.Hspec
 
-import Types
+import JSON
 import HPACKDecode
 
 testDir :: FilePath

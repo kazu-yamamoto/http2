@@ -11,7 +11,7 @@ import System.Directory
 import System.FilePath
 import Control.Monad
 
-import Types
+import JSON
 
 hdir :: FilePath
 hdir = "test-hpack/hpack-test-case/nghttp2"

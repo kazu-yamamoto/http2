@@ -154,7 +154,7 @@ Test-Suite hpack
   Main-Is:              Spec.hs
   Other-Modules:        HPACKDecode
                         HPACKSpec
-                        Types
+                        JSON
   Build-Depends:        base
                       , PSQueue
                       , aeson

@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Types where
+module JSON where
 
 import Control.Applicative ((<$>))
 import Data.Aeson

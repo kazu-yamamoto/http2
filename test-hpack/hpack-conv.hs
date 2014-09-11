@@ -4,7 +4,7 @@ import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy.Char8 as BL
 
-import Types
+import JSON
 
 main :: IO ()
 main = do

@@ -3,7 +3,7 @@ module Main where
 import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Lazy as BL
 
-import Types
+import JSON
 import HPACKDecode
 
 main :: IO ()

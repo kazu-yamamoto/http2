@@ -9,7 +9,7 @@ import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
 
 import HPACKEncode
-import Types
+import JSON
 
 main :: IO ()
 main = do

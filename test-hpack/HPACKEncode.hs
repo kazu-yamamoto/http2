@@ -13,7 +13,7 @@ import Data.Hex
 import Network.HPACK
 import Network.HPACK.Context
 
-import Types
+import JSON
 
 data Conf = Conf {
     debug :: Bool

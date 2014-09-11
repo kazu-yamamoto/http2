@@ -19,7 +19,7 @@ import Network.HPACK.Context
 import Network.HPACK.Context.HeaderList
 import Network.HPACK.HeaderBlock
 
-import Types
+import JSON
 
 data Conf = Conf {
     debug :: Bool
