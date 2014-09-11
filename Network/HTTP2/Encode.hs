@@ -83,8 +83,8 @@ buildFramePayload einfo (SettingsFrame settings) =
     buildFramePayloadSettings einfo settings
 buildFramePayload einfo (PushPromiseFrame sid hdr) =
     buildFramePayloadPushPromise einfo sid hdr
-buildFramePayload einfo (PingFrame odata) =
-    buildFramePayloadPing einfo odata
+buildFramePayload einfo (PingFrame opaque) =
+    buildFramePayloadPing einfo opaque
 buildFramePayload einfo (GoAwayFrame sid e debug) =
     buildFramePayloadGoAway einfo sid e debug
 buildFramePayload einfo (WindowUpdateFrame size) =
