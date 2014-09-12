@@ -78,7 +78,10 @@ toErrorCodeId w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
 
-data SettingsId = SettingsHeaderTableSize
+type SettingsKey = Word16
+type SettingsValue = Word32
+
+data SettingsKeyId = SettingsHeaderTableSize
                 | SettingsEnablePush
                 | SettingsMaxConcurrentStreams
                 | SettingsInitialWindowSize
@@ -88,35 +91,63 @@ data SettingsId = SettingsHeaderTableSize
 
 -- |
 --
--- >>> settingsToWord16 SettingsHeaderTableSize
+-- >>> fromSettingsKeyId SettingsHeaderTableSize
 -- 1
--- >>> settingsToWord16 SettingsMaxHeaderBlockSize
+-- >>> fromSettingsKeyId SettingsMaxHeaderBlockSize
 -- 6
-settingsToWord16 :: SettingsId -> Word16
-settingsToWord16 x = fromIntegral (fromEnum x) + 1
+fromSettingsKeyId :: SettingsKeyId -> Word16
+fromSettingsKeyId x = fromIntegral (fromEnum x) + 1
 
-minSettingsId :: Word16
-minSettingsId = fromIntegral $ fromEnum (minBound :: SettingsId)
+minSettingsKeyId :: Word16
+minSettingsKeyId = fromIntegral $ fromEnum (minBound :: SettingsKeyId)
 
-maxSettingsId :: Word16
-maxSettingsId = fromIntegral $ fromEnum (maxBound :: SettingsId)
+maxSettingsKeyId :: Word16
+maxSettingsKeyId = fromIntegral $ fromEnum (maxBound :: SettingsKeyId)
 
 -- |
 --
--- >>> settingsFromWord16 0
+-- >>> toSettingsKeyId 0
 -- Nothing
--- >>> settingsFromWord16 1
+-- >>> toSettingsKeyId 1
 -- Just SettingsHeaderTableSize
--- >>> settingsFromWord16 6
+-- >>> toSettingsKeyId 6
 -- Just SettingsMaxHeaderBlockSize
--- >>> settingsFromWord16 7
+-- >>> toSettingsKeyId 7
 -- Nothing
-settingsFromWord16 :: Word16 -> Maybe SettingsId
-settingsFromWord16 x
-  | minSettingsId <= n && n <= maxSettingsId = Just . toEnum . fromIntegral $ n
+toSettingsKeyId :: Word16 -> Maybe SettingsKeyId
+toSettingsKeyId x
+  | minSettingsKeyId <= n && n <= maxSettingsKeyId = Just . toEnum . fromIntegral $ n
   | otherwise                                = Nothing
   where
     n = x - 1
+
+----------------------------------------------------------------
+
+type Settings = Array SettingsKeyId (Maybe SettingsValue)
+
+defaultSettings :: Settings
+defaultSettings = listArray settingsRange [Nothing|_<-xs]
+  where
+    xs = [minBound :: SettingsKeyId .. maxBound :: SettingsKeyId]
+
+-- |
+--
+-- >>> toSettings [(SettingsHeaderTableSize,10),(SettingsInitialWindowSize,20),(SettingsHeaderTableSize,30)]
+-- array (SettingsHeaderTableSize,SettingsMaxHeaderBlockSize) [(SettingsHeaderTableSize,Just 30),(SettingsEnablePush,Nothing),(SettingsMaxConcurrentStreams,Nothing),(SettingsInitialWindowSize,Just 20),(SettingsMaxFrameSize,Nothing),(SettingsMaxHeaderBlockSize,Nothing)]
+toSettings :: [(SettingsKeyId,SettingsValue)] -> Settings
+toSettings kvs = runSTArray $ do
+    arr <- newArray settingsRange Nothing
+    forM_ kvs $ \(k,v) -> writeArray arr k (Just v)
+    return arr
+
+settingsRange :: (SettingsKeyId, SettingsKeyId)
+settingsRange = (minBound, maxBound)
+
+data Priority = Priority {
+    exclusive :: Bool
+  , streamDependency :: StreamIdentifier
+  , weight :: Int
+  } deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------
 
@@ -293,32 +324,6 @@ data FramePayload =
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameTypeId ByteString
   deriving (Show, Read, Eq)
-
-type Settings = Array SettingsId (Maybe Word32)
-
-defaultSettings :: Settings
-defaultSettings = listArray settingsRange [Nothing|_<-xs]
-  where
-    xs = [minBound :: SettingsId .. maxBound :: SettingsId]
-
--- |
---
--- >>> toSettings [(SettingsHeaderTableSize,10),(SettingsInitialWindowSize,20),(SettingsHeaderTableSize,30)]
--- array (SettingsHeaderTableSize,SettingsMaxHeaderBlockSize) [(SettingsHeaderTableSize,Just 30),(SettingsEnablePush,Nothing),(SettingsMaxConcurrentStreams,Nothing),(SettingsInitialWindowSize,Just 20),(SettingsMaxFrameSize,Nothing),(SettingsMaxHeaderBlockSize,Nothing)]
-toSettings :: [(SettingsId,Word32)] -> Settings
-toSettings kvs = runSTArray $ do
-    arr <- newArray settingsRange Nothing
-    forM_ kvs $ \(k,v) -> writeArray arr k (Just v)
-    return arr
-
-settingsRange :: (SettingsId, SettingsId)
-settingsRange = (minBound, maxBound)
-
-data Priority = Priority {
-    exclusive :: Bool
-  , streamDependency :: StreamIdentifier
-  , weight :: Int
-  } deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------
 

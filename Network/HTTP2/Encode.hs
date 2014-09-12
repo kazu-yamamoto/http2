@@ -170,7 +170,7 @@ buildFramePayloadSettings EncodeInfo{..} settings = (header, builder)
     alist = assocs settings
     builder = foldr op mempty alist
     (_, Nothing) `op` x = x
-    (key, Just val) `op` x = BB.fromWord16be (settingsToWord16 key)
+    (key, Just val) `op` x = BB.fromWord16be (fromSettingsKeyId key)
                           <> BB.fromWord32be val <> x
     len = length (filter (isJust . snd) alist) * 6
     header = FrameHeader len encodeFlags encodeStreamId

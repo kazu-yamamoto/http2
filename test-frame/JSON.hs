@@ -85,7 +85,7 @@ instance ToJSON FramePayload where
       where
         alist1 = assocs settings
         alist2 = filter (isJust.snd) alist1
-        alist3 = (\(x,y) -> (settingsToWord16 x, fromJust y)) <$> alist2
+        alist3 = (\(x,y) -> (fromSettingsKeyId x, fromJust y)) <$> alist2
     toJSON (PushPromiseFrame sid hdr) = object [
         "promised_stream_id" .= sid
       , "header_block_fragment" .= byteStringToText hdr

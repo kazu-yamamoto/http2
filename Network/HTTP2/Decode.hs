@@ -167,7 +167,7 @@ parseSettingsFrame FrameHeader{..}
     settings 0 builder = return $ toSettings $ builder []
     settings n builder = do
         rawSetting <- BI.anyWord16be
-        let msettings = settingsFromWord16 rawSetting
+        let msettings = toSettingsKeyId rawSetting
             n' = n - 1
         case msettings of
             Nothing -> settings n' builder -- ignoring unknown one (Section 6.5.2)
