@@ -4,8 +4,9 @@
 
 module JSON where
 
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (first)
+import Control.Monad (mzero)
 import Data.Aeson
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -13,10 +14,8 @@ import qualified Data.ByteString.Char8 as B8
 import Data.HashMap.Strict (union)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Word (Word32)
 
 import Network.HTTP2
-
 
 ----------------------------------------------------------------
 
@@ -25,12 +24,18 @@ byteStringToText = T.pack . B8.unpack
 
 (+++) :: Value -> Value -> Value
 Object x +++ Object y = Object $ x `union` y
-_ +++ _ = error "+++"
+Null     +++ x        = x
+x        +++ Null     = x
+_        +++ _        = error "+++"
 
 ----------------------------------------------------------------
 
-type EFrame = Either [Word32] Frame
-data Pad = Pad (Maybe Padding) deriving (Show, Read)
+data FramePad = FramePad {
+    fpFrame :: Frame
+  , fpPad :: Maybe Pad
+  } deriving (Show, Read)
+
+data Pad = Pad Padding deriving (Show, Read)
 
 ----------------------------------------------------------------
 
@@ -38,8 +43,8 @@ data Case = Case {
     draft :: Int
   , description :: String
   , wire :: ByteString
-  , frame :: EFrame
-  , padding :: Pad
+  , frame :: Maybe FramePad
+  , err :: Maybe [ErrorCode]
   } deriving (Show, Read)
 
 ----------------------------------------------------------------
@@ -56,6 +61,12 @@ instance ToJSON Priority where
       , "stream_dependency" .= s
       , "weight" .= w
       ]
+
+instance FromJSON Priority where
+    parseJSON (Object o) = Priority <$> o .: "exclusive"
+                                    <*> o .: "stream_dependency"
+                                    <*> o .: "weight"
+    parseJSON _          = mzero
 
 instance ToJSON ErrorCodeId where
     toJSON e = toJSON $ fromErrorCodeId e
@@ -106,25 +117,30 @@ instance ToJSON FramePayload where
 
 ----------------------------------------------------------------
 
-instance ToJSON (EFrame,Pad) where
-    toJSON (Right Frame{..},pad) = object [
+instance ToJSON FramePad where
+    toJSON FramePad{fpFrame = Frame{..},..} = object [
         "length" .= payloadLength frameHeader
       , "type" .= framePayloadToFrameType framePayload
       , "flags" .= flags frameHeader
       , "stream_identifier" .= fromStreamIdentifier (streamId frameHeader)
-      , "frame_payload" .= (toJSON framePayload +++ toJSON pad)
+      , "frame_payload" .= (toJSON framePayload +++ padObj)
       ]
-    toJSON (Left _, _) = Null
+      where
+        padObj = case toJSON fpPad of
+            Null -> emptyPad
+            x    -> x
 
 instance ToJSON Pad where
     toJSON (Pad padding) = object [
-        "padding_length" .= (BS.length <$> padding)
-      , "padding" .= (byteStringToText <$> padding)
+        "padding_length" .= BS.length padding
+      , "padding" .= byteStringToText padding
       ]
 
-instance ToJSON EFrame where
-    toJSON (Right _) = Null
-    toJSON (Left e) = toJSON e
+emptyPad :: Value
+emptyPad = object [
+    "padding_length" .= Null
+  , "padding" .= Null
+  ]
 
 ----------------------------------------------------------------
 
@@ -133,6 +149,6 @@ instance ToJSON Case where
         "drat" .= draft
       , "description" .= description
       , "wire" .= byteStringToText wire
-      , "frame" .= (frame,padding)
-      , "err" .= frame
+      , "frame" .= frame
+      , "error" .= err
       ]

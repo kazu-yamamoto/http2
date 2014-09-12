@@ -19,7 +19,7 @@ data CaseSource = CaseSource {
 data CaseWire = CaseWire {
     wire_description :: String
   , wire_hex :: ByteString
-  , wire_padding :: Pad
+  , wire_padding :: Maybe Pad
   , wire_error :: Maybe [ErrorCodeId]
   } deriving (Show,Read)
 
@@ -27,7 +27,7 @@ sourceToWire :: CaseSource -> CaseWire
 sourceToWire CaseSource{..} = CaseWire {
     wire_description = cs_description
   , wire_hex = wire
-  , wire_padding = Pad $ encodePadding cs_encodeinfo
+  , wire_padding = Pad <$> encodePadding cs_encodeinfo
   , wire_error = Nothing
   }
   where
@@ -39,8 +39,8 @@ wireToCase CaseWire { wire_error = Nothing, ..} = Case {
     draft = 14
   , description = wire_description
   , wire = wire_hex
-  , frame = Right frm
-  , padding = wire_padding
+  , frame = Just $ FramePad frm wire_padding
+  , err = Nothing
   }
   where
     -- fromJust is unsafe
@@ -51,6 +51,6 @@ wireToCase CaseWire { wire_error = Just e, ..} = Case {
     draft = 14
   , description = wire_description
   , wire = wire_hex
-  , frame = Left $ fromErrorCodeId <$> e
-  , padding = wire_padding
+  , frame = Nothing
+  , err = Just $ fromErrorCodeId <$> e
   }
