@@ -47,6 +47,9 @@ data Case = Case {
 instance ToJSON StreamIdentifier where
     toJSON (StreamIdentifier s) = toJSON s
 
+instance FromJSON StreamIdentifier where
+    parseJSON x = StreamIdentifier <$> parseJSON x
+
 instance ToJSON Priority where
     toJSON (Priority e s w) = object [
         "exclusive" .= e
@@ -54,8 +57,11 @@ instance ToJSON Priority where
       , "weight" .= w
       ]
 
-instance ToJSON ErrorCode where
-    toJSON e = toJSON $ errorCodeToWord32 e
+instance ToJSON ErrorCodeId where
+    toJSON e = toJSON $ fromErrorCodeId e
+
+instance FromJSON ErrorCodeId where
+    parseJSON e = toErrorCodeId <$> parseJSON e
 
 ----------------------------------------------------------------
 

@@ -127,8 +127,8 @@ buildPriority Priority{..} = builder
 buildStream :: StreamIdentifier -> Builder
 buildStream = BB.fromWord32be . fromStreamIdentifier
 
-buildErrorCode :: ErrorCode -> Builder
-buildErrorCode = BB.fromWord32be . errorCodeToWord32
+buildErrorCodeId :: ErrorCodeId -> Builder
+buildErrorCodeId = BB.fromWord32be . fromErrorCodeId
 
 ----------------------------------------------------------------
 
@@ -158,10 +158,10 @@ buildFramePayloadPriority EncodeInfo{..} p = (header, builder)
     builder = buildPriority p
     header = FrameHeader 5 encodeFlags encodeStreamId
 
-buildFramePayloadRSTStream :: EncodeInfo -> ErrorCode -> (FrameHeader, Builder)
+buildFramePayloadRSTStream :: EncodeInfo -> ErrorCodeId -> (FrameHeader, Builder)
 buildFramePayloadRSTStream EncodeInfo{..} e = (header, builder)
   where
-    builder = buildErrorCode e
+    builder = buildErrorCodeId e
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadSettings :: EncodeInfo -> Settings -> (FrameHeader, Builder)
@@ -187,10 +187,10 @@ buildFramePayloadPing EncodeInfo{..} odata = (header, builder)
     builder = BB.fromByteString odata
     header = FrameHeader 8 encodeFlags encodeStreamId
 
-buildFramePayloadGoAway :: EncodeInfo -> LastStreamId -> ErrorCode -> ByteString -> (FrameHeader, Builder)
+buildFramePayloadGoAway :: EncodeInfo -> LastStreamId -> ErrorCodeId -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadGoAway EncodeInfo{..} sid e debug = (header, builder)
   where
-    builder = buildStream sid <> buildErrorCode e <> BB.fromByteString debug
+    builder = buildStream sid <> buildErrorCodeId e <> BB.fromByteString debug
     len = 4 + 4 + B.length debug
     header = FrameHeader len encodeFlags encodeStreamId
 

@@ -1,7 +1,8 @@
 module Network.HTTP2 (
     Settings
   , SettingsId
-  , ErrorCode(..)
+  , ErrorCode
+  , ErrorCodeId(..)
   , FrameTypeId
   , FrameType(..)
   , Frame(..)
@@ -19,8 +20,10 @@ module Network.HTTP2 (
   , Padding
   , decodeFrame
   , encodeFrame
-  , errorCodeToWord32
+  , fromErrorCodeId
+  , toErrorCodeId
   , settingsToWord16
+  , settingsFromWord16
   , framePayloadToFrameTypeId
   , fromStreamIdentifier
   , defaultSettings

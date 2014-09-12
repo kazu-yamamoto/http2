@@ -30,18 +30,18 @@ frameSizeError = show FrameSizeError
 
 ----------------------------------------------------------------
 
-decodeFrame :: Settings -> ByteString -> Either ErrorCode Frame
+decodeFrame :: Settings -> ByteString -> Either ErrorCodeId Frame
 decodeFrame settings bs = case B.parseOnly (parseFrame settings) bs of
     Right frame -> Right frame
     Left  estr  -> Left $ toErrorCode estr
 
 decodeFrameHeader :: Settings -> ByteString
-                  -> Either ErrorCode (FrameTypeId, FrameHeader)
+                  -> Either ErrorCodeId (FrameTypeId, FrameHeader)
 decodeFrameHeader settings bs = case B.parseOnly (parseFrameHeader settings) bs of
     Right fh   -> Right fh
     Left  estr -> Left $ toErrorCode estr
 
-toErrorCode :: String -> ErrorCode
+toErrorCode :: String -> ErrorCodeId
 toErrorCode estr
   | estr' == protocolError  = ProtocolError
   | estr' == frameSizeError = FrameSizeError
@@ -155,7 +155,7 @@ parsePriorityFrame :: FramePayloadParser
 parsePriorityFrame _ = PriorityFrame <$> priority
 
 parseRstStreamFrame :: FramePayloadParser
-parseRstStreamFrame _ = RSTStreamFrame . errorCodeFromWord32 <$> BI.anyWord32be
+parseRstStreamFrame _ = RSTStreamFrame . toErrorCodeId <$> BI.anyWord32be
 
 parseSettingsFrame :: FramePayloadParser
 parseSettingsFrame FrameHeader{..}
@@ -188,9 +188,9 @@ parsePingFrame FrameHeader{..}
 
 parseGoAwayFrame :: FramePayloadParser
 parseGoAwayFrame FrameHeader{..} =
-    GoAwayFrame <$> streamIdentifier <*> errCode <*> debug
+    GoAwayFrame <$> streamIdentifier <*> ecid <*> debug
   where
-    errCode = errorCodeFromWord32 <$> BI.anyWord32be
+    ecid = toErrorCodeId <$> BI.anyWord32be
     debug = B.take $ payloadLength - 8
 
 parseWindowUpdateFrame :: FramePayloadParser

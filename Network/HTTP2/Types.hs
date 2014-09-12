@@ -9,70 +9,72 @@ import Data.Bits (setBit, testBit, clearBit)
 
 ----------------------------------------------------------------
 
-data ErrorCode = NoError
-               | ProtocolError
-               | InternalError
-               | FlowControlError
-               | SettingsTimeout
-               | StreamClosed
-               | FrameSizeError
-               | RefusedStream
-               | Cancel
-               | CompressionError
-               | ConnectError
-               | EnhanceYourCalm
-               | InadequateSecurity
-               -- our extensions
-               | UnknownErrorCode Word32
-               | UnknownError String
-               deriving (Show, Read, Eq, Ord)
+type ErrorCode = Word32
+
+data ErrorCodeId = NoError
+                 | ProtocolError
+                 | InternalError
+                 | FlowControlError
+                 | SettingsTimeout
+                 | StreamClosed
+                 | FrameSizeError
+                 | RefusedStream
+                 | Cancel
+                 | CompressionError
+                 | ConnectError
+                 | EnhanceYourCalm
+                 | InadequateSecurity
+                   -- our extensions
+                 | UnknownErrorCode ErrorCode
+                 | UnknownError String
+                 deriving (Show, Read, Eq, Ord)
 
 -- |
 --
--- >>> errorCodeToWord32 NoError
+-- >>> fromErrorCodeId NoError
 -- 0
--- >>> errorCodeToWord32 InadequateSecurity
+-- >>> fromErrorCodeId InadequateSecurity
 -- 12
-errorCodeToWord32 :: ErrorCode -> Word32
-errorCodeToWord32 NoError              = 0x0
-errorCodeToWord32 ProtocolError        = 0x1
-errorCodeToWord32 InternalError        = 0x2
-errorCodeToWord32 FlowControlError     = 0x3
-errorCodeToWord32 SettingsTimeout      = 0x4
-errorCodeToWord32 StreamClosed         = 0x5
-errorCodeToWord32 FrameSizeError       = 0x6
-errorCodeToWord32 RefusedStream        = 0x7
-errorCodeToWord32 Cancel               = 0x8
-errorCodeToWord32 CompressionError     = 0x9
-errorCodeToWord32 ConnectError         = 0xa
-errorCodeToWord32 EnhanceYourCalm      = 0xb
-errorCodeToWord32 InadequateSecurity   = 0xc
-errorCodeToWord32 (UnknownErrorCode w) = w
-errorCodeToWord32 _                    = 255 -- never reached
+fromErrorCodeId :: ErrorCodeId -> ErrorCode
+fromErrorCodeId NoError              = 0x0
+fromErrorCodeId ProtocolError        = 0x1
+fromErrorCodeId InternalError        = 0x2
+fromErrorCodeId FlowControlError     = 0x3
+fromErrorCodeId SettingsTimeout      = 0x4
+fromErrorCodeId StreamClosed         = 0x5
+fromErrorCodeId FrameSizeError       = 0x6
+fromErrorCodeId RefusedStream        = 0x7
+fromErrorCodeId Cancel               = 0x8
+fromErrorCodeId CompressionError     = 0x9
+fromErrorCodeId ConnectError         = 0xa
+fromErrorCodeId EnhanceYourCalm      = 0xb
+fromErrorCodeId InadequateSecurity   = 0xc
+fromErrorCodeId (UnknownErrorCode w) = w
+fromErrorCodeId _                    = 255 -- never reached
 
 -- |
 --
--- >>> errorCodeFromWord32 0
+-- >>> toErrorCodeId 0
 -- NoError
--- >>> errorCodeFromWord32 0xc
+-- >>> toErrorCodeId 0xc
 -- InadequateSecurity
--- >>> errorCodeFromWord32 0xd
+-- >>> toErrorCodeId 0xd
 -- UnknownErrorCode 13
-errorCodeFromWord32 :: Word32 -> ErrorCode
-errorCodeFromWord32 0x0 = NoError
-errorCodeFromWord32 0x1 = ProtocolError
-errorCodeFromWord32 0x2 = InternalError
-errorCodeFromWord32 0x3 = FlowControlError
-errorCodeFromWord32 0x4 = SettingsTimeout
-errorCodeFromWord32 0x5 = StreamClosed
-errorCodeFromWord32 0x6 = FrameSizeError
-errorCodeFromWord32 0x7 = RefusedStream
-errorCodeFromWord32 0x8 = Cancel
-errorCodeFromWord32 0x9 = CompressionError
-errorCodeFromWord32 0xa = ConnectError
-errorCodeFromWord32 0xb = EnhanceYourCalm
-errorCodeFromWord32 0xc = InadequateSecurity
-errorCodeFromWord32 w   = UnknownErrorCode w
+toErrorCodeId :: ErrorCode -> ErrorCodeId
+toErrorCodeId 0x0 = NoError
+toErrorCodeId 0x1 = ProtocolError
+toErrorCodeId 0x2 = InternalError
+toErrorCodeId 0x3 = FlowControlError
+toErrorCodeId 0x4 = SettingsTimeout
+toErrorCodeId 0x5 = StreamClosed
+toErrorCodeId 0x6 = FrameSizeError
+toErrorCodeId 0x7 = RefusedStream
+toErrorCodeId 0x8 = Cancel
+toErrorCodeId 0x9 = CompressionError
+toErrorCodeId 0xa = ConnectError
+toErrorCodeId 0xb = EnhanceYourCalm
+toErrorCodeId 0xc = InadequateSecurity
+toErrorCodeId w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
 
@@ -282,11 +284,11 @@ data FramePayload =
     DataFrame ByteString
   | HeadersFrame (Maybe Priority) HeaderBlockFragment
   | PriorityFrame Priority
-  | RSTStreamFrame ErrorCode
+  | RSTStreamFrame ErrorCodeId
   | SettingsFrame Settings
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame LastStreamId ErrorCode ByteString
+  | GoAwayFrame LastStreamId ErrorCodeId ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameTypeId ByteString
