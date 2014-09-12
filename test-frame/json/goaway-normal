@@ -1,6 +1,5 @@
 {
     "error": null,
-    "drat": 14,
     "wire": "0000170700000000000000001E00000009687061636B2069732062726F6B656E",
     "frame": {
         "length": 23,
@@ -15,5 +14,6 @@
         "stream_identifier": 0,
         "type": 7
     },
+    "draft": 14,
     "description": "noraml goaway frame"
 }

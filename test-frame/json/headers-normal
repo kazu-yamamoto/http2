@@ -1,6 +1,5 @@
 {
     "error": null,
-    "drat": 14,
     "wire": "00000D010000000001746869732069732064756D6D79",
     "frame": {
         "length": 13,
@@ -14,5 +13,6 @@
         "stream_identifier": 1,
         "type": 1
     },
+    "draft": 14,
     "description": "noraml headers frame"
 }

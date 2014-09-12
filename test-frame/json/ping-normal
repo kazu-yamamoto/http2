@@ -1,6 +1,5 @@
 {
     "error": null,
-    "drat": 14,
     "wire": "0000080600000000006465616462656566",
     "frame": {
         "length": 8,
@@ -13,5 +12,6 @@
         "stream_identifier": 0,
         "type": 6
     },
+    "draft": 14,
     "description": "noraml ping frame"
 }

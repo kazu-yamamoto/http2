@@ -1,6 +1,5 @@
 {
     "error": null,
-    "drat": 14,
     "wire": "000000090000000032",
     "frame": {
         "length": 0,
@@ -13,5 +12,6 @@
         "stream_identifier": 50,
         "type": 9
     },
+    "draft": 14,
     "description": "noraml continuation frame without header block fragment"
 }

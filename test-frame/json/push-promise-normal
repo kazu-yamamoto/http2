@@ -1,6 +1,5 @@
 {
     "error": null,
-    "drat": 14,
     "wire": "000018050800000009060000000B746869732069732064756D6D79486F77647921",
     "frame": {
         "length": 24,
@@ -14,5 +13,6 @@
         "stream_identifier": 9,
         "type": 5
     },
+    "draft": 14,
     "description": "noraml push promise frame"
 }
