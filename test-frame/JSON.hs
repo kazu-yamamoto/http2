@@ -8,10 +8,12 @@ import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (first)
 import Control.Monad (mzero)
 import Data.Aeson
+import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.HashMap.Strict (union)
+import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -21,6 +23,9 @@ import Network.HTTP2
 
 byteStringToText :: ByteString -> Text
 byteStringToText = T.pack . B8.unpack
+
+textToByteString :: Text -> ByteString
+textToByteString = B8.pack . T.unpack
 
 (+++) :: Value -> Value -> Value
 Object x +++ Object y = Object $ x `union` y
@@ -130,6 +135,35 @@ instance ToJSON FramePad where
             Null -> emptyPad
             x    -> x
 
+instance FromJSON FramePad where
+    parseJSON (Object o) = do
+        len <- o .: "length"
+        typ <- o .: "type"
+        flg <- o .: "flags"
+        sid <- o .: "stream_identifier"
+        pld <- o .: "frame_payload"
+        (payload,mpad) <- parsePayloadPad typ pld
+        return FramePad {
+            fpFrame = Frame {
+                 frameHeader = FrameHeader len flg sid
+               , framePayload = payload
+               }
+          , fpPad = mpad
+          }
+    parseJSON _ = mzero
+
+parsePayloadPad :: FrameType -> Object -> Parser (FramePayload, Maybe Pad)
+parsePayloadPad ftyp o = do
+    mpad <- (Pad . textToByteString <$>) <$> o .:? "padding"
+    payload <- parsePayload ftid o
+    return (payload, mpad)
+  where
+    ftid = fromJust $ toFrameTypeId ftyp
+
+parsePayload :: FrameTypeId -> Object -> Parser FramePayload
+parsePayload FrameData o = DataFrame . textToByteString <$> o .: "data"
+-- fixme
+
 instance ToJSON Pad where
     toJSON (Pad padding) = object [
         "padding_length" .= BS.length padding
@@ -146,9 +180,17 @@ emptyPad = object [
 
 instance ToJSON Case where
     toJSON Case{..} = object [
-        "drat" .= draft
+        "draft" .= draft
       , "description" .= description
       , "wire" .= byteStringToText wire
       , "frame" .= frame
       , "error" .= err
       ]
+
+instance FromJSON Case where
+    parseJSON (Object o) = Case <$> o .: "draft"
+                                <*> o .: "description"
+                                <*> (textToByteString <$> (o .: "wire"))
+                                <*> o .:? "frame"
+                                <*> o .:? "error"
+    parseJSON _          = mzero
