@@ -1,6 +1,6 @@
 CaseWire {
     wire_description = "data frame with frame size error"
   , wire_hex = "0080000008000000020648656C6C6F2C20776F726C6421686F77647921"
-  , wire_padding = Pad (Just "howdy!")
+  , wire_padding = Just (Pad "howdy!")
   , wire_error = Just [FrameSizeError]
   }

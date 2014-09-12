@@ -1,9 +1,9 @@
 {
+    "error": [
+        6
+    ],
     "drat": 14,
     "wire": "0080000008000000020648656C6C6F2C20776F726C6421686F77647921",
     "frame": null,
-    "err": [
-        6
-    ],
     "description": "data frame with frame size error"
 }

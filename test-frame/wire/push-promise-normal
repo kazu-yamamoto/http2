@@ -1,1 +1,1 @@
-CaseWire {wire_description = "noraml push promise frame", wire_hex = "000018050800000009060000000B746869732069732064756D6D79486F77647921", wire_padding = Pad (Just "Howdy!"), wire_error = Nothing}
+CaseWire {wire_description = "noraml push promise frame", wire_hex = "000018050800000009060000000B746869732069732064756D6D79486F77647921", wire_padding = Just (Pad "Howdy!"), wire_error = Nothing}

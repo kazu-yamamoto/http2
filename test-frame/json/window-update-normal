@@ -1,4 +1,5 @@
 {
+    "error": null,
     "drat": 14,
     "wire": "000004080000000032000003E8",
     "frame": {
@@ -12,6 +13,5 @@
         "stream_identifier": 50,
         "type": 8
     },
-    "err": null,
     "description": "noraml window update frame"
 }

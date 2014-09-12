@@ -1,1 +1,1 @@
-CaseWire {wire_description = "noraml continuation frame without header block fragment", wire_hex = "00000D090000000032746869732069732064756D6D79", wire_padding = Pad Nothing, wire_error = Nothing}
+CaseWire {wire_description = "noraml continuation frame without header block fragment", wire_hex = "00000D090000000032746869732069732064756D6D79", wire_padding = Nothing, wire_error = Nothing}

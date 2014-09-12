@@ -1,4 +1,5 @@
 {
+    "error": null,
     "drat": 14,
     "wire": "0000140008000000020648656C6C6F2C20776F726C6421486F77647921",
     "frame": {
@@ -12,6 +13,5 @@
         "stream_identifier": 2,
         "type": 0
     },
-    "err": null,
     "description": "noraml data frame"
 }

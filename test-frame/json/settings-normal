@@ -1,4 +1,5 @@
 {
+    "error": null,
     "drat": 14,
     "wire": "00000C040000000000000100002000000300001388",
     "frame": {
@@ -21,6 +22,5 @@
         "stream_identifier": 0,
         "type": 4
     },
-    "err": null,
     "description": "noraml rst stream frame"
 }
