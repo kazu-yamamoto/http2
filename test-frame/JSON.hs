@@ -5,18 +5,18 @@
 module JSON where
 
 import Control.Applicative ((<$>))
+import Control.Arrow (first)
 import Data.Aeson
-import Data.Array (assocs)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.HashMap.Strict (union)
-import Data.Maybe (fromJust, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word (Word32)
 
 import Network.HTTP2
+
 
 ----------------------------------------------------------------
 
@@ -80,12 +80,8 @@ instance ToJSON FramePayload where
         "error_code" .= e
       ]
     toJSON (SettingsFrame settings) = object [
-        "settings" .= alist3
+        "settings" .= map (first fromSettingsKeyId) (fromSettings settings)
       ]
-      where
-        alist1 = assocs settings
-        alist2 = filter (isJust.snd) alist1
-        alist3 = (\(x,y) -> (fromSettingsKeyId x, fromJust y)) <$> alist2
     toJSON (PushPromiseFrame sid hdr) = object [
         "promised_stream_id" .= sid
       , "header_block_fragment" .= byteStringToText hdr

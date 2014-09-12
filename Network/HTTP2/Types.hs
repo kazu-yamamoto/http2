@@ -8,6 +8,7 @@ module Network.HTTP2.Types (
   , Settings
   , defaultSettings
   , toSettings
+  , fromSettings
   -- * Error code
   , ErrorCode
   , ErrorCodeId(..)
@@ -57,12 +58,14 @@ module Network.HTTP2.Types (
   -- * Encoding and decoding
   ) where
 
-import Data.Array (Array, Ix, listArray)
-import Data.Array.ST (newArray, writeArray, runSTArray)
-import Data.ByteString (ByteString)
-import Data.Word (Word8, Word16, Word32)
+import Control.Arrow (second)
 import Control.Monad (forM_)
+import Data.Array (Array, Ix, listArray, assocs)
+import Data.Array.ST (newArray, writeArray, runSTArray)
 import Data.Bits (setBit, testBit, clearBit)
+import Data.ByteString (ByteString)
+import Data.Maybe (fromJust, isJust)
+import Data.Word (Word8, Word16, Word32)
 
 ----------------------------------------------------------------
 
@@ -205,6 +208,12 @@ data Priority = Priority {
   , streamDependency :: StreamIdentifier
   , weight :: Int
   } deriving (Show, Read, Eq)
+
+-- |
+-- >>> fromSettings $ toSettings [(SettingsHeaderTableSize,10),(SettingsInitialWindowSize,20),(SettingsHeaderTableSize,30)]
+-- [(SettingsHeaderTableSize,30),(SettingsInitialWindowSize,20)]
+fromSettings :: Settings -> [(SettingsKeyId,SettingsValue)]
+fromSettings = map (second fromJust) . filter (isJust.snd) . assocs
 
 ----------------------------------------------------------------
 
