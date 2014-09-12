@@ -13,25 +13,31 @@ module Network.HTTP2 (
   , fromErrorCodeId
   , toErrorCodeId
   -- * Frame type
-  , FrameTypeId
-  , FrameType(..)
+  , FrameType
+  , FrameTypeId(..)
+  , fromFrameTypeId
+  , toFrameTypeId
+  -- * Frame
   , Frame(..)
   , FrameHeader(..)
   , FramePayload(..)
-  , EncodeInfo(..)
-  , PayloadLength
-  , FrameFlags
+  , framePayloadToFrameType
+  -- * Stream identifier
   , StreamIdentifier(..)
   , PromisedStreamId
   , LastStreamId
+  , fromStreamIdentifier
+  -- * Types
+  , PayloadLength
+  , FrameFlags
   , WindowSizeIncrement
   , HeaderBlockFragment
   , Priority(..)
   , Padding
+  -- Encoding and decoding
   , decodeFrame
+  , EncodeInfo(..)
   , encodeFrame
-  , framePayloadToFrameTypeId
-  , fromStreamIdentifier
   ) where
 
 import Network.HTTP2.Decode

@@ -113,7 +113,7 @@ instance ToJSON FramePayload where
 instance ToJSON (EFrame,Pad) where
     toJSON (Right Frame{..},pad) = object [
         "length" .= payloadLength frameHeader
-      , "type" .= framePayloadToFrameTypeId framePayload
+      , "type" .= framePayloadToFrameType framePayload
       , "flags" .= flags frameHeader
       , "stream_identifier" .= fromStreamIdentifier (streamId frameHeader)
       , "frame_payload" .= (toJSON framePayload +++ toJSON pad)

@@ -36,7 +36,7 @@ decodeFrame settings bs = case B.parseOnly (parseFrame settings) bs of
     Left  estr  -> Left $ toErrorCode estr
 
 decodeFrameHeader :: Settings -> ByteString
-                  -> Either ErrorCodeId (FrameTypeId, FrameHeader)
+                  -> Either ErrorCodeId (FrameType, FrameHeader)
 decodeFrameHeader settings bs = case B.parseOnly (parseFrameHeader settings) bs of
     Right fh   -> Right fh
     Left  estr -> Left $ toErrorCode estr
@@ -56,24 +56,24 @@ toErrorCode estr
 
 parseFrame :: Settings -> B.Parser Frame
 parseFrame settings = do
-    (fid, header) <- parseFrameHeader settings
-    Frame header <$> parseFramePayload fid header
+    (ftyp, header) <- parseFrameHeader settings
+    Frame header <$> parseFramePayload ftyp header
 
 ----------------------------------------------------------------
 
-parseFrameHeader :: Settings -> B.Parser (FrameTypeId, FrameHeader)
+parseFrameHeader :: Settings -> B.Parser (FrameType, FrameHeader)
 parseFrameHeader settings = do
     i0 <- intFromWord16be
     i1 <- intFromWord8
     let len = (i0 `shiftL` 8) .|. i1
     when (doesExceed settings len) $ fail frameSizeError
-    fid <- B.anyWord8
+    ftyp <- B.anyWord8
     flg <- B.anyWord8
     sid <- streamIdentifier
-    case frameTypeFromWord8 fid of
+    case toFrameTypeId ftyp of
         Nothing  -> return ()
         Just typ -> when (isProtocolError settings typ sid) $ fail protocolError
-    return $ (fid, FrameHeader len flg sid)
+    return $ (ftyp, FrameHeader len flg sid)
 
 doesExceed :: Settings -> PayloadLength -> Bool
 doesExceed settings len = len > maxLength
@@ -82,14 +82,14 @@ doesExceed settings len = len > maxLength
         Just x  -> fromIntegral x
         Nothing -> maxPayloadLength
 
-zeroFrameTypes :: [FrameType]
+zeroFrameTypes :: [FrameTypeId]
 zeroFrameTypes = [
     FrameSettings
   , FramePing
   , FrameGoAway
   ]
 
-nonZeroFrameTypes :: [FrameType]
+nonZeroFrameTypes :: [FrameTypeId]
 nonZeroFrameTypes = [
     FrameData
   , FrameHeaders
@@ -99,7 +99,7 @@ nonZeroFrameTypes = [
   , FrameContinuation
   ]
 
-isProtocolError :: Settings -> FrameType -> StreamIdentifier -> Bool
+isProtocolError :: Settings -> FrameTypeId -> StreamIdentifier -> Bool
 isProtocolError settings typ sid
   | typ `elem` nonZeroFrameTypes && sid == streamIdentifierForSeetings = True
   | typ `elem` zeroFrameTypes && sid /= streamIdentifierForSeetings = True
@@ -114,8 +114,8 @@ isProtocolError settings typ sid
 
 type FramePayloadParser = FrameHeader -> B.Parser FramePayload
 
-payloadParsers :: Array FrameType FramePayloadParser
-payloadParsers = listArray (minBound :: FrameType, maxBound :: FrameType)
+payloadParsers :: Array FrameTypeId FramePayloadParser
+payloadParsers = listArray (minBound :: FrameTypeId, maxBound :: FrameTypeId)
     [ parseDataFrame
     , parseHeadersFrame
     , parsePriorityFrame
@@ -128,12 +128,12 @@ payloadParsers = listArray (minBound :: FrameType, maxBound :: FrameType)
     , parseContinuationFrame
     ]
 
-parseFramePayload :: FrameTypeId -> FramePayloadParser
-parseFramePayload fid header = parsePayload frameType header
+parseFramePayload :: FrameType -> FramePayloadParser
+parseFramePayload ftyp header = parsePayload mfid header
   where
-    frameType = frameTypeFromWord8 fid
-    parsePayload Nothing = parseUnknownFrame fid
-    parsePayload (Just typ) = payloadParsers ! typ
+    mfid = toFrameTypeId ftyp
+    parsePayload Nothing    = parseUnknownFrame ftyp
+    parsePayload (Just fid) = payloadParsers ! fid
 
 ----------------------------------------------------------------
 
@@ -203,8 +203,8 @@ parseContinuationFrame FrameHeader{..} = ContinuationFrame <$> payload
   where
     payload = B.take payloadLength
 
-parseUnknownFrame :: FrameTypeId -> FramePayloadParser
-parseUnknownFrame fid FrameHeader{..} = UnknownFrame fid <$> payload
+parseUnknownFrame :: FrameType -> FramePayloadParser
+parseUnknownFrame ftyp FrameHeader{..} = UnknownFrame ftyp <$> payload
   where
     payload = B.take payloadLength
 

@@ -151,46 +151,46 @@ data Priority = Priority {
 
 ----------------------------------------------------------------
 
-type FrameTypeId = Word8
+type FrameType = Word8
 
 -- Valid frame types
-data FrameType = FrameData
-               | FrameHeaders
-               | FramePriority
-               | FrameRSTStream
-               | FrameSettings
-               | FramePushPromise
-               | FramePing
-               | FrameGoAway
-               | FrameWindowUpdate
-               | FrameContinuation
-               deriving (Show, Eq, Ord, Enum, Bounded, Ix)
+data FrameTypeId = FrameData
+                 | FrameHeaders
+                 | FramePriority
+                 | FrameRSTStream
+                 | FrameSettings
+                 | FramePushPromise
+                 | FramePing
+                 | FrameGoAway
+                 | FrameWindowUpdate
+                 | FrameContinuation
+                 deriving (Show, Eq, Ord, Enum, Bounded, Ix)
 
 -- |
 --
--- >>> frameTypeToWord8 FrameData
+-- >>> fromFrameTypeId FrameData
 -- 0
--- >>> frameTypeToWord8 FrameContinuation
+-- >>> fromFrameTypeId FrameContinuation
 -- 9
-frameTypeToWord8 :: FrameType -> FrameTypeId
-frameTypeToWord8 = fromIntegral . fromEnum
+fromFrameTypeId :: FrameTypeId -> FrameType
+fromFrameTypeId = fromIntegral . fromEnum
 
-minFrameType :: FrameTypeId
-minFrameType = fromIntegral $ fromEnum (minBound :: FrameType)
+minFrameType :: FrameType
+minFrameType = fromIntegral $ fromEnum (minBound :: FrameTypeId)
 
-maxFrameType :: FrameTypeId
-maxFrameType = fromIntegral $ fromEnum (maxBound :: FrameType)
+maxFrameType :: FrameType
+maxFrameType = fromIntegral $ fromEnum (maxBound :: FrameTypeId)
 
 -- |
 --
--- >>> frameTypeFromWord8 0
+-- >>> toFrameTypeId 0
 -- Just FrameData
--- >>> frameTypeFromWord8 9
+-- >>> toFrameTypeId 9
 -- Just FrameContinuation
--- >>> frameTypeFromWord8 10
+-- >>> toFrameTypeId 10
 -- Nothing
-frameTypeFromWord8 :: FrameTypeId -> Maybe FrameType
-frameTypeFromWord8 x
+toFrameTypeId :: FrameType -> Maybe FrameTypeId
+toFrameTypeId x
   | minFrameType <= x && x <= maxFrameType = Just . toEnum . fromIntegral $ x
   | otherwise                              = Nothing
 
@@ -322,20 +322,20 @@ data FramePayload =
   | GoAwayFrame LastStreamId ErrorCodeId ByteString
   | WindowUpdateFrame WindowSizeIncrement
   | ContinuationFrame HeaderBlockFragment
-  | UnknownFrame FrameTypeId ByteString
+  | UnknownFrame FrameType ByteString
   deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------
 
-framePayloadToFrameTypeId :: FramePayload -> FrameTypeId
-framePayloadToFrameTypeId (DataFrame _)          = frameTypeToWord8 FrameData
-framePayloadToFrameTypeId (HeadersFrame _ _)     = frameTypeToWord8 FrameHeaders
-framePayloadToFrameTypeId (PriorityFrame _)      = frameTypeToWord8 FramePriority
-framePayloadToFrameTypeId (RSTStreamFrame _)     = frameTypeToWord8 FrameRSTStream
-framePayloadToFrameTypeId (SettingsFrame _)      = frameTypeToWord8 FrameSettings
-framePayloadToFrameTypeId (PushPromiseFrame _ _) = frameTypeToWord8 FramePushPromise
-framePayloadToFrameTypeId (PingFrame _)          = frameTypeToWord8 FramePing
-framePayloadToFrameTypeId (GoAwayFrame _ _ _)    = frameTypeToWord8 FrameGoAway
-framePayloadToFrameTypeId (WindowUpdateFrame _)  = frameTypeToWord8 FrameWindowUpdate
-framePayloadToFrameTypeId (ContinuationFrame _)  = frameTypeToWord8 FrameContinuation
-framePayloadToFrameTypeId (UnknownFrame w8 _)    = w8
+framePayloadToFrameType :: FramePayload -> FrameType
+framePayloadToFrameType (DataFrame _)          = fromFrameTypeId FrameData
+framePayloadToFrameType (HeadersFrame _ _)     = fromFrameTypeId FrameHeaders
+framePayloadToFrameType (PriorityFrame _)      = fromFrameTypeId FramePriority
+framePayloadToFrameType (RSTStreamFrame _)     = fromFrameTypeId FrameRSTStream
+framePayloadToFrameType (SettingsFrame _)      = fromFrameTypeId FrameSettings
+framePayloadToFrameType (PushPromiseFrame _ _) = fromFrameTypeId FramePushPromise
+framePayloadToFrameType (PingFrame _)          = fromFrameTypeId FramePing
+framePayloadToFrameType (GoAwayFrame _ _ _)    = fromFrameTypeId FrameGoAway
+framePayloadToFrameType (WindowUpdateFrame _)  = fromFrameTypeId FrameWindowUpdate
+framePayloadToFrameType (ContinuationFrame _)  = fromFrameTypeId FrameContinuation
+framePayloadToFrameType (UnknownFrame w8 _)    = w8

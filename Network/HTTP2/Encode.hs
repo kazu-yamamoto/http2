@@ -35,7 +35,7 @@ data EncodeInfo = EncodeInfo {
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
 encodeFrame einfo payload = run $ buildFrame einfo payload
 
-encodeFrameHeader :: FrameTypeId -> FrameHeader -> ByteString
+encodeFrameHeader :: FrameType -> FrameHeader -> ByteString
 encodeFrameHeader ftid header = run $ buildFrameHeader ftid header
 
 encodeFramePayload :: EncodeInfo -> FramePayload -> ByteString
@@ -52,19 +52,19 @@ buildFrame :: EncodeInfo -> FramePayload -> Builder
 buildFrame einfo payload = headerBuilder <> payloadBuilder
   where
     (header, payloadBuilder) = buildFramePayload einfo payload
-    ftid = framePayloadToFrameTypeId payload
-    headerBuilder = buildFrameHeader ftid header
+    ftyp = framePayloadToFrameType payload
+    headerBuilder = buildFrameHeader ftyp header
 
 ----------------------------------------------------------------
 
-buildFrameHeader :: FrameTypeId -> FrameHeader -> Builder
-buildFrameHeader ftid FrameHeader{..} = len <> typ <> flg <> sid
+buildFrameHeader :: FrameType -> FrameHeader -> Builder
+buildFrameHeader ftyp FrameHeader{..} = len <> typ <> flg <> sid
   where
     -- fixme: 2^14 check
     len1 = BB.fromWord16be (fromIntegral (payloadLength `shiftR` 8))
     len2 = BB.fromWord8 (fromIntegral (payloadLength .&. 0xff))
     len = len1 <> len2
-    typ = BB.fromWord8 ftid
+    typ = BB.fromWord8 ftyp
     flg = BB.fromWord8 flags
     sid = BB.fromWord32be $ fromStreamIdentifier streamId
 
