@@ -1,4 +1,61 @@
-module Network.HTTP2.Types where
+module Network.HTTP2.Types (
+  -- * Settings
+    SettingsKey
+  , SettingsKeyId(..)
+  , SettingsValue
+  , fromSettingsKeyId
+  , toSettingsKeyId
+  , Settings
+  , defaultSettings
+  , toSettings
+  -- * Error code
+  , ErrorCode
+  , ErrorCodeId(..)
+  , fromErrorCodeId
+  , toErrorCodeId
+  -- * Frame type
+  , FrameType
+  , FrameTypeId(..)
+  , fromFrameTypeId
+  , toFrameTypeId
+  -- * Frame
+  , Frame(..)
+  , FrameHeader(..)
+  , FramePayload(..)
+  , framePayloadToFrameType
+  -- * Stream identifier
+  , StreamIdentifier(..)
+  , StreamDependency
+  , PromisedStreamId
+  , LastStreamId
+  , fromStreamIdentifier
+  , toStreamIdentifier
+  , streamIdentifierForSeetings
+  , testExclusive
+  , setExclusive
+  -- * Flags
+  , FrameFlags
+  , defaultFlags
+  , testEndStream
+  , testAck
+  , testEndHeader
+  , testPadded
+  , testPriority
+  , setEndStream
+  , setAck
+  , setEndHeader
+  , setPadded
+  , setPriority
+  -- * Payload length
+  , PayloadLength
+  , maxPayloadLength
+  -- * Types
+  , WindowSizeIncrement
+  , HeaderBlockFragment
+  , Priority(..)
+  , Padding
+  -- * Encoding and decoding
+  ) where
 
 import Data.Array (Array, Ix, listArray)
 import Data.Array.ST (newArray, writeArray, runSTArray)
