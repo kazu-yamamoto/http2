@@ -11,6 +11,18 @@ Category:               Network
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
 
+----------------------------------------------------------------
+
+Source-Repository head
+  Type:                 git
+  Location:             git://github.com/kazu-yamamoto/http2
+
+Flag devel
+  Description:          Development commands
+  Default:              False
+
+----------------------------------------------------------------
+
 Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
@@ -54,79 +66,7 @@ Library
                       , containers
                       , unordered-containers
 
--- Executable hpack-encode
---   Default-Language:     Haskell2010
---   HS-Source-Dirs:       test-hpack, .
---   GHC-Options:          -Wall
---   Main-Is:              hpack-encode.hs
---   Other-Modules:        HPACKEncode
---   Build-Depends:        base >= 4 && < 5
---                       , PSQueue
---                       , aeson
---                       , aeson-pretty
---                       , array
---                       , blaze-builder
---                       , bytestring
---                       , containers
---                       , hex
---                       , text
---                       , unordered-containers
---                       , vector
---                       , word8
-
--- Executable hpack-debug
---   Default-Language:     Haskell2010
---   HS-Source-Dirs:       test-hpack, .
---   GHC-Options:          -Wall
---   Main-Is:              hpack-debug.hs
---   Build-Depends:        base >= 4 && < 5
---                       , PSQueue
---                       , aeson
---                       , array
---                       , blaze-builder
---                       , bytestring
---                       , containers
---                       , hex
---                       , text
---                       , unordered-containers
---                       , vector
---                       , word8
-
--- Executable hpack-stat
---   Default-Language:     Haskell2010
---   HS-Source-Dirs:       test-hpack, .
---   GHC-Options:          -Wall
---   Main-Is:              hpack-stat.hs
---   Build-Depends:        base >= 4 && < 5
---                       , PSQueue
---                       , aeson
---                       , aeson-pretty
---                       , array
---                       , blaze-builder
---                       , bytestring
---                       , containers
---                       , directory
---                       , filepath
---                       , text
---                       , unordered-containers
---                       , vector
---                       , word8
-
-Executable frame-encode
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-frame
-  GHC-Options:          -Wall
-  Main-Is:              frame-encode.hs
-  Other-Modules:        Case
-                        JSON
-  Build-Depends:        base >= 4 && < 5
-                      , aeson
-                      , aeson-pretty
-                      , bytestring
-                      , hex
-                      , http2
-                      , text
-                      , unordered-containers
+----------------------------------------------------------------
 
 Test-Suite doctest
   Type:                 exitcode-stdio-1.0
@@ -188,7 +128,98 @@ Test-Suite hpack
                       , vector
                       , word8
 
-Source-Repository head
-  Type:                 git
-  Location:             git://github.com/kazu-yamamoto/http2
+----------------------------------------------------------------
 
+Executable hpack-encode
+  if flag(devel)
+    Default-Language:     Haskell2010
+    HS-Source-Dirs:       test-hpack, .
+    GHC-Options:          -Wall
+    Main-Is:              hpack-encode.hs
+    Other-Modules:        HPACKEncode
+    Build-Depends:        base >= 4 && < 5
+                        , PSQueue
+                        , aeson
+                        , aeson-pretty
+                        , array
+                        , blaze-builder
+                        , bytestring
+                        , containers
+                        , hex
+                        , text
+                        , unordered-containers
+                        , vector
+                        , word8
+  else
+    Default-Language:     Haskell2010
+    Main-Is:              dummy.hs
+    Build-Depends:        base >= 4 && < 5
+
+Executable hpack-debug
+  if flag(devel)
+    Default-Language:     Haskell2010
+    HS-Source-Dirs:       test-hpack, .
+    GHC-Options:          -Wall
+    Main-Is:              hpack-debug.hs
+    Build-Depends:        base >= 4 && < 5
+                        , PSQueue
+                        , aeson
+                        , array
+                        , blaze-builder
+                        , bytestring
+                        , containers
+                        , hex
+                        , text
+                        , unordered-containers
+                        , vector
+                        , word8
+  else
+    Default-Language:     Haskell2010
+    Main-Is:              dummy.hs
+    Build-Depends:        base >= 4 && < 5
+
+Executable hpack-stat
+  if flag(devel)
+    Default-Language:     Haskell2010
+    HS-Source-Dirs:       test-hpack, .
+    GHC-Options:          -Wall
+    Main-Is:              hpack-stat.hs
+    Build-Depends:        base >= 4 && < 5
+                        , PSQueue
+                        , aeson
+                        , aeson-pretty
+                        , array
+                        , blaze-builder
+                        , bytestring
+                        , containers
+                        , directory
+                        , filepath
+                        , text
+                        , unordered-containers
+                        , vector
+                        , word8
+  else
+    Default-Language:     Haskell2010
+    Main-Is:              dummy.hs
+    Build-Depends:        base >= 4 && < 5
+
+Executable frame-encode
+  if flag(devel)
+    Default-Language:     Haskell2010
+    HS-Source-Dirs:       test-frame
+    GHC-Options:          -Wall
+    Main-Is:              frame-encode.hs
+    Other-Modules:        Case
+                          JSON
+    Build-Depends:        base >= 4 && < 5
+                        , aeson
+                        , aeson-pretty
+                        , bytestring
+                        , hex
+                        , http2
+                        , text
+                        , unordered-containers
+  else
+    Default-Language:     Haskell2010
+    Main-Is:              dummy.hs
+    Build-Depends:        base >= 4 && < 5
