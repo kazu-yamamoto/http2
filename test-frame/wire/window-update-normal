@@ -1,1 +1,1 @@
-CaseWire {wire_description = "noraml window update frame", wire_hex = "000004080000000032000003E8", wire_padding = Nothing, wire_error = Nothing}
+CaseWire {wire_description = "normal window update frame", wire_hex = "000004080000000032000003E8", wire_padding = Nothing, wire_error = Nothing}

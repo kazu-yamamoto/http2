@@ -1,1 +1,1 @@
-CaseWire {wire_description = "noraml ping frame", wire_hex = "0000080600000000006465616462656566", wire_padding = Nothing, wire_error = Nothing}
+CaseWire {wire_description = "normal ping frame", wire_hex = "0000080600000000006465616462656566", wire_padding = Nothing, wire_error = Nothing}

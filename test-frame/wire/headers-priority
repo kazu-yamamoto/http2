@@ -1,1 +1,1 @@
-CaseWire {wire_description = "noraml headers frame including priority", wire_hex = "000023012800000003108000001409746869732069732064756D6D79546869732069732070616464696E672E", wire_padding = Just (Pad "This is padding."), wire_error = Nothing}
+CaseWire {wire_description = "normal headers frame including priority", wire_hex = "000023012800000003108000001409746869732069732064756D6D79546869732069732070616464696E672E", wire_padding = Just (Pad "This is padding."), wire_error = Nothing}

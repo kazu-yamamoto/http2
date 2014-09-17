@@ -1,1 +1,1 @@
-CaseWire {wire_description = "noraml rst stream frame", wire_hex = "00000C040000000000000100002000000300001388", wire_padding = Nothing, wire_error = Nothing}
+CaseWire {wire_description = "normal rst stream frame", wire_hex = "00000C040000000000000100002000000300001388", wire_padding = Nothing, wire_error = Nothing}

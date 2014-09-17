@@ -13,5 +13,5 @@
         "type": 9
     },
     "draft": 14,
-    "description": "noraml continuation frame without header block fragment"
+    "description": "normal continuation frame without header block fragment"
 }

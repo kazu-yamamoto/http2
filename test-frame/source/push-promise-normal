@@ -1,5 +1,5 @@
 CaseSource {
-    cs_description = "noraml push promise frame"
+    cs_description = "normal push promise frame"
   , cs_encodeinfo = EncodeInfo {
       encodeFlags = 0
     , encodeStreamId = StreamIdentifier 9

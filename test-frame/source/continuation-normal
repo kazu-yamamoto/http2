@@ -1,5 +1,5 @@
 CaseSource {
-    cs_description = "noraml continuation frame without header block fragment"
+    cs_description = "normal continuation frame without header block fragment"
   , cs_encodeinfo = EncodeInfo {
       encodeFlags = 0
     , encodeStreamId = StreamIdentifier 50
