@@ -79,15 +79,27 @@ instance ToJSON ErrorCodeId where
 instance FromJSON ErrorCodeId where
     parseJSON e = toErrorCodeId <$> parseJSON e
 
+instance ToJSON Settings where
+    toJSON settings = toJSON $ map (first fromSettingsKeyId) (fromSettings settings)
+
+instance FromJSON Settings where
+    parseJSON x = toSettings . map (first (fromJust . toSettingsKeyId)) <$> parseJSON x
+
+instance ToJSON ByteString where
+    toJSON bs = toJSON $ byteStringToText bs
+
+instance FromJSON ByteString where
+    parseJSON x = textToByteString <$> parseJSON x
+
 ----------------------------------------------------------------
 
 instance ToJSON FramePayload where
     toJSON (DataFrame body) = object [
-        "data" .= byteStringToText body
+        "data" .= body
       ]
     toJSON (HeadersFrame mpri hdr) = object [
         "priority" .= mpri
-      , "header_block_fragment" .= byteStringToText hdr
+      , "header_block_fragment" .= hdr
       ]
     toJSON (PriorityFrame pri) = object [
         "priority" .= pri
@@ -96,28 +108,28 @@ instance ToJSON FramePayload where
         "error_code" .= e
       ]
     toJSON (SettingsFrame settings) = object [
-        "settings" .= map (first fromSettingsKeyId) (fromSettings settings)
+        "settings" .= settings
       ]
     toJSON (PushPromiseFrame sid hdr) = object [
         "promised_stream_id" .= sid
-      , "header_block_fragment" .= byteStringToText hdr
+      , "header_block_fragment" .= hdr
       ]
     toJSON (PingFrame odata) = object [
-        "opaque_data" .= byteStringToText odata
+        "opaque_data" .= odata
       ]
     toJSON (GoAwayFrame sid e debug) = object [
         "last_stream_id" .= sid
       , "error_code" .= e
-      , "additional_debug_data" .= byteStringToText debug
+      , "additional_debug_data" .= debug
       ]
     toJSON (WindowUpdateFrame size) = object [
         "window_size_increment" .= size
       ]
     toJSON (ContinuationFrame hdr) = object [
-        "header_block_fragment" .= byteStringToText hdr
+        "header_block_fragment" .= hdr
       ]
     toJSON (UnknownFrame _ opaque) = object [
-        "payload" .= byteStringToText opaque
+        "payload" .= opaque
       ]
 
 ----------------------------------------------------------------
@@ -154,20 +166,32 @@ instance FromJSON FramePad where
 
 parsePayloadPad :: FrameType -> Object -> Parser (FramePayload, Maybe Pad)
 parsePayloadPad ftyp o = do
-    mpad <- (Pad . textToByteString <$>) <$> o .:? "padding"
+    mpad <- (Pad <$>) <$> o .:? "padding"
     payload <- parsePayload ftid o
     return (payload, mpad)
   where
     ftid = fromJust $ toFrameTypeId ftyp
 
 parsePayload :: FrameTypeId -> Object -> Parser FramePayload
-parsePayload FrameData o = DataFrame . textToByteString <$> o .: "data"
--- fixme
+parsePayload FrameData o = DataFrame <$> o .: "data"
+parsePayload FrameHeaders o = HeadersFrame <$> o .: "priority"
+                                           <*> o .: "header_block_fragment"
+parsePayload FramePriority o = PriorityFrame <$> o .: "priority"
+parsePayload FrameRSTStream o = RSTStreamFrame <$> o .: "error_code"
+parsePayload FrameSettings o = SettingsFrame <$> o .: "settings"
+parsePayload FramePushPromise o = PushPromiseFrame <$> o .: "promised_stream_id"
+                                                   <*> o .: "header_block_fragment"
+parsePayload FramePing o = PingFrame <$> o .: "opaque_data"
+parsePayload FrameGoAway o = GoAwayFrame <$> o .: "last_stream_id"
+                                         <*> o .: "error_code"
+                                         <*> o .: "additional_debug_data"
+parsePayload FrameWindowUpdate o = WindowUpdateFrame <$> o .: "window_size_increment"
+parsePayload FrameContinuation o = ContinuationFrame <$> o .: "header_block_fragment"
 
 instance ToJSON Pad where
     toJSON (Pad padding) = object [
         "padding_length" .= BS.length padding
-      , "padding" .= byteStringToText padding
+      , "padding" .= padding
       ]
 
 emptyPad :: Value
@@ -182,7 +206,7 @@ instance ToJSON Case where
     toJSON Case{..} = object [
         "draft" .= draft
       , "description" .= description
-      , "wire" .= byteStringToText wire
+      , "wire" .= wire
       , "frame" .= frame
       , "error" .= err
       ]
@@ -190,7 +214,7 @@ instance ToJSON Case where
 instance FromJSON Case where
     parseJSON (Object o) = Case <$> o .: "draft"
                                 <*> o .: "description"
-                                <*> (textToByteString <$> (o .: "wire"))
+                                <*> o .: "wire"
                                 <*> o .:? "frame"
                                 <*> o .:? "error"
     parseJSON _          = mzero
