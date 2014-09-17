@@ -1,8 +1,9 @@
 module Network.HTTP2 (
-    module Network.HTTP2.Types
-  , decodeFrame
+  -- * Decoding and Encoding
+    decodeFrame
   , EncodeInfo(..)
   , encodeFrame
+  , module Network.HTTP2.Types
   ) where
 
 import Network.HTTP2.Decode
