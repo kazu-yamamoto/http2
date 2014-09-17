@@ -12,6 +12,7 @@ import Test.Hspec
 
 import JSON
 import Data.List (isPrefixOf)
+import Control.Applicative ((<$>))
 
 testDir :: FilePath
 testDir = "test-frame/json"
@@ -30,8 +31,8 @@ check file = do
     case etc of
         Left _ -> putStrLn $ "JSON error: " ++ file
         Right tc -> do
-            let Just hexwire = unhex $ wire tc
-                erc = decodeFrame defaultSettings hexwire
+            let Just bin = unhex $ wire tc
+                erc = decodeFrame defaultSettings bin
             case erc of
                 Left e -> do
                     let Just errs = err tc
@@ -39,6 +40,13 @@ check file = do
                 Right frm -> do
                     let Just fp = frame tc
                     fpFrame fp `shouldBe` frm
+                    let einfo = EncodeInfo {
+                            encodeFlags = 0
+                          , encodeStreamId = streamId (frameHeader frm)
+                          , encodePadding = unPad <$> fpPad fp
+                          }
+                        payload = framePayload frm
+                    encodeFrame einfo payload `shouldBe` bin
 
 spec :: Spec
 spec = do

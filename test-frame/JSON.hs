@@ -42,6 +42,9 @@ data FramePad = FramePad {
 
 data Pad = Pad Padding deriving (Show, Read)
 
+unPad :: Pad -> Padding
+unPad (Pad x) = x
+
 ----------------------------------------------------------------
 
 data Case = Case {
