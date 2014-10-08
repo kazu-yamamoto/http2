@@ -30,10 +30,11 @@ frameSizeError = show FrameSizeError
 
 ----------------------------------------------------------------
 
-decodeFrame :: Settings -> ByteString -> Either ErrorCodeId Frame
-decodeFrame settings bs = case B.parseOnly (parseFrame settings) bs of
-    Right frame -> Right frame
-    Left  estr  -> Left $ toErrorCode estr
+decodeFrame :: Settings -> ByteString -> Either ErrorCodeId (Frame, ByteString)
+decodeFrame settings bs = case B.parse (parseFrame settings) bs of
+    B.Done left frame -> Right (frame, left)
+    B.Fail _ _ estr   -> Left $ toErrorCode estr
+    B.Partial _       -> undefined -- fixme
 
 decodeFrameHeader :: Settings -> ByteString
                   -> Either ErrorCodeId (FrameType, FrameHeader)
