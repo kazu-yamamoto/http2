@@ -24,14 +24,19 @@ import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
+-- | Auxiliary information for frame encoding.
 data EncodeInfo = EncodeInfo {
+    -- | Flags to be set in a frame header
       encodeFlags    :: FrameFlags
+    -- | Stream id to be set in a frame header
     , encodeStreamId :: StreamIdentifier
+    -- | Padding if any
     , encodePadding  :: Maybe Padding
     } deriving (Show,Read)
 
 ----------------------------------------------------------------
 
+-- | Encoding an HTTP/2 frame to byte stream.
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
 encodeFrame einfo payload = run $ buildFrame einfo payload
 

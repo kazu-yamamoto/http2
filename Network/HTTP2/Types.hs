@@ -55,7 +55,6 @@ module Network.HTTP2.Types (
   , HeaderBlockFragment
   , Priority(..)
   , Padding
-  -- * Encoding and decoding
   ) where
 
 import Control.Arrow (second)
@@ -185,6 +184,7 @@ toSettingsKeyId x
 
 type Settings = Array SettingsKeyId (Maybe SettingsValue)
 
+-- | Default settings. All values are 'Nothing'.
 defaultSettings :: Settings
 defaultSettings = listArray settingsRange [Nothing|_<-xs]
   where

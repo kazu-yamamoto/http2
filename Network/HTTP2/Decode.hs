@@ -30,7 +30,10 @@ frameSizeError = show FrameSizeError
 
 ----------------------------------------------------------------
 
-decodeFrame :: Settings -> ByteString -> Either ErrorCodeId (Frame, ByteString)
+-- | Parsing byte stream to make an HTTP/2 frame.
+decodeFrame :: Settings    -- ^ HTTP/2 settings
+            -> ByteString  -- ^ Input byte-stream
+            -> Either ErrorCodeId (Frame,ByteString) -- ^ (Decoded frame, leftover byte-stream)
 decodeFrame settings bs = case B.parse (parseFrame settings) bs of
     B.Done left frame -> Right (frame, left)
     B.Fail _ _ estr   -> Left $ toErrorCode estr
