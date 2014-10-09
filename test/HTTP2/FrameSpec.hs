@@ -32,7 +32,7 @@ spec = do
                   }
                 payload = DataFrame "Hello, world!"
                 wire = encodeFrame einfo payload
-                Right frame = decodeFrame defaultSettings wire
+                Right (frame,_) = decodeFrame defaultSettings wire
                 payload' = framePayload frame
             payload' `shouldBe` payload
         it "encode/decodes padded frames properly" $ do
@@ -43,6 +43,6 @@ spec = do
                   }
                 payload = DataFrame "Hello, world!"
                 wire = encodeFrame einfo payload
-                Right frame = decodeFrame defaultSettings wire
+                Right (frame,_) = decodeFrame defaultSettings wire
                 payload' = framePayload frame
             payload' `shouldBe` payload

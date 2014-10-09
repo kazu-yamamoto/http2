@@ -37,7 +37,7 @@ check file = do
                 Left e -> do
                     let Just errs = err tc
                     errs `shouldContain` [fromErrorCodeId e]
-                Right frm -> do
+                Right (frm,_) -> do
                     let Just fp = frame tc
                     fpFrame fp `shouldBe` frm
                     let einfo = EncodeInfo {
