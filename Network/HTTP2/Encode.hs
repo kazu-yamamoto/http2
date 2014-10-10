@@ -71,7 +71,7 @@ buildFrameHeader ftyp FrameHeader{..} = len <> typ <> flg <> sid
     len = len1 <> len2
     typ = BB.fromWord8 ftyp
     flg = BB.fromWord8 flags
-    sid = BB.fromWord32be $ fromStreamIdentifier streamId
+    sid = BB.fromWord32be . fromIntegral $ fromStreamIdentifier streamId
 
 ----------------------------------------------------------------
 
@@ -125,12 +125,12 @@ buildPriority Priority{..} = builder
     estream
       | exclusive = setExclusive stream
       | otherwise = stream
-    bstream = BB.fromWord32be estream
+    bstream = BB.fromWord32be $ fromIntegral estream
     bweight = BB.fromWord8 $ fromIntegral $ weight - 1
 
 -- fixme: clear 31th bit?
 buildStream :: StreamIdentifier -> Builder
-buildStream = BB.fromWord32be . fromStreamIdentifier
+buildStream = BB.fromWord32be . fromIntegral . fromStreamIdentifier
 
 buildErrorCodeId :: ErrorCodeId -> Builder
 buildErrorCodeId = BB.fromWord32be . fromErrorCodeId

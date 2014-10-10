@@ -1,8 +1,8 @@
 module Network.HTTP2 (
-  -- * Decoding and Encoding
-    decodeFrame
-  , EncodeInfo(..)
+  -- * Encoding and decoding
+    EncodeInfo(..)
   , encodeFrame
+  , decodeFrame
   , module Network.HTTP2.Types
   ) where
 

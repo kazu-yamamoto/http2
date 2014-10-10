@@ -337,22 +337,22 @@ setPriority x = x `setBit` 5
 
 ----------------------------------------------------------------
 
-newtype StreamIdentifier = StreamIdentifier Word32 deriving (Show, Read, Eq)
+newtype StreamIdentifier = StreamIdentifier Int deriving (Show, Read, Eq)
 type StreamDependency    = StreamIdentifier
 type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
 
-toStreamIdentifier :: Word32 -> StreamIdentifier
-toStreamIdentifier w = StreamIdentifier (w `clearBit` 31)
+toStreamIdentifier :: Int -> StreamIdentifier
+toStreamIdentifier n = StreamIdentifier (n `clearBit` 31)
 
-fromStreamIdentifier :: StreamIdentifier -> Word32
-fromStreamIdentifier (StreamIdentifier w32) = w32
+fromStreamIdentifier :: StreamIdentifier -> Int
+fromStreamIdentifier (StreamIdentifier n) = n
 
-testExclusive :: Word32 -> Bool
-testExclusive w = w `testBit` 31
+testExclusive :: Int -> Bool
+testExclusive n = n `testBit` 31
 
-setExclusive :: Word32 -> Word32
-setExclusive w = w `setBit` 31
+setExclusive :: Int -> Int
+setExclusive n = n `setBit` 31
 
 streamIdentifierForSeetings :: StreamIdentifier
 streamIdentifierForSeetings = StreamIdentifier 0

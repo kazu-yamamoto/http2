@@ -231,13 +231,13 @@ parseWithPadding FrameHeader{..} p
     padded = testPadded flags
 
 streamIdentifier :: B.Parser StreamIdentifier
-streamIdentifier = toStreamIdentifier <$> BI.anyWord32be
+streamIdentifier = toStreamIdentifier . fromIntegral <$> BI.anyWord32be
 
 streamIdentifier' :: B.Parser (StreamIdentifier, Bool)
 streamIdentifier' = do
-    w32 <- BI.anyWord32be
-    let !streamdId = toStreamIdentifier w32
-        !exclusive = testExclusive w32
+    n <- fromIntegral <$> BI.anyWord32be
+    let !streamdId = toStreamIdentifier n
+        !exclusive = testExclusive n
     return (streamdId, exclusive)
 
 priority :: B.Parser Priority
