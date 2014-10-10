@@ -63,9 +63,7 @@ test conf c dhdrtbl = do
         print bshd'
     dhdrtbl0 <- case size c of
         Nothing  -> return dhdrtbl
-        Just siz
-          | shouldRenew dhdrtbl siz -> renewHeaderTable siz dhdrtbl
-          | otherwise               -> return dhdrtbl
+        Just siz -> renewHeaderTable siz dhdrtbl
     x <- try $ decodeHeader dhdrtbl0 inp
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)

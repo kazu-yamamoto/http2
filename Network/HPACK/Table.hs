@@ -5,7 +5,6 @@ module Network.HPACK.Table (
     HeaderTable
   , newHeaderTableForEncoding
   , newHeaderTableForDecoding
-  , shouldRenew
   , renewHeaderTable
   , printHeaderTable
   , isHeaderTableEmpty
@@ -171,12 +170,13 @@ newHeaderTable maxsiz mhp = do
 
 -- | Renewing 'HeaderTable' with necessary entries copied.
 renewHeaderTable :: Size -> HeaderTable -> IO HeaderTable
-renewHeaderTable maxsiz oldhdrtbl =
+renewHeaderTable maxsiz oldhdrtbl | shouldRenew oldhdrtbl maxsiz =
     newHeaderTable maxsiz mhp >>= copyTable oldhdrtbl
   where
     mhp = case reverseIndex oldhdrtbl of
         Nothing -> Nothing
         _       -> Just HP.empty
+renewHeaderTable _ oldhdrtbl = return oldhdrtbl
 
 copyTable :: HeaderTable -> HeaderTable -> IO HeaderTable
 copyTable oldhdrtbl newhdrtbl = getEntries oldhdrtbl >>= copyEntries newhdrtbl

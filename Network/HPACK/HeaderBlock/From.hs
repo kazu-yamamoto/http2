@@ -34,10 +34,7 @@ decodeLoop []     !hdrtbl = decodeFinal hdrtbl
 --   test purpose.
 decodeStep :: Step
 decodeStep (!hdrtbl,!builder) (ChangeTableSize siz) = do
-    hdrtbl' <- if shouldRenew hdrtbl siz then
-                   renewHeaderTable siz hdrtbl
-                 else
-                   return hdrtbl
+    hdrtbl' <- renewHeaderTable siz hdrtbl
     return (hdrtbl',builder)
 decodeStep (!hdrtbl,!builder) (Indexed idx) = do
       w <- which hdrtbl idx
