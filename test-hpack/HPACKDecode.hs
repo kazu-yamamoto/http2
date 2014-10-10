@@ -15,9 +15,8 @@ import qualified Data.ByteString.Char8 as B8
 import Data.Hex
 import Data.List (sort)
 import Network.HPACK
-import Network.HPACK.Context
-import Network.HPACK.Context.HeaderList
 import Network.HPACK.HeaderBlock
+import Network.HPACK.Table
 
 import JSON
 
@@ -31,47 +30,49 @@ run :: Bool -> Test -> IO Result
 run _ (Test _ _ [])        = return $ Pass
 run d (Test _ _ ccs@(c:_)) = do
     let siz = maybe 4096 id $ size c
-    dctx <- newContextForDecoding siz
+    dhdrtbl <- newHeaderTableForDecoding siz
     let conf = Conf { debug = d }
-    testLoop conf ccs dctx
+    testLoop conf ccs dhdrtbl
 
 testLoop :: Conf
          -> [Case]
-         -> Context
+         -> HeaderTable
          -> IO Result
 testLoop _    []     _    = return $ Pass
-testLoop conf (c:cs) dctx  = do
-    res <- test conf c dctx
+testLoop conf (c:cs) dhdrtbl  = do
+    res <- test conf c dhdrtbl
     case res of
-        Right dctx' -> testLoop conf cs dctx'
+        Right dhdrtbl' -> testLoop conf cs dhdrtbl'
         Left  e     -> return $ Fail e
 
 test :: Conf
      -> Case
-     -> Context
-     -> IO (Either String Context)
-test conf c dctx = do
+     -> HeaderTable
+     -> IO (Either String HeaderTable)
+test conf c dhdrtbl = do
     -- context is destructive!!!
     when (debug conf) $ do
         putStrLn "--------------------------------"
-        putStrLn "---- Input headerlist"
+        putStrLn "---- Input header list"
         printHeaderList $ sort hs
-        putStrLn "---- Input context"
-        printContext dctx
+        putStrLn "---- Input header table"
+        printHeaderTable dhdrtbl
         putStrLn "---- Input Hex"
         B8.putStrLn wirehex
         putStrLn "---- Input header block"
         print bshd'
-    dctx0 <- case size c of
-        Nothing  -> return dctx
-        Just siz -> changeContextForDecoding dctx siz
-    x <- try $ decodeHeader dctx0 inp
+    dhdrtbl0 <- case size c of
+        Nothing  -> return dhdrtbl
+        Just siz
+          | shouldRenew dhdrtbl siz -> renewHeaderTable siz dhdrtbl
+          | otherwise               -> return dhdrtbl
+    x <- try $ decodeHeader dhdrtbl0 inp
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)
-        Right (dctx',hs') -> do
+        Right (dhdrtbl',hs') -> do
             let pass = sort hs == sort hs'
             if pass then
-                return $ Right (dctx')
+                return $ Right (dhdrtbl')
               else
                 return $ Left $ "Headers are different in " ++ B8.unpack wirehex ++ ":\n" ++ show hd ++ "\n" ++ show hs ++ "\n" ++ show hs'
   where
@@ -81,3 +82,13 @@ test conf c dctx = do
     bshd = fromByteStreamDebug inp
     hd = map snd <$> bshd
     bshd' = map (\(x,y)->(hex x,y)) <$> bshd
+
+-- | Printing 'HeaderList'.
+printHeaderList :: HeaderList -> IO ()
+printHeaderList hs = mapM_ printHeader hs
+  where
+    printHeader (k,v) = do
+        B8.putStr k
+        putStr ": "
+        B8.putStr v
+        putStr "\n"

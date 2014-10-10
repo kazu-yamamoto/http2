@@ -45,8 +45,8 @@ wireToCase CaseWire { wire_error = Nothing, ..} = Case {
   where
     -- fromJust is unsafe
     frm = case decodeFrame defaultSettings $ fromJust $ unhex wire_hex of
-        Left  e -> error $ show e
-        Right r -> r
+        Left  e     -> error $ show e
+        Right (r,_) -> r
 wireToCase CaseWire { wire_error = Just e, ..} = Case {
     draft = 14
   , description = wire_description

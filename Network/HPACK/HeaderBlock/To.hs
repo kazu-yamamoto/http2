@@ -5,48 +5,47 @@ module Network.HPACK.HeaderBlock.To (
   ) where
 
 import Network.HPACK.Builder
-import Network.HPACK.Context
 import Network.HPACK.HeaderBlock.HeaderField
 import Network.HPACK.Table
 import Network.HPACK.Types
 
-type Ctx = (Context, Builder HeaderField)
+type Ctx = (HeaderTable, Builder HeaderField)
 type Step = Ctx -> Header -> IO Ctx
 
 -- | Encoding 'HeaderList' to 'HeaderBlock'.
 toHeaderBlock :: CompressionAlgo
-              -> Context
+              -> HeaderTable
               -> HeaderList
-              -> IO (Context, HeaderBlock)
-toHeaderBlock Naive  !ctx hs = encodeLoop naiveStep  hs (ctx,empty)
-toHeaderBlock Static !ctx hs = encodeLoop staticStep hs (ctx,empty)
-toHeaderBlock Linear !ctx hs = encodeLoop linearStep hs (ctx,empty)
+              -> IO (HeaderTable, HeaderBlock)
+toHeaderBlock Naive  !hdrtbl hs = encodeLoop naiveStep  hs (hdrtbl,empty)
+toHeaderBlock Static !hdrtbl hs = encodeLoop staticStep hs (hdrtbl,empty)
+toHeaderBlock Linear !hdrtbl hs = encodeLoop linearStep hs (hdrtbl,empty)
 
 ----------------------------------------------------------------
 
-encodeFinal :: Ctx -> IO (Context, HeaderBlock)
-encodeFinal (!ctx, !builder) = return (ctx, run builder)
+encodeFinal :: Ctx -> IO (HeaderTable, HeaderBlock)
+encodeFinal (!hdrtbl, !builder) = return (hdrtbl, run builder)
 
 encodeLoop :: Step
            -> HeaderList
            -> Ctx
-           -> IO (Context, HeaderBlock)
-encodeLoop step (h:hs) !ctx = step ctx h >>= encodeLoop step hs
-encodeLoop _    []     !ctx = encodeFinal ctx
+           -> IO (HeaderTable, HeaderBlock)
+encodeLoop step (h:hs) !hdrtbl = step hdrtbl h >>= encodeLoop step hs
+encodeLoop _    []     !hdrtbl = encodeFinal hdrtbl
 
 ----------------------------------------------------------------
 
 naiveStep :: Step
-naiveStep (!ctx,!builder) (k,v) = do
+naiveStep (!hdrtbl,!builder) (k,v) = do
     let builder' = builder << Literal NotAdd (Lit k) v
-    return (ctx, builder')
+    return (hdrtbl, builder')
 
 ----------------------------------------------------------------
 
 staticStep :: Step
-staticStep (!ctx,!builder) h@(k,v) = return (ctx, builder')
+staticStep (!hdrtbl,!builder) h@(k,v) = return (hdrtbl, builder')
   where
-    b = case lookupHeader h ctx of
+    b = case lookupTable h hdrtbl of
         None                     -> Literal NotAdd (Lit k) v
         KeyOnly  InStaticTable i -> Literal NotAdd (Idx i) v
         KeyOnly  InHeaderTable _ -> Literal NotAdd (Lit k) v
@@ -59,32 +58,32 @@ staticStep (!ctx,!builder) h@(k,v) = return (ctx, builder')
 -- by 'Index 0' and uses indexing as much as possible.
 
 linearStep :: Step
-linearStep cb@(!ctx,!builder) h = smartStep linear cb h
+linearStep cb@(!hdrtbl,!builder) h = smartStep linear cb h
   where
-    linear i = return (ctx,builder << Indexed i)
+    linear i = return (hdrtbl,builder << Indexed i)
 
 ----------------------------------------------------------------
 
 smartStep :: (Index -> IO Ctx) -> Step
-smartStep func cb@(!ctx,!builder) h@(k,_) = do
-    let cache = lookupHeader h ctx
+smartStep func cb@(!hdrtbl,!builder) h@(k,_) = do
+    let cache = lookupTable h hdrtbl
     case cache of
         None                     -> check cb h (Lit k)
         KeyOnly  InStaticTable i -> check cb h (Idx i)
         KeyOnly  InHeaderTable i -> check cb h (Idx i)
-        KeyValue InStaticTable i -> return (ctx, builder << Indexed i)
+        KeyValue InStaticTable i -> return (hdrtbl, builder << Indexed i)
         KeyValue InHeaderTable i -> func i
 
 check :: Ctx -> Header -> Naming -> IO Ctx
-check (ctx,builder) h@(k,v) x
+check (hdrtbl,builder) h@(k,v) x
   | k `elem` headersNotToIndex = do
       let builder' = builder << Literal NotAdd x v
-      return (ctx, builder')
+      return (hdrtbl, builder')
   | otherwise = do
       let e = toEntry h
-      ctx' <- newEntryForEncoding ctx e
+      hdrtbl' <- insertEntry e hdrtbl
       let builder' = builder << Literal Add x v
-      return (ctx', builder')
+      return (hdrtbl', builder')
 
 headersNotToIndex :: [HeaderName]
 headersNotToIndex = [

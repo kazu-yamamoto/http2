@@ -4,7 +4,6 @@ module HPACK.HeaderBlock where
 
 import Data.Hex
 import Data.Maybe (fromJust)
-import Network.HPACK.Context
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Types
 

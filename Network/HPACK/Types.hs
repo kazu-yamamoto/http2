@@ -6,6 +6,7 @@ module Network.HPACK.Types (
   , HeaderValue
   , HeaderStuff
   , Header
+  , HeaderList
   -- * Misc
   , ByteStream
   , Index
@@ -28,6 +29,9 @@ type HeaderValue = ByteString
 
 -- | Header.
 type Header = (HeaderName, HeaderValue)
+
+-- | Header list.
+type HeaderList = [Header]
 
 -- | To be a 'HeaderName' or 'HeaderValue'.
 type HeaderStuff = ByteString
