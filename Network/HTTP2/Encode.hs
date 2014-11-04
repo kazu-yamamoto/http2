@@ -12,12 +12,10 @@ module Network.HTTP2.Encode (
 
 import Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as BB
-import Data.Array (assocs)
 import Data.Bits
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as BL
-import Data.Maybe (isJust)
 import Data.Monoid ((<>), mempty)
 
 import Network.HTTP2.Types
@@ -169,15 +167,13 @@ buildFramePayloadRSTStream EncodeInfo{..} e = (header, builder)
     builder = buildErrorCodeId e
     header = FrameHeader 4 encodeFlags encodeStreamId
 
-buildFramePayloadSettings :: EncodeInfo -> Settings -> (FrameHeader, Builder)
-buildFramePayloadSettings EncodeInfo{..} settings = (header, builder)
+buildFramePayloadSettings :: EncodeInfo -> SettingsList -> (FrameHeader, Builder)
+buildFramePayloadSettings EncodeInfo{..} alist = (header, builder)
   where
-    alist = assocs settings
     builder = foldr op mempty alist
-    (_, Nothing) `op` x = x
-    (key, Just val) `op` x = BB.fromWord16be (fromSettingsKeyId key)
-                          <> BB.fromWord32be val <> x
-    len = length (filter (isJust . snd) alist) * 6
+    (key, val) `op` x = BB.fromWord16be (fromSettingsKeyId key)
+                        <> BB.fromWord32be (fromIntegral val) <> x
+    len = length alist * 6
     header = FrameHeader len encodeFlags encodeStreamId
 
 buildFramePayloadPushPromise :: EncodeInfo -> StreamIdentifier -> HeaderBlockFragment -> (FrameHeader, Builder)

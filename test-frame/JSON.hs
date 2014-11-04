@@ -82,11 +82,11 @@ instance ToJSON ErrorCodeId where
 instance FromJSON ErrorCodeId where
     parseJSON e = toErrorCodeId <$> parseJSON e
 
-instance ToJSON Settings where
-    toJSON settings = toJSON $ map (first fromSettingsKeyId) (fromSettings settings)
+instance ToJSON SettingsList where
+    toJSON settings = toJSON $ map (first fromSettingsKeyId) settings
 
-instance FromJSON Settings where
-    parseJSON x = toSettings . map (first (fromJust . toSettingsKeyId)) <$> parseJSON x
+instance FromJSON SettingsList where
+    parseJSON x = map (first (fromJust . toSettingsKeyId)) <$> parseJSON x
 
 instance ToJSON ByteString where
     toJSON bs = toJSON $ byteStringToText bs

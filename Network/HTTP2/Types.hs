@@ -5,10 +5,10 @@ module Network.HTTP2.Types (
   , SettingsValue
   , fromSettingsKeyId
   , toSettingsKeyId
-  , Settings
+  , Settings(..)
+  , SettingsList
   , defaultSettings
-  , toSettings
-  , fromSettings
+  , updateSettings
   -- * Error code
   , ErrorCode
   , ErrorCodeId(..)
@@ -57,13 +57,9 @@ module Network.HTTP2.Types (
   , Padding
   ) where
 
-import Control.Arrow (second)
-import Control.Monad (forM_)
-import Data.Array (Array, Ix, listArray, assocs)
-import Data.Array.ST (newArray, writeArray, runSTArray)
+import Data.Array (Ix)
 import Data.Bits (setBit, testBit, clearBit)
 import Data.ByteString (ByteString)
-import Data.Maybe (fromJust, isJust)
 import Data.Word (Word8, Word16, Word32)
 
 ----------------------------------------------------------------
@@ -137,16 +133,16 @@ toErrorCodeId w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
 
-type SettingsKey = Word16
-type SettingsValue = Word32
-
 data SettingsKeyId = SettingsHeaderTableSize
-                | SettingsEnablePush
-                | SettingsMaxConcurrentStreams
-                | SettingsInitialWindowSize
-                | SettingsMaxFrameSize -- this means payload size
-                | SettingsMaxHeaderBlockSize
-                deriving (Show, Read, Eq, Ord, Enum, Bounded, Ix)
+                   | SettingsEnablePush
+                   | SettingsMaxConcurrentStreams
+                   | SettingsInitialWindowSize
+                   | SettingsMaxFrameSize -- this means payload size
+                   | SettingsMaxHeaderBlockSize
+                   deriving (Show, Read, Eq, Ord, Enum, Bounded)
+
+type SettingsKey = Word16
+type SettingsValue = Int -- Word32
 
 -- |
 --
@@ -182,38 +178,50 @@ toSettingsKeyId x
 
 ----------------------------------------------------------------
 
-type Settings = Array SettingsKeyId (Maybe SettingsValue)
+data Settings = Settings {
+    headerTableSize :: Int
+  , establishPush :: Bool
+  , maxConcurrentStreams :: Int
+  , initialWindowSize :: Int
+  , maxFrameSize :: Int
+  , maxHeaderBlockSize :: Maybe Int
+  } deriving (Show)
 
--- | Default settings. All values are 'Nothing'.
+type SettingsList = [(SettingsKeyId,SettingsValue)]
+
+-- | The default settings.
 defaultSettings :: Settings
-defaultSettings = listArray settingsRange [Nothing|_<-xs]
-  where
-    xs = [minBound :: SettingsKeyId .. maxBound :: SettingsKeyId]
+defaultSettings = Settings {
+    headerTableSize = 4096
+  , establishPush = True
+  , maxConcurrentStreams = 100
+  , initialWindowSize = 65535
+  , maxFrameSize = 16384
+  , maxHeaderBlockSize = Nothing
+  }
 
--- |
+-- | Updating settings.
 --
--- >>> toSettings [(SettingsHeaderTableSize,10),(SettingsInitialWindowSize,20),(SettingsHeaderTableSize,30)]
--- array (SettingsHeaderTableSize,SettingsMaxHeaderBlockSize) [(SettingsHeaderTableSize,Just 30),(SettingsEnablePush,Nothing),(SettingsMaxConcurrentStreams,Nothing),(SettingsInitialWindowSize,Just 20),(SettingsMaxFrameSize,Nothing),(SettingsMaxHeaderBlockSize,Nothing)]
-toSettings :: [(SettingsKeyId,SettingsValue)] -> Settings
-toSettings kvs = runSTArray $ do
-    arr <- newArray settingsRange Nothing
-    forM_ kvs $ \(k,v) -> writeArray arr k (Just v)
-    return arr
+-- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
+-- Settings {headerTableSize = 4096, establishPush = False, maxConcurrentStreams = 100, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Just 200}
+updateSettings :: Settings -> SettingsList -> Settings
+updateSettings settings kvs = foldr update settings kvs
+  where
+    update (SettingsHeaderTableSize,x)      def = def { headerTableSize = x }
+    -- fixme: x should be 0 or 1
+    update (SettingsEnablePush,x)           def = def { establishPush = x > 0 }
+    update (SettingsMaxConcurrentStreams,x) def = def { maxConcurrentStreams = x }
+    update (SettingsInitialWindowSize,x)    def = def { initialWindowSize = x }
+    update (SettingsMaxFrameSize,x)         def = def { maxFrameSize = x }
+    update (SettingsMaxHeaderBlockSize,x)   def = def { maxHeaderBlockSize = Just x }
 
-settingsRange :: (SettingsKeyId, SettingsKeyId)
-settingsRange = (minBound, maxBound)
+----------------------------------------------------------------
 
 data Priority = Priority {
     exclusive :: Bool
   , streamDependency :: StreamIdentifier
   , weight :: Int
   } deriving (Show, Read, Eq)
-
--- |
--- >>> fromSettings $ toSettings [(SettingsHeaderTableSize,10),(SettingsInitialWindowSize,20),(SettingsHeaderTableSize,30)]
--- [(SettingsHeaderTableSize,30),(SettingsInitialWindowSize,20)]
-fromSettings :: Settings -> [(SettingsKeyId,SettingsValue)]
-fromSettings = map (second fromJust) . filter (isJust.snd) . assocs
 
 ----------------------------------------------------------------
 
@@ -382,7 +390,7 @@ data FramePayload =
   | HeadersFrame (Maybe Priority) HeaderBlockFragment
   | PriorityFrame Priority
   | RSTStreamFrame ErrorCodeId
-  | SettingsFrame Settings
+  | SettingsFrame SettingsList
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
   | PingFrame ByteString
   | GoAwayFrame LastStreamId ErrorCodeId ByteString

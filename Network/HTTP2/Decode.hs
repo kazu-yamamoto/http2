@@ -82,9 +82,7 @@ parseFrameHeader settings = do
 doesExceed :: Settings -> PayloadLength -> Bool
 doesExceed settings len = len > maxLength
   where
-    maxLength = case settings ! SettingsMaxFrameSize of
-        Just x  -> fromIntegral x
-        Nothing -> maxPayloadLength
+    maxLength = maxFrameSize settings
 
 zeroFrameTypes :: [FrameTypeId]
 zeroFrameTypes = [
@@ -110,9 +108,7 @@ isProtocolError settings typ sid
   | typ == FramePushPromise && not pushEnabled = True
   | otherwise = False
   where
-    pushEnabled = case settings ! SettingsEnablePush of
-        Nothing -> True
-        Just x  -> x /= 0
+    pushEnabled = establishPush settings
 
 ----------------------------------------------------------------
 
@@ -168,7 +164,7 @@ parseSettingsFrame FrameHeader{..}
   where
     num = payloadLength `div` 6
     isNotValid = payloadLength `mod` 6 /= 0
-    settings 0 builder = return $ toSettings $ builder []
+    settings 0 builder = return $ builder []
     settings n builder = do
         rawSetting <- BI.anyWord16be
         let msettings = toSettingsKeyId rawSetting
@@ -176,8 +172,8 @@ parseSettingsFrame FrameHeader{..}
         case msettings of
             Nothing -> settings n' builder -- ignoring unknown one (Section 6.5.2)
             Just k  -> do
-                v <- BI.anyWord32be
-                settings n' (((k,v):) . builder)
+                v <- fromIntegral <$> BI.anyWord32be
+                settings n' (builder. ((k,v):))
 
 parsePushPromiseFrame :: FramePayloadParser
 parsePushPromiseFrame header = parseWithPadding header $ \len ->
