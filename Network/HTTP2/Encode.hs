@@ -8,6 +8,7 @@ module Network.HTTP2.Encode (
   , buildFrameHeader
   , buildFramePayload
   , EncodeInfo(..)
+  , encodeInfo
   ) where
 
 import Blaze.ByteString.Builder (Builder)
@@ -31,6 +32,12 @@ data EncodeInfo = EncodeInfo {
     -- | Padding if any
     , encodePadding  :: Maybe Padding
     } deriving (Show,Read)
+
+----------------------------------------------------------------
+
+-- | A smart builder of 'EncodeInfo'.
+encodeInfo :: (FrameFlags -> FrameFlags) -> Int -> EncodeInfo
+encodeInfo set stid = EncodeInfo (set defaultFlags) (toStreamIdentifier stid) Nothing
 
 ----------------------------------------------------------------
 
