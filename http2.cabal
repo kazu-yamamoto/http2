@@ -4,8 +4,8 @@ Author:                 Kazu Yamamoto <kazu@iij.ad.jp>
 Maintainer:             Kazu Yamamoto <kazu@iij.ad.jp>
 License:                BSD3
 License-File:           LICENSE
-Synopsis:               HTTP/2.0 library including HPACK
-Description:            HTTP/2.0 library including HPACK.
+Synopsis:               HTTP/2.0 library including frames and HPACK
+Description:            HTTP/2.0 library including frames and HPACK
                         Currently HTTP/2 14 framing and HPACK 09 is supported.
 Category:               Network
 Cabal-Version:          >= 1.10
