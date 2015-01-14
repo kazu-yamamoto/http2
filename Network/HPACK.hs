@@ -5,10 +5,10 @@ module Network.HPACK (
   , HPACKDecoding
   , encodeHeader
   , decodeHeader
-  -- * HeaderTable
-  , HeaderTable
-  , newHeaderTableForEncoding
-  , newHeaderTableForDecoding
+  -- * DynamicTable
+  , DynamicTable
+  , newDynamicTableForEncoding
+  , newDynamicTableForDecoding
   -- * Strategy for encoding
   , CompressionAlgo(..)
   , EncodeStrategy(..)
@@ -30,16 +30,16 @@ import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Exception (throwIO)
 import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteStream, fromByteStream)
-import Network.HPACK.Table (HeaderTable, Size, newHeaderTableForEncoding, newHeaderTableForDecoding)
+import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding)
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
 -- | HPACK encoding, from 'HeaderList' to 'ByteStream'.
-type HPACKEncoding = HeaderTable -> HeaderList  -> IO (HeaderTable, ByteStream)
+type HPACKEncoding = DynamicTable -> HeaderList  -> IO (DynamicTable, ByteStream)
 
 -- | HPACK decoding, from 'ByteStream' to 'HeaderList'.
-type HPACKDecoding = HeaderTable -> ByteStream -> IO (HeaderTable, HeaderList)
+type HPACKDecoding = DynamicTable -> ByteStream -> IO (DynamicTable, HeaderList)
 
 ----------------------------------------------------------------
 

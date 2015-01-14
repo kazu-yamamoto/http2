@@ -47,6 +47,7 @@ Library
                         Network.HPACK.HeaderBlock.String
                         Network.HPACK.HeaderBlock.To
                         Network.HPACK.Table
+                        Network.HPACK.Table.Dynamic
                         Network.HPACK.Table.Entry
                         Network.HPACK.Table.HashPSQ
                         Network.HPACK.Table.Static

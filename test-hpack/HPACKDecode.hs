@@ -30,13 +30,13 @@ run :: Bool -> Test -> IO Result
 run _ (Test _ _ [])        = return $ Pass
 run d (Test _ _ ccs@(c:_)) = do
     let siz = maybe 4096 id $ size c
-    dhdrtbl <- newHeaderTableForDecoding siz
+    dhdrtbl <- newDynamicTableForDecoding siz
     let conf = Conf { debug = d }
     testLoop conf ccs dhdrtbl
 
 testLoop :: Conf
          -> [Case]
-         -> HeaderTable
+         -> DynamicTable
          -> IO Result
 testLoop _    []     _    = return $ Pass
 testLoop conf (c:cs) dhdrtbl  = do
@@ -47,8 +47,8 @@ testLoop conf (c:cs) dhdrtbl  = do
 
 test :: Conf
      -> Case
-     -> HeaderTable
-     -> IO (Either String HeaderTable)
+     -> DynamicTable
+     -> IO (Either String DynamicTable)
 test conf c dhdrtbl = do
     -- context is destructive!!!
     when (debug conf) $ do
@@ -56,14 +56,14 @@ test conf c dhdrtbl = do
         putStrLn "---- Input header list"
         printHeaderList $ sort hs
         putStrLn "---- Input header table"
-        printHeaderTable dhdrtbl
+        printDynamicTable dhdrtbl
         putStrLn "---- Input Hex"
         B8.putStrLn wirehex
         putStrLn "---- Input header block"
         print bshd'
     dhdrtbl0 <- case size c of
         Nothing  -> return dhdrtbl
-        Just siz -> renewHeaderTable siz dhdrtbl
+        Just siz -> renewDynamicTable siz dhdrtbl
     x <- try $ decodeHeader dhdrtbl0 inp
     case x of
         Left e -> return $ Left $ show (e :: DecodeError)

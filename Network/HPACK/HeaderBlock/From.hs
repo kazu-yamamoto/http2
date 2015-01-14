@@ -13,18 +13,18 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-type Ctx = (HeaderTable, Builder Header)
+type Ctx = (DynamicTable, Builder Header)
 type Step = Ctx -> HeaderField -> IO Ctx
 
 -- | Decoding 'HeaderBlock' to 'HeaderList'.
-fromHeaderBlock :: HeaderTable
+fromHeaderBlock :: DynamicTable
                 -> HeaderBlock
-                -> IO (HeaderTable, HeaderList)
+                -> IO (DynamicTable, HeaderList)
 fromHeaderBlock !hdrtbl rs = decodeLoop rs (hdrtbl,empty)
 
 ----------------------------------------------------------------
 
-decodeLoop :: HeaderBlock -> Ctx -> IO (HeaderTable, HeaderList)
+decodeLoop :: HeaderBlock -> Ctx -> IO (DynamicTable, HeaderList)
 decodeLoop (r:rs) !hdrtbl = decodeStep hdrtbl r >>= decodeLoop rs
 decodeLoop []     !hdrtbl = decodeFinal hdrtbl
 
@@ -34,7 +34,7 @@ decodeLoop []     !hdrtbl = decodeFinal hdrtbl
 --   test purpose.
 decodeStep :: Step
 decodeStep (!hdrtbl,!builder) (ChangeTableSize siz) = do
-    hdrtbl' <- renewHeaderTable siz hdrtbl
+    hdrtbl' <- renewDynamicTable siz hdrtbl
     return (hdrtbl',builder)
 decodeStep (!hdrtbl,!builder) (Indexed idx) = do
       w <- which hdrtbl idx
@@ -42,7 +42,7 @@ decodeStep (!hdrtbl,!builder) (Indexed idx) = do
           (InStaticTable, e) -> do
               let b = builder << fromEntry e
               return (hdrtbl,b)
-          (InHeaderTable, e) -> do
+          (InDynamicTable, e) -> do
               let b = builder << fromEntry e
               return (hdrtbl,b)
 decodeStep (!hdrtbl,!builder) (Literal NotAdd naming v) = do
@@ -61,11 +61,11 @@ decodeStep (!hdrtbl,!builder) (Literal Add naming v) = do
     hdrtbl' <- insertEntry e hdrtbl
     return (hdrtbl',b)
 
-decodeFinal :: Ctx -> IO (HeaderTable, HeaderList)
+decodeFinal :: Ctx -> IO (DynamicTable, HeaderList)
 decodeFinal (!hdrtbl, !builder) = return (hdrtbl, run builder)
 
 ----------------------------------------------------------------
 
-fromNaming :: Naming -> HeaderTable -> IO HeaderName
+fromNaming :: Naming -> DynamicTable -> IO HeaderName
 fromNaming (Lit k)   _   = return k
 fromNaming (Idx idx) hdrtbl = entryHeaderName . snd <$> which hdrtbl idx

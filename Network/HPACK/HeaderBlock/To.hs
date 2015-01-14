@@ -9,27 +9,27 @@ import Network.HPACK.HeaderBlock.HeaderField
 import Network.HPACK.Table
 import Network.HPACK.Types
 
-type Ctx = (HeaderTable, Builder HeaderField)
+type Ctx = (DynamicTable, Builder HeaderField)
 type Step = Ctx -> Header -> IO Ctx
 
 -- | Encoding 'HeaderList' to 'HeaderBlock'.
 toHeaderBlock :: CompressionAlgo
-              -> HeaderTable
+              -> DynamicTable
               -> HeaderList
-              -> IO (HeaderTable, HeaderBlock)
+              -> IO (DynamicTable, HeaderBlock)
 toHeaderBlock Naive  !hdrtbl hs = encodeLoop naiveStep  hs (hdrtbl,empty)
 toHeaderBlock Static !hdrtbl hs = encodeLoop staticStep hs (hdrtbl,empty)
 toHeaderBlock Linear !hdrtbl hs = encodeLoop linearStep hs (hdrtbl,empty)
 
 ----------------------------------------------------------------
 
-encodeFinal :: Ctx -> IO (HeaderTable, HeaderBlock)
+encodeFinal :: Ctx -> IO (DynamicTable, HeaderBlock)
 encodeFinal (!hdrtbl, !builder) = return (hdrtbl, run builder)
 
 encodeLoop :: Step
            -> HeaderList
            -> Ctx
-           -> IO (HeaderTable, HeaderBlock)
+           -> IO (DynamicTable, HeaderBlock)
 encodeLoop step (h:hs) !hdrtbl = step hdrtbl h >>= encodeLoop step hs
 encodeLoop _    []     !hdrtbl = encodeFinal hdrtbl
 
@@ -48,9 +48,9 @@ staticStep (!hdrtbl,!builder) h@(k,v) = return (hdrtbl, builder')
     b = case lookupTable h hdrtbl of
         None                     -> Literal NotAdd (Lit k) v
         KeyOnly  InStaticTable i -> Literal NotAdd (Idx i) v
-        KeyOnly  InHeaderTable _ -> Literal NotAdd (Lit k) v
+        KeyOnly  InDynamicTable _ -> Literal NotAdd (Lit k) v
         KeyValue InStaticTable i -> Literal NotAdd (Idx i) v
-        KeyValue InHeaderTable _ -> Literal NotAdd (Lit k) v
+        KeyValue InDynamicTable _ -> Literal NotAdd (Lit k) v
     builder' = builder << b
 
 ----------------------------------------------------------------
@@ -68,11 +68,11 @@ smartStep :: (Index -> IO Ctx) -> Step
 smartStep func cb@(!hdrtbl,!builder) h@(k,_) = do
     let cache = lookupTable h hdrtbl
     case cache of
-        None                     -> check cb h (Lit k)
-        KeyOnly  InStaticTable i -> check cb h (Idx i)
-        KeyOnly  InHeaderTable i -> check cb h (Idx i)
-        KeyValue InStaticTable i -> return (hdrtbl, builder << Indexed i)
-        KeyValue InHeaderTable i -> func i
+        None                      -> check cb h (Lit k)
+        KeyOnly  InStaticTable i  -> check cb h (Idx i)
+        KeyOnly  InDynamicTable i -> check cb h (Idx i)
+        KeyValue InStaticTable i  -> return (hdrtbl, builder << Indexed i)
+        KeyValue InDynamicTable i -> func i
 
 check :: Ctx -> Header -> Naming -> IO Ctx
 check (hdrtbl,builder) h@(k,v) x
