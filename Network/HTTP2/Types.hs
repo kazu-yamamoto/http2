@@ -79,6 +79,7 @@ data ErrorCodeId = NoError
                  | ConnectError
                  | EnhanceYourCalm
                  | InadequateSecurity
+                 | HTTP11Required
                    -- our extensions
                  | UnknownErrorCode ErrorCode
                  | UnknownError String
@@ -104,6 +105,7 @@ fromErrorCodeId CompressionError     = 0x9
 fromErrorCodeId ConnectError         = 0xa
 fromErrorCodeId EnhanceYourCalm      = 0xb
 fromErrorCodeId InadequateSecurity   = 0xc
+fromErrorCodeId HTTP11Required       = 0xd
 fromErrorCodeId (UnknownErrorCode w) = w
 fromErrorCodeId _                    = 255 -- never reached
 
@@ -113,8 +115,8 @@ fromErrorCodeId _                    = 255 -- never reached
 -- NoError
 -- >>> toErrorCodeId 0xc
 -- InadequateSecurity
--- >>> toErrorCodeId 0xd
--- UnknownErrorCode 13
+-- >>> toErrorCodeId 0xe
+-- UnknownErrorCode 14
 toErrorCodeId :: ErrorCode -> ErrorCodeId
 toErrorCodeId 0x0 = NoError
 toErrorCodeId 0x1 = ProtocolError
@@ -129,6 +131,7 @@ toErrorCodeId 0x9 = CompressionError
 toErrorCodeId 0xa = ConnectError
 toErrorCodeId 0xb = EnhanceYourCalm
 toErrorCodeId 0xc = InadequateSecurity
+toErrorCodeId 0xd = HTTP11Required
 toErrorCodeId w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
