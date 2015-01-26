@@ -5,5 +5,5 @@ CaseSource {
     , encodeStreamId = StreamIdentifier 1
     , encodePadding = Nothing
     }
-  , cs_payload = HeadersFrame Nothing "this is dummy"
+  , cs_payload = HeadersFrame Nothing "\130"
   }

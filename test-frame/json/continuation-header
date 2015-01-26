@@ -12,6 +12,5 @@
         "stream_identifier": 50,
         "type": 9
     },
-    "draft": 14,
     "description": "normal continuation frame without header block fragment"
 }

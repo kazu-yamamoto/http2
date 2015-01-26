@@ -13,6 +13,5 @@
         "stream_identifier": 9,
         "type": 5
     },
-    "draft": 14,
     "description": "normal push promise frame"
 }

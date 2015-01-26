@@ -1,15 +1,15 @@
 {
     "error": null,
-    "wire": "000023012800000003108000001409746869732069732064756D6D79546869732069732070616464696E672E",
+    "wire": "00001701280000000310800000140982546869732069732070616464696E672E",
     "frame": {
-        "length": 35,
+        "length": 23,
         "frame_payload": {
             "priority": {
                 "stream_dependency": 20,
                 "weight": 10,
                 "exclusive": true
             },
-            "header_block_fragment": "this is dummy",
+            "header_block_fragment": "",
             "padding_length": 16,
             "padding": "This is padding."
         },
@@ -17,6 +17,5 @@
         "stream_identifier": 3,
         "type": 1
     },
-    "draft": 14,
     "description": "normal headers frame including priority"
 }
