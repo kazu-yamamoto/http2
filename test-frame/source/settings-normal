@@ -5,12 +5,8 @@ CaseSource {
     , encodeStreamId = StreamIdentifier 0
     , encodePadding = Nothing
     }
-  , cs_payload = SettingsFrame (array (SettingsHeaderTableSize,SettingsMaxHeaderBlockSize) [
-      (SettingsHeaderTableSize,Just 8192)
-    , (SettingsEnablePush,Nothing)
-    , (SettingsMaxConcurrentStreams,Just 5000)
-    , (SettingsInitialWindowSize,Nothing)
-    , (SettingsMaxFrameSize,Nothing)
-    , (SettingsMaxHeaderBlockSize,Nothing)
-    ])
+  , cs_payload = SettingsFrame [
+      (SettingsHeaderTableSize,8192)
+    , (SettingsMaxConcurrentStreams,5000)
+    ]
   }
