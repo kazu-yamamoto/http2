@@ -24,13 +24,13 @@ run :: Bool -> EncodeStrategy -> Test -> IO [ByteString]
 run _ _    (Test _        _ [])        = return []
 run d stgy (Test _ _ ccs@(c:_)) = do
     let siz = maybe 4096 id $ size c
-    ehdrtbl <- newHeaderTableForEncoding siz
+    ehdrtbl <- newDynamicTableForEncoding siz
     let conf = Conf { debug = d, enc = encodeHeader stgy }
     testLoop conf ccs ehdrtbl []
 
 testLoop :: Conf
          -> [Case]
-         -> HeaderTable
+         -> DynamicTable
          -> [ByteString]
          -> IO [ByteString]
 testLoop _    []     _    hexs = return $ reverse hexs
@@ -40,14 +40,14 @@ testLoop conf (c:cs) ehdrtbl hxs = do
 
 test :: Conf
      -> Case
-     -> HeaderTable
-     -> IO (HeaderTable, ByteString)
+     -> DynamicTable
+     -> IO (DynamicTable, ByteString)
 test conf c ehdrtbl = do
     (ehdrtbl',out) <- enc conf ehdrtbl hs
     let hex' = hex out
     when (debug conf) $ do
         putStrLn "---- Output context"
-        printHeaderTable ehdrtbl'
+        printDynamicTable ehdrtbl'
         putStrLn "--------------------------------"
     return (ehdrtbl', hex')
   where
