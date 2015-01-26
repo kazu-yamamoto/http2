@@ -13,7 +13,7 @@ main :: IO ()
 main = do
     args <- getArgs
     xs <- getContents
-    if length args /= 0 then -- "-s"
+    if length args /= 0 then -- "-w"
         printWire xs
       else
         printJSON xs
