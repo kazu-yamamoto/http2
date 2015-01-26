@@ -48,8 +48,7 @@ unPad (Pad x) = x
 ----------------------------------------------------------------
 
 data Case = Case {
-    draft :: Int
-  , description :: String
+    description :: String
   , wire :: ByteString
   , frame :: Maybe FramePad
   , err :: Maybe [ErrorCode]
@@ -207,16 +206,14 @@ emptyPad = object [
 
 instance ToJSON Case where
     toJSON Case{..} = object [
-        "draft" .= draft
-      , "description" .= description
+        "description" .= description
       , "wire" .= wire
       , "frame" .= frame
       , "error" .= err
       ]
 
 instance FromJSON Case where
-    parseJSON (Object o) = Case <$> o .: "draft"
-                                <*> o .: "description"
+    parseJSON (Object o) = Case <$> o .: "description"
                                 <*> o .: "wire"
                                 <*> o .:? "frame"
                                 <*> o .:? "error"

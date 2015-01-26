@@ -36,8 +36,7 @@ sourceToWire CaseSource{..} = CaseWire {
 
 wireToCase :: CaseWire -> Case
 wireToCase CaseWire { wire_error = Nothing, ..} = Case {
-    draft = 14
-  , description = wire_description
+    description = wire_description
   , wire = wire_hex
   , frame = Just $ FramePad frm wire_padding
   , err = Nothing
@@ -48,8 +47,7 @@ wireToCase CaseWire { wire_error = Nothing, ..} = Case {
         Left  e     -> error $ show e
         Right (r,_) -> r
 wireToCase CaseWire { wire_error = Just e, ..} = Case {
-    draft = 14
-  , description = wire_description
+    description = wire_description
   , wire = wire_hex
   , frame = Nothing
   , err = Just $ fromErrorCodeId <$> e
