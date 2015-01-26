@@ -1,7 +1,5 @@
 #! /bin/sh
 
-set -x
-
 TOPDIR="test-frame"
 CMD="./dist/build/frame-encode/frame-encode"
 
