@@ -159,7 +159,7 @@ parseRstStreamFrame _ = RSTStreamFrame . toErrorCodeId <$> BI.anyWord32be
 
 parseSettingsFrame :: FramePayloadParser
 parseSettingsFrame FrameHeader{..}
-  | isNotValid = fail protocolError
+  | isNotValid = fail frameSizeError
   | otherwise  = SettingsFrame <$> settings num id
   where
     num = payloadLength `div` 6
