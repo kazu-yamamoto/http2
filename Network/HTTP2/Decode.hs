@@ -37,7 +37,7 @@ decodeFrame :: Settings    -- ^ HTTP/2 settings
 decodeFrame settings bs = case B.parse (parseFrame settings) bs of
     B.Done left frame -> Right (frame, left)
     B.Fail _ _ estr   -> Left $ toErrorCode estr
-    B.Partial _       -> undefined -- fixme
+    B.Partial _       -> error "partial"
 
 decodeFrameHeader :: Settings -> ByteString
                   -> Either ErrorCodeId (FrameType, FrameHeader)
