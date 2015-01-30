@@ -91,8 +91,6 @@ Test-Suite spec
   Build-Depends:        base >= 4 && < 5
                       , PSQueue
                       , array
-                      , attoparsec
-                      , attoparsec-binary
                       , blaze-builder
                       , bytestring
                       , containers

@@ -9,6 +9,8 @@ module Network.HTTP2 (
   , encodeInfo
   , encodeFrame
   , decodeFrame
+  , decodeFrameHeader
+  , checkFrameHeader
   , module Network.HTTP2.Types
   ) where
 

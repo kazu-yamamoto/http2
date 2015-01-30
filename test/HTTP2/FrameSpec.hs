@@ -20,7 +20,7 @@ spec = do
                   }
                 ftyp = fromFrameTypeId FramePriority
                 wire = encodeFrameHeader ftyp header
-                Right fibHeader = decodeFrameHeader defaultSettings wire
+                fibHeader = decodeFrameHeader wire
             fibHeader `shouldBe` (ftyp, header)
 
     describe "encodeFrame & decodeFrame" $ do
@@ -32,7 +32,7 @@ spec = do
                   }
                 payload = DataFrame "Hello, world!"
                 wire = encodeFrame einfo payload
-                Right (frame,_) = decodeFrame defaultSettings wire
+                Right frame = decodeFrame defaultSettings wire
                 payload' = framePayload frame
             payload' `shouldBe` payload
         it "encode/decodes padded frames properly" $ do
@@ -43,6 +43,6 @@ spec = do
                   }
                 payload = DataFrame "Hello, world!"
                 wire = encodeFrame einfo payload
-                Right (frame,_) = decodeFrame defaultSettings wire
+                Right frame = decodeFrame defaultSettings wire
                 payload' = framePayload frame
             payload' `shouldBe` payload

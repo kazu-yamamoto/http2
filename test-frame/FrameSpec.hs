@@ -34,10 +34,11 @@ check file = do
             let Just bin = unhex $ wire tc
                 erc = decodeFrame defaultSettings bin
             case erc of
-                Left e -> do
+                Left h2err -> do
                     let Just errs = err tc
-                    errs `shouldContain` [fromErrorCodeId e]
-                Right (frm,_) -> do
+                        e = fromErrorCodeId $ errorCodeId h2err
+                    errs `shouldContain` [e]
+                Right frm -> do
                     let Just fp = frame tc
                     fpFrame fp `shouldBe` frm
                     let einfo = EncodeInfo {

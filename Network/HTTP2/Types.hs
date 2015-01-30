@@ -1,6 +1,10 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Network.HTTP2.Types (
+  -- * Constant
+    frameHeaderLength
   -- * Settings
-    SettingsKey
+  , SettingsKey
   , SettingsKeyId(..)
   , SettingsValue
   , fromSettingsKeyId
@@ -9,6 +13,9 @@ module Network.HTTP2.Types (
   , SettingsList
   , defaultSettings
   , updateSettings
+  -- * Error
+  , HTTP2Error(..)
+  , errorCodeId
   -- * Error code
   , ErrorCode
   , ErrorCodeId(..)
@@ -60,10 +67,17 @@ module Network.HTTP2.Types (
   , Padding
   ) where
 
+import qualified Control.Exception as E
 import Data.Array (Ix)
 import Data.Bits (setBit, testBit, clearBit)
 import Data.ByteString (ByteString)
+import Data.Typeable
 import Data.Word (Word8, Word16, Word32)
+
+----------------------------------------------------------------
+
+frameHeaderLength :: Int
+frameHeaderLength = 9
 
 ----------------------------------------------------------------
 
@@ -139,6 +153,18 @@ toErrorCodeId w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
 
+data HTTP2Error = ConnectionError ErrorCodeId ByteString
+                | StreamError ErrorCodeId StreamIdentifier
+                deriving (Eq, Show, Typeable, Read)
+
+instance E.Exception HTTP2Error
+
+errorCodeId :: HTTP2Error -> ErrorCodeId
+errorCodeId (ConnectionError err _) = err
+errorCodeId (StreamError     err _) = err
+
+----------------------------------------------------------------
+
 data SettingsKeyId = SettingsHeaderTableSize
                    | SettingsEnablePush
                    | SettingsMaxConcurrentStreams
@@ -186,7 +212,7 @@ toSettingsKeyId x
 
 data Settings = Settings {
     headerTableSize :: Int
-  , establishPush :: Bool
+  , enablePush :: Bool
   , maxConcurrentStreams :: Int
   , initialWindowSize :: Int
   , maxFrameSize :: Int
@@ -199,7 +225,7 @@ type SettingsList = [(SettingsKeyId,SettingsValue)]
 defaultSettings :: Settings
 defaultSettings = Settings {
     headerTableSize = 4096
-  , establishPush = True
+  , enablePush = True
   , maxConcurrentStreams = 100
   , initialWindowSize = 65535
   , maxFrameSize = 16384
@@ -209,13 +235,13 @@ defaultSettings = Settings {
 -- | Updating settings.
 --
 -- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
--- Settings {headerTableSize = 4096, establishPush = False, maxConcurrentStreams = 100, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Just 200}
+-- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = 100, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Just 200}
 updateSettings :: Settings -> SettingsList -> Settings
 updateSettings settings kvs = foldr update settings kvs
   where
     update (SettingsHeaderTableSize,x)      def = def { headerTableSize = x }
     -- fixme: x should be 0 or 1
-    update (SettingsEnablePush,x)           def = def { establishPush = x > 0 }
+    update (SettingsEnablePush,x)           def = def { enablePush = x > 0 }
     update (SettingsMaxConcurrentStreams,x) def = def { maxConcurrentStreams = x }
     update (SettingsInitialWindowSize,x)    def = def { initialWindowSize = x }
     update (SettingsMaxFrameSize,x)         def = def { maxFrameSize = x }
