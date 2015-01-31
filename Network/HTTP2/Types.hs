@@ -1,16 +1,18 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HTTP2.Types (
   -- * Constant
     frameHeaderLength
-  -- * Settings
-  , SettingsKey
+  -- * SettingsList
   , SettingsKeyId(..)
-  , SettingsValue
+  , checkSettingsList
   , fromSettingsKeyId
-  , toSettingsKeyId
-  , Settings(..)
+  , SettingsValue
   , SettingsList
+  , toSettingsKeyId
+  -- * Settings
+  , Settings(..)
   , defaultSettings
   , updateSettings
   -- * Error
@@ -73,6 +75,7 @@ import Data.Bits (setBit, testBit, clearBit)
 import Data.ByteString (ByteString)
 import Data.Typeable
 import Data.Word (Word8, Word16, Word32)
+import Data.Maybe (mapMaybe)
 
 ----------------------------------------------------------------
 
@@ -173,7 +176,6 @@ data SettingsKeyId = SettingsHeaderTableSize
                    | SettingsMaxHeaderBlockSize
                    deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
-type SettingsKey = Word16
 type SettingsValue = Int -- Word32
 
 -- |
@@ -210,6 +212,24 @@ toSettingsKeyId x
 
 ----------------------------------------------------------------
 
+type SettingsList = [(SettingsKeyId,SettingsValue)]
+
+checkSettingsList :: SettingsList -> Maybe HTTP2Error
+checkSettingsList settings = case mapMaybe checkSettingsValue settings of
+    []    -> Nothing
+    (x:_) -> Just x
+
+checkSettingsValue :: (SettingsKeyId,SettingsValue) -> Maybe HTTP2Error
+checkSettingsValue (SettingsEnablePush,v)
+  | v /= 0 || v /= 1 = Just $ ConnectionError ProtocolError "enable push must be 0 or 1"
+checkSettingsValue (SettingsInitialWindowSize,v)
+  | v > 65535        = Just $ ConnectionError FlowControlError "Window size must be less than or equal to 65535"
+checkSettingsValue (SettingsMaxFrameSize,v)
+  | v < 16384 || v > 16777215 = Just $ ConnectionError ProtocolError "Max frame size must be in between 16384 and 16777215"
+checkSettingsValue _ = Nothing
+
+----------------------------------------------------------------
+
 data Settings = Settings {
     headerTableSize :: Int
   , enablePush :: Bool
@@ -218,8 +238,6 @@ data Settings = Settings {
   , maxFrameSize :: Int
   , maxHeaderBlockSize :: Maybe Int
   } deriving (Show)
-
-type SettingsList = [(SettingsKeyId,SettingsValue)]
 
 -- | The default settings.
 defaultSettings :: Settings
