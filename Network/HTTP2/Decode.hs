@@ -1,9 +1,23 @@
 {-# LANGUAGE TupleSections, BangPatterns, RecordWildCards, OverloadedStrings #-}
 
 module Network.HTTP2.Decode (
+  -- * Decoding
     decodeFrame
   , decodeFrameHeader
   , checkFrameHeader
+  -- * Decoding payload
+  , FramePayloadDecoder
+  , payloadDecoders
+  , decodeDataFrame
+  , decodeHeadersFrame
+  , decodePriorityFrame
+  , decoderstStreamFrame
+  , decodeSettingsFrame
+  , decodePushPromiseFrame
+  , decodePingFrame
+  , decodeGoAwayFrame
+  , decodeWindowUpdateFrame
+  , decodeContinuationFrame
   ) where
 
 import Control.Applicative ((<$>))

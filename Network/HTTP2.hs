@@ -4,13 +4,11 @@ module Network.HTTP2 (
   -- * Magic
     connectionPreface
   , connectionPrefaceLength
-  -- * Encoding and decoding
+  -- * Encoding
   , EncodeInfo(..)
   , encodeInfo
   , encodeFrame
-  , decodeFrame
-  , decodeFrameHeader
-  , checkFrameHeader
+  , module Network.HTTP2.Decode
   , module Network.HTTP2.Types
   ) where
 
