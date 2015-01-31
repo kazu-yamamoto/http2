@@ -242,6 +242,7 @@ word32 :: ByteString -> Word32
 word32 (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     word32' p
+{-# INLINE word32 #-}
 
 word32' :: Ptr Word8 -> IO Word32
 word32' p = do
@@ -251,6 +252,7 @@ word32' p = do
     w3 <- fromIntegral <$> peek (p +. 3)
     let !w32 = (w0 `shiftL` 24) .|. (w1 `shiftL` 16) .|. (w2 `shiftL` 8) .|. w3
     return w32
+{-# INLINE word32' #-}
 
 word16' :: Ptr Word8 -> IO Word16
 word16' p = do
@@ -258,4 +260,4 @@ word16' p = do
     w1 <- fromIntegral <$> peek (p +. 1)
     let !w16 = (w0 `shiftL` 8) .|. w1
     return w16
-
+{-# INLINE word16' #-}
