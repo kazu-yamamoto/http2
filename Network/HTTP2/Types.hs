@@ -43,7 +43,7 @@ module Network.HTTP2.Types (
   , PromisedStreamId
   , LastStreamId
   , StreamDependency
-  , streamIdentifierForSeetings
+  , streamIdentifierForSettings
   , testExclusive
   , setExclusive
   -- * Flags
@@ -424,8 +424,8 @@ testExclusive n = n `testBit` 31
 setExclusive :: Int -> Int
 setExclusive n = n `setBit` 31
 
-streamIdentifierForSeetings :: StreamIdentifier
-streamIdentifierForSeetings = StreamIdentifier 0
+streamIdentifierForSettings :: StreamIdentifier
+streamIdentifierForSettings = StreamIdentifier 0
 
 ----------------------------------------------------------------
 

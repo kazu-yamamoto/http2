@@ -78,9 +78,9 @@ checkFrameHeader :: Settings -> FrameTypeId -> FrameHeader -> Maybe HTTP2Error
 checkFrameHeader Settings {..} typ FrameHeader {..}
   | payloadLength > maxFrameSize =
       Just $ ConnectionError FrameSizeError "exceeds maximum frame size"
-  | typ `elem` nonZeroFrameTypes && streamId == streamIdentifierForSeetings =
+  | typ `elem` nonZeroFrameTypes && streamId == streamIdentifierForSettings =
       Just $ ConnectionError ProtocolError "cannot used in control stream"
-  | typ `elem` zeroFrameTypes && streamId /= streamIdentifierForSeetings =
+  | typ `elem` zeroFrameTypes && streamId /= streamIdentifierForSettings =
       Just $ ConnectionError ProtocolError "cannot used in non-zero stream"
   | otherwise = checkType typ
   where
