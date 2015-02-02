@@ -22,10 +22,9 @@ module Network.HTTP2.Decode (
 
 import Control.Applicative ((<$>))
 import Data.Array (Array, listArray, (!))
-import Data.Bits (shiftL, (.|.))
+import Data.Bits (clearBit, shiftL, (.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-
 import Data.ByteString.Internal (ByteString(..), inlinePerformIO)
 import Data.Word
 import Foreign.ForeignPtr (withForeignPtr)
@@ -198,7 +197,9 @@ decodeGoAwayFrame _ bs = GoAwayFrame sid ecid bs2
     ecid = toErrorCodeId (word32 bs1)
 
 decodeWindowUpdateFrame :: FramePayloadDecoder
-decodeWindowUpdateFrame _ bs = WindowUpdateFrame (word32 bs) -- fixme: reserve bit
+decodeWindowUpdateFrame _ bs = WindowUpdateFrame wsi
+  where
+    !wsi = word32 bs `clearBit` 31
 
 decodeContinuationFrame :: FramePayloadDecoder
 decodeContinuationFrame _ bs = ContinuationFrame bs
