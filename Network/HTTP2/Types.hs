@@ -38,12 +38,11 @@ module Network.HTTP2.Types (
   , fromStreamIdentifier
   , toStreamIdentifier
   , isControl
-  , isEven
-  , isOdd
+  , isRequest
+  , isResponse
   , PromisedStreamId
   , LastStreamId
   , StreamDependency
-  , streamIdentifierForSettings
   , testExclusive
   , setExclusive
   -- * Flags
@@ -406,26 +405,22 @@ toStreamIdentifier n = StreamIdentifier (n `clearBit` 31)
 fromStreamIdentifier :: StreamIdentifier -> Int
 fromStreamIdentifier (StreamIdentifier n) = n
 
-isEven :: StreamIdentifier -> Bool
-isEven (StreamIdentifier 0) = False
-isEven (StreamIdentifier n) = even n
-
-isOdd :: StreamIdentifier -> Bool
-isOdd (StreamIdentifier n) = odd n
-
 isControl :: StreamIdentifier -> Bool
 isControl (StreamIdentifier 0) = True
 isControl _                    = False
 
+isRequest :: StreamIdentifier -> Bool
+isRequest (StreamIdentifier n) = odd n
+
+isResponse :: StreamIdentifier -> Bool
+isResponse (StreamIdentifier 0) = False
+isResponse (StreamIdentifier n) = even n
 
 testExclusive :: Int -> Bool
 testExclusive n = n `testBit` 31
 
 setExclusive :: Int -> Int
 setExclusive n = n `setBit` 31
-
-streamIdentifierForSettings :: StreamIdentifier
-streamIdentifierForSettings = StreamIdentifier 0
 
 ----------------------------------------------------------------
 
