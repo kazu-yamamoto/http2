@@ -220,7 +220,7 @@ checkSettingsList settings = case mapMaybe checkSettingsValue settings of
 
 checkSettingsValue :: (SettingsKeyId,SettingsValue) -> Maybe HTTP2Error
 checkSettingsValue (SettingsEnablePush,v)
-  | v /= 0 || v /= 1 = Just $ ConnectionError ProtocolError "enable push must be 0 or 1"
+  | v /= 0 && v /= 1 = Just $ ConnectionError ProtocolError "enable push must be 0 or 1"
 checkSettingsValue (SettingsInitialWindowSize,v)
   | v > 2147483647   = Just $ ConnectionError FlowControlError "Window size must be less than or equal to 65535"
 checkSettingsValue (SettingsMaxFrameSize,v)
