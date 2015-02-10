@@ -42,6 +42,7 @@ type Index = Int
 data CompressionAlgo = Naive  -- ^ No compression
                      | Static -- ^ Using the static table only
                      | Linear -- ^ Using indices only
+                     deriving (Eq, Show)
 
 -- | Strategy for HPACK encoding.
 data EncodeStrategy = EncodeStrategy {
@@ -49,9 +50,12 @@ data EncodeStrategy = EncodeStrategy {
     compressionAlgo :: CompressionAlgo
   -- | Whether or not to use Huffman encoding for strings.
   , useHuffman :: Bool
-  }
+  } deriving (Eq, Show)
 
--- | Default 'EncodeStrategy'. 'compressionAlgo' is 'Linear' and 'useHuffman' is 'True'.
+-- | Default 'EncodeStrategy'.
+--
+-- >>> defaultEncodeStrategy
+-- EncodeStrategy {compressionAlgo = Linear, useHuffman = True}
 defaultEncodeStrategy :: EncodeStrategy
 defaultEncodeStrategy = EncodeStrategy {
     compressionAlgo = Linear
