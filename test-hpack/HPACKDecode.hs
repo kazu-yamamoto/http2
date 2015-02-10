@@ -77,7 +77,7 @@ test conf c dhdrtbl = do
     wirehex = wire c
     Just inp = unhex wirehex
     hs = headers c
-    bshd = fromByteStreamDebug inp
+    bshd = fromByteStringDebug inp
     hd = map snd <$> bshd
     bshd' = map (\(x,y)->(hex x,y)) <$> bshd
 

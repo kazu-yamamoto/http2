@@ -1,6 +1,6 @@
 module Network.HPACK.HeaderBlock.Decode (
-    fromByteStream
-  , fromByteStreamDebug
+    fromByteString
+  , fromByteStringDebug
   ) where
 
 import Data.Bits (testBit, clearBit, (.&.))
@@ -16,8 +16,8 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | Converting the low level format to 'HeaderBlock'.
-fromByteStream :: ByteStream -> Either DecodeError HeaderBlock
-fromByteStream inp = go inp empty
+fromByteString :: ByteString -> Either DecodeError HeaderBlock
+fromByteString inp = go inp empty
   where
     go bs builder
       | BS.null bs = Right $ run builder
@@ -27,8 +27,8 @@ fromByteStream inp = go inp empty
 
 -- | Converting the low level format to 'HeaderBlock'.
 --   'HeaderBlock' forms a pair with corresponding 'ByteString'.
-fromByteStreamDebug :: ByteStream -> Either DecodeError [(ByteString,HeaderField)]
-fromByteStreamDebug inp = go inp empty
+fromByteStringDebug :: ByteString -> Either DecodeError [(ByteString,HeaderField)]
+fromByteStringDebug inp = go inp empty
   where
     go bs builder
       | BS.null bs = Right $ run builder

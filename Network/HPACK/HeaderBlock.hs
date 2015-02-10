@@ -2,9 +2,9 @@ module Network.HPACK.HeaderBlock (
   -- * Types for header block
     module Network.HPACK.HeaderBlock.HeaderField
   -- * Header block from/to Low level
-  , toByteStream
-  , fromByteStream
-  , fromByteStreamDebug
+  , toByteString
+  , fromByteString
+  , fromByteStringDebug
   -- * Header block from/to header list
   , toHeaderBlock
   , fromHeaderBlock

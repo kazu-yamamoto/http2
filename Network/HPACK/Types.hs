@@ -8,7 +8,6 @@ module Network.HPACK.Types (
   , Header
   , HeaderList
   -- * Misc
-  , ByteStream
   , Index
   -- * Encoding and decoding
   , CompressionAlgo(..)
@@ -35,9 +34,6 @@ type HeaderList = [Header]
 
 -- | To be a 'HeaderName' or 'HeaderValue'.
 type HeaderStuff = ByteString
-
--- | Byte stream in HTTP request/response.
-type ByteStream = ByteString
 
 -- | Index for table.
 type Index = Int

@@ -1,10 +1,11 @@
 module Network.HPACK.HeaderBlock.Encode (
-    toByteStream
+    toByteString
   ) where
 
 import Blaze.ByteString.Builder (Builder)
 import qualified Blaze.ByteString.Builder as BB
 import Data.Bits (setBit)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.List (foldl')
 import Data.Monoid ((<>), mempty)
@@ -12,13 +13,12 @@ import Data.Word (Word8)
 import Network.HPACK.HeaderBlock.HeaderField
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.HeaderBlock.String as S
-import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderBlock' to the low level format.
-toByteStream :: Bool -> HeaderBlock -> ByteStream
-toByteStream huff hbs = BB.toByteString $ foldl' (<>) mempty $ map toBB hbs
+toByteString :: Bool -> HeaderBlock -> ByteString
+toByteString huff hbs = BB.toByteString $ foldl' (<>) mempty $ map toBB hbs
   where
     toBB = fromHeaderField huff
 

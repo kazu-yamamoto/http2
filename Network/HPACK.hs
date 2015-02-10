@@ -21,7 +21,6 @@ module Network.HPACK (
   , HeaderName
   , HeaderValue
   -- * Basic types
-  , ByteStream
   , Size
   , Index
   ) where
@@ -29,17 +28,18 @@ module Network.HPACK (
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Exception (throwIO)
-import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteStream, fromByteStream)
+import Data.ByteString (ByteString)
+import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, fromByteString)
 import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding)
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | HPACK encoding, from 'HeaderList' to 'ByteStream'.
-type HPACKEncoding = DynamicTable -> HeaderList  -> IO (DynamicTable, ByteStream)
+-- | HPACK encoding, from 'HeaderList' to 'ByteString'.
+type HPACKEncoding = DynamicTable -> HeaderList  -> IO (DynamicTable, ByteString)
 
--- | HPACK decoding, from 'ByteStream' to 'HeaderList'.
-type HPACKDecoding = DynamicTable -> ByteStream -> IO (DynamicTable, HeaderList)
+-- | HPACK decoding, from 'ByteString' to 'HeaderList'.
+type HPACKDecoding = DynamicTable -> ByteString -> IO (DynamicTable, HeaderList)
 
 ----------------------------------------------------------------
 
@@ -48,11 +48,11 @@ encodeHeader :: EncodeStrategy -> HPACKEncoding
 encodeHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
-    toBS = toByteStream (useHuffman stgy)
+    toBS = toByteString (useHuffman stgy)
 
 -- | Converting the low level format for HTTP request to 'HeaderList'.
 --   'DecodeError' would be thrown.
 decodeHeader :: HPACKDecoding
 decodeHeader ctx bs = either throwIO (fromHeaderBlock ctx) ehb
   where
-    ehb = fromByteStream bs
+    ehb = fromByteString bs
