@@ -36,7 +36,12 @@ data EncodeInfo = EncodeInfo {
 ----------------------------------------------------------------
 
 -- | A smart builder of 'EncodeInfo'.
-encodeInfo :: (FrameFlags -> FrameFlags) -> Int -> EncodeInfo
+--
+-- >>> encodeInfo setAck 0
+-- EncodeInfo {encodeFlags = 1, encodeStreamId = StreamIdentifier 0, encodePadding = Nothing}
+encodeInfo :: (FrameFlags -> FrameFlags)
+           -> Int -- ^ stream identifier
+           -> EncodeInfo
 encodeInfo set stid = EncodeInfo (set defaultFlags) (toStreamIdentifier stid) Nothing
 
 ----------------------------------------------------------------
@@ -44,6 +49,9 @@ encodeInfo set stid = EncodeInfo (set defaultFlags) (toStreamIdentifier stid) No
 -- | Encoding an HTTP/2 frame to 'ByteString'.
 -- This function is not efficient enough for high performace
 -- program because of the concatenation of 'ByteString'.
+--
+-- >>> encodeFrame (encodeInfo id 1) (DataFrame "body")
+-- "\NUL\NUL\EOT\NUL\NUL\NUL\NUL\NUL\SOHbody"
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
 encodeFrame einfo payload = run $ buildFrame einfo payload
 

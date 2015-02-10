@@ -308,6 +308,8 @@ data FrameTypeId = FrameData
 -- 0
 -- >>> fromFrameTypeId FrameContinuation
 -- 9
+-- >>> fromFrameTypeId (FrameUnknown 10)
+-- 10
 fromFrameTypeId :: FrameTypeId -> FrameType
 fromFrameTypeId FrameData         = 0
 fromFrameTypeId FrameHeaders      = 1
@@ -343,8 +345,6 @@ toFrameTypeId  9 = FrameContinuation
 toFrameTypeId  x = FrameUnknown x
 
 ----------------------------------------------------------------
-
-type PayloadLength = Int -- Word24 but Int is more natural
 
 -- | The maximum length of HTTP/2 payload.
 --
@@ -488,7 +488,7 @@ data Frame = Frame
 
 -- | The data type for HTTP/2 frame headers.
 data FrameHeader = FrameHeader
-    { payloadLength :: PayloadLength
+    { payloadLength :: Int
     , flags         :: FrameFlags
     , streamId      :: StreamIdentifier
     } deriving (Show, Read, Eq)
