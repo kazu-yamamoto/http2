@@ -41,7 +41,9 @@ encodeInfo set stid = EncodeInfo (set defaultFlags) (toStreamIdentifier stid) No
 
 ----------------------------------------------------------------
 
--- | Encoding an HTTP/2 frame to byte stream.
+-- | Encoding an HTTP/2 frame to 'ByteString'.
+-- This function is not efficient enough for high performace
+-- program because of the concatenation of 'ByteString'.
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
 encodeFrame einfo payload = run $ buildFrame einfo payload
 
@@ -106,7 +108,10 @@ buildFramePayload einfo (UnknownFrame _ opaque) =
 
 ----------------------------------------------------------------
 
-buildPadding :: EncodeInfo -> Builder -> PayloadLength -> (FrameHeader, Builder)
+buildPadding :: EncodeInfo
+             -> Builder
+             -> Int -- ^ Payload length.
+             -> (FrameHeader, Builder)
 buildPadding EncodeInfo{ encodePadding = Nothing, ..} builder len =
     (header, builder)
   where

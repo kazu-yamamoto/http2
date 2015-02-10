@@ -4,6 +4,7 @@
 module Network.HTTP2.Types (
   -- * Constant
     frameHeaderLength
+  , maxPayloadLength
   -- * SettingsList
   , SettingsKeyId(..)
   , checkSettingsList
@@ -58,9 +59,6 @@ module Network.HTTP2.Types (
   , setEndHeader
   , setPadded
   , setPriority
-  -- * Payload length
-  , PayloadLength
-  , maxPayloadLength
   -- * Types
   , WindowSizeIncrement
   , HeaderBlockFragment
@@ -78,7 +76,10 @@ import Data.Maybe (mapMaybe)
 
 ----------------------------------------------------------------
 
--- | The length of HTTP/2 frame header. 9 bytes.
+-- | The length of HTTP/2 frame header.
+--
+-- >>> frameHeaderLength
+-- 9
 frameHeaderLength :: Int
 frameHeaderLength = 9
 
@@ -240,6 +241,9 @@ data Settings = Settings {
   } deriving (Show)
 
 -- | The default settings.
+--
+-- >>> defaultSettings
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = 100, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Nothing}
 defaultSettings :: Settings
 defaultSettings = Settings {
     headerTableSize = 4096
@@ -322,7 +326,11 @@ toFrameTypeId x
 
 type PayloadLength = Int -- Word24 but Int is more natural
 
-maxPayloadLength :: PayloadLength
+-- | The maximum length of HTTP/2 payload.
+--
+-- >>> maxPayloadLength
+-- 16384
+maxPayloadLength :: Int
 maxPayloadLength = 2^(14::Int)
 
 ----------------------------------------------------------------
@@ -330,6 +338,9 @@ maxPayloadLength = 2^(14::Int)
 
 type FrameFlags = Word8
 
+-- |
+-- >>> defaultFlags
+-- 0
 defaultFlags :: FrameFlags
 defaultFlags = 0
 
@@ -400,19 +411,37 @@ type StreamDependency    = StreamIdentifier
 type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
 
+-- |
+-- >>> toStreamIdentifier 0
+-- StreamIdentifier 0
 toStreamIdentifier :: Int -> StreamIdentifier
 toStreamIdentifier n = StreamIdentifier (n `clearBit` 31)
 
 fromStreamIdentifier :: StreamIdentifier -> Int
 fromStreamIdentifier (StreamIdentifier n) = n
 
+-- |
+-- >>> isControl $ toStreamIdentifier 0
+-- True
+-- >>> isControl $ toStreamIdentifier 1
+-- False
 isControl :: StreamIdentifier -> Bool
 isControl (StreamIdentifier 0) = True
 isControl _                    = False
 
+-- |
+-- >>> isControl $ toStreamIdentifier 0
+-- False
+-- >>> isControl $ toStreamIdentifier 1
+-- True
 isRequest :: StreamIdentifier -> Bool
 isRequest (StreamIdentifier n) = odd n
 
+-- |
+-- >>> isControl $ toStreamIdentifier 0
+-- False
+-- >>> isControl $ toStreamIdentifier 2
+-- True
 isResponse :: StreamIdentifier -> Bool
 isResponse (StreamIdentifier 0) = False
 isResponse (StreamIdentifier n) = even n
@@ -431,18 +460,20 @@ type Padding = ByteString
 
 ----------------------------------------------------------------
 
+-- | The data type for HTTP/2 frames.
 data Frame = Frame
     { frameHeader  :: FrameHeader
     , framePayload :: FramePayload
     } deriving (Show, Read, Eq)
 
--- A complete frame header
+-- | The data type for HTTP/2 frame headers.
 data FrameHeader = FrameHeader
     { payloadLength :: PayloadLength
     , flags         :: FrameFlags
     , streamId      :: StreamIdentifier
     } deriving (Show, Read, Eq)
 
+-- | The data type for HTTP/2 frame payloads.
 data FramePayload =
     DataFrame ByteString
   | HeadersFrame (Maybe Priority) HeaderBlockFragment
@@ -459,6 +490,7 @@ data FramePayload =
 
 ----------------------------------------------------------------
 
+-- | Getting 'FrameType' from 'FramePayload'.
 framePayloadToFrameType :: FramePayload -> FrameType
 framePayloadToFrameType (DataFrame _)          = fromFrameTypeId FrameData
 framePayloadToFrameType (HeadersFrame _ _)     = fromFrameTypeId FrameHeaders

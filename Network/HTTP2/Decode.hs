@@ -35,7 +35,10 @@ import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
--- | Just for testing
+-- | Decoding an HTTP/2 frame to 'ByteString'.
+-- The second argument must be include the entire of frame.
+-- So, this function is not useful for real applications
+-- but useful for testing.
 decodeFrame :: Settings    -- ^ HTTP/2 settings
             -> ByteString  -- ^ Input byte-stream
             -> Either HTTP2Error Frame -- ^ Decoded frame
