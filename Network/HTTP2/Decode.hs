@@ -42,30 +42,26 @@ import Network.HTTP2.Types
 decodeFrame :: Settings    -- ^ HTTP/2 settings
             -> ByteString  -- ^ Input byte-stream
             -> Either HTTP2Error Frame -- ^ Decoded frame
-decodeFrame settings bs = case mftype of
-    (FrameUnknown _) -> Right Frame { frameHeader = header
-                                    , framePayload = decodeUnknownFrame typ bs1
-                                    }
-    ftyp -> case checkFrameHeader settings ftyp header of
-        Just h2err -> Left h2err
-        Nothing    -> Right Frame { frameHeader = header
-                                  , framePayload = decodeFramePayload typ header bs1
-                                  }
+decodeFrame settings bs = decode typ
   where
     (bs0,bs1) = BS.splitAt 9 bs
     (typ, header) = decodeFrameHeader bs0
-    mftype = toFrameTypeId typ
+    decode (FrameUnknown v) = Right $ Frame header $ decodeUnknownFrame v bs1
+    decode ftyp = case checkFrameHeader settings ftyp header of
+        Just h2err -> Left h2err
+        Nothing    -> Right $ Frame header $ decodeFramePayload typ header bs1
+
 
 ----------------------------------------------------------------
 
 -- | Must supply 9 bytes.
-decodeFrameHeader :: ByteString -> (FrameType, FrameHeader)
+decodeFrameHeader :: ByteString -> (FrameTypeId, FrameHeader)
 decodeFrameHeader (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     l0 <- fromIntegral <$> peek p
     l1 <- fromIntegral <$> peek (p +. 1)
     l2 <- fromIntegral <$> peek (p +. 2)
-    typ <-                 peek (p +. 3)
+    typ <- toFrameTypeId <$> peek (p +. 3)
     flg <-                 peek (p +. 4)
     w32 <- word32' (p +. 5)
     let !len = (l0 `shiftL` 16) .|. (l1 `shiftL` 8) .|. l2
@@ -141,8 +137,8 @@ payloadDecoders = listArray (minFrameType, maxFrameType)
     , decodeContinuationFrame
     ]
 
-decodeFramePayload :: FrameType -> FramePayloadDecoder
-decodeFramePayload ftyp = payloadDecoders ! ftyp
+decodeFramePayload :: FrameTypeId -> FramePayloadDecoder
+decodeFramePayload ftyp = payloadDecoders ! fromFrameTypeId ftyp
 
 ----------------------------------------------------------------
 
