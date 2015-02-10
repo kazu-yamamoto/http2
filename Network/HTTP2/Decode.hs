@@ -6,8 +6,8 @@ module Network.HTTP2.Decode (
   , decodeFrameHeader
   , checkFrameHeader
   -- * Decoding payload
+  , decodeFramePayload
   , FramePayloadDecoder
-  , payloadDecoders
   , decodeDataFrame
   , decodeHeadersFrame
   , decodePriorityFrame
@@ -77,6 +77,11 @@ decodeFrameHeader (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr
 
 ----------------------------------------------------------------
 
+-- | Checking a frame header and reporting an error if any.
+--
+-- >>> let stid = toStreamIdentifier 0
+-- >>> checkFrameHeader defaultSettings FrameData (FrameHeader 100 0 stid)
+-- Just (ConnectionError ProtocolError "cannot used in control stream")
 checkFrameHeader :: Settings -> FrameTypeId -> FrameHeader -> Maybe HTTP2Error
 checkFrameHeader Settings {..} typ FrameHeader {..}
   | payloadLength > maxFrameSize =

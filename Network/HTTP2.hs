@@ -61,14 +61,14 @@ module Network.HTTP2 (
   , Settings(..)
   , defaultSettings
   , updateSettings
-  -- * Error
-  , HTTP2Error(..)
-  , errorCodeId
   -- * Error code
   , ErrorCode
   , ErrorCodeId(..)
   , fromErrorCodeId
   , toErrorCodeId
+  -- * Error
+  , HTTP2Error(..)
+  , errorCodeId
   -- * Magic
   , connectionPreface
   , connectionPrefaceLength

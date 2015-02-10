@@ -158,12 +158,14 @@ toErrorCodeId w   = UnknownErrorCode w
 
 ----------------------------------------------------------------
 
+-- | The connection error or the stream error.
 data HTTP2Error = ConnectionError ErrorCodeId ByteString
                 | StreamError ErrorCodeId StreamIdentifier
                 deriving (Eq, Show, Typeable, Read)
 
 instance E.Exception HTTP2Error
 
+-- | Obtaining 'ErrorCodeId' from 'HTTP2Error'.
 errorCodeId :: HTTP2Error -> ErrorCodeId
 errorCodeId (ConnectionError err _) = err
 errorCodeId (StreamError     err _) = err
@@ -214,8 +216,13 @@ toSettingsKeyId x
 
 ----------------------------------------------------------------
 
+-- | Settings containing raw values.
 type SettingsList = [(SettingsKeyId,SettingsValue)]
 
+-- | Checking 'SettingsList' and reporting an error if any.
+--
+-- >>> checkSettingsList [(SettingsEnablePush,2)]
+-- Just (ConnectionError ProtocolError "enable push must be 0 or 1")
 checkSettingsList :: SettingsList -> Maybe HTTP2Error
 checkSettingsList settings = case mapMaybe checkSettingsValue settings of
     []    -> Nothing
@@ -232,6 +239,7 @@ checkSettingsValue _ = Nothing
 
 ----------------------------------------------------------------
 
+-- | Cooked version of settings. This is suitable to be stored in a HTTP/2 context.
 data Settings = Settings {
     headerTableSize :: Int
   , enablePush :: Bool
@@ -437,6 +445,9 @@ type PromisedStreamId    = StreamIdentifier
 toStreamIdentifier :: Int -> StreamIdentifier
 toStreamIdentifier n = StreamIdentifier (n `clearBit` 31)
 
+-- |
+-- >>> fromStreamIdentifier (toStreamIdentifier 0)
+-- 0
 fromStreamIdentifier :: StreamIdentifier -> Int
 fromStreamIdentifier (StreamIdentifier n) = n
 
