@@ -18,6 +18,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Network.HTTP2
+import Network.HTTP2.Internal
 
 ----------------------------------------------------------------
 

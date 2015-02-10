@@ -28,7 +28,7 @@ module Network.HTTP2 (
   , StreamDependency
   , WindowSizeIncrement
   -- * Stream identifier
-  , StreamIdentifier(..)
+  , StreamIdentifier
   , fromStreamIdentifier
   , toStreamIdentifier
   , isControl

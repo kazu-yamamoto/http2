@@ -28,6 +28,7 @@ Library
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
                         Network.HTTP2
+                        Network.HTTP2.Internal
   Other-Modules:        Network.HPACK.Builder
                         Network.HPACK.Builder.Word8
                         Network.HPACK.Huffman
