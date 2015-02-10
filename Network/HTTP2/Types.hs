@@ -104,7 +104,6 @@ data ErrorCodeId = NoError
                  | HTTP11Required
                    -- our extensions
                  | UnknownErrorCode ErrorCode
-                 | UnknownError String
                  deriving (Show, Read, Eq, Ord)
 
 -- |
@@ -129,7 +128,6 @@ fromErrorCodeId EnhanceYourCalm      = 0xb
 fromErrorCodeId InadequateSecurity   = 0xc
 fromErrorCodeId HTTP11Required       = 0xd
 fromErrorCodeId (UnknownErrorCode w) = w
-fromErrorCodeId _                    = 255 -- never reached
 
 -- |
 --
