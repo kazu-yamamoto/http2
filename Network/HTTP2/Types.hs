@@ -241,7 +241,7 @@ checkSettingsValue _ = Nothing
 data Settings = Settings {
     headerTableSize :: Int
   , enablePush :: Bool
-  , maxConcurrentStreams :: Int
+  , maxConcurrentStreams :: Maybe Int
   , initialWindowSize :: Int
   , maxFrameSize :: Int
   , maxHeaderBlockSize :: Maybe Int
@@ -250,12 +250,12 @@ data Settings = Settings {
 -- | The default settings.
 --
 -- >>> defaultSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = 100, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Nothing}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Nothing}
 defaultSettings :: Settings
 defaultSettings = Settings {
     headerTableSize = 4096
   , enablePush = True
-  , maxConcurrentStreams = 100
+  , maxConcurrentStreams = Nothing
   , initialWindowSize = 65535
   , maxFrameSize = 16384
   , maxHeaderBlockSize = Nothing
@@ -264,14 +264,14 @@ defaultSettings = Settings {
 -- | Updating settings.
 --
 -- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
--- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = 100, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Just 200}
+-- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Just 200}
 updateSettings :: Settings -> SettingsList -> Settings
 updateSettings settings kvs = foldr update settings kvs
   where
     update (SettingsHeaderTableSize,x)      def = def { headerTableSize = x }
     -- fixme: x should be 0 or 1
     update (SettingsEnablePush,x)           def = def { enablePush = x > 0 }
-    update (SettingsMaxConcurrentStreams,x) def = def { maxConcurrentStreams = x }
+    update (SettingsMaxConcurrentStreams,x) def = def { maxConcurrentStreams = Just x }
     update (SettingsInitialWindowSize,x)    def = def { initialWindowSize = x }
     update (SettingsMaxFrameSize,x)         def = def { maxFrameSize = x }
     update (SettingsMaxHeaderBlockSize,x)   def = def { maxHeaderBlockSize = Just x }
