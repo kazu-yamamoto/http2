@@ -43,10 +43,10 @@ decodeFrame :: Settings    -- ^ HTTP/2 settings
             -> ByteString  -- ^ Input byte-stream
             -> Either HTTP2Error Frame -- ^ Decoded frame
 decodeFrame settings bs = case mftype of
-    Nothing -> Right Frame { frameHeader = header
-                           , framePayload = decodeUnknownFrame typ bs1
-                           }
-    Just ftyp -> case checkFrameHeader settings ftyp header of
+    (FrameUnknown _) -> Right Frame { frameHeader = header
+                                    , framePayload = decodeUnknownFrame typ bs1
+                                    }
+    ftyp -> case checkFrameHeader settings ftyp header of
         Just h2err -> Left h2err
         Nothing    -> Right Frame { frameHeader = header
                                   , framePayload = decodeFramePayload typ header bs1
@@ -122,8 +122,8 @@ nonZeroFrameTypes = [
 
 type FramePayloadDecoder = FrameHeader -> ByteString -> FramePayload
 
-payloadDecoders :: Array FrameTypeId FramePayloadDecoder
-payloadDecoders = listArray (minBound :: FrameTypeId, maxBound :: FrameTypeId)
+payloadDecoders :: Array Word8 FramePayloadDecoder
+payloadDecoders = listArray (minFrameType, maxFrameType)
     [ decodeDataFrame
     , decodeHeadersFrame
     , decodePriorityFrame
@@ -137,9 +137,7 @@ payloadDecoders = listArray (minBound :: FrameTypeId, maxBound :: FrameTypeId)
     ]
 
 decodeFramePayload :: FrameType -> FramePayloadDecoder
-decodeFramePayload ftyp = payloadDecoders ! fid
-  where
-    Just fid = toFrameTypeId ftyp
+decodeFramePayload ftyp = payloadDecoders ! ftyp
 
 ----------------------------------------------------------------
 

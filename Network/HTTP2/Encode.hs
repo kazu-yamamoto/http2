@@ -64,7 +64,7 @@ buildFrame :: EncodeInfo -> FramePayload -> Builder
 buildFrame einfo payload = headerBuilder <> payloadBuilder
   where
     (header, payloadBuilder) = buildFramePayload einfo payload
-    ftyp = framePayloadToFrameType payload
+    ftyp = fromFrameTypeId $ framePayloadToFrameTypeId payload
     headerBuilder = buildFrameHeader ftyp header
 
 ----------------------------------------------------------------

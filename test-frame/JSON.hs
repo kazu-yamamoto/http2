@@ -139,7 +139,7 @@ instance ToJSON FramePayload where
 instance ToJSON FramePad where
     toJSON FramePad{fpFrame = Frame{..},..} = object [
         "length" .= payloadLength frameHeader
-      , "type" .= framePayloadToFrameType framePayload
+      , "type" .= fromFrameTypeId (framePayloadToFrameTypeId framePayload)
       , "flags" .= flags frameHeader
       , "stream_identifier" .= fromStreamIdentifier (streamId frameHeader)
       , "frame_payload" .= (toJSON framePayload +++ padObj)
@@ -172,7 +172,7 @@ parsePayloadPad ftyp o = do
     payload <- parsePayload ftid o
     return (payload, mpad)
   where
-    ftid = fromJust $ toFrameTypeId ftyp
+    ftid = toFrameTypeId ftyp
 
 parsePayload :: FrameTypeId -> Object -> Parser FramePayload
 parsePayload FrameData o = DataFrame <$> o .: "data"

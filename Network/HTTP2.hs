@@ -6,7 +6,7 @@ module Network.HTTP2 (
     Frame(..)
   , FrameHeader(..)
   , FramePayload(..)
-  , framePayloadToFrameType
+  , framePayloadToFrameTypeId
   -- * Frame type
   , FrameType
   , FrameTypeId(..)
