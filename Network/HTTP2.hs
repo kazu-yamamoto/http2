@@ -6,12 +6,6 @@ module Network.HTTP2 (
     Frame(..)
   , FrameHeader(..)
   , FramePayload(..)
-  , framePayloadToFrameTypeId
-  -- * Frame type
-  , FrameType
-  , FrameTypeId(..)
-  , fromFrameTypeId
-  , toFrameTypeId
   -- * Encoding
   , encodeFrame
   , encodeFrameHeader
@@ -19,6 +13,13 @@ module Network.HTTP2 (
   , EncodeInfo(..)
   , encodeInfo
   , module Network.HTTP2.Decode
+  -- * Frame type ID
+  , FrameTypeId(..)
+  , framePayloadToFrameTypeId
+  -- * Frame type
+  , FrameType
+  , fromFrameTypeId
+  , toFrameTypeId
   -- * Types
   , HeaderBlockFragment
   , Padding
