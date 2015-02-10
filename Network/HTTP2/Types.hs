@@ -78,6 +78,7 @@ import Data.Maybe (mapMaybe)
 
 ----------------------------------------------------------------
 
+-- | The length of HTTP/2 frame header. 9 bytes.
 frameHeaderLength :: Int
 frameHeaderLength = 9
 
