@@ -58,7 +58,7 @@ decodeFrame settings bs = case mftype of
 
 ----------------------------------------------------------------
 
--- | Must supply 9 bytes
+-- | Must supply 9 bytes.
 decodeFrameHeader :: ByteString -> (FrameType, FrameHeader)
 decodeFrameHeader (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off

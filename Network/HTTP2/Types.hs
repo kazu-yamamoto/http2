@@ -430,17 +430,17 @@ isControl (StreamIdentifier 0) = True
 isControl _                    = False
 
 -- |
--- >>> isControl $ toStreamIdentifier 0
+-- >>> isRequest $ toStreamIdentifier 0
 -- False
--- >>> isControl $ toStreamIdentifier 1
+-- >>> isRequest $ toStreamIdentifier 1
 -- True
 isRequest :: StreamIdentifier -> Bool
 isRequest (StreamIdentifier n) = odd n
 
 -- |
--- >>> isControl $ toStreamIdentifier 0
+-- >>> isResponse $ toStreamIdentifier 0
 -- False
--- >>> isControl $ toStreamIdentifier 2
+-- >>> isResponse $ toStreamIdentifier 2
 -- True
 isResponse :: StreamIdentifier -> Bool
 isResponse (StreamIdentifier 0) = False
@@ -491,6 +491,9 @@ data FramePayload =
 ----------------------------------------------------------------
 
 -- | Getting 'FrameType' from 'FramePayload'.
+--
+-- >>> framePayloadToFrameType (DataFrame "body")
+-- 0
 framePayloadToFrameType :: FramePayload -> FrameType
 framePayloadToFrameType (DataFrame _)          = fromFrameTypeId FrameData
 framePayloadToFrameType (HeadersFrame _ _)     = fromFrameTypeId FrameHeaders

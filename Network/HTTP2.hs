@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Framing in HTTP/2.
 module Network.HTTP2 (
   -- * Frame
     Frame(..)
@@ -19,13 +20,13 @@ module Network.HTTP2 (
   , encodeInfo
   , module Network.HTTP2.Decode
   -- * Types
-  , WindowSizeIncrement
   , HeaderBlockFragment
-  , Priority(..)
   , Padding
+  , Priority(..)
   , PromisedStreamId
   , LastStreamId
   , StreamDependency
+  , WindowSizeIncrement
   -- * Stream identifier
   , StreamIdentifier(..)
   , fromStreamIdentifier
