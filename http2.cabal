@@ -57,8 +57,6 @@ Library
                         Network.HTTP2.Encode
                         Network.HTTP2.Types
   Build-Depends:        base >= 4 && < 5
-                      , attoparsec >= 0.12.1
-                      , attoparsec-binary >= 0.2
                       , PSQueue
                       , array
                       , blaze-builder
