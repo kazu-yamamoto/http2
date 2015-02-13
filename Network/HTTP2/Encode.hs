@@ -4,24 +4,22 @@ module Network.HTTP2.Encode (
     encodeFrame
   , encodeFrameHeader
   , encodeFramePayload
-  , buildFrame
-  , buildFrameHeader
-  , buildFramePayload
   , EncodeInfo(..)
   , encodeInfo
   ) where
 
-import Blaze.ByteString.Builder (Builder)
-import qualified Blaze.ByteString.Builder as BB
-import Data.Bits
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-import Data.Monoid ((<>), mempty)
+import Data.Bits (shiftR, (.&.))
+import qualified Data.ByteString as BS
+import Data.ByteString.Internal (ByteString, unsafeCreate)
+import Data.Word (Word8, Word16, Word32)
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Storable (poke)
 
 import Network.HTTP2.Types
 
 ----------------------------------------------------------------
+
+type Builder = [ByteString] -> [ByteString]
 
 -- | Auxiliary information for frame encoding.
 data EncodeInfo = EncodeInfo {
@@ -53,40 +51,29 @@ encodeInfo set stid = EncodeInfo (set defaultFlags) (toStreamIdentifier stid) No
 -- >>> encodeFrame (encodeInfo id 1) (DataFrame "body")
 -- "\NUL\NUL\EOT\NUL\NUL\NUL\NUL\NUL\SOHbody"
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
-encodeFrame einfo payload = run $ buildFrame einfo payload
+encodeFrame einfo payload = BS.concat $ encodeFrameChunks einfo payload
+
+encodeFrameChunks :: EncodeInfo -> FramePayload -> [ByteString]
+encodeFrameChunks einfo payload = bs : bss
+  where
+    ftid = framePayloadToFrameTypeId payload
+    bs = encodeFrameHeader ftid header
+    (header, bss) = encodeFramePayload einfo payload
 
 encodeFrameHeader :: FrameTypeId -> FrameHeader -> ByteString
-encodeFrameHeader ftid header = run $ buildFrameHeader ftid header
-
-encodeFramePayload :: EncodeInfo -> FramePayload -> ByteString
-encodeFramePayload einfo payload = run payloadBuilder
+encodeFrameHeader ftid FrameHeader{..} = unsafeCreate frameHeaderLength $ \ptr -> do
+    poke24 ptr payloadLength
+    poke8 ptr 3 typ
+    poke8 ptr 4 flags
+    poke32 (ptr `plusPtr` 5) sid
   where
-    (_, payloadBuilder) = buildFramePayload einfo payload
+    typ = fromFrameTypeId ftid
+    sid = fromIntegral $ fromStreamIdentifier streamId
 
-run :: Builder -> ByteString
-run = BL.toStrict . BB.toLazyByteString
-
-----------------------------------------------------------------
-
-buildFrame :: EncodeInfo -> FramePayload -> Builder
-buildFrame einfo payload = headerBuilder <> payloadBuilder
+encodeFramePayload :: EncodeInfo -> FramePayload -> (FrameHeader, [ByteString])
+encodeFramePayload einfo payload = (header, builder [])
   where
-    (header, payloadBuilder) = buildFramePayload einfo payload
-    ftyp = framePayloadToFrameTypeId payload
-    headerBuilder = buildFrameHeader ftyp header
-
-----------------------------------------------------------------
-
-buildFrameHeader :: FrameTypeId -> FrameHeader -> Builder
-buildFrameHeader ftyp FrameHeader{..} = len <> typ <> flg <> sid
-  where
-    -- fixme: 2^14 check
-    len1 = BB.fromWord16be (fromIntegral (payloadLength `shiftR` 8))
-    len2 = BB.fromWord8 (fromIntegral (payloadLength .&. 0xff))
-    len = len1 <> len2
-    typ = BB.fromWord8 $ fromFrameTypeId ftyp
-    flg = BB.fromWord8 flags
-    sid = BB.fromWord32be . fromIntegral $ fromStreamIdentifier streamId
+    (header, builder) = buildFramePayload einfo payload
 
 ----------------------------------------------------------------
 
@@ -128,51 +115,44 @@ buildPadding EncodeInfo{ encodePadding = Just padding, ..} btarget targetLength 
     (header, builder)
   where
     header = FrameHeader len newflags encodeStreamId
-    builder = bpadlen <> btarget <> bpadding
-    bpadlen = BB.fromWord8 $ fromIntegral paddingLength
-    bpadding = BB.fromByteString padding
-    paddingLength = B.length padding
+    builder = (b1 :) . btarget . (padding :)
+    b1 = BS.singleton $ fromIntegral paddingLength
+    paddingLength = BS.length padding
     len = targetLength + paddingLength + 1
     newflags = setPadded encodeFlags
 
 buildPriority :: Priority -> Builder
 buildPriority Priority{..} = builder
   where
-    builder = bstream <> bweight
+    builder = (priority :)
     stream = fromStreamIdentifier streamDependency
     estream
       | exclusive = setExclusive stream
       | otherwise = stream
-    bstream = BB.fromWord32be $ fromIntegral estream
-    bweight = BB.fromWord8 $ fromIntegral $ weight - 1
-
--- fixme: clear 31th bit?
-buildStream :: StreamIdentifier -> Builder
-buildStream = BB.fromWord32be . fromIntegral . fromStreamIdentifier
-
-buildErrorCodeId :: ErrorCodeId -> Builder
-buildErrorCodeId = BB.fromWord32be . fromErrorCodeId
+    priority = unsafeCreate 5 $ \ptr -> do
+        poke32 ptr $ fromIntegral estream
+        poke8 ptr 4 $ fromIntegral $ weight - 1
 
 ----------------------------------------------------------------
 
 buildFramePayloadData :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadData einfo body = buildPadding einfo builder len
   where
-    builder = BB.fromByteString body
-    len = B.length body
+    builder = (body :)
+    len = BS.length body
 
 buildFramePayloadHeaders :: EncodeInfo -> Maybe Priority -> HeaderBlockFragment
                          -> (FrameHeader, Builder)
 buildFramePayloadHeaders einfo Nothing hdr =
     buildPadding einfo builder len
   where
-    builder = BB.fromByteString hdr
-    len = B.length hdr
+    builder = (hdr :)
+    len = BS.length hdr
 buildFramePayloadHeaders einfo (Just pri) hdr =
     buildPadding einfo' builder len
   where
-    builder = buildPriority pri <> BB.fromByteString hdr
-    len = B.length hdr + 5
+    builder = buildPriority pri . (hdr :)
+    len = BS.length hdr + 5
     einfo' = einfo { encodeFlags = setPriority (encodeFlags einfo) }
 
 buildFramePayloadPriority :: EncodeInfo -> Priority -> (FrameHeader, Builder)
@@ -184,50 +164,99 @@ buildFramePayloadPriority EncodeInfo{..} p = (header, builder)
 buildFramePayloadRSTStream :: EncodeInfo -> ErrorCodeId -> (FrameHeader, Builder)
 buildFramePayloadRSTStream EncodeInfo{..} e = (header, builder)
   where
-    builder = buildErrorCodeId e
+    builder = (b4 :)
+    b4 = bytestring4 $ fromErrorCodeId e
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadSettings :: EncodeInfo -> SettingsList -> (FrameHeader, Builder)
 buildFramePayloadSettings EncodeInfo{..} alist = (header, builder)
   where
-    builder = foldr op mempty alist
-    (key, val) `op` x = BB.fromWord16be (fromSettingsKeyId key)
-                        <> BB.fromWord32be (fromIntegral val) <> x
+    builder = (settings :)
+    settings = unsafeCreate len $ \ptr -> go ptr alist
+    go _ []          = return ()
+    go p ((k,v):kvs) = do
+        poke16 p $ fromSettingsKeyId k
+        poke32 (p `plusPtr` 2) $ fromIntegral v
+        go (p `plusPtr` 6) kvs
     len = length alist * 6
     header = FrameHeader len encodeFlags encodeStreamId
 
 buildFramePayloadPushPromise :: EncodeInfo -> StreamIdentifier -> HeaderBlockFragment -> (FrameHeader, Builder)
-buildFramePayloadPushPromise einfo sid hdr = buildPadding einfo builder len
+buildFramePayloadPushPromise einfo stid hdr = buildPadding einfo builder len
   where
-    builder = buildStream sid <> BB.fromByteString hdr
-    len = 4 + B.length hdr
+    builder = (b4 :) . (hdr :)
+    b4 = bytestring4 $ fromIntegral $ fromStreamIdentifier stid
+    len = 4 + BS.length hdr
 
 buildFramePayloadPing :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadPing EncodeInfo{..} odata = (header, builder)
   where
-    builder = BB.fromByteString odata
+    builder = (odata :)
     header = FrameHeader 8 encodeFlags encodeStreamId
 
 buildFramePayloadGoAway :: EncodeInfo -> LastStreamId -> ErrorCodeId -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadGoAway EncodeInfo{..} sid e debug = (header, builder)
   where
-    builder = buildStream sid <> buildErrorCodeId e <> BB.fromByteString debug
-    len = 4 + 4 + B.length debug
+    builder = (b8 :) . (debug :)
+    len0 = 8
+    b8 = unsafeCreate len0 $ \ptr -> do
+        poke32 ptr $ fromIntegral $ fromStreamIdentifier sid
+        poke32 (ptr `plusPtr` 4) $ fromErrorCodeId e
+    len = len0 + BS.length debug
     header = FrameHeader len encodeFlags encodeStreamId
 
 buildFramePayloadWindowUpdate :: EncodeInfo -> WindowSizeIncrement -> (FrameHeader, Builder)
 buildFramePayloadWindowUpdate EncodeInfo{..} size = (header, builder)
   where
     -- fixme: reserve bit
-    builder = BB.fromWord32be size
+    builder = (b4 :)
+    b4 = bytestring4 size
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadContinuation :: EncodeInfo -> HeaderBlockFragment -> (FrameHeader, Builder)
 buildFramePayloadContinuation EncodeInfo{..} hdr = (header, builder)
   where
-    builder = BB.fromByteString hdr
-    len = B.length hdr
+    builder = (hdr :)
+    len = BS.length hdr
     header = FrameHeader len encodeFlags encodeStreamId
 
 buildFramePayloadUnknown :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadUnknown = buildFramePayloadData
+
+----------------------------------------------------------------
+
+poke8 :: Ptr Word8 -> Int -> Word8 -> IO ()
+poke8 ptr n w = poke (ptr `plusPtr` n) w
+
+poke16 :: Ptr Word8 -> Word16 -> IO ()
+poke16 ptr i = do
+    poke ptr w0
+    poke8 ptr 1 w1
+  where
+    w0 = fromIntegral ((i `shiftR`  8) .&. 0xff)
+    w1 = fromIntegral  (i              .&. 0xff)
+
+poke24 :: Ptr Word8 -> Int -> IO ()
+poke24 ptr i = do
+    poke ptr w0
+    poke8 ptr 1 w1
+    poke8 ptr 2 w2
+  where
+    w0 = fromIntegral ((i `shiftR` 16) .&. 0xff)
+    w1 = fromIntegral ((i `shiftR`  8) .&. 0xff)
+    w2 = fromIntegral  (i              .&. 0xff)
+
+poke32 :: Ptr Word8 -> Word32 -> IO ()
+poke32 ptr i = do
+    poke ptr w0
+    poke8 ptr 1 w1
+    poke8 ptr 2 w2
+    poke8 ptr 3 w3
+  where
+    w0 = fromIntegral ((i `shiftR` 24) .&. 0xff)
+    w1 = fromIntegral ((i `shiftR` 16) .&. 0xff)
+    w2 = fromIntegral ((i `shiftR`  8) .&. 0xff)
+    w3 = fromIntegral  (i              .&. 0xff)
+
+bytestring4 :: Word32 -> ByteString
+bytestring4 i = unsafeCreate 4 $ \ptr -> poke32 ptr i
