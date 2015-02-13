@@ -2,6 +2,7 @@
 
 module Network.HTTP2.Encode (
     encodeFrame
+  , encodeFrameChunks
   , encodeFrameHeader
   , encodeFramePayload
   , EncodeInfo(..)
@@ -53,6 +54,8 @@ encodeInfo set stid = EncodeInfo (set defaultFlags) (toStreamIdentifier stid) No
 encodeFrame :: EncodeInfo -> FramePayload -> ByteString
 encodeFrame einfo payload = BS.concat $ encodeFrameChunks einfo payload
 
+-- | Encoding an HTTP/2 frame to ['ByteString'].
+--   This is suitable for sendMany.
 encodeFrameChunks :: EncodeInfo -> FramePayload -> [ByteString]
 encodeFrameChunks einfo payload = bs : bss
   where
@@ -60,6 +63,8 @@ encodeFrameChunks einfo payload = bs : bss
     bs = encodeFrameHeader ftid header
     (header, bss) = encodeFramePayload einfo payload
 
+-- | Encoding an HTTP/2 frame header.
+--   The frame header must be completed.
 encodeFrameHeader :: FrameTypeId -> FrameHeader -> ByteString
 encodeFrameHeader ftid FrameHeader{..} = unsafeCreate frameHeaderLength $ \ptr -> do
     poke24 ptr payloadLength
@@ -70,6 +75,8 @@ encodeFrameHeader ftid FrameHeader{..} = unsafeCreate frameHeaderLength $ \ptr -
     typ = fromFrameTypeId ftid
     sid = fromIntegral $ fromStreamIdentifier streamId
 
+-- | Encoding an HTTP/2 frame payload.
+--   This returns a complete frame header and chunks of payload.
 encodeFramePayload :: EncodeInfo -> FramePayload -> (FrameHeader, [ByteString])
 encodeFramePayload einfo payload = (header, builder [])
   where

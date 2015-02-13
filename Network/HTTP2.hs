@@ -8,6 +8,7 @@ module Network.HTTP2 (
   , FramePayload(..)
   -- * Encoding
   , encodeFrame
+  , encodeFrameChunks
   , encodeFrameHeader
   , encodeFramePayload
   , EncodeInfo(..)
