@@ -54,7 +54,8 @@ decodeFrame settings bs = decode typ
 
 ----------------------------------------------------------------
 
--- | Must supply 9 bytes.
+-- | Decoding an HTTP/2 frame header.
+--   Must supply 9 bytes.
 decodeFrameHeader :: ByteString -> (FrameTypeId, FrameHeader)
 decodeFrameHeader (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
@@ -137,6 +138,7 @@ payloadDecoders = listArray (minFrameType, maxFrameType)
     , decodeContinuationFrame
     ]
 
+-- | Decoding an HTTP/2 frame payload.
 decodeFramePayload :: FrameTypeId -> FramePayloadDecoder
 decodeFramePayload ftyp = payloadDecoders ! fromFrameTypeId ftyp
 
