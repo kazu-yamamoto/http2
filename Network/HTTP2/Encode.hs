@@ -29,7 +29,7 @@ data EncodeInfo = EncodeInfo {
       encodeFlags    :: FrameFlags
     -- | Stream id to be set in a frame header
     , encodeStreamId :: StreamIdentifier
-    -- | Padding if any
+    -- | Padding if any. In the case where this value is set but the priority flag is not set, this value gets preference over the priority flag. So, if this value is set, the priority flag is also set.
     , encodePadding  :: Maybe Padding
     } deriving (Show,Read)
 
