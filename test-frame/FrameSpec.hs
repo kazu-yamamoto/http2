@@ -1,28 +1,21 @@
 module FrameSpec where
 
-
+import Control.Applicative ((<$>))
 import Control.Monad (forM_)
 import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Lazy as BL
 import Data.Hex
 import Network.HTTP2
-import System.Directory (getDirectoryContents)
-import System.FilePath ((</>))
+import System.FilePath.Glob (compile, globDir)
 import Test.Hspec
 
 import JSON
-import Data.List (isPrefixOf)
-import Control.Applicative ((<$>))
 
 testDir :: FilePath
-testDir = "test-frame/json"
+testDir = "test-frame/http2-frame-test-case"
 
 getTestFiles :: FilePath -> IO [FilePath]
-getTestFiles dir = do
-    files0 <- getDirectoryContents dir
-    let files1 = filter (not . isPrefixOf ".") files0
-        files2 = map (dir </>) files1
-    return files2
+getTestFiles dir =  head . fst <$> globDir [compile "*/*.json"] dir
 
 check :: FilePath -> IO ()
 check file = do
@@ -39,15 +32,17 @@ check file = do
                         e = fromErrorCodeId $ errorCodeId h2err
                     errs `shouldContain` [e]
                 Right frm -> do
-                    let Just fp = frame tc
-                    fpFrame fp `shouldBe` frm
-                    let einfo = EncodeInfo {
-                            encodeFlags = 0
-                          , encodeStreamId = streamId (frameHeader frm)
-                          , encodePadding = unPad <$> fpPad fp
-                          }
-                        payload = framePayload frm
-                    encodeFrame einfo payload `shouldBe` bin
+                    case frame tc of
+                        Just fp -> do
+                            fpFrame fp `shouldBe` frm
+                            let einfo = EncodeInfo {
+                                    encodeFlags = 0
+                                  , encodeStreamId = streamId (frameHeader frm)
+                                  , encodePadding = unPad <$> fpPad fp
+                                  }
+                                payload = framePayload frm
+                            encodeFrame einfo payload `shouldBe` bin
+                        Nothing -> putStrLn file -- fixme
 
 spec :: Spec
 spec = do
