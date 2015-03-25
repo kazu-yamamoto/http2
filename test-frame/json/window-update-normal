@@ -4,9 +4,7 @@
     "frame": {
         "length": 4,
         "frame_payload": {
-            "window_size_increment": 1000,
-            "padding_length": null,
-            "padding": null
+            "window_size_increment": 1000
         },
         "flags": 0,
         "stream_identifier": 50,

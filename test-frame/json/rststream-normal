@@ -4,9 +4,7 @@
     "frame": {
         "length": 4,
         "frame_payload": {
-            "error_code": 8,
-            "padding_length": null,
-            "padding": null
+            "error_code": 8
         },
         "flags": 0,
         "stream_identifier": 5,

@@ -13,9 +13,7 @@
                     3,
                     5000
                 ]
-            ],
-            "padding_length": null,
-            "padding": null
+            ]
         },
         "flags": 0,
         "stream_identifier": 0,

@@ -4,9 +4,7 @@
     "frame": {
         "length": 8,
         "frame_payload": {
-            "opaque_data": "deadbeef",
-            "padding_length": null,
-            "padding": null
+            "opaque_data": "deadbeef"
         },
         "flags": 0,
         "stream_identifier": 0,

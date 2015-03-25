@@ -6,9 +6,7 @@
         "frame_payload": {
             "error_code": 9,
             "additional_debug_data": "hpack is broken",
-            "padding_length": null,
-            "last_stream_id": 30,
-            "padding": null
+            "last_stream_id": 30
         },
         "flags": 0,
         "stream_identifier": 0,
