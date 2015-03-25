@@ -147,7 +147,9 @@ instance ToJSON FramePad where
       ]
       where
         padObj = case toJSON fpPad of
-            Null -> emptyPad
+            Null
+              | isPaddingDefined framePayload -> emptyPad
+              | otherwise                     -> noPad
             x    -> x
 
 instance FromJSON FramePad where
@@ -198,7 +200,13 @@ instance ToJSON Pad where
       ]
 
 emptyPad :: Value
-emptyPad = object []
+emptyPad = object [
+    "padding_length" .= Null
+  , "padding" .= Null
+  ]
+
+noPad :: Value
+noPad = object []
 
 ----------------------------------------------------------------
 
