@@ -198,10 +198,7 @@ instance ToJSON Pad where
       ]
 
 emptyPad :: Value
-emptyPad = object [
-    "padding_length" .= Null
-  , "padding" .= Null
-  ]
+emptyPad = object []
 
 ----------------------------------------------------------------
 
