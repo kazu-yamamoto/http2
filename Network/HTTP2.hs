@@ -6,6 +6,7 @@ module Network.HTTP2 (
     Frame(..)
   , FrameHeader(..)
   , FramePayload(..)
+  , isPaddingDefined
   -- * Encoding
   , encodeFrame
   , encodeFrameChunks

@@ -36,6 +36,7 @@ module Network.HTTP2.Types (
   , FrameHeader(..)
   , FramePayload(..)
   , framePayloadToFrameTypeId
+  , isPaddingDefined
   -- * Stream identifier
   , StreamIdentifier(..)
   , fromStreamIdentifier
@@ -535,3 +536,19 @@ framePayloadToFrameTypeId (GoAwayFrame _ _ _)    = FrameGoAway
 framePayloadToFrameTypeId (WindowUpdateFrame _)  = FrameWindowUpdate
 framePayloadToFrameTypeId (ContinuationFrame _)  = FrameContinuation
 framePayloadToFrameTypeId (UnknownFrame w8 _)    = FrameUnknown w8
+
+----------------------------------------------------------------
+
+-- | Checking if padding is defined in this frame type.
+isPaddingDefined :: FramePayload -> Bool
+isPaddingDefined (DataFrame _)          = True
+isPaddingDefined (HeadersFrame _ _)     = True
+isPaddingDefined (PriorityFrame _)      = False
+isPaddingDefined (RSTStreamFrame _)     = False
+isPaddingDefined (SettingsFrame _)      = False
+isPaddingDefined (PushPromiseFrame _ _) = True
+isPaddingDefined (PingFrame _)          = False
+isPaddingDefined (GoAwayFrame _ _ _)    = False
+isPaddingDefined (WindowUpdateFrame _)  = False
+isPaddingDefined (ContinuationFrame _)  = False
+isPaddingDefined (UnknownFrame _ _)     = False
