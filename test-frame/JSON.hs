@@ -13,7 +13,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.HashMap.Strict (union)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -63,19 +63,6 @@ instance ToJSON StreamIdentifier where
 instance FromJSON StreamIdentifier where
     parseJSON x = StreamIdentifier <$> parseJSON x
 
-instance ToJSON Priority where
-    toJSON (Priority e s w) = object [
-        "exclusive" .= e
-      , "stream_dependency" .= s
-      , "weight" .= w
-      ]
-
-instance FromJSON Priority where
-    parseJSON (Object o) = Priority <$> o .: "exclusive"
-                                    <*> o .: "stream_dependency"
-                                    <*> o .: "weight"
-    parseJSON _          = mzero
-
 instance ToJSON ErrorCodeId where
     toJSON e = toJSON $ fromErrorCodeId e
 
@@ -101,11 +88,15 @@ instance ToJSON FramePayload where
         "data" .= body
       ]
     toJSON (HeadersFrame mpri hdr) = object [
-        "priority" .= mpri
+        "exclusive" .= fromMaybe Null (toJSON . exclusive <$> mpri)
+      , "stream_dependency" .= fromMaybe Null (toJSON . streamDependency <$> mpri)
+      , "weight" .= fromMaybe Null (toJSON . weight <$> mpri)
       , "header_block_fragment" .= hdr
       ]
     toJSON (PriorityFrame pri) = object [
-        "priority" .= pri
+        "exclusive" .= exclusive pri
+      , "stream_dependency" .= streamDependency pri
+      , "weight" .= weight pri
       ]
     toJSON (RSTStreamFrame e) = object [
         "error_code" .= e
@@ -177,11 +168,27 @@ parsePayloadPad ftyp o = do
   where
     ftid = toFrameTypeId ftyp
 
+priority :: Object -> Parser Priority
+priority o = Priority <$> o .: "exclusive"
+                       <*> o .: "stream_dependency"
+                       <*> o .: "weight"
+
+mpriority :: Object -> Parser (Maybe Priority)
+mpriority o = do
+    me <- o .:? "exclusive"
+    ms <- o .:? "stream_dependency"
+    mw <- o .:? "weight"
+    return $ case me of
+        Nothing -> Nothing
+        Just ex -> Just $ Priority ex (fromJust ms) (fromJust mw)
+
 parsePayload :: FrameTypeId -> Object -> Parser FramePayload
 parsePayload FrameData o = DataFrame <$> o .: "data"
-parsePayload FrameHeaders o = HeadersFrame <$> o .: "priority"
-                                           <*> o .: "header_block_fragment"
-parsePayload FramePriority o = PriorityFrame <$> o .: "priority"
+parsePayload FrameHeaders o = do
+    mpri <- mpriority o
+    hdr <- o .: "header_block_fragment"
+    return $ HeadersFrame mpri hdr
+parsePayload FramePriority o = PriorityFrame <$> priority o
 parsePayload FrameRSTStream o = RSTStreamFrame <$> o .: "error_code"
 parsePayload FrameSettings o = SettingsFrame <$> o .: "settings"
 parsePayload FramePushPromise o = PushPromiseFrame <$> o .: "promised_stream_id"
