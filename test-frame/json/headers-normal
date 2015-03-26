@@ -4,9 +4,11 @@
     "frame": {
         "length": 1,
         "frame_payload": {
-            "priority": null,
+            "stream_dependency": null,
+            "weight": null,
             "header_block_fragment": "",
             "padding_length": null,
+            "exclusive": null,
             "padding": null
         },
         "flags": 0,

@@ -4,13 +4,11 @@
     "frame": {
         "length": 23,
         "frame_payload": {
-            "priority": {
-                "stream_dependency": 20,
-                "weight": 10,
-                "exclusive": true
-            },
+            "stream_dependency": 20,
+            "weight": 10,
             "header_block_fragment": "",
             "padding_length": 16,
+            "exclusive": true,
             "padding": "This is padding."
         },
         "flags": 40,
