@@ -192,6 +192,7 @@ parsePayload FrameGoAway o = GoAwayFrame <$> o .: "last_stream_id"
                                          <*> o .: "additional_debug_data"
 parsePayload FrameWindowUpdate o = WindowUpdateFrame <$> o .: "window_size_increment"
 parsePayload FrameContinuation o = ContinuationFrame <$> o .: "header_block_fragment"
+parsePayload (FrameUnknown typ) o = UnknownFrame typ <$> o .: "dummy"
 
 instance ToJSON Pad where
     toJSON (Pad padding) = object [
