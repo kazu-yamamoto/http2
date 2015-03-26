@@ -27,10 +27,13 @@ check file = do
             let Just bin = unhex $ wire tc
                 erc = decodeFrame defaultSettings bin
             case erc of
-                Left h2err -> do
-                    let Just errs = err tc
-                        e = fromErrorCodeId $ errorCodeId h2err
-                    errs `shouldContain` [e]
+                Left h2err -> case err tc of
+                    Nothing -> do
+                        putStrLn file -- fixme
+                        print h2err
+                    Just errs -> do
+                        let e = fromErrorCodeId $ errorCodeId h2err
+                        errs `shouldContain` [e]
                 Right frm -> do
                     case frame tc of
                         Just fp -> do
