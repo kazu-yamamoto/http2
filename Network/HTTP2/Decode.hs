@@ -42,16 +42,11 @@ import Network.HTTP2.Types
 decodeFrame :: Settings    -- ^ HTTP/2 settings
             -> ByteString  -- ^ Input byte-stream
             -> Either HTTP2Error Frame -- ^ Decoded frame
-decodeFrame settings bs = decode typ
+decodeFrame settings bs = checkFrameHeader settings (decodeFrameHeader bs0)
+                      >>= \(typ,header) -> decodeFramePayload typ header bs1
+                      >>= \payload -> return $ Frame header payload
   where
     (bs0,bs1) = BS.splitAt 9 bs
-    (typ, header) = decodeFrameHeader bs0
-    decode (FrameUnknown v) = Right $ Frame header $ decodeUnknownFrame v bs1
-    decode ftyp = case checkFrameHeader settings ftyp header of
-        Just h2err -> Left h2err
-        Nothing    -> case decodeFramePayload typ header bs1 of
-            Left h2err -> Left h2err
-            Right pl   -> Right $ Frame header pl
 
 ----------------------------------------------------------------
 
@@ -80,37 +75,39 @@ decodeFrameHeader (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr
 -- >>> let stid = toStreamIdentifier 0
 -- >>> checkFrameHeader defaultSettings FrameData (FrameHeader 100 0 stid)
 -- Just (ConnectionError ProtocolError "cannot used in control stream")
-checkFrameHeader :: Settings -> FrameTypeId -> FrameHeader -> Maybe HTTP2Error
-checkFrameHeader Settings {..} typ FrameHeader {..}
+checkFrameHeader :: Settings
+                 -> (FrameTypeId, FrameHeader)
+                 -> Either HTTP2Error (FrameTypeId, FrameHeader)
+checkFrameHeader Settings {..} typfrm@(typ,FrameHeader {..})
   | payloadLength > maxFrameSize =
-      Just $ ConnectionError FrameSizeError "exceeds maximum frame size"
+      Left $ ConnectionError FrameSizeError "exceeds maximum frame size"
   | typ `elem` nonZeroFrameTypes && isControl streamId =
-      Just $ ConnectionError ProtocolError "cannot used in control stream"
+      Left $ ConnectionError ProtocolError "cannot used in control stream"
   | typ `elem` zeroFrameTypes && not (isControl streamId) =
-      Just $ ConnectionError ProtocolError "cannot used in non-zero stream"
+      Left $ ConnectionError ProtocolError "cannot used in non-zero stream"
   | otherwise = checkType typ
   where
     checkType FramePriority | payloadLength /= 5 =
-        Just $ StreamError FrameSizeError streamId
+        Left $ StreamError FrameSizeError streamId
     checkType FrameRSTStream | payloadLength /= 4 =
-        Just $ ConnectionError FrameSizeError "payload length is not 4 in rst stream frame"
+        Left $ ConnectionError FrameSizeError "payload length is not 4 in rst stream frame"
     checkType FrameSettings
       | payloadLength `mod` 6 /= 0 =
-        Just $ ConnectionError FrameSizeError "payload length is not multiple of 6 in settings frame"
+        Left $ ConnectionError FrameSizeError "payload length is not multiple of 6 in settings frame"
       | testAck flags && payloadLength /= 0 =
-        Just $ ConnectionError FrameSizeError "payload length must be 0 if ack flag is set"
+        Left $ ConnectionError FrameSizeError "payload length must be 0 if ack flag is set"
     checkType FramePushPromise
       | not enablePush =
-        Just $ ConnectionError ProtocolError "push not enabled" -- checkme
+        Left $ ConnectionError ProtocolError "push not enabled" -- checkme
       | not (isResponse streamId) =
-        Just $ ConnectionError ProtocolError "push promise must be used with even stream identifier"
+        Left $ ConnectionError ProtocolError "push promise must be used with even stream identifier"
     checkType FramePing | payloadLength /= 8 =
-        Just $ ConnectionError FrameSizeError "payload length is 8 in ping frame"
+        Left $ ConnectionError FrameSizeError "payload length is 8 in ping frame"
     checkType FrameGoAway | payloadLength < 8 =
-        Just $ ConnectionError FrameSizeError "goaway body must be 8 bytes or larger"
+        Left $ ConnectionError FrameSizeError "goaway body must be 8 bytes or larger"
     checkType FrameWindowUpdate | payloadLength /= 4 =
-        Just $ ConnectionError FrameSizeError "payload length is 4 in window update frame"
-    checkType _ = Nothing
+        Left $ ConnectionError FrameSizeError "payload length is 4 in window update frame"
+    checkType _ = Right typfrm
 
 zeroFrameTypes :: [FrameTypeId]
 zeroFrameTypes = [
@@ -150,7 +147,10 @@ payloadDecoders = listArray (minFrameType, maxFrameType)
 
 -- | Decoding an HTTP/2 frame payload.
 decodeFramePayload :: FrameTypeId -> FramePayloadDecoder
-decodeFramePayload ftyp = checkFrameSize (payloadDecoders ! fromFrameTypeId ftyp)
+decodeFramePayload (FrameUnknown typ) = checkFrameSize $ decodeUnknownFrame typ
+decodeFramePayload ftyp               = checkFrameSize decoder
+  where
+    decoder = payloadDecoders ! fromFrameTypeId ftyp
 
 ----------------------------------------------------------------
 
@@ -211,15 +211,17 @@ decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
     ecid = toErrorCodeId (word32 bs1)
 
 decodeWindowUpdateFrame :: FramePayloadDecoder
-decodeWindowUpdateFrame _ bs = Right $ WindowUpdateFrame wsi
+decodeWindowUpdateFrame _ bs
+  | wsi == 0  = Left $ ConnectionError ProtocolError "window update must not be 0"
+  | otherwise = Right $ WindowUpdateFrame wsi
   where
     !wsi = word32 bs `clearBit` 31
 
 decodeContinuationFrame :: FramePayloadDecoder
 decodeContinuationFrame _ bs = Right $ ContinuationFrame bs
 
-decodeUnknownFrame :: FrameType -> ByteString -> FramePayload
-decodeUnknownFrame typ bs = UnknownFrame typ bs
+decodeUnknownFrame :: FrameType -> FramePayloadDecoder
+decodeUnknownFrame typ _ bs = Right $ UnknownFrame typ bs
 
 ----------------------------------------------------------------
 
