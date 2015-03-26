@@ -2,8 +2,8 @@ CaseSource {
     cs_description = "normal push promise frame"
   , cs_encodeinfo = EncodeInfo {
       encodeFlags = 0
-    , encodeStreamId = StreamIdentifier 9
+    , encodeStreamId = StreamIdentifier 10
     , encodePadding = Just "Howdy!"
     }
-  , cs_payload = PushPromiseFrame (StreamIdentifier 11) "this is dummy"
+  , cs_payload = PushPromiseFrame (StreamIdentifier 12) "this is dummy"
   }
