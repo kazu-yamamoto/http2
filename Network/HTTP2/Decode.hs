@@ -49,8 +49,9 @@ decodeFrame settings bs = decode typ
     decode (FrameUnknown v) = Right $ Frame header $ decodeUnknownFrame v bs1
     decode ftyp = case checkFrameHeader settings ftyp header of
         Just h2err -> Left h2err
-        Nothing    -> Right $ Frame header $ decodeFramePayload typ header bs1
-
+        Nothing    -> case decodeFramePayload typ header bs1 of
+            Left h2err -> Left h2err
+            Right pl   -> Right $ Frame header pl
 
 ----------------------------------------------------------------
 
@@ -93,12 +94,20 @@ checkFrameHeader Settings {..} typ FrameHeader {..}
         Just $ StreamError FrameSizeError streamId
     checkType FrameRSTStream | payloadLength /= 4 =
         Just $ ConnectionError FrameSizeError "payload length is not 4 in rst stream frame"
-    checkType FrameSettings | payloadLength `mod` 6 /= 0 =
+    checkType FrameSettings
+      | payloadLength `mod` 6 /= 0 =
         Just $ ConnectionError FrameSizeError "payload length is not multiple of 6 in settings frame"
-    checkType FramePushPromise | not enablePush =
+      | testAck flags && payloadLength /= 0 =
+        Just $ ConnectionError FrameSizeError "payload length must be 0 if ack flag is set"
+    checkType FramePushPromise
+      | not enablePush =
         Just $ ConnectionError ProtocolError "push not enabled" -- checkme
+      | not (isResponse streamId) =
+        Just $ ConnectionError ProtocolError "push promise must be used with even stream identifier"
     checkType FramePing | payloadLength /= 8 =
         Just $ ConnectionError FrameSizeError "payload length is 8 in ping frame"
+    checkType FrameGoAway | payloadLength < 8 =
+        Just $ ConnectionError FrameSizeError "goaway body must be 8 bytes or larger"
     checkType FrameWindowUpdate | payloadLength /= 4 =
         Just $ ConnectionError FrameSizeError "payload length is 4 in window update frame"
     checkType _ = Nothing
@@ -122,7 +131,8 @@ nonZeroFrameTypes = [
 
 ----------------------------------------------------------------
 
-type FramePayloadDecoder = FrameHeader -> ByteString -> FramePayload
+type FramePayloadDecoder = FrameHeader -> ByteString
+                        -> Either HTTP2Error FramePayload
 
 payloadDecoders :: Array Word8 FramePayloadDecoder
 payloadDecoders = listArray (minFrameType, maxFrameType)
@@ -140,7 +150,7 @@ payloadDecoders = listArray (minFrameType, maxFrameType)
 
 -- | Decoding an HTTP/2 frame payload.
 decodeFramePayload :: FrameTypeId -> FramePayloadDecoder
-decodeFramePayload ftyp = payloadDecoders ! fromFrameTypeId ftyp
+decodeFramePayload ftyp = checkFrameSize (payloadDecoders ! fromFrameTypeId ftyp)
 
 ----------------------------------------------------------------
 
@@ -159,13 +169,13 @@ decodeHeadersFrame header bs = decodeWithPadding header bs $ \bs' ->
     hasPriority = testPriority $ flags header
 
 decodePriorityFrame :: FramePayloadDecoder
-decodePriorityFrame _ bs = PriorityFrame $ priority bs
+decodePriorityFrame _ bs = Right $ PriorityFrame $ priority bs
 
 decoderstStreamFrame :: FramePayloadDecoder
-decoderstStreamFrame _ bs = RSTStreamFrame $ toErrorCodeId (word32 bs)
+decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCodeId (word32 bs)
 
 decodeSettingsFrame :: FramePayloadDecoder
-decodeSettingsFrame FrameHeader{..} (PS fptr off _) = SettingsFrame alist
+decodeSettingsFrame FrameHeader{..} (PS fptr off _) = Right $ SettingsFrame alist
   where
     num = payloadLength `div` 6
     alist = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
@@ -190,10 +200,10 @@ decodePushPromiseFrame header bs = decodeWithPadding header bs $ \bs' ->
     in PushPromiseFrame sid bs1
 
 decodePingFrame :: FramePayloadDecoder
-decodePingFrame _ bs = PingFrame bs
+decodePingFrame _ bs = Right $ PingFrame bs
 
 decodeGoAwayFrame :: FramePayloadDecoder
-decodeGoAwayFrame _ bs = GoAwayFrame sid ecid bs2
+decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
   where
     (bs0,bs1') = BS.splitAt 4 bs
     (bs1,bs2)  = BS.splitAt 4 bs1'
@@ -201,29 +211,38 @@ decodeGoAwayFrame _ bs = GoAwayFrame sid ecid bs2
     ecid = toErrorCodeId (word32 bs1)
 
 decodeWindowUpdateFrame :: FramePayloadDecoder
-decodeWindowUpdateFrame _ bs = WindowUpdateFrame wsi
+decodeWindowUpdateFrame _ bs = Right $ WindowUpdateFrame wsi
   where
     !wsi = word32 bs `clearBit` 31
 
 decodeContinuationFrame :: FramePayloadDecoder
-decodeContinuationFrame _ bs = ContinuationFrame bs
+decodeContinuationFrame _ bs = Right $ ContinuationFrame bs
 
 decodeUnknownFrame :: FrameType -> ByteString -> FramePayload
 decodeUnknownFrame typ bs = UnknownFrame typ bs
 
 ----------------------------------------------------------------
 
+checkFrameSize :: FramePayloadDecoder -> FramePayloadDecoder
+checkFrameSize func header@FrameHeader{..} body
+  | payloadLength > BS.length body =
+      Left $ ConnectionError FrameSizeError "payload is too short"
+  | otherwise = func header body
+
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the decoder func
 -- passed in with the length of the unpadded portion between the
 -- padding octet and the actual padding
-decodeWithPadding :: FrameHeader -> ByteString -> (ByteString -> FramePayload) -> FramePayload
+decodeWithPadding :: FrameHeader -> ByteString -> (ByteString -> FramePayload) -> Either HTTP2Error FramePayload
 decodeWithPadding FrameHeader{..} bs body
   | padded = let Just (w8,rest) = BS.uncons bs
                  padlen = intFromWord8 w8
-                 rest' = BS.take (payloadLength - padlen - 1) rest
-             in body rest'
-  | otherwise = body bs
+                 bodylen = payloadLength - padlen - 1
+             in if bodylen < 0 then
+                    Left $ ConnectionError ProtocolError "padding is not enough"
+                  else
+                    Right . body $ BS.take bodylen rest
+  | otherwise = Right $ body bs
   where
     padded = testPadded flags
 
