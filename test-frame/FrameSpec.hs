@@ -39,7 +39,7 @@ check file = do
                         Just fp -> do
                             fpFrame fp `shouldBe` frm
                             let einfo = EncodeInfo {
-                                    encodeFlags = 0
+                                    encodeFlags = flags $ frameHeader $ fpFrame fp
                                   , encodeStreamId = streamId (frameHeader frm)
                                   , encodePadding = unPad <$> fpPad fp
                                   }
