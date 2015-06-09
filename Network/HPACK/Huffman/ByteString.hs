@@ -7,12 +7,13 @@ module Network.HPACK.Huffman.ByteString (
 
 import Control.Monad (void)
 import Data.Bits ((.&.), shiftR)
-import Data.ByteString.Internal (ByteString(..), inlinePerformIO)
+import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..))
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
+import System.IO.Unsafe (unsafeDupablePerformIO)
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
@@ -26,7 +27,7 @@ import Foreign.Storable (peek)
 -- [3,4,15,3,10,11]
 
 unpack4bits :: ByteString -> [Word8]
-unpack4bits (PS fptr off len) = inlinePerformIO $
+unpack4bits (PS fptr off len) = unsafeDupablePerformIO $
   withForeignPtr fptr $ \ptr -> do
     let lim = ptr `plusPtr` (off - 1)
         end = ptr `plusPtr` (off + len - 1)

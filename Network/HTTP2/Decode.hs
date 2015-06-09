@@ -25,11 +25,12 @@ import Data.Array (Array, listArray, (!))
 import Data.Bits (clearBit, shiftL, (.|.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..), inlinePerformIO)
+import Data.ByteString.Internal (ByteString(..))
 import Data.Word
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
+import System.IO.Unsafe (unsafeDupablePerformIO)
 
 import Network.HTTP2.Types
 
@@ -53,7 +54,7 @@ decodeFrame settings bs = checkFrameHeader settings (decodeFrameHeader bs0)
 -- | Decoding an HTTP/2 frame header.
 --   Must supply 9 bytes.
 decodeFrameHeader :: ByteString -> (FrameTypeId, FrameHeader)
-decodeFrameHeader (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
+decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     l0 <- fromIntegral <$> peek p
     l1 <- fromIntegral <$> peek (p +. 1)
@@ -178,7 +179,7 @@ decodeSettingsFrame :: FramePayloadDecoder
 decodeSettingsFrame FrameHeader{..} (PS fptr off _) = Right $ SettingsFrame alist
   where
     num = payloadLength `div` 6
-    alist = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
+    alist = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
         let p = ptr +. off
         settings num p id
     settings 0 _ builder = return $ builder []
@@ -252,7 +253,7 @@ streamIdentifier :: Word32 -> StreamIdentifier
 streamIdentifier w32 = toStreamIdentifier (fromIntegral w32)
 
 priority :: ByteString -> Priority
-priority (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
+priority (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     w32 <- word32' p
     let !streamdId = streamIdentifier w32
@@ -265,7 +266,7 @@ intFromWord8 :: Word8 -> Int
 intFromWord8 = fromIntegral
 
 word32 :: ByteString -> Word32
-word32 (PS fptr off _) = inlinePerformIO $ withForeignPtr fptr $ \ptr -> do
+word32 (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     word32' p
 {-# INLINE word32 #-}
