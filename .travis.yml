@@ -10,3 +10,5 @@ install:
     - cabal --version
     - (cd test-frame; sh ./prepare.sh)
     - (cd test-hpack; sh ./prepare.sh)
+    - cabal update
+    - cabal install --only-dependencies --enable-tests
