@@ -1,0 +1,12 @@
+language: haskell
+
+ghc:
+    - "7.6"
+    - "7.8"
+    - "7.10"
+
+install:
+    - ghc --version
+    - cabal --version
+    - (cd test-frame; sh ./prepare.sh)
+    - (cd test-hpack; sh ./prepare.sh)
