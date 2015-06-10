@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 
 module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
@@ -6,7 +6,9 @@ module Network.HPACK.Huffman.Encode (
   , encode
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Control.Monad (when)
 import Data.Array
 import Data.Bits ((.|.))
