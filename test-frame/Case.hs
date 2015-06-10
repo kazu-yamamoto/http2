@@ -1,8 +1,10 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, CPP #-}
 
 module Case where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Data.ByteString (ByteString)
 import Data.Hex
 import Data.Maybe (fromJust)

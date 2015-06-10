@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections, BangPatterns, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 
 module Network.HTTP2.Decode (
   -- * Decoding
@@ -20,7 +21,9 @@ module Network.HTTP2.Decode (
   , decodeContinuationFrame
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Data.Array (Array, listArray, (!))
 import Data.Bits (clearBit, shiftL, (.|.))
 import Data.ByteString (ByteString)

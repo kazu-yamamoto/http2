@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections, RecordWildCards #-}
+{-# LANGUAGE TupleSections, RecordWildCards, CPP #-}
 
 module Network.HPACK.Table (
   -- * dynamic table
@@ -20,7 +20,9 @@ module Network.HPACK.Table (
   , which
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Control.Exception (throwIO)
 import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.Entry

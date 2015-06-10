@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module JSON (
@@ -7,7 +7,9 @@ module JSON (
   , HeaderList
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
+#endif
 import Control.Monad (mzero)
 import Data.Aeson
 import Data.ByteString (ByteString)

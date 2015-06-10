@@ -1,8 +1,10 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, CPP #-}
 
 module Main where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
+#endif
 import Data.Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as BL

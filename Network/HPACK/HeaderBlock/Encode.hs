@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Network.HPACK.HeaderBlock.Encode (
     toByteString
   ) where
@@ -8,7 +10,10 @@ import Data.Bits (setBit)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.List (foldl')
-import Data.Monoid ((<>), mempty)
+#if __GLASGOW_HASKELL__ < 709
+import Data.Monoid (mempty)
+#endif
+import Data.Monoid ((<>))
 import Data.Word (Word8)
 import Network.HPACK.HeaderBlock.HeaderField
 import qualified Network.HPACK.HeaderBlock.Integer as I

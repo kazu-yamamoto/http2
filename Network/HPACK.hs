@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 -- | HPACK: encoding and decoding a header list.
 module Network.HPACK (
   -- * Encoding and decoding
@@ -25,7 +27,9 @@ module Network.HPACK (
   , Index
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Control.Arrow (second)
 import Control.Exception (throwIO)
 import Data.ByteString (ByteString)

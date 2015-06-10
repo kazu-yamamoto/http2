@@ -1,10 +1,12 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module JSON where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
+#endif
 import Control.Arrow (first)
 import Control.Monad (mzero)
 import Data.Aeson

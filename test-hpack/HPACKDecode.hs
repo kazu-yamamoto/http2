@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, CPP #-}
 
 module HPACKDecode (
     run
@@ -8,7 +8,9 @@ module HPACKDecode (
   , CompressionAlgo(..)
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Control.Exception
 import Control.Monad (when)
 import qualified Data.ByteString.Char8 as B8

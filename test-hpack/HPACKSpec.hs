@@ -1,6 +1,10 @@
+{-# LANGUAGE CPP #-}
+
 module HPACKSpec where
 
+#if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+#endif
 import Control.Monad (forM_, filterM)
 import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Lazy as BL
