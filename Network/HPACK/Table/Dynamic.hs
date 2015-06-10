@@ -18,7 +18,7 @@ module Network.HPACK.Table.Dynamic (
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Network.HPACK.Table.Entry
-import qualified Network.HPACK.Table.HashPSQ as HP
+import qualified Network.HPACK.Table.DoubleHashMap as DHM
 import Network.HPACK.Table.Static
 import Control.Monad (forM)
 
@@ -61,7 +61,7 @@ data DynamicTable = DynamicTable {
   -- | Header to the index in Dynamic Table for encoder.
   --   Static Table is not included.
   --   Nothing for decoder.
-  , reverseIndex :: Maybe (HP.HashPSQ HIndex)
+  , reverseIndex :: Maybe (DHM.DoubleHashMap HIndex)
   }
 
 adj :: Int -> Int -> Int
@@ -126,7 +126,7 @@ fromIndexToSIndex _ idx = toStaticIndex idx
 -- The default maxDynamicTableSize is 4096 bytes,
 -- an array has 128 entries, resulting 1024 bytes in 64bit machine
 newDynamicTableForEncoding :: Size -> IO DynamicTable
-newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz (Just HP.empty)
+newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz (Just DHM.empty)
 
 -- | Creating 'DynamicTable'.
 -- The default maxDynamicTableSize is 4096 bytes,
@@ -134,7 +134,7 @@ newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz (Just HP.empty)
 newDynamicTableForDecoding :: Size -> IO DynamicTable
 newDynamicTableForDecoding maxsiz = newDynamicTable maxsiz Nothing
 
-newDynamicTable :: Size -> Maybe (HP.HashPSQ HIndex) -> IO DynamicTable
+newDynamicTable :: Size -> Maybe (DHM.DoubleHashMap HIndex) -> IO DynamicTable
 newDynamicTable maxsiz mhp = do
     tbl <- newArray (0,end) dummyEntry
     return DynamicTable {
@@ -157,7 +157,7 @@ renewDynamicTable maxsiz oldhdrtbl | shouldRenew oldhdrtbl maxsiz =
   where
     mhp = case reverseIndex oldhdrtbl of
         Nothing -> Nothing
-        _       -> Just HP.empty
+        _       -> Just DHM.empty
 renewDynamicTable _ oldhdrtbl = return oldhdrtbl
 
 copyTable :: DynamicTable -> DynamicTable -> IO DynamicTable
@@ -191,7 +191,7 @@ insertEntry e hdrtbl = do
     (hdrtbl', hs) <- insertFront e hdrtbl >>= adjustTableSize
     let hdrtbl'' = case reverseIndex hdrtbl' of
             Nothing  -> hdrtbl'
-            Just rev -> hdrtbl' { reverseIndex = Just (HP.deleteList hs rev) }
+            Just rev -> hdrtbl' { reverseIndex = Just (DHM.deleteList hs rev) }
     return hdrtbl''
 
 insertFront :: Entry -> DynamicTable -> IO DynamicTable
@@ -209,7 +209,7 @@ insertFront e hdrtbl@DynamicTable{..} = do
     offset' = adj maxNumOfEntries (offset - 1)
     reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
-        Just rev -> Just $ HP.insert (entryHeader e) (HIndex i) rev
+        Just rev -> Just $ DHM.insert (entryHeader e) (HIndex i) rev
 
 adjustTableSize :: DynamicTable -> IO (DynamicTable, [Header])
 adjustTableSize hdrtbl = adjust hdrtbl []
@@ -236,7 +236,7 @@ insertEnd e hdrtbl@DynamicTable{..} = do
     headerTableSize' = headerTableSize + entrySize e
     reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
-        Just rev -> Just $ HP.insert (entryHeader e) (HIndex i) rev
+        Just rev -> Just $ DHM.insert (entryHeader e) (HIndex i) rev
 
 ----------------------------------------------------------------
 

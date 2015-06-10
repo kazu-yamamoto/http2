@@ -12,7 +12,7 @@ module Network.HPACK.Table.Static (
 
 import Data.Array (Array, listArray, (!))
 import Network.HPACK.Table.Entry
-import qualified Network.HPACK.Table.HashPSQ as HP
+import qualified Network.HPACK.Table.DoubleHashMap as DHM
 
 ----------------------------------------------------------------
 
@@ -48,8 +48,8 @@ toStaticEntry (SIndex sidx) = staticTable ! sidx
 staticTable :: Array Index Entry
 staticTable = listArray (1,staticTableSize) $ map toEntry staticTableList
 
-staticHashPSQ :: HP.HashPSQ SIndex
-staticHashPSQ = HP.fromList alist
+staticHashPSQ :: DHM.DoubleHashMap SIndex
+staticHashPSQ = DHM.fromList alist
   where
     is = map toStaticIndex [1..]
     alist = zip is staticTableList

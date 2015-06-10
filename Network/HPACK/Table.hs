@@ -26,7 +26,7 @@ import Control.Applicative ((<$>))
 import Control.Exception (throwIO)
 import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.Entry
-import qualified Network.HPACK.Table.HashPSQ as HP
+import qualified Network.HPACK.Table.DoubleHashMap as DHM
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
@@ -47,21 +47,21 @@ data HeaderCache = None
 lookupTable :: Header -> DynamicTable -> HeaderCache
 lookupTable h hdrtbl = case reverseIndex hdrtbl of
     Nothing            -> None
-    Just rev -> case HP.search h rev of
-        HP.N       -> case mstatic of
-            HP.N       -> None
-            HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
-            HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
-        HP.K hidx  -> case mstatic of
-            HP.N       -> KeyOnly  InDynamicTable (fromHIndexToIndex hdrtbl hidx)
-            HP.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
-            HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
-        HP.KV hidx -> case mstatic of
-            HP.N       -> KeyValue InDynamicTable (fromHIndexToIndex hdrtbl hidx)
-            HP.K  _    -> KeyValue InDynamicTable (fromHIndexToIndex hdrtbl hidx)
-            HP.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+    Just rev -> case DHM.search h rev of
+        DHM.N       -> case mstatic of
+            DHM.N       -> None
+            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
+            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+        DHM.K hidx  -> case mstatic of
+            DHM.N       -> KeyOnly  InDynamicTable (fromHIndexToIndex hdrtbl hidx)
+            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
+            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+        DHM.KV hidx -> case mstatic of
+            DHM.N       -> KeyValue InDynamicTable (fromHIndexToIndex hdrtbl hidx)
+            DHM.K  _    -> KeyValue InDynamicTable (fromHIndexToIndex hdrtbl hidx)
+            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
   where
-    mstatic = HP.search h staticHashPSQ
+    mstatic = DHM.search h staticHashPSQ
 
 ----------------------------------------------------------------
 
