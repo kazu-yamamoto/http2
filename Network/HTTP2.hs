@@ -63,9 +63,11 @@ module Network.HTTP2 (
   -- * Settings
   , Settings(..)
   , defaultSettings
+  , updateSettings
+  -- ** Window
   , defaultInitialWindowSize
   , maxWindowSize
-  , updateSettings
+  , isWindowOverflow
   -- * Error code
   , ErrorCode
   , ErrorCodeId(..)

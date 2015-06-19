@@ -15,9 +15,11 @@ module Network.HTTP2.Types (
   -- * Settings
   , Settings(..)
   , defaultSettings
+  , updateSettings
+  -- ** Window
   , defaultInitialWindowSize
   , maxWindowSize
-  , updateSettings
+  , isWindowOverflow
   -- * Error
   , HTTP2Error(..)
   , errorCodeId
@@ -292,6 +294,17 @@ defaultInitialWindowSize = 65535
 -- 2147483647
 maxWindowSize :: Int
 maxWindowSize = 2147483647
+
+-- | Checking if a window size exceeds the maximum window size.
+--
+-- >>> isWindowOverflow 10
+-- False
+-- >>> isWindowOverflow maxWindowSize
+-- False
+-- >>> isWindowOverflow (maxWindowSize + 1)
+-- True
+isWindowOverflow :: Int -> Bool
+isWindowOverflow w = testBit w 31
 
 ----------------------------------------------------------------
 
