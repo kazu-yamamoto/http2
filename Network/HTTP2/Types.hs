@@ -16,6 +16,7 @@ module Network.HTTP2.Types (
   , Settings(..)
   , defaultSettings
   , defaultInitialWindowSize
+  , maxWindowSize
   , updateSettings
   -- * Error
   , HTTP2Error(..)
@@ -284,6 +285,13 @@ updateSettings settings kvs = foldr update settings kvs
 -- 65535
 defaultInitialWindowSize :: Int
 defaultInitialWindowSize = 65535
+
+-- | The maximum window size.
+--
+-- >>> maxWindowSize
+-- 2147483647
+maxWindowSize :: Int
+maxWindowSize = 2147483647
 
 ----------------------------------------------------------------
 

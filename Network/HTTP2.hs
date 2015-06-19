@@ -64,6 +64,7 @@ module Network.HTTP2 (
   , Settings(..)
   , defaultSettings
   , defaultInitialWindowSize
+  , maxWindowSize
   , updateSettings
   -- * Error code
   , ErrorCode
