@@ -15,6 +15,7 @@ module Network.HTTP2.Types (
   -- * Settings
   , Settings(..)
   , defaultSettings
+  , defaultInitialWindowSize
   , updateSettings
   -- * Error
   , HTTP2Error(..)
@@ -257,7 +258,7 @@ defaultSettings = Settings {
     headerTableSize = 4096
   , enablePush = True
   , maxConcurrentStreams = Nothing
-  , initialWindowSize = 65535
+  , initialWindowSize = defaultInitialWindowSize
   , maxFrameSize = 16384
   , maxHeaderBlockSize = Nothing
   }
@@ -276,6 +277,13 @@ updateSettings settings kvs = foldr update settings kvs
     update (SettingsInitialWindowSize,x)    def = def { initialWindowSize = x }
     update (SettingsMaxFrameSize,x)         def = def { maxFrameSize = x }
     update (SettingsMaxHeaderBlockSize,x)   def = def { maxHeaderBlockSize = Just x }
+
+-- | The default initial window size.
+--
+-- >>> defaultInitialWindowSize
+-- 65535
+defaultInitialWindowSize :: Int
+defaultInitialWindowSize = 65535
 
 ----------------------------------------------------------------
 
