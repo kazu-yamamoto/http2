@@ -29,7 +29,6 @@ module Network.HTTP2 (
   , PromisedStreamId
   , LastStreamId
   , StreamDependency
-  , WindowSizeIncrement
   -- * Stream identifier
   , StreamIdentifier
   , fromStreamIdentifier
@@ -64,7 +63,8 @@ module Network.HTTP2 (
   , Settings(..)
   , defaultSettings
   , updateSettings
-  -- ** Window
+  -- * Window
+  , WindowSize
   , defaultInitialWindowSize
   , maxWindowSize
   , isWindowOverflow

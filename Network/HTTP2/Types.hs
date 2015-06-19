@@ -16,10 +16,6 @@ module Network.HTTP2.Types (
   , Settings(..)
   , defaultSettings
   , updateSettings
-  -- ** Window
-  , defaultInitialWindowSize
-  , maxWindowSize
-  , isWindowOverflow
   -- * Error
   , HTTP2Error(..)
   , errorCodeId
@@ -66,8 +62,12 @@ module Network.HTTP2.Types (
   , setEndHeader
   , setPadded
   , setPriority
+  -- *Window
+  , WindowSize
+  , defaultInitialWindowSize
+  , maxWindowSize
+  , isWindowOverflow
   -- * Types
-  , WindowSizeIncrement
   , HeaderBlockFragment
   , Priority(..)
   , Padding
@@ -247,7 +247,7 @@ data Settings = Settings {
     headerTableSize :: Int
   , enablePush :: Bool
   , maxConcurrentStreams :: Maybe Int
-  , initialWindowSize :: Int
+  , initialWindowSize :: WindowSize
   , maxFrameSize :: Int
   , maxHeaderBlockSize :: Maybe Int
   } deriving (Show)
@@ -281,18 +281,20 @@ updateSettings settings kvs = foldr update settings kvs
     update (SettingsMaxFrameSize,x)         def = def { maxFrameSize = x }
     update (SettingsMaxHeaderBlockSize,x)   def = def { maxHeaderBlockSize = Just x }
 
+type WindowSize = Int
+
 -- | The default initial window size.
 --
 -- >>> defaultInitialWindowSize
 -- 65535
-defaultInitialWindowSize :: Int
+defaultInitialWindowSize :: WindowSize
 defaultInitialWindowSize = 65535
 
 -- | The maximum window size.
 --
 -- >>> maxWindowSize
 -- 2147483647
-maxWindowSize :: Int
+maxWindowSize :: WindowSize
 maxWindowSize = 2147483647
 
 -- | Checking if a window size exceeds the maximum window size.
@@ -303,7 +305,7 @@ maxWindowSize = 2147483647
 -- False
 -- >>> isWindowOverflow (maxWindowSize + 1)
 -- True
-isWindowOverflow :: Int -> Bool
+isWindowOverflow :: WindowSize -> Bool
 isWindowOverflow w = testBit w 31
 
 ----------------------------------------------------------------
@@ -513,7 +515,6 @@ setExclusive n = n `setBit` 31
 
 ----------------------------------------------------------------
 
-type WindowSizeIncrement = Word32
 type HeaderBlockFragment = ByteString
 type Padding = ByteString
 
@@ -542,7 +543,7 @@ data FramePayload =
   | PushPromiseFrame PromisedStreamId HeaderBlockFragment
   | PingFrame ByteString
   | GoAwayFrame LastStreamId ErrorCodeId ByteString
-  | WindowUpdateFrame WindowSizeIncrement
+  | WindowUpdateFrame WindowSize
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameType ByteString
   deriving (Show, Read, Eq)

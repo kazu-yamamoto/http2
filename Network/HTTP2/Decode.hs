@@ -219,7 +219,7 @@ decodeWindowUpdateFrame _ bs
   | wsi == 0  = Left $ ConnectionError ProtocolError "window update must not be 0"
   | otherwise = Right $ WindowUpdateFrame wsi
   where
-    !wsi = word32 bs `clearBit` 31
+    !wsi = fromIntegral (word32 bs `clearBit` 31)
 
 decodeContinuationFrame :: FramePayloadDecoder
 decodeContinuationFrame _ bs = Right $ ContinuationFrame bs

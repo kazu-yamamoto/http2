@@ -212,12 +212,12 @@ buildFramePayloadGoAway EncodeInfo{..} sid e debug = (header, builder)
     len = len0 + BS.length debug
     header = FrameHeader len encodeFlags encodeStreamId
 
-buildFramePayloadWindowUpdate :: EncodeInfo -> WindowSizeIncrement -> (FrameHeader, Builder)
+buildFramePayloadWindowUpdate :: EncodeInfo -> WindowSize -> (FrameHeader, Builder)
 buildFramePayloadWindowUpdate EncodeInfo{..} size = (header, builder)
   where
     -- fixme: reserve bit
     builder = (b4 :)
-    b4 = bytestring4 size
+    b4 = bytestring4 $ fromIntegral size
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadContinuation :: EncodeInfo -> HeaderBlockFragment -> (FrameHeader, Builder)
