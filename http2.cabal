@@ -87,7 +87,6 @@ Test-Suite spec
                         HPACK.IntegerSpec
                         HTTP2.FrameSpec
   Build-Depends:        base >= 4 && < 5
-                      , PSQueue
                       , array
                       , blaze-builder
                       , bytestring
