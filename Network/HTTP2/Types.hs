@@ -38,6 +38,7 @@ module Network.HTTP2.Types (
   , framePayloadToFrameTypeId
   , isPaddingDefined
   -- * Stream identifier
+  , StreamId
   , StreamIdentifier(..)
   , fromStreamIdentifier
   , toStreamIdentifier
@@ -467,7 +468,9 @@ setPriority x = x `setBit` 5
 
 ----------------------------------------------------------------
 
-newtype StreamIdentifier = StreamIdentifier Int deriving (Show, Read, Eq)
+type StreamId = Int
+
+newtype StreamIdentifier = StreamIdentifier StreamId deriving (Show, Read, Eq)
 type StreamDependency    = StreamIdentifier
 type LastStreamId        = StreamIdentifier
 type PromisedStreamId    = StreamIdentifier
@@ -475,13 +478,13 @@ type PromisedStreamId    = StreamIdentifier
 -- |
 -- >>> toStreamIdentifier 0
 -- StreamIdentifier 0
-toStreamIdentifier :: Int -> StreamIdentifier
+toStreamIdentifier :: StreamId -> StreamIdentifier
 toStreamIdentifier n = StreamIdentifier (n `clearBit` 31)
 
 -- |
 -- >>> fromStreamIdentifier (toStreamIdentifier 0)
 -- 0
-fromStreamIdentifier :: StreamIdentifier -> Int
+fromStreamIdentifier :: StreamIdentifier -> StreamId
 fromStreamIdentifier (StreamIdentifier n) = n
 
 -- |

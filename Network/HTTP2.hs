@@ -31,6 +31,7 @@ module Network.HTTP2 (
   , LastStreamId
   , StreamDependency
   -- * Stream identifier
+  , StreamId
   , StreamIdentifier
   , fromStreamIdentifier
   , toStreamIdentifier
