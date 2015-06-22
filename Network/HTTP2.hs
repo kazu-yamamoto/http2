@@ -25,6 +25,7 @@ module Network.HTTP2 (
   -- * Types
   , HeaderBlockFragment
   , Padding
+  , Weight
   , Priority(..)
   , PromisedStreamId
   , LastStreamId

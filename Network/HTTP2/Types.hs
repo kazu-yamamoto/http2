@@ -69,6 +69,7 @@ module Network.HTTP2.Types (
   , isWindowOverflow
   -- * Types
   , HeaderBlockFragment
+  , Weight
   , Priority(..)
   , Padding
   ) where
@@ -310,10 +311,12 @@ isWindowOverflow w = testBit w 31
 
 ----------------------------------------------------------------
 
+type Weight = Int
+
 data Priority = Priority {
     exclusive :: Bool
   , streamDependency :: StreamIdentifier
-  , weight :: Int
+  , weight :: Weight
   } deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------
