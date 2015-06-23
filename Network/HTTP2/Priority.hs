@@ -2,6 +2,7 @@
 
 module Network.HTTP2.Priority (
     PriorityTree
+  , newPriorityTree
   , prepare
   , enqueue
   , dequeue
