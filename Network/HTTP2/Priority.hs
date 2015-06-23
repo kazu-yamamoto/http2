@@ -1,6 +1,11 @@
 {-# LANGUAGE RecordWildCards, CPP #-}
 
-module Network.HTTP2.Priority where
+module Network.HTTP2.Priority (
+    PriorityTree
+  , prepare
+  , enqueue
+  , dequeue
+  ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
@@ -13,8 +18,8 @@ import Network.HTTP2.RandomSkewHeap (Heap)
 import qualified Network.HTTP2.RandomSkewHeap as Heap
 import Network.HTTP2.Types
 
-form :: PriorityTree a -> StreamId -> Priority -> IO ()
-form (PriorityTree var _) sid Priority{..} = atomically $ do
+prepare :: PriorityTree a -> StreamId -> Priority -> IO ()
+prepare (PriorityTree var _) sid Priority{..} = atomically $ do
     q <- newPriorityQueue
     let pid = fromStreamIdentifier streamDependency
     modifyTVar' var $ Map.insert sid (q, weight, pid)
