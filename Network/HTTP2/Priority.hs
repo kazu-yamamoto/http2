@@ -58,7 +58,7 @@ dequeue (PriorityTree _ q0) = atomically (loop q0)
 
 type Struct a = (PriorityQueue a, Weight, StreamId)
 data PriorityTree a = PriorityTree (TVar (IntMap (Struct a)))
-                                     (PriorityQueue a)
+                                   (PriorityQueue a)
 type PriorityQueue a = TPQueue (Element a)
 data Element a = Child a
                | Parent (PriorityQueue a)
@@ -104,4 +104,4 @@ writeTPQueue :: TPQueue a -> a -> Weight -> STM ()
 writeTPQueue (TPQueue th) a w = modifyTVar' th $ Heap.insert a w
 
 nonEmpty :: TPQueue a -> STM Bool
-nonEmpty (TPQueue th) = Heap.isEmpty <$> readTVar th
+nonEmpty (TPQueue th) = not . Heap.isEmpty <$> readTVar th
