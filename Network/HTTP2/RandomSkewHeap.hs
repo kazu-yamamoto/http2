@@ -1,5 +1,16 @@
 {-# LANGUAGE BangPatterns #-}
 
+-- This data structure is based on skew heap. If we take weight as
+-- priority, a typical heap (priority queue) is not fair enough.
+-- Consider two weight 201 and 101. A typical heap would generate
+-- 201, 201, 201, 201, 201, 201, 201, ...., and finaly 201, 101,
+-- 201, 101. What we want is 201, 201, 101, 201, 201, 101.
+-- So, we introduce randomness to Skew Heap. In the random binary
+-- tree, an element is selected as the root with probability of
+-- 1 / (n + 1) where n is the size of the original tree.
+-- In the random skew heap, an element is selected as the root
+-- with the probability of weight / total_weight.
+
 module Network.HTTP2.RandomSkewHeap (
     Heap
   , empty

@@ -1,5 +1,16 @@
 {-# LANGUAGE RecordWildCards, CPP #-}
 
+-- | This is partial implementation of the priority of HTTP/2.
+--
+-- This implementation does support structured priority queue
+-- but not support re-structuring. This means that it is assumed that
+-- an entry created by a Priority frame is never closed. The entry
+-- behaves an intermediate node, not a leaf.
+--
+-- This queue is fair for weight. Consider two weights: 201 and 101.
+-- Repeating enqueue/dequeue probably produces
+-- 201, 201, 101, 201, 201, 101, ... based on randomness.
+
 module Network.HTTP2.Priority (
     PriorityTree
   , newPriorityTree
@@ -19,12 +30,40 @@ import Network.HTTP2.RandomSkewHeap (Heap)
 import qualified Network.HTTP2.RandomSkewHeap as Heap
 import Network.HTTP2.Types
 
+----------------------------------------------------------------
+
+type Struct a = (PriorityQueue a, Weight, StreamId)
+-- | Abstract data type for priority trees.
+data PriorityTree a = PriorityTree (TVar (IntMap (Struct a)))
+                                   (PriorityQueue a)
+-- INVARIANT: Empty PriorityQueue is never enqueued in
+-- another PriorityQueue.
+type PriorityQueue a = TPQueue (Element a)
+data Element a = Child a
+               | Parent (PriorityQueue a)
+
+-- | Creating a new priority tree.
+newPriorityTree :: IO (PriorityTree a)
+newPriorityTree = do
+    ref <- newTVarIO Map.empty
+    q <- atomically newTPQueue
+    return $ PriorityTree ref q
+
+newPriorityQueue :: STM (PriorityQueue a)
+newPriorityQueue = TPQueue <$> newTVar Heap.empty
+
+----------------------------------------------------------------
+
+-- | Bringing up the structure of the priority tree.
+--   This must be used for Priority frame.
 prepare :: PriorityTree a -> StreamId -> Priority -> IO ()
 prepare (PriorityTree var _) sid Priority{..} = atomically $ do
     q <- newPriorityQueue
     let pid = fromStreamIdentifier streamDependency
     modifyTVar' var $ Map.insert sid (q, weight, pid)
 
+-- | Enqueuing an element to the priority tree.
+--   This must be used for Header frame.
 enqueue :: PriorityTree a -> a -> Priority -> IO ()
 enqueue (PriorityTree var q0) a Priority{..} = atomically $ do
     m <- readTVar var
@@ -41,6 +80,7 @@ enqueue (PriorityTree var q0) a Priority{..} = atomically $ do
                 writeTPQueue q' el w
                 unless exist $ loop m (Parent q') w' pid'
 
+-- | Dequeuing an element from the priority tree.
 dequeue :: PriorityTree a -> IO (a, Weight)
 dequeue (PriorityTree _ q0) = atomically (loop q0)
   where
@@ -53,24 +93,6 @@ dequeue (PriorityTree _ q0) = atomically (loop q0)
                 x <- nonEmpty q'
                 when x $ writeTPQueue q p w
                 return r
-
-----------------------------------------------------------------
-
-type Struct a = (PriorityQueue a, Weight, StreamId)
-data PriorityTree a = PriorityTree (TVar (IntMap (Struct a)))
-                                   (PriorityQueue a)
-type PriorityQueue a = TPQueue (Element a)
-data Element a = Child a
-               | Parent (PriorityQueue a)
-
-newPriorityTree :: IO (PriorityTree a)
-newPriorityTree = do
-    ref <- newTVarIO Map.empty
-    q <- atomically newTPQueue
-    return $ PriorityTree ref q
-
-newPriorityQueue :: STM (PriorityQueue a)
-newPriorityQueue = TPQueue <$> newTVar Heap.empty
 
 ----------------------------------------------------------------
 --
@@ -91,6 +113,7 @@ readTPQueue (TPQueue th) = do
       writeTVar th h'
       return (a, w)
 
+{-
 tryReadTPQueue :: TPQueue a -> STM (Maybe (a, Weight))
 tryReadTPQueue (TPQueue th) = do
   h <- readTVar th
@@ -99,6 +122,7 @@ tryReadTPQueue (TPQueue th) = do
     Just (a, w, h') -> do
       writeTVar th h'
       return (Just (a, w))
+-}
 
 writeTPQueue :: TPQueue a -> a -> Weight -> STM ()
 writeTPQueue (TPQueue th) a w = modifyTVar' th $ Heap.insert a w
