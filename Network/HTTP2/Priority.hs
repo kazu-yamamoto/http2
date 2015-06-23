@@ -7,8 +7,13 @@ import Control.Applicative
 #endif
 import Control.Concurrent.STM
 import Control.Monad (when, unless)
-import qualified Data.IntMap as Map
+#if __GLASGOW_HASKELL__ >= 705
+import qualified Data.IntMap.Strict as Map
 import Data.IntMap.Strict (IntMap)
+#else
+import qualified Data.IntMap as Map
+import Data.IntMap (IntMap)
+#endif
 import Network.HTTP2.RandomSkewHeap (Heap)
 import qualified Network.HTTP2.RandomSkewHeap as Heap
 import Network.HTTP2.Types
