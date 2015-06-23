@@ -29,6 +29,7 @@ Library
   Exposed-Modules:      Network.HPACK
                         Network.HTTP2
                         Network.HTTP2.Internal
+                        Network.HTTP2.Priority
   Other-Modules:        Network.HPACK.Builder
                         Network.HPACK.Builder.Word8
                         Network.HPACK.Huffman
@@ -55,12 +56,15 @@ Library
                         Network.HPACK.Types
                         Network.HTTP2.Decode
                         Network.HTTP2.Encode
+                        Network.HTTP2.RandomSkewHeap
                         Network.HTTP2.Types
   Build-Depends:        base >= 4 && < 5
                       , array
                       , blaze-builder
                       , bytestring
                       , containers
+                      , mersenne-random
+                      , stm
                       , unordered-containers
 
 ----------------------------------------------------------------
