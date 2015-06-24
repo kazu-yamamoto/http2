@@ -10,6 +10,10 @@
 -- 1 / (n + 1) where n is the size of the original tree.
 -- In the random skew heap, an element is selected as the root
 -- with the probability of weight / total_weight.
+--
+-- Since this data structure uses random numbers, APIs should be
+-- essentially impure. But since this is used for with STM,
+-- APIs are made to be pure with unsafePerformIO.
 
 module Network.HTTP2.RandomSkewHeap (
     Heap
