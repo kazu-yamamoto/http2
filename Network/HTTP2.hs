@@ -67,6 +67,8 @@ module Network.HTTP2 (
   , defaultInitialWindowSize
   , maxWindowSize
   , isWindowOverflow
+  -- * Misc
+  , recommendedConcurrency
   -- * Error code
   , ErrorCode
   , ErrorCodeId(..)

@@ -58,11 +58,13 @@ module Network.HTTP2.Types (
   , setEndHeader
   , setPadded
   , setPriority
-  -- *Window
+  -- * Window
   , WindowSize
   , defaultInitialWindowSize
   , maxWindowSize
   , isWindowOverflow
+  -- * Misc
+  , recommendedConcurrency
   -- * Types
   , HeaderBlockFragment
   , Weight
@@ -306,6 +308,14 @@ maxWindowSize = 2147483647
 -- True
 isWindowOverflow :: WindowSize -> Bool
 isWindowOverflow w = testBit w 31
+
+
+-- | Default concurrency.
+--
+-- >>> recommendedConcurrency
+-- 100
+recommendedConcurrency :: Int
+recommendedConcurrency = 100
 
 ----------------------------------------------------------------
 
