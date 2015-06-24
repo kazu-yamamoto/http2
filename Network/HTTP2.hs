@@ -29,20 +29,15 @@ module Network.HTTP2 (
   , Priority(..)
   , defaultPriority
   , highestPriority
-  , PromisedStreamId
-  , LastStreamId
-  , StreamDependency
   -- * Stream identifier
   , StreamId
-  , StreamIdentifier
-  , fromStreamIdentifier
-  , toStreamIdentifier
   , isControl
   , isRequest
   , isResponse
   -- * Stream identifier related
   , testExclusive
   , setExclusive
+  , clearExclusive
   -- * Flags
   , FrameFlags
   , defaultFlags

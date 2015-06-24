@@ -39,17 +39,12 @@ module Network.HTTP2.Types (
   , isPaddingDefined
   -- * Stream identifier
   , StreamId
-  , StreamIdentifier(..)
-  , fromStreamIdentifier
-  , toStreamIdentifier
   , isControl
   , isRequest
   , isResponse
-  , PromisedStreamId
-  , LastStreamId
-  , StreamDependency
   , testExclusive
   , setExclusive
+  , clearExclusive
   -- * Flags
   , FrameFlags
   , defaultFlags
@@ -167,7 +162,7 @@ toErrorCodeId w   = UnknownErrorCode w
 
 -- | The connection error or the stream error.
 data HTTP2Error = ConnectionError ErrorCodeId ByteString
-                | StreamError ErrorCodeId StreamIdentifier
+                | StreamError ErrorCodeId StreamId
                 deriving (Eq, Show, Typeable, Read)
 
 instance E.Exception HTTP2Error
@@ -318,15 +313,15 @@ type Weight = Int
 
 data Priority = Priority {
     exclusive :: Bool
-  , streamDependency :: StreamIdentifier
+  , streamDependency :: StreamId
   , weight :: Weight
   } deriving (Show, Read, Eq)
 
 defaultPriority :: Priority
-defaultPriority = Priority False (toStreamIdentifier 0) 16
+defaultPriority = Priority False 0 16
 
 highestPriority :: Priority
-highestPriority = Priority False (toStreamIdentifier 0) 256
+highestPriority = Priority False 0 256
 
 ----------------------------------------------------------------
 
@@ -478,54 +473,40 @@ setPriority x = x `setBit` 5
 
 type StreamId = Int
 
-newtype StreamIdentifier = StreamIdentifier StreamId deriving (Show, Read, Eq)
-type StreamDependency    = StreamIdentifier
-type LastStreamId        = StreamIdentifier
-type PromisedStreamId    = StreamIdentifier
-
 -- |
--- >>> toStreamIdentifier 0
--- StreamIdentifier 0
-toStreamIdentifier :: StreamId -> StreamIdentifier
-toStreamIdentifier n = StreamIdentifier (n `clearBit` 31)
-
--- |
--- >>> fromStreamIdentifier (toStreamIdentifier 0)
--- 0
-fromStreamIdentifier :: StreamIdentifier -> StreamId
-fromStreamIdentifier (StreamIdentifier n) = n
-
--- |
--- >>> isControl $ toStreamIdentifier 0
+-- >>> isControl 0
 -- True
--- >>> isControl $ toStreamIdentifier 1
+-- >>> isControl 1
 -- False
-isControl :: StreamIdentifier -> Bool
-isControl (StreamIdentifier 0) = True
-isControl _                    = False
+isControl :: StreamId -> Bool
+isControl 0 = True
+isControl _ = False
 
 -- |
--- >>> isRequest $ toStreamIdentifier 0
+-- >>> isRequest 0
 -- False
--- >>> isRequest $ toStreamIdentifier 1
+-- >>> isRequest 1
 -- True
-isRequest :: StreamIdentifier -> Bool
-isRequest (StreamIdentifier n) = odd n
+isRequest :: StreamId -> Bool
+isRequest n = odd n
 
 -- |
--- >>> isResponse $ toStreamIdentifier 0
+-- >>> isResponse 0
 -- False
--- >>> isResponse $ toStreamIdentifier 2
+-- >>> isResponse 2
 -- True
-isResponse :: StreamIdentifier -> Bool
-isResponse (StreamIdentifier 0) = False
-isResponse (StreamIdentifier n) = even n
+isResponse :: StreamId -> Bool
+isResponse 0 = False
+isResponse n = even n
 
 testExclusive :: Int -> Bool
 testExclusive n = n `testBit` 31
 
 setExclusive :: Int -> Int
 setExclusive n = n `setBit` 31
+
+clearExclusive :: Int -> Int
+clearExclusive n = n `clearBit` 31
 
 ----------------------------------------------------------------
 
@@ -544,7 +525,7 @@ data Frame = Frame
 data FrameHeader = FrameHeader
     { payloadLength :: Int
     , flags         :: FrameFlags
-    , streamId      :: StreamIdentifier
+    , streamId      :: StreamId
     } deriving (Show, Read, Eq)
 
 -- | The data type for HTTP/2 frame payloads.
@@ -554,9 +535,9 @@ data FramePayload =
   | PriorityFrame Priority
   | RSTStreamFrame ErrorCodeId
   | SettingsFrame SettingsList
-  | PushPromiseFrame PromisedStreamId HeaderBlockFragment
+  | PushPromiseFrame StreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame LastStreamId ErrorCodeId ByteString
+  | GoAwayFrame StreamId ErrorCodeId ByteString
   | WindowUpdateFrame WindowSize
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameType ByteString

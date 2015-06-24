@@ -16,7 +16,7 @@ spec = do
             let header = FrameHeader {
                     payloadLength = 500
                   , flags = defaultFlags
-                  , streamId = StreamIdentifier 10
+                  , streamId = 10
                   }
                 wire = encodeFrameHeader FramePriority header
                 fibHeader = decodeFrameHeader wire
@@ -26,7 +26,7 @@ spec = do
         it "encode/decodes frames properly" $ do
             let einfo = EncodeInfo {
                     encodeFlags = defaultFlags
-                  , encodeStreamId = StreamIdentifier 2
+                  , encodeStreamId = 2
                   , encodePadding = Nothing
                   }
                 payload = DataFrame "Hello, world!"
@@ -37,7 +37,7 @@ spec = do
         it "encode/decodes padded frames properly" $ do
             let einfo = EncodeInfo {
                     encodeFlags = defaultFlags
-                  , encodeStreamId = StreamIdentifier 2
+                  , encodeStreamId = 2
                   , encodePadding = Just "padding!"
                   }
                 payload = DataFrame "Hello, world!"

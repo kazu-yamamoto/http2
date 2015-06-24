@@ -76,8 +76,7 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
 
 -- | Checking a frame header and reporting an error if any.
 --
--- >>> let stid = toStreamIdentifier 0
--- >>> checkFrameHeader defaultSettings (FrameData,(FrameHeader 100 0 stid))
+-- >>> checkFrameHeader defaultSettings (FrameData,(FrameHeader 100 0 0))
 -- Left (ConnectionError ProtocolError "cannot used in control stream")
 checkFrameHeader :: Settings
                  -> (FrameTypeId, FrameHeader)
@@ -252,8 +251,8 @@ decodeWithPadding FrameHeader{..} bs body
   where
     padded = testPadded flags
 
-streamIdentifier :: Word32 -> StreamIdentifier
-streamIdentifier w32 = toStreamIdentifier (fromIntegral w32)
+streamIdentifier :: Word32 -> StreamId
+streamIdentifier w32 = clearExclusive $ fromIntegral w32
 
 priority :: ByteString -> Priority
 priority (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do

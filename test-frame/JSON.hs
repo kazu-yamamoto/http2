@@ -20,7 +20,6 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Network.HTTP2
-import Network.HTTP2.Internal
 
 ----------------------------------------------------------------
 
@@ -59,11 +58,13 @@ data Case = Case {
 
 ----------------------------------------------------------------
 
+{-
 instance ToJSON StreamIdentifier where
     toJSON (StreamIdentifier s) = toJSON s
 
 instance FromJSON StreamIdentifier where
     parseJSON x = StreamIdentifier <$> parseJSON x
+-}
 
 instance ToJSON ErrorCodeId where
     toJSON e = toJSON $ fromErrorCodeId e
@@ -135,7 +136,7 @@ instance ToJSON FramePad where
         "length" .= payloadLength frameHeader
       , "type" .= fromFrameTypeId (framePayloadToFrameTypeId framePayload)
       , "flags" .= flags frameHeader
-      , "stream_identifier" .= fromStreamIdentifier (streamId frameHeader)
+      , "stream_identifier" .= streamId frameHeader
       , "frame_payload" .= (toJSON framePayload +++ padObj)
       ]
       where

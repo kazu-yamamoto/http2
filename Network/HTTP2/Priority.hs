@@ -77,7 +77,7 @@ enqueue (PriorityTree var q0) a p0 = atomically $ do
               writeTPQueue q' el p
               unless exist $ loop m (Parent q') p'
       where
-        pid = fromStreamIdentifier (streamDependency p)
+        pid = streamDependency p
 
 -- | Dequeuing an element from the priority tree.
 dequeue :: PriorityTree a -> IO (a, Priority)

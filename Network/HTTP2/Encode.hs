@@ -27,7 +27,7 @@ data EncodeInfo = EncodeInfo {
     -- | Flags to be set in a frame header
       encodeFlags    :: FrameFlags
     -- | Stream id to be set in a frame header
-    , encodeStreamId :: StreamIdentifier
+    , encodeStreamId :: StreamId
     -- | Padding if any. In the case where this value is set but the priority flag is not set, this value gets preference over the priority flag. So, if this value is set, the priority flag is also set.
     , encodePadding  :: Maybe Padding
     } deriving (Show,Read)
@@ -37,11 +37,11 @@ data EncodeInfo = EncodeInfo {
 -- | A smart builder of 'EncodeInfo'.
 --
 -- >>> encodeInfo setAck 0
--- EncodeInfo {encodeFlags = 1, encodeStreamId = StreamIdentifier 0, encodePadding = Nothing}
+-- EncodeInfo {encodeFlags = 1, encodeStreamId = 0, encodePadding = Nothing}
 encodeInfo :: (FrameFlags -> FrameFlags)
            -> Int -- ^ stream identifier
            -> EncodeInfo
-encodeInfo set stid = EncodeInfo (set defaultFlags) (toStreamIdentifier stid) Nothing
+encodeInfo set sid = EncodeInfo (set defaultFlags) sid Nothing
 
 ----------------------------------------------------------------
 
@@ -73,7 +73,7 @@ encodeFrameHeader ftid FrameHeader{..} = unsafeCreate frameHeaderLength $ \ptr -
     poke32 (ptr `plusPtr` 5) sid
   where
     typ = fromFrameTypeId ftid
-    sid = fromIntegral $ fromStreamIdentifier streamId
+    sid = fromIntegral streamId
 
 -- | Encoding an HTTP/2 frame payload.
 --   This returns a complete frame header and chunks of payload.
@@ -132,10 +132,9 @@ buildPriority :: Priority -> Builder
 buildPriority Priority{..} = builder
   where
     builder = (priority :)
-    stream = fromStreamIdentifier streamDependency
     estream
-      | exclusive = setExclusive stream
-      | otherwise = stream
+      | exclusive = setExclusive streamDependency
+      | otherwise = streamDependency
     priority = unsafeCreate 5 $ \ptr -> do
         poke32 ptr $ fromIntegral estream
         poke8 ptr 4 $ fromIntegral $ weight - 1
@@ -188,11 +187,11 @@ buildFramePayloadSettings EncodeInfo{..} alist = (header, builder)
     len = length alist * 6
     header = FrameHeader len encodeFlags encodeStreamId
 
-buildFramePayloadPushPromise :: EncodeInfo -> StreamIdentifier -> HeaderBlockFragment -> (FrameHeader, Builder)
-buildFramePayloadPushPromise einfo stid hdr = buildPadding einfo builder len
+buildFramePayloadPushPromise :: EncodeInfo -> StreamId -> HeaderBlockFragment -> (FrameHeader, Builder)
+buildFramePayloadPushPromise einfo sid hdr = buildPadding einfo builder len
   where
     builder = (b4 :) . (hdr :)
-    b4 = bytestring4 $ fromIntegral $ fromStreamIdentifier stid
+    b4 = bytestring4 $ fromIntegral sid
     len = 4 + BS.length hdr
 
 buildFramePayloadPing :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
@@ -201,13 +200,13 @@ buildFramePayloadPing EncodeInfo{..} odata = (header, builder)
     builder = (odata :)
     header = FrameHeader 8 encodeFlags encodeStreamId
 
-buildFramePayloadGoAway :: EncodeInfo -> LastStreamId -> ErrorCodeId -> ByteString -> (FrameHeader, Builder)
+buildFramePayloadGoAway :: EncodeInfo -> StreamId -> ErrorCodeId -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadGoAway EncodeInfo{..} sid e debug = (header, builder)
   where
     builder = (b8 :) . (debug :)
     len0 = 8
     b8 = unsafeCreate len0 $ \ptr -> do
-        poke32 ptr $ fromIntegral $ fromStreamIdentifier sid
+        poke32 ptr $ fromIntegral sid
         poke32 (ptr `plusPtr` 4) $ fromErrorCodeId e
     len = len0 + BS.length debug
     header = FrameHeader len encodeFlags encodeStreamId

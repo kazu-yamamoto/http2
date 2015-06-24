@@ -28,7 +28,6 @@ Library
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
                         Network.HTTP2
-                        Network.HTTP2.Internal
                         Network.HTTP2.Priority
   Other-Modules:        Network.HPACK.Builder
                         Network.HPACK.Builder.Word8
