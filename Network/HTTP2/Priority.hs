@@ -71,7 +71,7 @@ enqueue (PriorityTree var q0) a p0 = atomically $ do
     loop m el p
       | pid == 0  = writeTPQueue q0 el p
       | otherwise = case Map.lookup pid m of
-          Nothing -> writeTPQueue q0 el defaultPriority
+          Nothing -> writeTPQueue q0 el defaultPriority -- error case: checkme
           Just (q', p') -> do
               notQueued <- isTPQueueEmpty q'
               writeTPQueue q' el p
