@@ -5,14 +5,16 @@
 -- Consider two weight 201 and 101. A typical heap would generate
 -- 201, 201, 201, 201, 201, 201, 201, ...., and finaly 201, 101,
 -- 201, 101. What we want is 201, 201, 101, 201, 201, 101.
--- So, we introduce randomness to Skew Heap. In the random binary
--- tree, an element is selected as the root with probability of
+-- So, we introduce randomness to Skew Heap.
+--
+-- In the random binary tree,
+-- an element is selected as the root with probability of
 -- 1 / (n + 1) where n is the size of the original tree.
 -- In the random skew heap, an element is selected as the root
 -- with the probability of weight / total_weight.
 --
 -- Since this data structure uses random numbers, APIs should be
--- essentially impure. But since this is used for with STM,
+-- essentially impure. But since this is used with STM,
 -- APIs are made to be pure with unsafePerformIO.
 
 module Network.HTTP2.RandomSkewHeap (
