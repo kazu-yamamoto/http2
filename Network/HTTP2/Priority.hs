@@ -44,10 +44,7 @@ data Element a = Child a
 
 -- | Creating a new priority tree.
 newPriorityTree :: IO (PriorityTree a)
-newPriorityTree = do
-    ref <- newTVarIO Map.empty
-    q <- atomically newTPQueue
-    return $ PriorityTree ref q
+newPriorityTree = PriorityTree <$> newTVarIO Map.empty <*> atomically newTPQueue
 
 newPriorityQueue :: STM (PriorityQueue a)
 newPriorityQueue = TPQueue <$> newTVar Heap.empty
