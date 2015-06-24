@@ -498,7 +498,7 @@ isControl _ = False
 -- >>> isRequest 1
 -- True
 isRequest :: StreamId -> Bool
-isRequest n = odd n
+isRequest = odd
 
 -- |
 -- >>> isResponse 0

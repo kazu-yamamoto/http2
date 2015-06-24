@@ -67,7 +67,7 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
     w32 <- word32' (p +. 5)
     let !len = (l0 `shiftL` 16) .|. (l1 `shiftL` 8) .|. l2
         !sid = streamIdentifier w32
-    return $ (typ, FrameHeader len flg sid)
+    return (typ, FrameHeader len flg sid)
 
 (+.) :: Ptr Word8 -> Int -> Ptr Word8
 (+.) = plusPtr

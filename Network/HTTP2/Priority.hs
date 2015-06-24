@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards, CPP #-}
+{-# LANGUAGE CPP #-}
 
 -- | This is partial implementation of the priority of HTTP/2.
 --
