@@ -27,6 +27,8 @@ module Network.HTTP2 (
   , Padding
   , Weight
   , Priority(..)
+  , defaultPriority
+  , highestPriority
   , PromisedStreamId
   , LastStreamId
   , StreamDependency

@@ -72,6 +72,8 @@ module Network.HTTP2.Types (
   , HeaderBlockFragment
   , Weight
   , Priority(..)
+  , defaultPriority
+  , highestPriority
   , Padding
   ) where
 
@@ -319,6 +321,12 @@ data Priority = Priority {
   , streamDependency :: StreamIdentifier
   , weight :: Weight
   } deriving (Show, Read, Eq)
+
+defaultPriority :: Priority
+defaultPriority = Priority False (toStreamIdentifier 0) 16
+
+highestPriority :: Priority
+highestPriority = Priority False (toStreamIdentifier 0) 256
 
 ----------------------------------------------------------------
 
