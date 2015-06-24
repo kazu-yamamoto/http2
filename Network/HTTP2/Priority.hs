@@ -73,9 +73,9 @@ enqueue (PriorityTree var q0) a p0 = atomically $ do
       | otherwise = case Map.lookup pid m of
           Nothing -> writeTPQueue q0 el defaultPriority
           Just (q', p') -> do
-              exist <- nonEmpty q'
+              notQueued <- isTPQueueEmpty q'
               writeTPQueue q' el p
-              unless exist $ loop m (Parent q') p'
+              when notQueued $ loop m (Parent q') p'
       where
         pid = streamDependency p
 
@@ -89,8 +89,8 @@ dequeue (PriorityTree _ q0) = atomically (loop q0)
             Child  a      -> return (a, w)
             p@(Parent q') -> do
                 r <- loop q'
-                x <- nonEmpty q'
-                when x $ writeTPQueue q p w
+                empty <- isTPQueueEmpty q'
+                unless empty $ writeTPQueue q p w
                 return r
 
 ----------------------------------------------------------------
@@ -115,5 +115,5 @@ readTPQueue (TPQueue th) = do
 writeTPQueue :: TPQueue a -> a -> Priority -> STM ()
 writeTPQueue (TPQueue th) a p = modifyTVar' th $ Heap.insert (a,p) (weight p)
 
-nonEmpty :: TPQueue a -> STM Bool
-nonEmpty (TPQueue th) = not . Heap.isEmpty <$> readTVar th
+isTPQueueEmpty :: TPQueue a -> STM Bool
+isTPQueueEmpty (TPQueue th) = Heap.isEmpty <$> readTVar th
