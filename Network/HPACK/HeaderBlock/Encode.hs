@@ -4,11 +4,13 @@ module Network.HPACK.HeaderBlock.Encode (
     toByteString
   ) where
 
-import Blaze.ByteString.Builder (Builder)
-import qualified Blaze.ByteString.Builder as BB
 import Data.Bits (setBit)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import Data.ByteString.Builder (Builder)
+import qualified Data.ByteString.Builder as BB
+import qualified Data.ByteString.Builder.Prim as P
+import qualified Data.ByteString.Lazy as BL
 import Data.List (foldl')
 #if __GLASGOW_HASKELL__ < 709
 import Data.Monoid (mempty)
@@ -23,7 +25,7 @@ import qualified Network.HPACK.HeaderBlock.String as S
 
 -- | Converting 'HeaderBlock' to the low level format.
 toByteString :: Bool -> HeaderBlock -> ByteString
-toByteString huff hbs = BB.toByteString $ foldl' (<>) mempty $ map toBB hbs
+toByteString huff hbs = BL.toStrict $ BB.toLazyByteString $ foldl' (<>) mempty $ map toBB hbs
   where
     toBB = fromHeaderField huff
 
@@ -39,14 +41,17 @@ fromHeaderField huff (Literal Never (Lit key) v)  = newName     huff set0001 key
 
 ----------------------------------------------------------------
 
+word8s :: [Word8] -> Builder
+word8s = P.primMapListFixed P.word8
+
 change :: Int -> Builder
-change i = BB.fromWord8s (w':ws)
+change i = word8s (w':ws)
   where
     (w:ws) = I.encode 5 i
     w' = set001 w
 
 index :: Int -> Builder
-index i = BB.fromWord8s (w':ws)
+index i = word8s (w':ws)
   where
     (w:ws) = I.encode 7 i
     w' = set1 w
@@ -56,31 +61,31 @@ indexedName :: Bool -> Int -> Setter -> Int -> HeaderValue -> Builder
 indexedName huff n set idx v = pre <> vlen <> val
   where
     (p:ps) = I.encode n idx
-    pre = BB.fromWord8s $ set p : ps
+    pre = word8s $ set p : ps
     value = S.encode huff v
     valueLen = BS.length value
     vlen
-      | huff      = BB.fromWord8s $ setH $ I.encode 7 valueLen
-      | otherwise = BB.fromWord8s $ I.encode 7 valueLen
-    val = BB.fromByteString value
+      | huff      = word8s $ setH $ I.encode 7 valueLen
+      | otherwise = word8s $ I.encode 7 valueLen
+    val = BB.byteString value
 
 -- Using Huffman encoding
 newName :: Bool -> Setter -> HeaderName -> HeaderValue -> Builder
 newName huff set k v = pre <> klen <> key <> vlen <> val
   where
-    pre = BB.fromWord8 $ set 0
+    pre = BB.word8 $ set 0
     key0 = S.encode huff k
     keyLen = BS.length key0
     value = S.encode huff v
     valueLen = BS.length value
     klen
-      | huff      = BB.fromWord8s $ setH $ I.encode 7 keyLen
-      | otherwise = BB.fromWord8s $ I.encode 7 keyLen
+      | huff      = word8s $ setH $ I.encode 7 keyLen
+      | otherwise = word8s $ I.encode 7 keyLen
     vlen
-      | huff      = BB.fromWord8s $ setH $ I.encode 7 valueLen
-      | otherwise = BB.fromWord8s $ I.encode 7 valueLen
-    key = BB.fromByteString key0
-    val = BB.fromByteString value
+      | huff      = word8s $ setH $ I.encode 7 valueLen
+      | otherwise = word8s $ I.encode 7 valueLen
+    key = BB.byteString key0
+    val = BB.byteString value
 
 ----------------------------------------------------------------
 
