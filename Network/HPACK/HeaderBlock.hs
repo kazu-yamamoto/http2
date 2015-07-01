@@ -3,6 +3,7 @@ module Network.HPACK.HeaderBlock (
     module Network.HPACK.HeaderBlock.HeaderField
   -- * Header block from/to Low level
   , toByteString
+  , toLazyByteString
   , fromByteString
   , fromByteStringDebug
   -- * Header block from/to header list
