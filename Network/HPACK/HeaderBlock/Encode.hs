@@ -2,7 +2,6 @@
 
 module Network.HPACK.HeaderBlock.Encode (
     toByteString
-  , toLazyByteString
   ) where
 
 import Data.Bits (setBit)
@@ -26,13 +25,8 @@ import qualified Network.HPACK.HeaderBlock.String as S
 
 -- | Converting 'HeaderBlock' to the low level format.
 toByteString :: Bool -> HeaderBlock -> ByteString
-toByteString huff = BL.toStrict . toLazyByteString huff
-
--- | Converting 'HeaderBlock' to the low level format.
-toLazyByteString :: Bool -> HeaderBlock -> BL.ByteString
-toLazyByteString huff = BB.toLazyByteString . foldl' op mempty
+toByteString huff hbs = BL.toStrict $ BB.toLazyByteString $ foldl' (<>) mempty $ map toBB hbs
   where
-    b `op` x = b <> toBB x
     toBB = fromHeaderField huff
 
 fromHeaderField :: Bool -> HeaderField -> Builder
