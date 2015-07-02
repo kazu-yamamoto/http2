@@ -49,21 +49,21 @@ type HPACKDecoding = DynamicTable -> ByteString -> IO (DynamicTable, HeaderList)
 
 ----------------------------------------------------------------
 
--- | Converting 'HeaderList' for HTTP request to the low level format.
+-- | Converting 'HeaderList' for HTTP header to the low level format.
 encodeHeader :: EncodeStrategy -> HPACKEncoding
 encodeHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBS = toByteString (useHuffman stgy)
 
--- | Converting 'HeaderList' for HTTP request to bytestring builder.
+-- | Converting 'HeaderList' for HTTP header to bytestring builder.
 encodeHeaderBuilder :: EncodeStrategy -> DynamicTable -> HeaderList  -> IO (DynamicTable, Builder)
 encodeHeaderBuilder stgy ctx hs = second toBB <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBB = toBuilder (useHuffman stgy)
 
--- | Converting the low level format for HTTP request to 'HeaderList'.
+-- | Converting the low level format for HTTP header to 'HeaderList'.
 --   'DecodeError' would be thrown.
 decodeHeader :: HPACKDecoding
 decodeHeader ctx bs = either throwIO (fromHeaderBlock ctx) ehb
