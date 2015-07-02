@@ -6,7 +6,6 @@ module Network.HPACK (
     HPACKEncoding
   , HPACKDecoding
   , encodeHeader
-  , encodeHeaderChunks
   , decodeHeader
   -- * DynamicTable
   , DynamicTable
@@ -34,8 +33,7 @@ import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Exception (throwIO)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as BL
-import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, toLazyByteString, fromByteString)
+import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, fromByteString)
 import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding)
 import Network.HPACK.Types
 
@@ -55,13 +53,6 @@ encodeHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBS = toByteString (useHuffman stgy)
-
--- | Converting 'HeaderList' for HTTP request to the low level format.
-encodeHeaderChunks :: EncodeStrategy -> DynamicTable -> HeaderList -> IO (DynamicTable, [ByteString])
-encodeHeaderChunks stgy ctx hs = second (BL.toChunks . toBS) <$> toHeaderBlock algo ctx hs
-  where
-    algo = compressionAlgo stgy
-    toBS = toLazyByteString (useHuffman stgy)
 
 -- | Converting the low level format for HTTP request to 'HeaderList'.
 --   'DecodeError' would be thrown.
