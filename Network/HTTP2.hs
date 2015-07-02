@@ -11,6 +11,7 @@ module Network.HTTP2 (
   , encodeFrame
   , encodeFrameChunks
   , encodeFrameHeader
+  , encodeFrameHeaderBuf
   , encodeFramePayload
   , EncodeInfo(..)
   , encodeInfo

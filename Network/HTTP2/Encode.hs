@@ -4,6 +4,7 @@ module Network.HTTP2.Encode (
     encodeFrame
   , encodeFrameChunks
   , encodeFrameHeader
+  , encodeFrameHeaderBuf
   , encodeFramePayload
   , EncodeInfo(..)
   , encodeInfo
@@ -66,7 +67,12 @@ encodeFrameChunks einfo payload = bs : bss
 -- | Encoding an HTTP/2 frame header.
 --   The frame header must be completed.
 encodeFrameHeader :: FrameTypeId -> FrameHeader -> ByteString
-encodeFrameHeader ftid FrameHeader{..} = unsafeCreate frameHeaderLength $ \ptr -> do
+encodeFrameHeader ftid fhdr = unsafeCreate frameHeaderLength $ encodeFrameHeaderBuf ftid fhdr
+
+-- | Writing an encoded HTTP/2 frame header to the buffer.
+--   The length of the buffer must be larger than or equal to 9 bytes.
+encodeFrameHeaderBuf :: FrameTypeId -> FrameHeader -> Ptr Word8 -> IO ()
+encodeFrameHeaderBuf ftid FrameHeader{..} ptr = do
     poke24 ptr payloadLength
     poke8 ptr 3 typ
     poke8 ptr 4 flags
