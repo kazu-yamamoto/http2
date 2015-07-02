@@ -42,7 +42,7 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | HPACK encoding, from 'HeaderList' to 'ByteString'.
-type HPACKEncoding = DynamicTable -> HeaderList  -> IO (DynamicTable, ByteString)
+type HPACKEncoding = DynamicTable -> HeaderList -> IO (DynamicTable, ByteString)
 
 -- | HPACK decoding, from 'ByteString' to 'HeaderList'.
 type HPACKDecoding = DynamicTable -> ByteString -> IO (DynamicTable, HeaderList)
