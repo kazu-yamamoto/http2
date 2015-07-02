@@ -5,6 +5,7 @@ module Network.HPACK.HeaderBlock (
   , toByteString
   , fromByteString
   , fromByteStringDebug
+  , toBuilder
   -- * Header block from/to header list
   , toHeaderBlock
   , fromHeaderBlock

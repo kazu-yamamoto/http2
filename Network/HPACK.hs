@@ -6,6 +6,7 @@ module Network.HPACK (
     HPACKEncoding
   , HPACKDecoding
   , encodeHeader
+  , encodeHeaderBuilder
   , decodeHeader
   -- * DynamicTable
   , DynamicTable
@@ -33,7 +34,8 @@ import Control.Applicative ((<$>))
 import Control.Arrow (second)
 import Control.Exception (throwIO)
 import Data.ByteString (ByteString)
-import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, fromByteString)
+import Data.ByteString.Builder (Builder)
+import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, fromByteString, toBuilder)
 import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding)
 import Network.HPACK.Types
 
@@ -53,6 +55,13 @@ encodeHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBS = toByteString (useHuffman stgy)
+
+-- | Converting 'HeaderList' for HTTP request to bytestring builder.
+encodeHeaderBuilder :: EncodeStrategy -> DynamicTable -> HeaderList  -> IO (DynamicTable, Builder)
+encodeHeaderBuilder stgy ctx hs = second toBB <$> toHeaderBlock algo ctx hs
+  where
+    algo = compressionAlgo stgy
+    toBB = toBuilder (useHuffman stgy)
 
 -- | Converting the low level format for HTTP request to 'HeaderList'.
 --   'DecodeError' would be thrown.
