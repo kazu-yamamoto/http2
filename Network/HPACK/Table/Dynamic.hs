@@ -123,14 +123,10 @@ fromIndexToSIndex _ idx = toStaticIndex idx
 ----------------------------------------------------------------
 
 -- | Creating 'DynamicTable'.
--- The default maxDynamicTableSize is 4096 bytes,
--- an array has 128 entries, resulting 1024 bytes in 64bit machine
 newDynamicTableForEncoding :: Size -> IO DynamicTable
 newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz (Just DHM.empty)
 
 -- | Creating 'DynamicTable'.
--- The default maxDynamicTableSize is 4096 bytes,
--- an array has 128 entries, resulting 1024 bytes in 64bit machine
 newDynamicTableForDecoding :: Size -> IO DynamicTable
 newDynamicTableForDecoding maxsiz = newDynamicTable maxsiz Nothing
 

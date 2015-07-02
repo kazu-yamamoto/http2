@@ -10,6 +10,7 @@ module Network.HPACK (
   , decodeHeader
   -- * DynamicTable
   , DynamicTable
+  , defaultDynamicTableSize
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
   -- * Strategy for encoding
@@ -38,6 +39,14 @@ import Data.ByteString.Builder (Builder)
 import Network.HPACK.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, fromByteString, toBuilder)
 import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding)
 import Network.HPACK.Types
+
+-- | Default dynamic table size.
+--   The value is 4,096 bytes: an array has 128 entries.
+--
+-- >>> defaultDynamicTableSize
+-- 4096
+defaultDynamicTableSize :: Int
+defaultDynamicTableSize = 4096
 
 ----------------------------------------------------------------
 
