@@ -58,6 +58,7 @@ merge l@(Node tw1 a1 w1 l1 r1) r@(Node tw2 a2 w2 l2 r2)
   where
     tw = tw1 + tw2
     g = unsafePerformIO randomIO `mod` tw
+{-# NOINLINE merge #-}
 
 uncons :: Heap a -> Maybe (a, Weight, Heap a)
 uncons Leaf             = Nothing
