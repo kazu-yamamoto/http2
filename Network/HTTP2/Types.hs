@@ -327,9 +327,17 @@ data Priority = Priority {
   , weight :: Weight
   } deriving (Show, Read, Eq)
 
+-- | Default priority which depends on stream 0.
+--
+-- >>> defaultPriority
+-- Priority {exclusive = False, streamDependency = 0, weight = 16}
 defaultPriority :: Priority
 defaultPriority = Priority False 0 16
 
+-- | Highest priority which depends on stream 0.
+--
+-- >>> highestPriority
+-- Priority {exclusive = False, streamDependency = 0, weight = 256}
 highestPriority :: Priority
 highestPriority = Priority False 0 256
 
