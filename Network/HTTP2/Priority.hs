@@ -11,7 +11,7 @@
 -- Repeating enqueue/dequeue probably produces
 -- 201, 201, 101, 201, 201, 101, ... based on randomness.
 --
--- Only one entry per stream should be enqueue.
+-- Only one entry per stream should be enqueued.
 -- If multiple entries for a stream are inserted, the ordering
 -- is not preserved because of the randomness.
 
