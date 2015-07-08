@@ -6,8 +6,10 @@ module Network.HPACK (
     HPACKEncoding
   , HPACKDecoding
   , encodeHeader
-  , encodeHeaderBuilder
   , decodeHeader
+  -- * Encoding with builders
+  , HPACKEncodingBuilder
+  , encodeHeaderBuilder
   -- * DynamicTable
   , DynamicTable
   , defaultDynamicTableSize
@@ -50,10 +52,13 @@ defaultDynamicTableSize = 4096
 
 ----------------------------------------------------------------
 
--- | HPACK encoding, from 'HeaderList' to 'ByteString'.
+-- | HPACK encoding from 'HeaderList' to 'ByteString'.
 type HPACKEncoding = DynamicTable -> HeaderList -> IO (DynamicTable, ByteString)
 
--- | HPACK decoding, from 'ByteString' to 'HeaderList'.
+-- | HPACK encoding from 'HeaderList' to 'Builder'.
+type HPACKEncodingBuilder = DynamicTable -> HeaderList -> IO (DynamicTable, Builder)
+
+-- | HPACK decoding from 'ByteString' to 'HeaderList'.
 type HPACKDecoding = DynamicTable -> ByteString -> IO (DynamicTable, HeaderList)
 
 ----------------------------------------------------------------
@@ -66,7 +71,7 @@ encodeHeader stgy ctx hs = second toBS <$> toHeaderBlock algo ctx hs
     toBS = toByteString (useHuffman stgy)
 
 -- | Converting 'HeaderList' for HTTP header to bytestring builder.
-encodeHeaderBuilder :: EncodeStrategy -> DynamicTable -> HeaderList  -> IO (DynamicTable, Builder)
+encodeHeaderBuilder :: EncodeStrategy -> HPACKEncodingBuilder
 encodeHeaderBuilder stgy ctx hs = second toBB <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
