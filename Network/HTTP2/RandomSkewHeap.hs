@@ -53,7 +53,7 @@ merge :: Heap t -> Heap t -> Heap t
 merge t Leaf = t
 merge Leaf t = t
 merge l@(Node tw1 a1 w1 l1 r1) r@(Node tw2 a2 w2 l2 r2)
-  | g < w1    = Node tw a1 w1 r1 $ merge l1 r
+  | g <= w1   = Node tw a1 w1 r1 $ merge l1 r
   | otherwise = Node tw a2 w2 r2 $ merge l2 l
   where
     tw = tw1 + tw2
