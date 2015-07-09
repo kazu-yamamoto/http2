@@ -31,7 +31,7 @@ module Network.HTTP2.RandomSkewHeap (
 
 import Network.HTTP2.Types (Weight)
 import System.IO.Unsafe (unsafePerformIO)
-import System.Random.Mersenne (randomIO)
+import System.Random.MWC (createSystemRandom, uniformR, GenIO)
 
 data Heap a = Leaf | Node Weight -- total
                           a Weight !(Heap a) !(Heap a) deriving Show
@@ -57,7 +57,7 @@ merge l@(Node tw1 a1 w1 l1 r1) r@(Node tw2 a2 w2 l2 r2)
   | otherwise = Node tw a2 w2 r2 $ merge l2 l
   where
     tw = tw1 + tw2
-    g = unsafePerformIO randomIO `mod` tw
+    g = unsafePerformIO $ uniformR (1,tw) gen
 {-# NOINLINE merge #-}
 
 uncons :: Heap a -> Maybe (a, Weight, Heap a)
@@ -65,3 +65,7 @@ uncons Leaf             = Nothing
 uncons (Node _ a w l r) = Just (a, w, t)
   where
     !t = merge l r
+
+gen :: GenIO
+gen = unsafePerformIO createSystemRandom
+

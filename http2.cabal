@@ -62,7 +62,7 @@ Library
                       , bytestring
                       , bytestring-builder
                       , containers
-                      , mersenne-random
+                      , mwc-random
                       , stm
                       , unordered-containers
 
@@ -97,7 +97,7 @@ Test-Suite spec
                       , containers
                       , hex
                       , hspec >= 1.3
-                      , mersenne-random
+                      , mwc-random
                       , stm
                       , unordered-containers
                       , word8
