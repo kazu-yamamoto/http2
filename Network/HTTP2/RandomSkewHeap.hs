@@ -68,4 +68,4 @@ uncons (Node _ a w l r) = Just (a, w, t)
 
 gen :: GenIO
 gen = unsafePerformIO createSystemRandom
-
+{-# NOINLINE gen #-}
