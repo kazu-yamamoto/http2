@@ -57,11 +57,11 @@ Library
                         Network.HTTP2.Encode
                         Network.HTTP2.RandomSkewHeap
                         Network.HTTP2.Types
-  Build-Depends:        base >= 4 && < 5
+  Build-Depends:        base >= 4.6 && < 5
                       , array
-                      , bytestring
+                      , bytestring >= 0.10
                       , bytestring-builder
-                      , containers
+                      , containers >= 0.5
                       , mwc-random
                       , stm
                       , unordered-containers
