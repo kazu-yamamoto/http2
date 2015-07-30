@@ -29,8 +29,8 @@ data Conf = Conf {
 data Result = Pass | Fail String deriving (Eq,Show)
 
 run :: Bool -> Test -> IO Result
-run _ (Test _ _ [])        = return $ Pass
-run d (Test _ _ ccs@(c:_)) = do
+run _ (Test _ [])        = return $ Pass
+run d (Test _ ccs@(c:_)) = do
     let siz = maybe 4096 id $ size c
     dhdrtbl <- newDynamicTableForDecoding siz
     let conf = Conf { debug = d }

@@ -33,8 +33,7 @@ main = do
 -}
 
 data Test = Test {
-    draft :: Int
-  , description :: String
+    description :: String
   , cases :: [Case]
   } deriving Show
 
@@ -46,16 +45,14 @@ data Case = Case {
   } deriving Show
 
 instance FromJSON Test where
-    parseJSON (Object o) = Test <$> o .: "draft"
-                                <*> o .: "description"
+    parseJSON (Object o) = Test <$> o .: "description"
                                 <*> o .: "cases"
     parseJSON _          = mzero
 
 instance ToJSON Test where
-    toJSON (Test n desc cs) = object ["draft" .= n
-                                     ,"description" .= desc
-                                     ,"cases" .= cs
-                                     ]
+    toJSON (Test desc cs) = object ["description" .= desc
+                                   ,"cases" .= cs
+                                   ]
 
 instance FromJSON Case where
     parseJSON (Object o) = Case <$> o .:? "header_table_size"

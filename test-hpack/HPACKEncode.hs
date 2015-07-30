@@ -9,6 +9,8 @@ module HPACKEncode (
 
 import Control.Monad (when)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as C8
+import Data.Char
 import Data.Hex
 import Network.HPACK
 import Network.HPACK.Table
@@ -21,8 +23,8 @@ data Conf = Conf {
   }
 
 run :: Bool -> EncodeStrategy -> Test -> IO [ByteString]
-run _ _    (Test _        _ [])        = return []
-run d stgy (Test _ _ ccs@(c:_)) = do
+run _ _    (Test        _ []) = return []
+run d stgy (Test _ ccs@(c:_)) = do
     let siz = maybe 4096 id $ size c
     ehdrtbl <- newDynamicTableForEncoding siz
     let conf = Conf { debug = d, enc = encodeHeader stgy }
@@ -36,7 +38,7 @@ testLoop :: Conf
 testLoop _    []     _    hexs = return $ reverse hexs
 testLoop conf (c:cs) ehdrtbl hxs = do
     (ehdrtbl',hx) <- test conf c ehdrtbl
-    testLoop conf cs ehdrtbl' (hx:hxs)
+    testLoop conf cs ehdrtbl' (C8.map toLower hx : hxs)
 
 test :: Conf
      -> Case
