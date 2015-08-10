@@ -52,9 +52,9 @@ insert a w t = merge (singleton a w) t
 merge :: Heap t -> Heap t -> Heap t
 merge t Leaf = t
 merge Leaf t = t
-merge l@(Node tw1 a1 w1 l1 r1) r@(Node tw2 a2 w2 l2 r2)
-  | g <= w1   = Node tw a1 w1 r1 $ merge l1 r
-  | otherwise = Node tw a2 w2 r2 $ merge l2 l
+merge l@(Node tw1 x1 w1 ll lr) r@(Node tw2 x2 w2 rl rr)
+  | g <= w1   = Node tw x1 w1 lr $ merge ll r
+  | otherwise = Node tw x2 w2 rr $ merge rl l
   where
     tw = tw1 + tw2
     g = unsafePerformIO $ uniformR (1,tw) gen
