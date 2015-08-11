@@ -49,11 +49,12 @@ singleton a w = Node w a w Leaf Leaf
 insert :: a -> Weight -> Heap a -> Heap a
 insert a w t = merge (singleton a w) t
 
+-- if l is a singleton, w1 == tw1.
 merge :: Heap t -> Heap t -> Heap t
 merge t Leaf = t
 merge Leaf t = t
 merge l@(Node tw1 x1 w1 ll lr) r@(Node tw2 x2 w2 rl rr)
-  | g <= w1   = Node tw x1 w1 lr $ merge ll r
+  | g <= tw1  = Node tw x1 w1 lr $ merge ll r
   | otherwise = Node tw x2 w2 rr $ merge rl l
   where
     tw = tw1 + tw2
@@ -69,3 +70,15 @@ uncons (Node _ a w l r) = Just (a, w, t)
 gen :: GenIO
 gen = unsafePerformIO createSystemRandom
 {-# NOINLINE gen #-}
+
+main = do
+    let q = insert "c" 1 $ insert "b" 101 $ insert "a" 201 empty
+    loop 1000 q
+  where
+    loop 0 _ = return ()
+    loop n q = do
+        case uncons q of
+            Nothing -> error "Nothing"
+            Just (x, w, q') -> do
+                putStrLn x
+                loop (n-1) (insert x w q')
