@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP #-}
 
--- | HPACK: encoding and decoding a header list.
+-- | HPACK(<https://tools.ietf.org/html/rfc7541>) encoding and decoding a header list.
 module Network.HPACK (
   -- * Encoding and decoding
     HPACKEncoding

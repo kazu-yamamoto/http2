@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Framing in HTTP/2.
+-- | Framing in HTTP\/2(<https://tools.ietf.org/html/rfc7540>).
 module Network.HTTP2 (
   -- * Frame
     Frame(..)
@@ -91,7 +91,7 @@ import Network.HTTP2.Decode
 import Network.HTTP2.Encode
 import Network.HTTP2.Types
 
--- | The preface of HTTP/2.
+-- | The preface of HTTP\/2.
 --
 -- >>> connectionPreface
 -- "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
