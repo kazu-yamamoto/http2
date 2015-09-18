@@ -46,10 +46,10 @@ staticStep :: Step
 staticStep (!hdrtbl,!builder) h@(k,v) = return (hdrtbl, builder')
   where
     b = case lookupTable h hdrtbl of
-        None                     -> Literal NotAdd (Lit k) v
-        KeyOnly  InStaticTable i -> Literal NotAdd (Idx i) v
+        None                      -> Literal NotAdd (Lit k) v
+        KeyOnly  InStaticTable i  -> Literal NotAdd (Idx i) v
         KeyOnly  InDynamicTable _ -> Literal NotAdd (Lit k) v
-        KeyValue InStaticTable i -> Literal NotAdd (Idx i) v
+        KeyValue InStaticTable i  -> Literal NotAdd (Idx i) v
         KeyValue InDynamicTable _ -> Literal NotAdd (Lit k) v
     builder' = builder << b
 
