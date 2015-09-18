@@ -9,6 +9,9 @@ module Network.HPACK.Table (
   , printDynamicTable
   , isDynamicTableEmpty
   , isSuitableSize
+  , needChangeTableSize
+  , setLimitForEncoding
+  , resetLimitForEncoding
   -- * Insertion
   , insertEntry
   -- * Header to index

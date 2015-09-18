@@ -8,6 +8,9 @@ module Network.HPACK.Table.Dynamic (
   , printDynamicTable
   , isDynamicTableEmpty
   , isSuitableSize
+  , needChangeTableSize
+  , setLimitForEncoding
+  , resetLimitForEncoding
   , insertEntry
   , toHeaderEntry
   , fromHIndexToIndex
@@ -16,12 +19,13 @@ module Network.HPACK.Table.Dynamic (
   , fromIndexToSIndex
   ) where
 
+import Control.Monad (forM)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
-import Network.HPACK.Table.Entry
+import Data.IORef
 import qualified Network.HPACK.Table.DoubleHashMap as DHM
+import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Static
-import Control.Monad (forM)
 
 ----------------------------------------------------------------
 
@@ -59,6 +63,11 @@ data DynamicTable = DynamicTable {
   , headerTableSize :: !Size
   -- | The max dynamic table size (defined in HPACK)
   , maxDynamicTableSize :: !Size
+  -- | The value informed by SETTINGS_HEADER_TABLE_SIZE.
+  --   If 'Nothing', dynamic table size update is not necessary.
+  --   Otherwise, dynamic table size update is sent, if necessary,
+  --   and this value should be set to 'Nothing'.
+  , limitForEncoding :: IORef (Maybe Size)
   -- | The limit size of a dynamic table for decoding
   , limitForDecoding :: !Size
   -- | Header to the index in Dynamic Table for encoder.
@@ -103,6 +112,28 @@ isDynamicTableEmpty hdrtbl = numOfEntries hdrtbl == 0
 isSuitableSize :: Size -> DynamicTable -> Bool
 isSuitableSize siz tbl = siz <= limitForDecoding tbl
 
+needChangeTableSize :: DynamicTable -> IO (Maybe Size)
+needChangeTableSize tbl = do
+    mlim <- getLimitForEncoding tbl
+    return $ case mlim of
+        Nothing       -> Nothing
+        Just lim
+          | lim < maxsiz -> Just lim
+          | otherwise    -> Nothing -- ignoring SETTINGS_HEADER_TABLE_SIZE
+  where
+    maxsiz = maxDynamicTableSize tbl
+
+getLimitForEncoding :: DynamicTable -> IO (Maybe Size)
+getLimitForEncoding dyntbl = readIORef $ limitForEncoding dyntbl
+
+-- | When SETTINGS_HEADER_TABLE_SIZE is received from a peer,
+--   its value should be set by this function.
+setLimitForEncoding :: Size -> DynamicTable -> IO ()
+setLimitForEncoding siz dyntbl = writeIORef (limitForEncoding dyntbl) $ Just siz
+
+resetLimitForEncoding :: DynamicTable -> IO ()
+resetLimitForEncoding dyntbl = writeIORef (limitForEncoding dyntbl) Nothing
+
 ----------------------------------------------------------------
 
 -- Physical array index for Dynamic Table.
@@ -139,6 +170,7 @@ newDynamicTableForDecoding maxsiz = newDynamicTable maxsiz maxsiz Nothing
 newDynamicTable :: Size -> Size -> Maybe (DHM.DoubleHashMap HIndex) -> IO DynamicTable
 newDynamicTable maxsiz dlim mhp = do
     tbl <- newArray (0,end) dummyEntry
+    lim <- newIORef Nothing
     return DynamicTable {
         maxNumOfEntries = maxN
       , offset = end
@@ -146,6 +178,7 @@ newDynamicTable maxsiz dlim mhp = do
       , circularTable = tbl
       , headerTableSize = 0
       , maxDynamicTableSize = maxsiz
+      , limitForEncoding = lim
       , limitForDecoding = dlim
       , reverseIndex = mhp
       }

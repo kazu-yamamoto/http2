@@ -4,6 +4,7 @@ module Network.HPACK.HeaderBlock.To (
     toHeaderBlock
   ) where
 
+import Control.Arrow (second)
 import Network.HPACK.Builder
 import Network.HPACK.HeaderBlock.HeaderField
 import Network.HPACK.Table
@@ -17,9 +18,33 @@ toHeaderBlock :: CompressionAlgo
               -> DynamicTable
               -> HeaderList
               -> IO (DynamicTable, HeaderBlock)
-toHeaderBlock Naive  !hdrtbl hs = encodeLoop naiveStep  hs (hdrtbl,empty)
-toHeaderBlock Static !hdrtbl hs = encodeLoop staticStep hs (hdrtbl,empty)
-toHeaderBlock Linear !hdrtbl hs = encodeLoop linearStep hs (hdrtbl,empty)
+toHeaderBlock algo !hdrtbl hs = do
+    msiz <- needChangeTableSize hdrtbl
+    (hdrtbl', op) <- case msiz of
+        Nothing -> do
+            resetLimitForEncoding hdrtbl -- anyway
+            return (hdrtbl, id)
+        Just lim -> do
+            tbl <- renewDynamicTable lim hdrtbl
+            return (tbl, (ChangeTableSize lim :))
+    second op <$> toHeaderBlock' algo hdrtbl' hs
+
+toHeaderBlock' :: CompressionAlgo
+              -> DynamicTable
+              -> HeaderList
+              -> IO (DynamicTable, HeaderBlock)
+toHeaderBlock' Naive  !hdrtbl hs = encodeLoop naiveStep  hs (hdrtbl,empty)
+toHeaderBlock' Static !hdrtbl hs = encodeLoop staticStep hs (hdrtbl,empty)
+toHeaderBlock' Linear !hdrtbl hs = encodeLoop linearStep hs (hdrtbl,empty)
+
+{-
+do mlim <- readIORef limitForEncoding
+   (dyn', op) <- case mlim of
+      Nothing -> (dyn, id)
+      Just lim
+        | lim >= v -> (set Nothing dyn, id)
+        | lim <  v -> (renew dyn, (change_to v:))
+-}
 
 ----------------------------------------------------------------
 
