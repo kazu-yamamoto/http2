@@ -54,16 +54,16 @@ lookupTable h dyntbl = case reverseIndex dyntbl of
     Just rev -> case DHM.search h rev of
         DHM.N       -> case mstatic of
             DHM.N       -> None
-            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex dyntbl sidx)
-            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex dyntbl sidx)
+            DHM.K  sidx -> KeyOnly  InStaticTable  (fromSIndexToIndex dyntbl sidx)
+            DHM.KV sidx -> KeyValue InStaticTable  (fromSIndexToIndex dyntbl sidx)
         DHM.K hidx  -> case mstatic of
             DHM.N       -> KeyOnly  InDynamicTable (fromHIndexToIndex dyntbl hidx)
-            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex dyntbl sidx)
-            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex dyntbl sidx)
+            DHM.K  sidx -> KeyOnly  InStaticTable  (fromSIndexToIndex dyntbl sidx)
+            DHM.KV sidx -> KeyValue InStaticTable  (fromSIndexToIndex dyntbl sidx)
         DHM.KV hidx -> case mstatic of
             DHM.N       -> KeyValue InDynamicTable (fromHIndexToIndex dyntbl hidx)
             DHM.K  _    -> KeyValue InDynamicTable (fromHIndexToIndex dyntbl hidx)
-            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex dyntbl sidx)
+            DHM.KV sidx -> KeyValue InStaticTable  (fromSIndexToIndex dyntbl sidx)
   where
     mstatic = DHM.search h staticHashPSQ
 
