@@ -59,10 +59,11 @@ data DynamicTable = DynamicTable {
   , headerTableSize :: !Size
   -- | The max dynamic table size (defined in HPACK)
   , maxDynamicTableSize :: !Size
+  -- | The limit size of a dynamic table for decoding
+  , limitForDecoding :: !Size
   -- | Header to the index in Dynamic Table for encoder.
   --   Static Table is not included.
   --   Nothing for decoder.
-  , limitForDecoding :: !Size
   , reverseIndex :: Maybe (DHM.DoubleHashMap HIndex)
   }
 
@@ -129,14 +130,14 @@ fromIndexToSIndex _ idx = toStaticIndex idx
 
 -- | Creating 'DynamicTable'.
 newDynamicTableForEncoding :: Size -> IO DynamicTable
-newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz (Just DHM.empty)
+newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz maxsiz (Just DHM.empty)
 
 -- | Creating 'DynamicTable'.
 newDynamicTableForDecoding :: Size -> IO DynamicTable
-newDynamicTableForDecoding maxsiz = newDynamicTable maxsiz Nothing
+newDynamicTableForDecoding maxsiz = newDynamicTable maxsiz maxsiz Nothing
 
-newDynamicTable :: Size -> Maybe (DHM.DoubleHashMap HIndex) -> IO DynamicTable
-newDynamicTable maxsiz mhp = do
+newDynamicTable :: Size -> Size -> Maybe (DHM.DoubleHashMap HIndex) -> IO DynamicTable
+newDynamicTable maxsiz dlim mhp = do
     tbl <- newArray (0,end) dummyEntry
     return DynamicTable {
         maxNumOfEntries = maxN
@@ -145,7 +146,7 @@ newDynamicTable maxsiz mhp = do
       , circularTable = tbl
       , headerTableSize = 0
       , maxDynamicTableSize = maxsiz
-      , limitForDecoding = maxsiz
+      , limitForDecoding = dlim
       , reverseIndex = mhp
       }
   where
@@ -155,8 +156,9 @@ newDynamicTable maxsiz mhp = do
 -- | Renewing 'DynamicTable' with necessary entries copied.
 renewDynamicTable :: Size -> DynamicTable -> IO DynamicTable
 renewDynamicTable maxsiz oldhdrtbl | shouldRenew oldhdrtbl maxsiz =
-    newDynamicTable maxsiz mhp >>= copyTable oldhdrtbl
+    newDynamicTable maxsiz dlim mhp >>= copyTable oldhdrtbl
   where
+    dlim = limitForDecoding oldhdrtbl
     mhp = case reverseIndex oldhdrtbl of
         Nothing -> Nothing
         _       -> Just DHM.empty
