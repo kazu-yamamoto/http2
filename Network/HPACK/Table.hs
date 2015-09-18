@@ -49,21 +49,21 @@ data HeaderCache = None
 -- | Resolving an index from a header.
 --   Static table is prefer to dynamic table.
 lookupTable :: Header -> DynamicTable -> HeaderCache
-lookupTable h hdrtbl = case reverseIndex hdrtbl of
+lookupTable h dyntbl = case reverseIndex dyntbl of
     Nothing            -> None
     Just rev -> case DHM.search h rev of
         DHM.N       -> case mstatic of
             DHM.N       -> None
-            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
-            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex dyntbl sidx)
+            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex dyntbl sidx)
         DHM.K hidx  -> case mstatic of
-            DHM.N       -> KeyOnly  InDynamicTable (fromHIndexToIndex hdrtbl hidx)
-            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex hdrtbl sidx)
-            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+            DHM.N       -> KeyOnly  InDynamicTable (fromHIndexToIndex dyntbl hidx)
+            DHM.K  sidx -> KeyOnly  InStaticTable (fromSIndexToIndex dyntbl sidx)
+            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex dyntbl sidx)
         DHM.KV hidx -> case mstatic of
-            DHM.N       -> KeyValue InDynamicTable (fromHIndexToIndex hdrtbl hidx)
-            DHM.K  _    -> KeyValue InDynamicTable (fromHIndexToIndex hdrtbl hidx)
-            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex hdrtbl sidx)
+            DHM.N       -> KeyValue InDynamicTable (fromHIndexToIndex dyntbl hidx)
+            DHM.K  _    -> KeyValue InDynamicTable (fromHIndexToIndex dyntbl hidx)
+            DHM.KV sidx -> KeyValue InStaticTable (fromSIndexToIndex dyntbl sidx)
   where
     mstatic = DHM.search h staticHashPSQ
 
@@ -74,10 +74,10 @@ isIn idx DynamicTable{..} = idx > staticTableSize
 
 -- | Which table does 'Index' belong to?
 which :: DynamicTable -> Index -> IO (WhichTable, Entry)
-which hdrtbl idx
-  | idx `isIn` hdrtbl  = (InDynamicTable,) <$> toHeaderEntry hdrtbl hidx
+which dyntbl idx
+  | idx `isIn` dyntbl  = (InDynamicTable,) <$> toHeaderEntry dyntbl hidx
   | isSIndexValid sidx = return (InStaticTable, toStaticEntry sidx)
   | otherwise          = throwIO $ IndexOverrun idx
   where
-    hidx = fromIndexToHIndex hdrtbl idx
-    sidx = fromIndexToSIndex hdrtbl idx
+    hidx = fromIndexToHIndex dyntbl idx
+    sidx = fromIndexToSIndex dyntbl idx

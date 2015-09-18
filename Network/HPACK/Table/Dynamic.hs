@@ -107,7 +107,7 @@ printEntry (i,e) = do
 ----------------------------------------------------------------
 
 isDynamicTableEmpty :: DynamicTable -> Bool
-isDynamicTableEmpty hdrtbl = numOfEntries hdrtbl == 0
+isDynamicTableEmpty dyntbl = numOfEntries dyntbl == 0
 
 isSuitableSize :: Size -> DynamicTable -> Bool
 isSuitableSize siz tbl = siz <= limitForDecoding tbl
@@ -188,17 +188,17 @@ newDynamicTable maxsiz dlim mhp = do
 
 -- | Renewing 'DynamicTable' with necessary entries copied.
 renewDynamicTable :: Size -> DynamicTable -> IO DynamicTable
-renewDynamicTable maxsiz oldhdrtbl | shouldRenew oldhdrtbl maxsiz =
-    newDynamicTable maxsiz dlim mhp >>= copyTable oldhdrtbl
+renewDynamicTable maxsiz olddyntbl | shouldRenew olddyntbl maxsiz =
+    newDynamicTable maxsiz dlim mhp >>= copyTable olddyntbl
   where
-    dlim = limitForDecoding oldhdrtbl
-    mhp = case reverseIndex oldhdrtbl of
+    dlim = limitForDecoding olddyntbl
+    mhp = case reverseIndex olddyntbl of
         Nothing -> Nothing
         _       -> Just DHM.empty
-renewDynamicTable _ oldhdrtbl = return oldhdrtbl
+renewDynamicTable _ olddyntbl = return olddyntbl
 
 copyTable :: DynamicTable -> DynamicTable -> IO DynamicTable
-copyTable oldhdrtbl newhdrtbl = getEntries oldhdrtbl >>= copyEntries newhdrtbl
+copyTable olddyntbl newdyntbl = getEntries olddyntbl >>= copyEntries newdyntbl
 
 getEntries :: DynamicTable -> IO [Entry]
 getEntries DynamicTable{..} = forM [1 .. numOfEntries] readTable
@@ -206,12 +206,12 @@ getEntries DynamicTable{..} = forM [1 .. numOfEntries] readTable
     readTable i = readArray circularTable $ adj maxNumOfEntries (offset + i)
 
 copyEntries :: DynamicTable -> [Entry] -> IO DynamicTable
-copyEntries hdrtbl                 [] = return hdrtbl
-copyEntries hdrtbl@DynamicTable{..} (e:es)
+copyEntries dyntbl                 [] = return dyntbl
+copyEntries dyntbl@DynamicTable{..} (e:es)
   | headerTableSize + entrySize e <= maxDynamicTableSize = do
-      hdrtbl' <- insertEnd e hdrtbl
-      copyEntries hdrtbl' es
-  | otherwise = return hdrtbl
+      dyntbl' <- insertEnd e dyntbl
+      copyEntries dyntbl' es
+  | otherwise = return dyntbl
 
 -- | Is the size of 'DynamicTable' really changed?
 shouldRenew :: DynamicTable -> Size -> Bool
@@ -224,17 +224,17 @@ shouldRenew DynamicTable{..} maxsiz = maxDynamicTableSize /= maxsiz
 --   and a set of dropped OLD 'Index'
 --   are returned.
 insertEntry :: Entry -> DynamicTable -> IO DynamicTable
-insertEntry e hdrtbl = do
-    (hdrtbl', hs) <- insertFront e hdrtbl >>= adjustTableSize
-    let hdrtbl'' = case reverseIndex hdrtbl' of
-            Nothing  -> hdrtbl'
-            Just rev -> hdrtbl' { reverseIndex = Just (DHM.deleteList hs rev) }
-    return hdrtbl''
+insertEntry e dyntbl = do
+    (dyntbl', hs) <- insertFront e dyntbl >>= adjustTableSize
+    let dyntbl'' = case reverseIndex dyntbl' of
+            Nothing  -> dyntbl'
+            Just rev -> dyntbl' { reverseIndex = Just (DHM.deleteList hs rev) }
+    return dyntbl''
 
 insertFront :: Entry -> DynamicTable -> IO DynamicTable
-insertFront e hdrtbl@DynamicTable{..} = do
+insertFront e dyntbl@DynamicTable{..} = do
     writeArray circularTable i e
-    return $ hdrtbl {
+    return $ dyntbl {
         offset = offset'
       , numOfEntries = numOfEntries + 1
       , headerTableSize = headerTableSize'
@@ -249,21 +249,21 @@ insertFront e hdrtbl@DynamicTable{..} = do
         Just rev -> Just $ DHM.insert (entryHeader e) (HIndex i) rev
 
 adjustTableSize :: DynamicTable -> IO (DynamicTable, [Header])
-adjustTableSize hdrtbl = adjust hdrtbl []
+adjustTableSize dyntbl = adjust dyntbl []
 
 adjust :: DynamicTable -> [Header] -> IO (DynamicTable, [Header])
-adjust hdrtbl@DynamicTable{..} hs
-  | headerTableSize <= maxDynamicTableSize = return (hdrtbl, hs)
+adjust dyntbl@DynamicTable{..} hs
+  | headerTableSize <= maxDynamicTableSize = return (dyntbl, hs)
   | otherwise         = do
-      (hdrtbl', h) <- removeEnd hdrtbl
-      adjust hdrtbl' (h:hs)
+      (dyntbl', h) <- removeEnd dyntbl
+      adjust dyntbl' (h:hs)
 
 ----------------------------------------------------------------
 
 insertEnd :: Entry -> DynamicTable -> IO DynamicTable
-insertEnd e hdrtbl@DynamicTable{..} = do
+insertEnd e dyntbl@DynamicTable{..} = do
     writeArray circularTable i e
-    return $ hdrtbl {
+    return $ dyntbl {
         numOfEntries = numOfEntries + 1
       , headerTableSize = headerTableSize'
       , reverseIndex = reverseIndex'
@@ -278,17 +278,17 @@ insertEnd e hdrtbl@DynamicTable{..} = do
 ----------------------------------------------------------------
 
 removeEnd :: DynamicTable -> IO (DynamicTable,Header)
-removeEnd hdrtbl@DynamicTable{..} = do
+removeEnd dyntbl@DynamicTable{..} = do
     let i = adj maxNumOfEntries (offset + numOfEntries)
     e <- readArray circularTable i
     writeArray circularTable i dummyEntry -- let the entry GCed
     let tsize = headerTableSize - entrySize e
         h = entryHeader e
-        hdrtbl' = hdrtbl {
+        dyntbl' = dyntbl {
             numOfEntries = numOfEntries - 1
           , headerTableSize = tsize
           }
-    return (hdrtbl', h)
+    return (dyntbl', h)
 
 ----------------------------------------------------------------
 

@@ -18,24 +18,24 @@ toHeaderBlock :: CompressionAlgo
               -> DynamicTable
               -> HeaderList
               -> IO (DynamicTable, HeaderBlock)
-toHeaderBlock algo !hdrtbl hs = do
-    msiz <- needChangeTableSize hdrtbl
-    (hdrtbl', op) <- case msiz of
+toHeaderBlock algo !dyntbl hs = do
+    msiz <- needChangeTableSize dyntbl
+    (dyntbl', op) <- case msiz of
         Nothing -> do
-            resetLimitForEncoding hdrtbl -- anyway
-            return (hdrtbl, id)
+            resetLimitForEncoding dyntbl -- anyway
+            return (dyntbl, id)
         Just lim -> do
-            tbl <- renewDynamicTable lim hdrtbl
+            tbl <- renewDynamicTable lim dyntbl
             return (tbl, (ChangeTableSize lim :))
-    second op <$> toHeaderBlock' algo hdrtbl' hs
+    second op <$> toHeaderBlock' algo dyntbl' hs
 
 toHeaderBlock' :: CompressionAlgo
               -> DynamicTable
               -> HeaderList
               -> IO (DynamicTable, HeaderBlock)
-toHeaderBlock' Naive  !hdrtbl hs = encodeLoop naiveStep  hs (hdrtbl,empty)
-toHeaderBlock' Static !hdrtbl hs = encodeLoop staticStep hs (hdrtbl,empty)
-toHeaderBlock' Linear !hdrtbl hs = encodeLoop linearStep hs (hdrtbl,empty)
+toHeaderBlock' Naive  !dyntbl hs = encodeLoop naiveStep  hs (dyntbl,empty)
+toHeaderBlock' Static !dyntbl hs = encodeLoop staticStep hs (dyntbl,empty)
+toHeaderBlock' Linear !dyntbl hs = encodeLoop linearStep hs (dyntbl,empty)
 
 {-
 do mlim <- readIORef limitForEncoding
@@ -49,28 +49,28 @@ do mlim <- readIORef limitForEncoding
 ----------------------------------------------------------------
 
 encodeFinal :: Ctx -> IO (DynamicTable, HeaderBlock)
-encodeFinal (!hdrtbl, !builder) = return (hdrtbl, run builder)
+encodeFinal (!dyntbl, !builder) = return (dyntbl, run builder)
 
 encodeLoop :: Step
            -> HeaderList
            -> Ctx
            -> IO (DynamicTable, HeaderBlock)
-encodeLoop step (h:hs) !hdrtbl = step hdrtbl h >>= encodeLoop step hs
-encodeLoop _    []     !hdrtbl = encodeFinal hdrtbl
+encodeLoop step (h:hs) !dyntbl = step dyntbl h >>= encodeLoop step hs
+encodeLoop _    []     !dyntbl = encodeFinal dyntbl
 
 ----------------------------------------------------------------
 
 naiveStep :: Step
-naiveStep (!hdrtbl,!builder) (k,v) = do
+naiveStep (!dyntbl,!builder) (k,v) = do
     let builder' = builder << Literal NotAdd (Lit k) v
-    return (hdrtbl, builder')
+    return (dyntbl, builder')
 
 ----------------------------------------------------------------
 
 staticStep :: Step
-staticStep (!hdrtbl,!builder) h@(k,v) = return (hdrtbl, builder')
+staticStep (!dyntbl,!builder) h@(k,v) = return (dyntbl, builder')
   where
-    b = case lookupTable h hdrtbl of
+    b = case lookupTable h dyntbl of
         None                      -> Literal NotAdd (Lit k) v
         KeyOnly  InStaticTable i  -> Literal NotAdd (Idx i) v
         KeyOnly  InDynamicTable _ -> Literal NotAdd (Lit k) v
@@ -83,32 +83,32 @@ staticStep (!hdrtbl,!builder) h@(k,v) = return (hdrtbl, builder')
 -- by 'Index 0' and uses indexing as much as possible.
 
 linearStep :: Step
-linearStep cb@(!hdrtbl,!builder) h = smartStep linear cb h
+linearStep cb@(!dyntbl,!builder) h = smartStep linear cb h
   where
-    linear i = return (hdrtbl,builder << Indexed i)
+    linear i = return (dyntbl,builder << Indexed i)
 
 ----------------------------------------------------------------
 
 smartStep :: (Index -> IO Ctx) -> Step
-smartStep func cb@(!hdrtbl,!builder) h@(k,_) = do
-    let cache = lookupTable h hdrtbl
+smartStep func cb@(!dyntbl,!builder) h@(k,_) = do
+    let cache = lookupTable h dyntbl
     case cache of
         None                      -> check cb h (Lit k)
         KeyOnly  InStaticTable i  -> check cb h (Idx i)
         KeyOnly  InDynamicTable i -> check cb h (Idx i)
-        KeyValue InStaticTable i  -> return (hdrtbl, builder << Indexed i)
+        KeyValue InStaticTable i  -> return (dyntbl, builder << Indexed i)
         KeyValue InDynamicTable i -> func i
 
 check :: Ctx -> Header -> Naming -> IO Ctx
-check (hdrtbl,builder) h@(k,v) x
+check (dyntbl,builder) h@(k,v) x
   | k `elem` headersNotToIndex = do
       let builder' = builder << Literal NotAdd x v
-      return (hdrtbl, builder')
+      return (dyntbl, builder')
   | otherwise = do
       let e = toEntry h
-      hdrtbl' <- insertEntry e hdrtbl
+      dyntbl' <- insertEntry e dyntbl
       let builder' = builder << Literal Add x v
-      return (hdrtbl', builder')
+      return (dyntbl', builder')
 
 headersNotToIndex :: [HeaderName]
 headersNotToIndex = [
