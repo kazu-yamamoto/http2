@@ -71,10 +71,13 @@ gen :: GenIO
 gen = unsafePerformIO createSystemRandom
 {-# NOINLINE gen #-}
 
+{-
+main :: IO ()
 main = do
     let q = insert "c" 1 $ insert "b" 101 $ insert "a" 201 empty
     loop 1000 q
   where
+    loop :: Int -> Heap String -> IO ()
     loop 0 _ = return ()
     loop n q = do
         case uncons q of
@@ -82,3 +85,4 @@ main = do
             Just (x, w, q') -> do
                 putStrLn x
                 loop (n-1) (insert x w q')
+-}
