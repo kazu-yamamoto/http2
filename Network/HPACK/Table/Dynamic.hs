@@ -7,6 +7,7 @@ module Network.HPACK.Table.Dynamic (
   , renewDynamicTable
   , printDynamicTable
   , isDynamicTableEmpty
+  , isSuitableSize
   , insertEntry
   , toHeaderEntry
   , fromHIndexToIndex
@@ -61,6 +62,7 @@ data DynamicTable = DynamicTable {
   -- | Header to the index in Dynamic Table for encoder.
   --   Static Table is not included.
   --   Nothing for decoder.
+  , limitForDecoding :: !Size
   , reverseIndex :: Maybe (DHM.DoubleHashMap HIndex)
   }
 
@@ -96,6 +98,9 @@ printEntry (i,e) = do
 
 isDynamicTableEmpty :: DynamicTable -> Bool
 isDynamicTableEmpty hdrtbl = numOfEntries hdrtbl == 0
+
+isSuitableSize :: Size -> DynamicTable -> Bool
+isSuitableSize siz tbl = siz <= limitForDecoding tbl
 
 ----------------------------------------------------------------
 
@@ -140,6 +145,7 @@ newDynamicTable maxsiz mhp = do
       , circularTable = tbl
       , headerTableSize = 0
       , maxDynamicTableSize = maxsiz
+      , limitForDecoding = maxsiz
       , reverseIndex = mhp
       }
   where

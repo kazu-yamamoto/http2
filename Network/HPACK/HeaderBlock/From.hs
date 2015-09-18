@@ -8,6 +8,8 @@ module Network.HPACK.HeaderBlock.From (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
+import Control.Exception (throwIO)
+import Control.Monad (unless)
 import Network.HPACK.Builder
 import Network.HPACK.HeaderBlock.HeaderField
 import Network.HPACK.Table
@@ -36,6 +38,7 @@ decodeLoop []     !hdrtbl = decodeFinal hdrtbl
 --   test purpose.
 decodeStep :: Step
 decodeStep (!hdrtbl,!builder) (ChangeTableSize siz) = do
+    unless (isSuitableSize siz hdrtbl) $ throwIO TooLargeTableSize
     hdrtbl' <- renewDynamicTable siz hdrtbl
     return (hdrtbl',builder)
 decodeStep (!hdrtbl,!builder) (Indexed idx) = do

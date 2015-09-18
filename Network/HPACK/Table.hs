@@ -8,6 +8,7 @@ module Network.HPACK.Table (
   , renewDynamicTable
   , printDynamicTable
   , isDynamicTableEmpty
+  , isSuitableSize
   -- * Insertion
   , insertEntry
   -- * Header to index

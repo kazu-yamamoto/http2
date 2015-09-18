@@ -70,6 +70,7 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | TooLongEos -- ^ Eos of huffman string is more than 7 bits
                  | EmptyEncodedString -- ^ Encoded string has no length
                  | EmptyBlock -- ^ Header block is empty
+                 | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
