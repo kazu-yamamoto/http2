@@ -65,7 +65,7 @@ data DynamicTable = DynamicTable {
   , maxDynamicTableSize :: !Size
   -- | The value informed by SETTINGS_HEADER_TABLE_SIZE.
   --   If 'Nothing', dynamic table size update is not necessary.
-  --   Otherwise, dynamic table size update is sent, if necessary,
+  --   Otherwise, dynamic table size update is sent
   --   and this value should be set to 'Nothing'.
   , limitForEncoding :: IORef (Maybe Size)
   -- | The limit size of a dynamic table for decoding
