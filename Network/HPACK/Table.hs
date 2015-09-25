@@ -9,6 +9,7 @@ module Network.HPACK.Table (
   , printDynamicTable
   , isDynamicTableEmpty
   , isSuitableSize
+  , TableSizeAction(..)
   , needChangeTableSize
   , setLimitForEncoding
   , resetLimitForEncoding

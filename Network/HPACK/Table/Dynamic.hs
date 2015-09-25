@@ -8,6 +8,7 @@ module Network.HPACK.Table.Dynamic (
   , printDynamicTable
   , isDynamicTableEmpty
   , isSuitableSize
+  , TableSizeAction(..)
   , needChangeTableSize
   , setLimitForEncoding
   , resetLimitForEncoding
@@ -112,14 +113,16 @@ isDynamicTableEmpty dyntbl = numOfEntries dyntbl == 0
 isSuitableSize :: Size -> DynamicTable -> Bool
 isSuitableSize siz tbl = siz <= limitForDecoding tbl
 
-needChangeTableSize :: DynamicTable -> IO (Maybe Size)
+data TableSizeAction = Keep | Change Size | Ignore Size
+
+needChangeTableSize :: DynamicTable -> IO TableSizeAction
 needChangeTableSize tbl = do
     mlim <- getLimitForEncoding tbl
     return $ case mlim of
-        Nothing       -> Nothing
+        Nothing          -> Keep
         Just lim
-          | lim < maxsiz -> Just lim
-          | otherwise    -> Nothing -- ignoring SETTINGS_HEADER_TABLE_SIZE
+          | lim < maxsiz -> Change lim
+          | otherwise    -> Ignore maxsiz
   where
     maxsiz = maxDynamicTableSize tbl
 

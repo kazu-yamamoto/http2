@@ -21,12 +21,14 @@ toHeaderBlock :: CompressionAlgo
 toHeaderBlock algo !dyntbl hs = do
     msiz <- needChangeTableSize dyntbl
     (dyntbl', op) <- case msiz of
-        Nothing -> do
-            resetLimitForEncoding dyntbl -- anyway
+        Keep -> do
             return (dyntbl, id)
-        Just lim -> do
+        Change lim -> do
             tbl <- renewDynamicTable lim dyntbl
             return (tbl, (ChangeTableSize lim :))
+        Ignore lim -> do
+            resetLimitForEncoding dyntbl
+            return (dyntbl, (ChangeTableSize lim :))
     second op <$> toHeaderBlock' algo dyntbl' hs
 
 toHeaderBlock' :: CompressionAlgo
