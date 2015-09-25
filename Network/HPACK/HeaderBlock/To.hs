@@ -1,9 +1,12 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, CPP #-}
 
 module Network.HPACK.HeaderBlock.To (
     toHeaderBlock
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Control.Arrow (second)
 import Network.HPACK.Builder
 import Network.HPACK.HeaderBlock.HeaderField
