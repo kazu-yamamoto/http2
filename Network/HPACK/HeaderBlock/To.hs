@@ -39,15 +39,6 @@ toHeaderBlock' Naive  !dyntbl hs = encodeLoop naiveStep  hs (dyntbl,empty)
 toHeaderBlock' Static !dyntbl hs = encodeLoop staticStep hs (dyntbl,empty)
 toHeaderBlock' Linear !dyntbl hs = encodeLoop linearStep hs (dyntbl,empty)
 
-{-
-do mlim <- readIORef limitForEncoding
-   (dyn', op) <- case mlim of
-      Nothing -> (dyn, id)
-      Just lim
-        | lim >= v -> (set Nothing dyn, id)
-        | lim <  v -> (renew dyn, (change_to v:))
--}
-
 ----------------------------------------------------------------
 
 encodeFinal :: Ctx -> IO (DynamicTable, HeaderBlock)
