@@ -55,7 +55,8 @@ Library
                         Network.HPACK.Types
                         Network.HTTP2.Decode
                         Network.HTTP2.Encode
-                        Network.HTTP2.RandomSkewHeap
+                        Network.HTTP2.Priority.Queue
+                        Network.HTTP2.Priority.RandomSkewHeap
                         Network.HTTP2.Types
   Build-Depends:        base >= 4.6 && < 5
                       , array

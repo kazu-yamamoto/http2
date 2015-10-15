@@ -28,10 +28,10 @@ import Control.Applicative
 #endif
 import Control.Concurrent.STM
 import Control.Monad (when, unless)
-import qualified Data.IntMap.Strict as Map
 import Data.IntMap.Strict (IntMap)
-import Network.HTTP2.RandomSkewHeap (Heap)
-import qualified Network.HTTP2.RandomSkewHeap as Heap
+import qualified Data.IntMap.Strict as Map
+import Network.HTTP2.Priority.Queue (TPriorityQueue)
+import qualified Network.HTTP2.Priority.Queue as Q
 import Network.HTTP2.Types
 
 ----------------------------------------------------------------
@@ -42,16 +42,16 @@ data PriorityTree a = PriorityTree (TVar (IntMap (Struct a)))
                                    (PriorityQueue a)
 -- INVARIANT: Empty PriorityQueue is never enqueued in
 -- another PriorityQueue.
-type PriorityQueue a = TPQueue (Element a)
+type PriorityQueue a = TPriorityQueue (Element a)
 data Element a = Child a
                | Parent (PriorityQueue a)
 
 -- | Creating a new priority tree.
 newPriorityTree :: IO (PriorityTree a)
-newPriorityTree = PriorityTree <$> newTVarIO Map.empty <*> atomically newTPQueue
+newPriorityTree = PriorityTree <$> newTVarIO Map.empty <*> atomically Q.new
 
 newPriorityQueue :: STM (PriorityQueue a)
-newPriorityQueue = TPQueue <$> newTVar Heap.empty
+newPriorityQueue = Q.new
 
 ----------------------------------------------------------------
 
@@ -70,12 +70,12 @@ enqueue (PriorityTree var q0) a p0 = atomically $ do
     loop m (Child a) p0
   where
     loop m el p
-      | pid == 0  = writeTPQueue q0 el p
+      | pid == 0  = Q.enqueue q0 el p
       | otherwise = case Map.lookup pid m of
-          Nothing -> writeTPQueue q0 el defaultPriority -- error case: checkme
+          Nothing -> Q.enqueue q0 el defaultPriority -- error case: checkme
           Just (q', p') -> do
-              notQueued <- isTPQueueEmpty q'
-              writeTPQueue q' el p
+              notQueued <- Q.isEmpty q'
+              Q.enqueue q' el p
               when notQueued $ loop m (Parent q') p'
       where
         pid = streamDependency p
@@ -85,36 +85,11 @@ dequeue :: PriorityTree a -> IO (a, Priority)
 dequeue (PriorityTree _ q0) = atomically (loop q0)
   where
     loop q = do
-        (el, w) <- readTPQueue q
+        (el, w) <- Q.dequeue q
         case el of
             Child  a      -> return (a, w)
             p@(Parent q') -> do
                 r <- loop q'
-                empty <- isTPQueueEmpty q'
-                unless empty $ writeTPQueue q p w
+                empty <- Q.isEmpty q'
+                unless empty $ Q.enqueue q p w
                 return r
-
-----------------------------------------------------------------
---
--- The following code is originally written by Fumiaki Kinoshita
---
-
-newtype TPQueue a = TPQueue (TVar (Heap (a,Priority)))
-
-newTPQueue :: STM (TPQueue a)
-newTPQueue = TPQueue <$> newTVar Heap.empty
-
-readTPQueue :: TPQueue a -> STM (a, Priority)
-readTPQueue (TPQueue th) = do
-  h <- readTVar th
-  case Heap.uncons h of
-    Nothing -> retry
-    Just (ap, _, h') -> do
-      writeTVar th h'
-      return ap
-
-writeTPQueue :: TPQueue a -> a -> Priority -> STM ()
-writeTPQueue (TPQueue th) a p = modifyTVar' th $ Heap.insert (a,p) (weight p)
-
-isTPQueueEmpty :: TPQueue a -> STM Bool
-isTPQueueEmpty (TPQueue th) = Heap.isEmpty <$> readTVar th
