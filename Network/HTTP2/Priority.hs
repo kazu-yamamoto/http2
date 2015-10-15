@@ -36,22 +36,24 @@ import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
-type Struct a = (PriorityQueue a, Priority)
 -- | Abstract data type for priority trees.
-data PriorityTree a = PriorityTree (TVar (IntMap (Struct a)))
-                                   (PriorityQueue a)
--- INVARIANT: Empty PriorityQueue is never enqueued in
--- another PriorityQueue.
-type PriorityQueue a = TPriorityQueue (Element a)
+data PriorityTree a = PriorityTree (TVar (Glue a))
+                                   (TNestedPriorityQueue a)
+
+type Glue a = IntMap (TNestedPriorityQueue a, Priority)
+
+-- INVARIANT: Empty TNestedPriorityQueue is never enqueued in
+-- another TNestedPriorityQueue.
+type TNestedPriorityQueue a = TPriorityQueue (Element a)
+
 data Element a = Child a
-               | Parent (PriorityQueue a)
+               | Parent (TNestedPriorityQueue a)
+
+----------------------------------------------------------------
 
 -- | Creating a new priority tree.
 newPriorityTree :: IO (PriorityTree a)
 newPriorityTree = PriorityTree <$> newTVarIO Map.empty <*> atomically Q.new
-
-newPriorityQueue :: STM (PriorityQueue a)
-newPriorityQueue = Q.new
 
 ----------------------------------------------------------------
 
@@ -59,7 +61,7 @@ newPriorityQueue = Q.new
 --   This must be used for Priority frame.
 prepare :: PriorityTree a -> StreamId -> Priority -> IO ()
 prepare (PriorityTree var _) sid p = atomically $ do
-    q <- newPriorityQueue
+    q <- Q.new
     modifyTVar' var $ Map.insert sid (q, p)
 
 -- | Enqueuing an element to the priority tree.
