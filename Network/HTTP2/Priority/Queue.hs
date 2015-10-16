@@ -11,8 +11,8 @@ module Network.HTTP2.Priority.Queue (
   ) where
 
 import Control.Concurrent.STM
-import Network.HTTP2.Priority.RandomSkewHeap (PriorityQueue, Entry)
-import qualified Network.HTTP2.Priority.RandomSkewHeap as Q
+import Network.HTTP2.Priority.Heap (PriorityQueue, Entry)
+import qualified Network.HTTP2.Priority.Heap as Q
 
 ----------------------------------------------------------------
 

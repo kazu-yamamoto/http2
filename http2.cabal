@@ -56,6 +56,7 @@ Library
                         Network.HTTP2.Decode
                         Network.HTTP2.Encode
                         Network.HTTP2.Priority.Queue
+                        Network.HTTP2.Priority.Heap
                         Network.HTTP2.Priority.RandomSkewHeap
                         Network.HTTP2.Types
   Build-Depends:        base >= 4.6 && < 5
@@ -63,6 +64,7 @@ Library
                       , bytestring >= 0.10
                       , bytestring-builder
                       , containers >= 0.5
+                      , heaps
                       , mwc-random
                       , stm
                       , unordered-containers
@@ -96,6 +98,7 @@ Test-Suite spec
                       , bytestring
                       , bytestring-builder
                       , containers
+                      , heaps
                       , hex
                       , hspec >= 1.3
                       , mwc-random
