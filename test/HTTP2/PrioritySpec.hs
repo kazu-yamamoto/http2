@@ -16,21 +16,21 @@ spec = do
             prepare pt 7 $ Priority False 0 1
             prepare pt 9 $ Priority False 7 1
             prepare pt 11 $ Priority False 3 1
-            enqueue pt 13 $ Priority False 11 32
-            (sid13,_) <- dequeue pt
-            sid13 `shouldBe` 13
-            enqueue pt 15 $ Priority False 3 32
-            enqueue pt 17 $ Priority False 3 32
-            enqueue pt 19 $ Priority False 3 32
-            enqueue pt 21 $ Priority False 3 32
-            enqueue pt 23 $ Priority False 3 32
-            enqueue pt 25 $ Priority False 3 32
-            enqueue pt 27 $ Priority False 11 22
-            enqueue pt 29 $ Priority False 11 22
-            enqueue pt 31 $ Priority False 11 22
-            enqueue pt 33 $ Priority False 5 32
-            enqueue pt 35 $ Priority False 5 32
-            enqueue pt 37 $ Priority False 5 32
+            enQ pt 13 $ Priority False 11 32
+            sid13 <- dequeue pt
+            item sid13 `shouldBe` 13
+            enQ pt 15 $ Priority False 3 32
+            enQ pt 17 $ Priority False 3 32
+            enQ pt 19 $ Priority False 3 32
+            enQ pt 21 $ Priority False 3 32
+            enQ pt 23 $ Priority False 3 32
+            enQ pt 25 $ Priority False 3 32
+            enQ pt 27 $ Priority False 11 22
+            enQ pt 29 $ Priority False 11 22
+            enQ pt 31 $ Priority False 11 22
+            enQ pt 33 $ Priority False 5 32
+            enQ pt 35 $ Priority False 5 32
+            enQ pt 37 $ Priority False 5 32
             -- Currently, just checking no errors.
             void $ dequeue pt
             void $ dequeue pt
@@ -45,3 +45,5 @@ spec = do
             void $ dequeue pt
             void $ dequeue pt
 
+enQ :: PriorityTree Int -> Int -> Priority -> IO ()
+enQ pt x p = enqueue pt (newEntry x p) p

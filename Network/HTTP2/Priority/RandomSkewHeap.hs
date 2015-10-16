@@ -21,19 +21,45 @@
 -- APIs are made to be pure with unsafePerformIO.
 
 module Network.HTTP2.Priority.RandomSkewHeap (
-    PriorityQueue
+    Entry(..)
+  , newEntry
+  , renewEntry
+  , item
+  , PriorityQueue
   , empty
   , isEmpty
   , enqueue
   , dequeue
   ) where
 
-import Network.HTTP2.Types (Weight)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random.MWC (createSystemRandom, uniformR, GenIO)
 
-data PriorityQueue a = Leaf | Node Weight -- total
-                                   a Weight !(PriorityQueue a) !(PriorityQueue a) deriving Show
+----------------------------------------------------------------
+
+type Weight = Int
+
+data Entry a = Entry a {-# UNPACK #-} !Weight deriving Show
+
+----------------------------------------------------------------
+
+newEntry :: a -> Weight -> Entry a
+newEntry x w = Entry x w
+
+renewEntry :: Entry a -> b -> Entry b
+renewEntry (Entry _ w) x = Entry x w
+
+item :: Entry a -> a
+item (Entry x _) = x
+
+----------------------------------------------------------------
+
+data PriorityQueue a = Leaf | Node {-# UNPACK #-} !Weight -- total
+                                   (Entry a)
+                                   !(PriorityQueue a)
+                                   !(PriorityQueue a) deriving Show
+
+----------------------------------------------------------------
 
 empty :: PriorityQueue a
 empty = Leaf
@@ -42,46 +68,31 @@ isEmpty :: PriorityQueue a -> Bool
 isEmpty Leaf = True
 isEmpty _    = False
 
-singleton :: a -> Weight -> PriorityQueue a
-singleton a w = Node w a w Leaf Leaf
+singleton :: Entry a -> PriorityQueue a
+singleton ent@(Entry _ w) = Node w ent Leaf Leaf
 
-enqueue :: a -> Weight -> PriorityQueue a -> PriorityQueue a
-enqueue a w t = merge (singleton a w) t
+----------------------------------------------------------------
+
+enqueue :: Entry a -> PriorityQueue a -> PriorityQueue a
+enqueue ent q = merge (singleton ent) q
 
 -- if l is a singleton, w1 == tw1.
 merge :: PriorityQueue t -> PriorityQueue t -> PriorityQueue t
 merge t Leaf = t
 merge Leaf t = t
-merge l@(Node tw1 x1 w1 ll lr) r@(Node tw2 x2 w2 rl rr)
-  | g <= tw1  = Node tw x1 w1 lr $ merge ll r
-  | otherwise = Node tw x2 w2 rr $ merge rl l
+merge l@(Node tw1 ent1 ll lr) r@(Node tw2 ent2 rl rr)
+  | g <= tw1  = Node tw ent1 lr $ merge ll r
+  | otherwise = Node tw ent2 rr $ merge rl l
   where
     tw = tw1 + tw2
     g = unsafePerformIO $ uniformR (1,tw) gen
 {-# NOINLINE merge #-}
 
-dequeue :: PriorityQueue a -> Maybe (a, Weight, PriorityQueue a)
+dequeue :: PriorityQueue a -> Maybe (Entry a, PriorityQueue a)
 dequeue Leaf             = Nothing
-dequeue (Node _ a w l r) = Just (a, w, t)
+dequeue (Node _ ent l r) = Just (ent, t)
   where
     !t = merge l r
 
 gen :: GenIO
 gen = unsafePerformIO createSystemRandom
-{-# NOINLINE gen #-}
-
-{-
-main :: IO ()
-main = do
-    let q = enqueue "c" 1 $ enqueue "b" 101 $ enqueue "a" 201 empty
-    loop 1000 q
-  where
-    loop :: Int -> PriorityQueue String -> IO ()
-    loop 0 _ = return ()
-    loop n q = do
-        case dequeue q of
-            Nothing -> error "Nothing"
-            Just (x, w, q') -> do
-                putStrLn x
-                loop (n-1) (enqueue x w q')
--}

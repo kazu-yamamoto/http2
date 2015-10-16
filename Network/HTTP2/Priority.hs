@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE BangPatterns #-}
 
 -- | This is partial implementation of the priority of HTTP/2.
 --
@@ -16,8 +17,15 @@
 -- is not preserved because of the randomness.
 
 module Network.HTTP2.Priority (
-    PriorityTree
+  -- * Entry
+    Entry
+  , newEntry
+  , Q.renewEntry
+  , Q.item
+  -- * PriorityTree
+  , PriorityTree
   , newPriorityTree
+  -- * PriorityTree functions
   , prepare
   , enqueue
   , dequeue
@@ -30,9 +38,14 @@ import Control.Concurrent.STM
 import Control.Monad (when, unless)
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as Map
-import Network.HTTP2.Priority.Queue (TPriorityQueue)
+import Network.HTTP2.Priority.Queue (TPriorityQueue, Entry)
 import qualified Network.HTTP2.Priority.Queue as Q
 import Network.HTTP2.Types
+
+----------------------------------------------------------------
+
+newEntry :: a -> Priority -> Entry a
+newEntry x p = Q.newEntry x (weight p)
 
 ----------------------------------------------------------------
 
@@ -66,32 +79,37 @@ prepare (PriorityTree var _) sid p = atomically $ do
 
 -- | Enqueuing an element to the priority tree.
 --   This must be used for Header frame.
-enqueue :: PriorityTree a -> a -> Priority -> IO ()
-enqueue (PriorityTree var q0) a p0 = atomically $ do
+enqueue :: PriorityTree a -> Entry a -> Priority -> IO ()
+enqueue (PriorityTree var q0) ent0 p0 = atomically $ do
     m <- readTVar var
-    loop m (Child a) p0
+    let !x = Q.item ent0
+        !el = Child x
+        !ent' = Q.renewEntry ent0 el
+    loop m ent' p0
   where
-    loop m el p
-      | pid == 0  = Q.enqueue q0 el p
+    loop m ent p
+      | pid == 0  = Q.enqueue q0 ent
       | otherwise = case Map.lookup pid m of
-          Nothing -> Q.enqueue q0 el defaultPriority -- error case: checkme
+          Nothing -> Q.enqueue q0 ent -- error case: checkme
           Just (q', p') -> do
               notQueued <- Q.isEmpty q'
-              Q.enqueue q' el p
-              when notQueued $ loop m (Parent q') p'
+              Q.enqueue q' ent
+              when notQueued $ do
+                  let !ent' = newEntry (Parent q') p'
+                  loop m ent' p'
       where
         pid = streamDependency p
 
 -- | Dequeuing an element from the priority tree.
-dequeue :: PriorityTree a -> IO (a, Priority)
+dequeue :: PriorityTree a -> IO (Entry a)
 dequeue (PriorityTree _ q0) = atomically (loop q0)
   where
     loop q = do
-        (el, w) <- Q.dequeue q
-        case el of
-            Child  a      -> return (a, w)
-            p@(Parent q') -> do
-                r <- loop q'
+        ent <- Q.dequeue q
+        case Q.item ent of
+            Child x   -> return $! Q.renewEntry ent x
+            Parent q' -> do
+                entr <- loop q'
                 empty <- Q.isEmpty q'
-                unless empty $ Q.enqueue q p w
-                return r
+                unless empty $ Q.enqueue q ent
+                return entr
