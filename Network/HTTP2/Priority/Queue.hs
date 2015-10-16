@@ -1,5 +1,5 @@
 module Network.HTTP2.Priority.Queue (
-    Entry(..)
+    Entry
   , Q.newEntry
   , Q.renewEntry
   , Q.item

@@ -21,7 +21,7 @@
 -- APIs are made to be pure with unsafePerformIO.
 
 module Network.HTTP2.Priority.RandomSkewHeap (
-    Entry(..)
+    Entry
   , newEntry
   , renewEntry
   , item

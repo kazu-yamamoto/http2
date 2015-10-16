@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Network.HTTP2.Priority.Heap (
-    Entry(..)
+    Entry
   , newEntry
   , renewEntry
   , item
