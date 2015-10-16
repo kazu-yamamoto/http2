@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Network.HTTP2.Priority.Queue (
     Entry
   , Q.newEntry
