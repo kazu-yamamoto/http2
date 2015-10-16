@@ -20,7 +20,7 @@
 -- essentially impure. But since this is used with STM,
 -- APIs are made to be pure with unsafePerformIO.
 
-module Network.HTTP2.Priority.RandomSkewHeap (
+module RandomSkewHeap (
     Entry
   , newEntry
   , renewEntry

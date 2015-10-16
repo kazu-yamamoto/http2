@@ -57,7 +57,6 @@ Library
                         Network.HTTP2.Encode
                         Network.HTTP2.Priority.Queue
                         Network.HTTP2.Priority.Heap
-                        Network.HTTP2.Priority.RandomSkewHeap
                         Network.HTTP2.Types
   Build-Depends:        base >= 4.6 && < 5
                       , array
@@ -65,7 +64,6 @@ Library
                       , bytestring-builder
                       , containers >= 0.5
                       , heaps
-                      , mwc-random
                       , stm
                       , unordered-containers
 
@@ -240,3 +238,17 @@ Executable frame-encode
                       , http2
                       , text
                       , unordered-containers
+
+Benchmark criterion
+  Type:                 exitcode-stdio-1.0
+  Default-Language:     Haskell2010
+  Hs-Source-Dirs:       bench, .
+  Ghc-Options:          -Wall
+  Main-Is:              Main.hs
+  Build-Depends:        base
+                      , array
+                      , criterion
+                      , heaps
+                      , mwc-random
+                      , random
+                      , stm
