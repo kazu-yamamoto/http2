@@ -32,6 +32,8 @@ instance Ord (Entry a) where
     Entry _ _ p1 <  Entry _ _ p2 = p1 <  p2
     Entry _ _ p1 <= Entry _ _ p2 = p1 <= p2
 
+-- FIXME: The base (Int) would be overflowed.
+--        In that case, the heap must be re-constructed.
 data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Int (Heap (Entry a))
 
 ----------------------------------------------------------------
