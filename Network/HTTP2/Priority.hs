@@ -76,7 +76,7 @@ prepare (PriorityTree var _) sid p = atomically $ do
     q <- Q.new
     modifyTVar' var $ Map.insert sid (q, p)
 
--- | Enqueuing an element to the priority tree.
+-- | Enqueuing an entry to the priority tree.
 --   This must be used for Header frame.
 enqueue :: PriorityTree a -> Entry a -> Priority -> IO ()
 enqueue (PriorityTree var q0) ent0 p0 = atomically $ do
@@ -99,7 +99,7 @@ enqueue (PriorityTree var q0) ent0 p0 = atomically $ do
       where
         pid = streamDependency p
 
--- | Dequeuing an element from the priority tree.
+-- | Dequeuing an entry from the priority tree.
 dequeue :: PriorityTree a -> IO (Entry a)
 dequeue (PriorityTree _ q0) = atomically (loop q0)
   where
