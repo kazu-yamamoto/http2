@@ -10,6 +10,9 @@ module Network.HTTP2.Priority.Queue (
   , dequeue
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Control.Concurrent.STM
 import Network.HTTP2.Priority.Heap (PriorityQueue, Entry)
 import qualified Network.HTTP2.Priority.Heap as Q
