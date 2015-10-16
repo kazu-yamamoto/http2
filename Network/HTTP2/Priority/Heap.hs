@@ -21,6 +21,7 @@ import qualified Data.Heap as H
 type Weight = Int
 type Pri = Int
 
+-- | Abstract data type of entries for priority queues.
 data Entry a = Entry a
                  {-# UNPACK #-} !Weight
                  {-# UNPACK #-} !Pri deriving Show
@@ -61,12 +62,14 @@ weightToPriority w = priorityTable ! w
 newEntry :: a -> Weight -> Entry a
 newEntry x w = Entry x w magicPriority
 
+-- | Changing the item of an entry.
 renewEntry :: Entry a -> b -> Entry b
 renewEntry (Entry _ w p) x = Entry x w p
 
 isNewEntry :: Entry a -> Bool
 isNewEntry (Entry _ _ p) = p == magicPriority
 
+-- | Extracting an item from an entry.
 item :: Entry a -> a
 item (Entry x _ _) = x
 

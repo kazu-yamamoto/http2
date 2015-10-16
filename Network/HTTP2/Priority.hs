@@ -44,6 +44,7 @@ import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
+-- | Wrapping an item to an entry.
 newEntry :: a -> Priority -> Entry a
 newEntry x p = Q.newEntry x (weight p)
 

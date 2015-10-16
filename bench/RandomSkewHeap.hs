@@ -39,6 +39,7 @@ import System.Random.MWC (createSystemRandom, uniformR, GenIO)
 
 type Weight = Int
 
+-- | Abstract data type of entries for priority queues.
 data Entry a = Entry a {-# UNPACK #-} !Weight deriving Show
 
 ----------------------------------------------------------------
@@ -46,9 +47,11 @@ data Entry a = Entry a {-# UNPACK #-} !Weight deriving Show
 newEntry :: a -> Weight -> Entry a
 newEntry x w = Entry x w
 
+-- | Changing the item of an entry.
 renewEntry :: Entry a -> b -> Entry b
 renewEntry (Entry _ w) x = Entry x w
 
+-- | Extracting an item from an entry.
 item :: Entry a -> a
 item (Entry x _) = x
 

@@ -29,8 +29,9 @@ import Foreign.C.Types (CLLong(..))
 
 type Weight = Int
 
+-- | Abstract data type of entries for priority queues.
 data Entry a = Entry {
-    item :: a
+    item :: a -- ^ Extracting an item from an entry.
   , weight  :: {-# UNPACK #-} !Weight
   , deficit :: {-# UNPACK #-} !Int
   } deriving Show
@@ -38,6 +39,7 @@ data Entry a = Entry {
 newEntry :: a -> Weight -> Entry a
 newEntry x w = Entry x w 0
 
+-- | Changing the item of an entry.
 renewEntry :: Entry a -> b -> Entry b
 renewEntry ent x = ent { item = x }
 
