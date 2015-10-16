@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 
 module Network.HTTP2.Priority.Heap (
     Entry
@@ -12,6 +13,9 @@ module Network.HTTP2.Priority.Heap (
   , dequeue
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Data.Array (Array, listArray, (!))
 import Data.Heap (Heap)
 import qualified Data.Heap as H
