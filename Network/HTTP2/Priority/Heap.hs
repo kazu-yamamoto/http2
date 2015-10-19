@@ -90,6 +90,5 @@ enqueue Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
 
 dequeue :: PriorityQueue a -> Maybe (Entry a, PriorityQueue a)
 dequeue (PriorityQueue _ heap) = case H.uncons heap of
-    Nothing -> Nothing
-    Just (ent@Entry{..}, heap') -> let !base' = deficit `mod` deficitSteps
-                                   in Just (ent, PriorityQueue base' heap')
+    Nothing                     -> Nothing
+    Just (ent@Entry{..}, heap') -> Just (ent, PriorityQueue deficit heap')
