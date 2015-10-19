@@ -93,4 +93,6 @@ enqueue Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
 dequeue :: PriorityQueue a -> Maybe (Entry a, PriorityQueue a)
 dequeue (PriorityQueue _ heap) = case H.uncons heap of
     Nothing                     -> Nothing
-    Just (ent@Entry{..}, heap') -> Just (ent, PriorityQueue deficit heap')
+    Just (ent@Entry{..}, heap')
+      | H.null heap' -> Just (ent, empty) -- reset the deficit base
+      | otherwise    -> Just (ent, PriorityQueue deficit heap')
