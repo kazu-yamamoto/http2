@@ -6,7 +6,7 @@
 -- Haskell implementation of H2O's priority queue.
 -- https://github.com/h2o/h2o/blob/master/lib/http2/scheduler.c
 
-module Array (
+module ArrayOfQueue (
     Entry
   , newEntry
   , renewEntry

@@ -2,7 +2,7 @@
 
 module Main where
 
-import qualified Array as A
+import qualified ArrayOfQueue as A
 import Control.Concurrent.STM
 import Criterion.Main
 import qualified Network.HTTP2.Priority.Heap as H
