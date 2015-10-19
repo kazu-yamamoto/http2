@@ -20,7 +20,6 @@ module ArrayOfQueue (
 import Control.Concurrent.STM
 import Control.Monad (replicateM)
 import Data.Array (Array, listArray, (!))
-import Data.Array.MArray (newListArray, readArray)
 import Data.Bits (setBit, clearBit, shiftR)
 import Data.Word (Word64)
 import Foreign.C.Types (CLLong(..))
@@ -48,7 +47,7 @@ renewEntry ent x = ent { item = x }
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: TVar Word64
   , offsetRef :: TVar Int
-  , anchors   :: TArray Int (TQueue (Entry a))
+  , anchors   :: Array Int (TQueue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -100,8 +99,7 @@ firstBitSet x = ffs x - 1
 new :: STM (PriorityQueue a)
 new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newAnchors
   where
-    newAnchors = replicateM bitWidth newTQueue
-                 >>= newListArray (0, bitWidth - 1)
+    newAnchors = listArray (0, bitWidth - 1) <$> replicateM bitWidth newTQueue
 
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Entry a -> PriorityQueue a -> STM ()
@@ -115,7 +113,7 @@ enqueue ent PriorityQueue{..} = do
       where
         total = deficitTable ! weight ent + deficit ent
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
-    push offidx ent' = readArray anchors offidx >>= flip writeTQueue ent'
+    push offidx ent' = writeTQueue (anchors ! offidx) ent'
     updateBits idx = modifyTVar' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
@@ -130,8 +128,8 @@ dequeue PriorityQueue{..} = do
   where
     getIdx = firstBitSet <$> readTVar bitsRef
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
-    pop offidx = readArray anchors offidx >>= readTQueue
-    checkEmpty offidx = readArray anchors offidx >>= isEmptyTQueue
+    pop offidx = readTQueue (anchors ! offidx)
+    checkEmpty offidx = isEmptyTQueue (anchors ! offidx)
     updateOffset offset' = writeTVar offsetRef offset'
     updateBits idx isEmpty = modifyTVar' bitsRef shiftClear
       where
