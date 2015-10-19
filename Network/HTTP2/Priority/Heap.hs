@@ -46,7 +46,7 @@ data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Int (Heap (Entry a))
 ----------------------------------------------------------------
 
 magicDeficit :: Int
-magicDeficit = 0
+magicDeficit = -1
 
 deficitSteps :: Int
 deficitSteps = 65536
@@ -72,9 +72,6 @@ newEntry x w = Entry x w magicDeficit
 renewEntry :: Entry a -> b -> Entry b
 renewEntry (Entry _ w p) x = Entry x w p
 
-isNewEntry :: Entry a -> Bool
-isNewEntry Entry{..} = deficit == magicDeficit
-
 ----------------------------------------------------------------
 
 empty :: PriorityQueue a
@@ -84,9 +81,9 @@ isEmpty :: PriorityQueue a -> Bool
 isEmpty (PriorityQueue _ h) = H.null h
 
 enqueue :: Entry a -> PriorityQueue a -> PriorityQueue a
-enqueue ent@Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
+enqueue Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
   where
-    !b = if isNewEntry ent then base else deficit
+    !b = if deficit == magicDeficit then base else deficit
     !deficit' = b + weightToDeficit weight
     !ent' = Entry item weight deficit'
     !heap' = H.insert ent' heap
