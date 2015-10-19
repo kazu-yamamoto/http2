@@ -20,16 +20,18 @@ import Control.Applicative ((<$>))
 import Data.Array (Array, listArray, (!))
 import Data.Heap (Heap)
 import qualified Data.Heap as H
+import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
 type Weight = Int
+type Deficit = Word64
 
 -- | Abstract data type of entries for priority queues.
 data Entry a = Entry {
     item :: a -- ^ Extracting an item from an entry.
   , weight  :: {-# UNPACK #-} !Weight
-  , deficit :: {-# UNPACK #-} !Int
+  , deficit :: {-# UNPACK #-} !Deficit
   } deriving Show
 
 instance Eq (Entry a) where
@@ -39,28 +41,28 @@ instance Ord (Entry a) where
     Entry _ _ p1 <  Entry _ _ p2 = p1 <  p2
     Entry _ _ p1 <= Entry _ _ p2 = p1 <= p2
 
--- FIXME: The base (Int) would be overflowed.
+-- FIXME: The base (Word64) would be overflowed.
 --        In that case, the heap must be re-constructed.
-data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Int (Heap (Entry a))
+data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Deficit (Heap (Entry a))
 
 ----------------------------------------------------------------
 
-magicDeficit :: Int
-magicDeficit = -1
+magicDeficit :: Deficit
+magicDeficit = 0
 
 deficitSteps :: Int
 deficitSteps = 65536
 
-deficitList :: [Int]
+deficitList :: [Deficit]
 deficitList = map calc idxs
   where
     idxs = [1..256] :: [Double]
     calc w = round (fromIntegral deficitSteps / w)
 
-deficitTable :: Array Int Int
+deficitTable :: Array Int Deficit
 deficitTable = listArray (1,256) deficitList
 
-weightToDeficit :: Weight -> Int
+weightToDeficit :: Weight -> Deficit
 weightToDeficit w = deficitTable ! w
 
 ----------------------------------------------------------------
