@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Priority.Heap (
     Entry
@@ -23,12 +24,13 @@ import qualified Data.Heap as H
 ----------------------------------------------------------------
 
 type Weight = Int
-type Pri = Int
 
 -- | Abstract data type of entries for priority queues.
-data Entry a = Entry a
-                 {-# UNPACK #-} !Weight
-                 {-# UNPACK #-} !Pri deriving Show
+data Entry a = Entry {
+    item :: a -- ^ Extracting an item from an entry.
+  , weight  :: {-# UNPACK #-} !Weight
+  , deficit :: {-# UNPACK #-} !Int
+  } deriving Show
 
 instance Eq (Entry a) where
     Entry _ _ p1 == Entry _ _ p2 = p1 == p2
@@ -43,39 +45,35 @@ data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Int (Heap (Entry a))
 
 ----------------------------------------------------------------
 
-magicPriority :: Pri
-magicPriority = 0
+magicDeficit :: Int
+magicDeficit = 0
 
-prioritySteps :: Int
-prioritySteps = 65536
+deficitSteps :: Int
+deficitSteps = 65536
 
-priorityList :: [Int]
-priorityList = map calc idxs
+deficitList :: [Int]
+deficitList = map calc idxs
   where
     idxs = [1..256] :: [Double]
-    calc w = round (fromIntegral prioritySteps / w)
+    calc w = round (fromIntegral deficitSteps / w)
 
-priorityTable :: Array Int Int
-priorityTable = listArray (1,256) priorityList
+deficitTable :: Array Int Int
+deficitTable = listArray (1,256) deficitList
 
-weightToPriority :: Weight -> Pri
-weightToPriority w = priorityTable ! w
+weightToDeficit :: Weight -> Int
+weightToDeficit w = deficitTable ! w
 
 ----------------------------------------------------------------
 
 newEntry :: a -> Weight -> Entry a
-newEntry x w = Entry x w magicPriority
+newEntry x w = Entry x w magicDeficit
 
 -- | Changing the item of an entry.
 renewEntry :: Entry a -> b -> Entry b
 renewEntry (Entry _ w p) x = Entry x w p
 
 isNewEntry :: Entry a -> Bool
-isNewEntry (Entry _ _ p) = p == magicPriority
-
--- | Extracting an item from an entry.
-item :: Entry a -> a
-item (Entry x _ _) = x
+isNewEntry Entry{..} = deficit == magicDeficit
 
 ----------------------------------------------------------------
 
@@ -86,15 +84,15 @@ isEmpty :: PriorityQueue a -> Bool
 isEmpty (PriorityQueue _ h) = H.null h
 
 enqueue :: Entry a -> PriorityQueue a -> PriorityQueue a
-enqueue ent@(Entry x w p) (PriorityQueue base heap) = PriorityQueue base heap'
+enqueue ent@Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
   where
-    !b = if isNewEntry ent then base else p
-    !p' = b + weightToPriority w
-    !ent' = Entry x w p'
+    !b = if isNewEntry ent then base else deficit
+    !deficit' = b + weightToDeficit weight
+    !ent' = Entry item weight deficit'
     !heap' = H.insert ent' heap
 
 dequeue :: PriorityQueue a -> Maybe (Entry a, PriorityQueue a)
 dequeue (PriorityQueue _ heap) = case H.uncons heap of
     Nothing -> Nothing
-    Just (ent@(Entry _ _ p), heap') -> let !base' = p `mod` prioritySteps
-                                       in Just (ent, PriorityQueue base' heap')
+    Just (ent@Entry{..}, heap') -> let !base' = deficit `mod` deficitSteps
+                                   in Just (ent, PriorityQueue base' heap')
