@@ -125,17 +125,17 @@ shiftDown arr p n
       let c2 = c1 + 1
       xc1 <- readArray arr c1
       xc2 <- readArray arr c2
-      let c = if xc1 > xc2 then c1 else c2
+      let c = if xc1 < xc2 then c1 else c2
       swapAndDo arr p c (shiftDown arr c n)
   where
     c1 = 2 * p
 
-{-# LANGUAGE swapAndDo #-}
+{-# INLINE swapAndDo #-}
 swapAndDo :: TA a -> Int -> Int -> STM () -> STM ()
 swapAndDo arr p c cont = do
     xp <- readArray arr p
     xc <- readArray arr c
-    when (xc > xp) $ do
+    when (xc < xp) $ do
         writeArray arr c xp
         writeArray arr p xc
         cont
