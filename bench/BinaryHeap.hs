@@ -109,7 +109,6 @@ dequeue (PriorityQueue bvar idx arr) = do
     writeTVar bvar $ if i' == 1 then 0 else deficit ent
     return ent
 
-{-# INLINE shiftUp #-}
 shiftUp :: TA a -> Int -> STM ()
 shiftUp _   1 = return ()
 shiftUp arr c = do
@@ -118,7 +117,6 @@ shiftUp arr c = do
   where
     p = c `div` 2
 
-{-# INLINE shiftDown #-}
 shiftDown :: TA a -> Int -> Int -> STM ()
 shiftDown arr p n
   | c1 > n    = return ()
