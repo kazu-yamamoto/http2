@@ -2,7 +2,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Priority.Heap (
+module Heap (
     Entry
   , newEntry
   , renewEntry

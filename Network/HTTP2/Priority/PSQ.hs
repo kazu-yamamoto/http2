@@ -2,7 +2,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module PSQ (
+module Network.HTTP2.Priority.PSQ (
     Entry
   , newEntry
   , renewEntry
@@ -12,6 +12,7 @@ module PSQ (
   , isEmpty
   , enqueue
   , dequeue
+  , delete
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -98,3 +99,10 @@ dequeue (PriorityQueue _ heap) = case P.minView heap of
     Just (k, deficit, ent, heap')
       | P.null heap' -> Just (k, ent, empty) -- reset the deficit base
       | otherwise    -> Just (k, ent, PriorityQueue deficit heap')
+
+delete :: PriorityQueue a -> Key -> PriorityQueue a
+delete (PriorityQueue _ heap) k = case P.findMin heap' of
+    Nothing            -> empty
+    Just (_,deficit,_) -> PriorityQueue deficit heap'
+  where
+    heap' = P.delete k heap

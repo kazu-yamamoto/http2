@@ -17,7 +17,7 @@ spec = do
             prepare pt 9 $ Priority False 7 1
             prepare pt 11 $ Priority False 3 1
             enQ pt 13 $ Priority False 11 32
-            sid13 <- dequeue pt
+            (_,sid13) <- dequeue pt
             item sid13 `shouldBe` 13
             enQ pt 15 $ Priority False 3 32
             enQ pt 17 $ Priority False 3 32
@@ -45,5 +45,5 @@ spec = do
             void $ dequeue pt
             void $ dequeue pt
 
-enQ :: PriorityTree Int -> Int -> Priority -> IO ()
-enQ pt x p = enqueue pt (newEntry x p) p
+enQ :: PriorityTree Int -> StreamId -> Priority -> IO ()
+enQ pt sid p = enqueue pt sid p (newEntry sid p)

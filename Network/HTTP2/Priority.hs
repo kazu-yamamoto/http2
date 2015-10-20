@@ -27,6 +27,7 @@ module Network.HTTP2.Priority (
   , prepare
   , enqueue
   , dequeue
+  , delete
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -78,8 +79,8 @@ prepare (PriorityTree var _) sid p = atomically $ do
 
 -- | Enqueuing an entry to the priority tree.
 --   This must be used for Header frame.
-enqueue :: PriorityTree a -> Entry a -> Priority -> IO ()
-enqueue (PriorityTree var q0) ent0 p0 = atomically $ do
+enqueue :: PriorityTree a -> StreamId -> Priority -> Entry a -> IO ()
+enqueue (PriorityTree var q0) sid p0 ent0 = atomically $ do
     m <- readTVar var
     let !x = Q.item ent0
         !el = Child x
@@ -87,12 +88,12 @@ enqueue (PriorityTree var q0) ent0 p0 = atomically $ do
     loop m ent' p0
   where
     loop m ent p
-      | pid == 0  = Q.enqueue q0 ent
+      | pid == 0  = Q.enqueue q0 sid ent
       | otherwise = case Map.lookup pid m of
-          Nothing -> Q.enqueue q0 ent -- error case: checkme
+          Nothing -> Q.enqueue q0 sid ent -- error case: checkme
           Just (q', p') -> do
               notQueued <- Q.isEmpty q'
-              Q.enqueue q' ent
+              Q.enqueue q' sid ent
               when notQueued $ do
                   let !ent' = newEntry (Parent q') p'
                   loop m ent' p'
@@ -100,15 +101,21 @@ enqueue (PriorityTree var q0) ent0 p0 = atomically $ do
         pid = streamDependency p
 
 -- | Dequeuing an entry from the priority tree.
-dequeue :: PriorityTree a -> IO (Entry a)
+dequeue :: PriorityTree a -> IO (StreamId, Entry a)
 dequeue (PriorityTree _ q0) = atomically (loop q0)
   where
     loop q = do
-        ent <- Q.dequeue q
+        (sid,ent) <- Q.dequeue q
         case Q.item ent of
-            Child x   -> return $! Q.renewEntry ent x
+            Child x   -> return $! (sid, Q.renewEntry ent x)
             Parent q' -> do
                 entr <- loop q'
                 empty <- Q.isEmpty q'
-                unless empty $ Q.enqueue q ent
+                unless empty $ Q.enqueue q sid ent
                 return entr
+
+-- | Deleting the entry corresponding to 'StreamId'.
+--   'delete' and 'enqueue' are used to change the priority of
+--   a live stream.
+delete :: PriorityTree a -> StreamId -> IO ()
+delete (PriorityTree _ q) sid = atomically $ Q.delete q sid

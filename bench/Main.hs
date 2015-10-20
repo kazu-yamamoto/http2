@@ -10,8 +10,8 @@ import qualified ArrayOfQueue as A
 import qualified ArrayOfQueueIO as AIO
 import qualified BinaryHeap as B
 import qualified BinaryHeapIO as BIO
-import qualified Network.HTTP2.Priority.Heap as O
-import qualified PSQ as P
+import qualified Heap as O
+import qualified Network.HTTP2.Priority.PSQ as P
 import qualified RandomSkewHeap as R
 
 numOfStreams :: Int
