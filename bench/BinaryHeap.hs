@@ -15,7 +15,7 @@ module BinaryHeap (
   ) where
 
 import Control.Concurrent.STM
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Data.Array (Array, listArray, (!))
 import Data.Array.MArray (newArray_, readArray, writeArray)
 import Data.Word (Word64)
@@ -92,7 +92,7 @@ enqueue Entry{..} (PriorityQueue bvar idx arr) = do
         !ent' = Entry item weight deficit'
     writeArray arr i ent'
     shiftUp arr i
-    let i' = i + 1
+    let !i' = i + 1
     writeTVar idx i'
     return ()
 
@@ -111,8 +111,10 @@ dequeue (PriorityQueue bvar idx arr) = do
 
 {-# INLINE shiftUp #-}
 shiftUp :: TA a -> Int -> STM ()
-shiftUp _ 1 = return ()
-shiftUp arr c = swapAndDo arr p c (shiftUp arr p)
+shiftUp _   1 = return ()
+shiftUp arr c = do
+    swapped <- swap arr p c
+    when swapped $ shiftUp arr p
   where
     p = c `div` 2
 
@@ -120,22 +122,25 @@ shiftUp arr c = swapAndDo arr p c (shiftUp arr p)
 shiftDown :: TA a -> Int -> Int -> STM ()
 shiftDown arr p n
   | c1 > n    = return ()
-  | c1 == n   = swapAndDo arr p c1 (return ())
+  | c1 == n   = void $ swap arr p c1
   | otherwise = do
-      let c2 = c1 + 1
+      let !c2 = c1 + 1
       xc1 <- readArray arr c1
       xc2 <- readArray arr c2
-      let c = if xc1 < xc2 then c1 else c2
-      swapAndDo arr p c (shiftDown arr c n)
+      let !c = if xc1 < xc2 then c1 else c2
+      swapped <- swap arr p c
+      when swapped $ shiftDown arr c n
   where
     c1 = 2 * p
 
-{-# INLINE swapAndDo #-}
-swapAndDo :: TA a -> Int -> Int -> STM () -> STM ()
-swapAndDo arr p c cont = do
+{-# INLINE swap #-}
+swap :: TA a -> Int -> Int -> STM Bool
+swap arr p c = do
     xp <- readArray arr p
     xc <- readArray arr c
-    when (xc < xp) $ do
+    if xc < xp then do
         writeArray arr c xp
         writeArray arr p xc
-        cont
+        return True
+      else
+        return False
