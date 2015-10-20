@@ -252,3 +252,4 @@ Benchmark criterion
                       , mwc-random
                       , random
                       , stm
+                      , psqueues
