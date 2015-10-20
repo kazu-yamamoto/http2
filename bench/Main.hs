@@ -7,7 +7,9 @@ import Criterion.Main
 import System.Random
 
 import qualified ArrayOfQueue as A
+import qualified ArrayOfQueueIO as AIO
 import qualified BinaryHeap as B
+import qualified BinaryHeapIO as BIO
 import qualified Network.HTTP2.Priority.Heap as O
 import qualified PSQ as P
 import qualified RandomSkewHeap as R
@@ -25,11 +27,13 @@ main = do
         ss = [1,3..]
         ys = zip ss xs
     defaultMain [
-        bench "RandomSkewHeap" $ whnf benchR xs
-      , bench "Okasaki Heap"   $ whnf benchO xs
-      , bench "PSQ"            $ whnf benchP ys
-      , bench "Binary Heap"    $ nfIO (benchB xs)
-      , bench "Array of Queue" $ nfIO (benchA xs)
+        bench "RandomSkewHeap"    $ whnf benchR xs
+      , bench "Okasaki Heap"      $ whnf benchO xs
+      , bench "PSQ"               $ whnf benchP ys
+      , bench "Binary Heap"       $ nfIO (benchB xs)
+      , bench "Binary Heap IO"    $ nfIO (benchBIO xs)
+      , bench "Array of Queue"    $ nfIO (benchA xs)
+      , bench "Array of Queue IO" $ nfIO (benchAIO xs)
       ]
 
 ----------------------------------------------------------------
@@ -119,6 +123,28 @@ enqdeqB q !n = do
 
 ----------------------------------------------------------------
 
+benchBIO :: [Int] -> IO ()
+benchBIO xs = do
+    q <- BIO.new numOfStreams
+    createBIO xs q
+    enqdeqBIO q numOfTrials
+
+createBIO :: [Int] -> BIO.PriorityQueue Int -> IO ()
+createBIO [] _      = return ()
+createBIO (x:xs) !q = do
+    let !ent = BIO.newEntry x x
+    BIO.enqueue ent q
+    createBIO xs q
+
+enqdeqBIO :: BIO.PriorityQueue Int -> Int -> IO ()
+enqdeqBIO _ 0  = return ()
+enqdeqBIO q !n = do
+    ent <- BIO.dequeue q
+    BIO.enqueue ent q
+    enqdeqBIO q (n - 1)
+
+----------------------------------------------------------------
+
 benchA :: [Int] -> IO ()
 benchA xs = do
     q <- atomically A.new
@@ -138,5 +164,27 @@ enqdeqA q !n = do
     ent <- atomically $ A.dequeue q
     atomically $ A.enqueue ent q
     enqdeqA q (n - 1)
+
+----------------------------------------------------------------
+
+benchAIO :: [Int] -> IO ()
+benchAIO xs = do
+    q <- AIO.new
+    createAIO xs q
+    enqdeqAIO q numOfTrials
+
+createAIO :: [Int] -> AIO.PriorityQueue Int -> IO ()
+createAIO [] _      = return ()
+createAIO (x:xs) !q = do
+    let !ent = AIO.newEntry x x
+    AIO.enqueue ent q
+    createAIO xs q
+
+enqdeqAIO :: AIO.PriorityQueue Int -> Int -> IO ()
+enqdeqAIO _ 0  = return ()
+enqdeqAIO q !n = do
+    ent <- AIO.dequeue q
+    AIO.enqueue ent q
+    enqdeqAIO q (n - 1)
 
 ----------------------------------------------------------------
