@@ -7,7 +7,7 @@ import Criterion.Main
 import System.Random
 
 import qualified ArrayOfQueue as A
---import qualified BinaryHeap as B
+import qualified BinaryHeap as B
 import qualified Network.HTTP2.Priority.Heap as O
 import qualified PSQ as P
 import qualified RandomSkewHeap as R
@@ -28,7 +28,7 @@ main = do
         bench "RandomSkewHeap" $ whnf benchR xs
       , bench "Okasaki Heap"   $ whnf benchO xs
       , bench "PSQ"            $ whnf benchP ys
---      , bench "Binary Heap"    $ nfIO (benchB xs)
+      , bench "Binary Heap"    $ nfIO (benchB xs)
       , bench "Array of Queue" $ nfIO (benchA xs)
       ]
 
@@ -97,7 +97,6 @@ enqdeqP q !n = case P.dequeue q of
 
 ----------------------------------------------------------------
 
-{-
 benchB :: [Int] -> IO ()
 benchB xs = do
     q <- atomically (B.new numOfStreams)
@@ -117,7 +116,6 @@ enqdeqB q !n = do
     ent <- atomically $ B.dequeue q
     atomically $ B.enqueue ent q
     enqdeqB q (n - 1)
--}
 
 ----------------------------------------------------------------
 
