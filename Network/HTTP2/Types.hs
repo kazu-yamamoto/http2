@@ -524,12 +524,15 @@ isResponse :: StreamId -> Bool
 isResponse 0 = False
 isResponse n = even n
 
+-- | Checking if the exclusive flag is set.
 testExclusive :: StreamId -> Bool
 testExclusive n = n `testBit` 31
 
+-- | Setting the exclusive flag.
 setExclusive :: StreamId -> StreamId
 setExclusive n = n `setBit` 31
 
+-- | Clearing the exclusive flag.
 clearExclusive :: StreamId -> StreamId
 clearExclusive n = n `clearBit` 31
 
