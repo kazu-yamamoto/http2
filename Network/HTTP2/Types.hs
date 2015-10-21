@@ -95,7 +95,7 @@ frameHeaderLength = 9
 -- | The type for raw error code.
 type ErrorCode = Word32
 
--- | The type for error code.
+-- | The type for error code. See <https://tools.ietf.org/html/rfc7540#section-7>.
 data ErrorCodeId = NoError
                  | ProtocolError
                  | InternalError
@@ -425,69 +425,79 @@ maxPayloadLength = 2^(14::Int)
 ----------------------------------------------------------------
 -- Flags
 
+-- | The type for flags.
 type FrameFlags = Word8
 
--- |
+-- | The initial value of flags. No flags are set.
+--
 -- >>> defaultFlags
 -- 0
 defaultFlags :: FrameFlags
 defaultFlags = 0
 
--- |
+-- | Checking if the END_STREAM flag is set.
 -- >>> testEndStream 0x1
 -- True
 testEndStream :: FrameFlags -> Bool
 testEndStream x = x `testBit` 0
 
--- |
+-- | Checking if the ACK flag is set.
 -- >>> testAck 0x1
 -- True
 testAck :: FrameFlags -> Bool
 testAck x = x `testBit` 0 -- fixme: is the spec intentional?
 
--- |
+-- | Checking if the END_HEADERS flag is set.
+--
 -- >>> testEndHeader 0x4
 -- True
 testEndHeader :: FrameFlags -> Bool
 testEndHeader x = x `testBit` 2
 
--- |
+-- | Checking if the PADDED flag is set.
+--
 -- >>> testPadded 0x8
 -- True
 testPadded :: FrameFlags -> Bool
 testPadded x = x `testBit` 3
 
--- |
+-- | Checking if the PRIORITY flag is set.
+--
 -- >>> testPriority 0x20
 -- True
 testPriority :: FrameFlags -> Bool
 testPriority x = x `testBit` 5
 
--- |
+-- | Setting the END_STREAM flag.
+--
 -- >>> setEndStream 0
 -- 1
 setEndStream :: FrameFlags -> FrameFlags
 setEndStream x = x `setBit` 0
 
--- |
+-- | Setting the ACK flag.
+--
 -- >>> setAck 0
 -- 1
 setAck :: FrameFlags -> FrameFlags
 setAck x = x `setBit` 0 -- fixme: is the spec intentional?
 
--- |
+-- | Setting the END_HEADERS flag.
+--
 -- >>> setEndHeader 0
 -- 4
 setEndHeader :: FrameFlags -> FrameFlags
 setEndHeader x = x `setBit` 2
 
--- |
+-- | Setting the PADDED flag.
+--
 -- >>> setPadded 0
 -- 8
 setPadded :: FrameFlags -> FrameFlags
 setPadded x = x `setBit` 3
 
--- |
+-- | Setting the PRIORITY flag.
+--
 -- >>> setPriority 0
 -- 32
 setPriority :: FrameFlags -> FrameFlags
