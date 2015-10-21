@@ -92,8 +92,10 @@ frameHeaderLength = 9
 
 ----------------------------------------------------------------
 
+-- | The type for raw error code.
 type ErrorCode = Word32
 
+-- | The type for error code.
 data ErrorCodeId = NoError
                  | ProtocolError
                  | InternalError
@@ -112,7 +114,7 @@ data ErrorCodeId = NoError
                  | UnknownErrorCode ErrorCode
                  deriving (Show, Read, Eq, Ord)
 
--- |
+-- | Converting 'ErrorCodeId' to 'ErrorCode'.
 --
 -- >>> fromErrorCodeId NoError
 -- 0
@@ -135,7 +137,7 @@ fromErrorCodeId InadequateSecurity   = 0xc
 fromErrorCodeId HTTP11Required       = 0xd
 fromErrorCodeId (UnknownErrorCode w) = w
 
--- |
+-- | Converting 'ErrorCode' to 'ErrorCodeId'.
 --
 -- >>> toErrorCodeId 0
 -- NoError
@@ -282,6 +284,7 @@ updateSettings settings kvs = foldr update settings kvs
     update (SettingsMaxFrameSize,x)         def = def { maxFrameSize = x }
     update (SettingsMaxHeaderBlockSize,x)   def = def { maxHeaderBlockSize = Just x }
 
+-- | The type for window size.
 type WindowSize = Int
 
 -- | The default initial window size.
