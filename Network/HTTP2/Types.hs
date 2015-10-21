@@ -524,13 +524,13 @@ isResponse :: StreamId -> Bool
 isResponse 0 = False
 isResponse n = even n
 
-testExclusive :: Int -> Bool
+testExclusive :: StreamId -> Bool
 testExclusive n = n `testBit` 31
 
-setExclusive :: Int -> Int
+setExclusive :: StreamId -> StreamId
 setExclusive n = n `setBit` 31
 
-clearExclusive :: Int -> Int
+clearExclusive :: StreamId -> StreamId
 clearExclusive n = n `clearBit` 31
 
 ----------------------------------------------------------------
