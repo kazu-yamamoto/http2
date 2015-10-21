@@ -489,9 +489,11 @@ setPriority x = x `setBit` 5
 
 ----------------------------------------------------------------
 
+-- | The type for stream identifier
 type StreamId = Int
 
--- |
+-- | Checking if the stream identifier for control.
+--
 -- >>> isControl 0
 -- True
 -- >>> isControl 1
@@ -500,7 +502,8 @@ isControl :: StreamId -> Bool
 isControl 0 = True
 isControl _ = False
 
--- |
+-- | Checking if the stream identifier for request.
+--
 -- >>> isRequest 0
 -- False
 -- >>> isRequest 1
@@ -508,7 +511,8 @@ isControl _ = False
 isRequest :: StreamId -> Bool
 isRequest = odd
 
--- |
+-- | Checking if the stream identifier for response.
+--
 -- >>> isResponse 0
 -- False
 -- >>> isResponse 2
