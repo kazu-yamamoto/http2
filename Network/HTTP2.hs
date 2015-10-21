@@ -27,6 +27,7 @@ module Network.HTTP2 (
   , HeaderBlockFragment
   , Padding
   , Weight
+  -- * Priority
   , Priority(..)
   , defaultPriority
   , highestPriority
