@@ -131,6 +131,7 @@ nonZeroFrameTypes = [
 
 ----------------------------------------------------------------
 
+-- | The type for frame payload decoder.
 type FramePayloadDecoder = FrameHeader -> ByteString
                         -> Either HTTP2Error FramePayload
 
@@ -149,6 +150,8 @@ payloadDecoders = listArray (minFrameType, maxFrameType)
     ]
 
 -- | Decoding an HTTP/2 frame payload.
+--   This function is considered to return a frame payload decoder
+--   according to a frame type.
 decodeFramePayload :: FrameTypeId -> FramePayloadDecoder
 decodeFramePayload (FrameUnknown typ) = checkFrameSize $ decodeUnknownFrame typ
 decodeFramePayload ftyp               = checkFrameSize decoder
@@ -157,9 +160,11 @@ decodeFramePayload ftyp               = checkFrameSize decoder
 
 ----------------------------------------------------------------
 
+-- | Frame payload decoder for DATA frame.
 decodeDataFrame :: FramePayloadDecoder
 decodeDataFrame header bs = decodeWithPadding header bs DataFrame
 
+-- | Frame payload decoder for HEADERS frame.
 decodeHeadersFrame :: FramePayloadDecoder
 decodeHeadersFrame header bs = decodeWithPadding header bs $ \bs' ->
     if hasPriority then
@@ -171,12 +176,15 @@ decodeHeadersFrame header bs = decodeWithPadding header bs $ \bs' ->
   where
     hasPriority = testPriority $ flags header
 
+-- | Frame payload decoder for PRIORITY frame.
 decodePriorityFrame :: FramePayloadDecoder
 decodePriorityFrame _ bs = Right $ PriorityFrame $ priority bs
 
+-- | Frame payload decoder for RST_STREAM frame.
 decoderstStreamFrame :: FramePayloadDecoder
 decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCodeId (word32 bs)
 
+-- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
 decodeSettingsFrame FrameHeader{..} (PS fptr off _) = Right $ SettingsFrame alist
   where
@@ -196,15 +204,18 @@ decodeSettingsFrame FrameHeader{..} (PS fptr off _) = Right $ SettingsFrame alis
                 let v = fromIntegral w32
                 settings n' (p +. 6) (builder. ((k,v):))
 
+-- | Frame payload decoder for PUSH_PROMISE frame.
 decodePushPromiseFrame :: FramePayloadDecoder
 decodePushPromiseFrame header bs = decodeWithPadding header bs $ \bs' ->
     let (bs0,bs1) = BS.splitAt 4 bs'
         sid = streamIdentifier (word32 bs0)
     in PushPromiseFrame sid bs1
 
+-- | Frame payload decoder for PING frame.
 decodePingFrame :: FramePayloadDecoder
 decodePingFrame _ bs = Right $ PingFrame bs
 
+-- | Frame payload decoder for GOAWAY frame.
 decodeGoAwayFrame :: FramePayloadDecoder
 decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
   where
@@ -213,6 +224,7 @@ decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
     sid = streamIdentifier (word32 bs0)
     ecid = toErrorCodeId (word32 bs1)
 
+-- | Frame payload decoder for WINDOW_UPDATE frame.
 decodeWindowUpdateFrame :: FramePayloadDecoder
 decodeWindowUpdateFrame _ bs
   | wsi == 0  = Left $ ConnectionError ProtocolError "window update must not be 0"
@@ -220,6 +232,7 @@ decodeWindowUpdateFrame _ bs
   where
     !wsi = fromIntegral (word32 bs `clearBit` 31)
 
+-- | Frame payload decoder for CONTINUATION frame.
 decodeContinuationFrame :: FramePayloadDecoder
 decodeContinuationFrame _ bs = Right $ ContinuationFrame bs
 

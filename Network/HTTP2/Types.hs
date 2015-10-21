@@ -345,6 +345,7 @@ highestPriority = Priority False 0 256
 
 ----------------------------------------------------------------
 
+-- | The type for raw frame type.
 type FrameType = Word8
 
 minFrameType :: FrameType
@@ -353,7 +354,7 @@ minFrameType = 0
 maxFrameType :: FrameType
 maxFrameType = 9
 
--- Valid frame types
+-- | The type for frame type.
 data FrameTypeId = FrameData
                  | FrameHeaders
                  | FramePriority
@@ -367,7 +368,7 @@ data FrameTypeId = FrameData
                  | FrameUnknown FrameType
                  deriving (Show, Eq, Ord)
 
--- |
+-- | Converting 'FrameTypeId' to 'FrameType'.
 --
 -- >>> fromFrameTypeId FrameData
 -- 0
@@ -388,7 +389,7 @@ fromFrameTypeId FrameWindowUpdate = 8
 fromFrameTypeId FrameContinuation = 9
 fromFrameTypeId (FrameUnknown x)  = x
 
--- |
+-- | Converting 'FrameType' to 'FrameTypeId'.
 --
 -- >>> toFrameTypeId 0
 -- FrameData
