@@ -319,8 +319,10 @@ recommendedConcurrency = 100
 
 ----------------------------------------------------------------
 
+-- | The type for weight in priority. Its values are from 1 to 256.
 type Weight = Int
 
+-- | Type for stream priority
 data Priority = Priority {
     exclusive :: Bool
   , streamDependency :: StreamId
@@ -533,6 +535,8 @@ clearExclusive n = n `clearBit` 31
 ----------------------------------------------------------------
 
 type HeaderBlockFragment = ByteString
+
+-- | The type for padding in payloads.
 type Padding = ByteString
 
 ----------------------------------------------------------------
