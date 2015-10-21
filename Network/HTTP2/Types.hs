@@ -178,6 +178,7 @@ errorCodeId (StreamError     err _) = err
 
 ----------------------------------------------------------------
 
+-- | The type for SETTINGS key.
 data SettingsKeyId = SettingsHeaderTableSize
                    | SettingsEnablePush
                    | SettingsMaxConcurrentStreams
@@ -186,9 +187,10 @@ data SettingsKeyId = SettingsHeaderTableSize
                    | SettingsMaxHeaderBlockSize
                    deriving (Show, Read, Eq, Ord, Enum, Bounded)
 
+-- | The type for raw SETTINGS value.
 type SettingsValue = Int -- Word32
 
--- |
+-- | Converting 'SettingsKeyId' to raw value.
 --
 -- >>> fromSettingsKeyId SettingsHeaderTableSize
 -- 1
@@ -203,7 +205,7 @@ minSettingsKeyId = fromIntegral $ fromEnum (minBound :: SettingsKeyId)
 maxSettingsKeyId :: Word16
 maxSettingsKeyId = fromIntegral $ fromEnum (maxBound :: SettingsKeyId)
 
--- |
+-- | Converting raw value to 'SettingsKeyId'.
 --
 -- >>> toSettingsKeyId 0
 -- Nothing
@@ -222,7 +224,7 @@ toSettingsKeyId x
 
 ----------------------------------------------------------------
 
--- | Settings containing raw values.
+-- | Association list of SETTINGS.
 type SettingsList = [(SettingsKeyId,SettingsValue)]
 
 -- | Checking 'SettingsList' and reporting an error if any.

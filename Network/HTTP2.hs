@@ -55,8 +55,8 @@ module Network.HTTP2 (
   , setPriority
   -- * SettingsList
   , SettingsList
-  , SettingsValue
   , SettingsKeyId(..)
+  , SettingsValue
   , fromSettingsKeyId
   , toSettingsKeyId
   , checkSettingsList
