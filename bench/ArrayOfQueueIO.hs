@@ -24,6 +24,9 @@ import Data.IORef
 import Data.Word (Word64)
 import Foreign.C.Types (CLLong(..))
 
+import DoublyLinkedQueueIO (Queue)
+import qualified DoublyLinkedQueueIO as Q
+
 ----------------------------------------------------------------
 
 type Weight = Int
@@ -47,7 +50,7 @@ renewEntry ent x = ent { item = x }
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: IORef Word64
   , offsetRef :: IORef Int
-  , anchors   :: Array Int (IQueue (Entry a))
+  , anchors   :: Array Int (Queue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -99,7 +102,7 @@ firstBitSet x = ffs x - 1
 new :: IO (PriorityQueue a)
 new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newAnchors
   where
-    newAnchors = listArray (0, bitWidth - 1) <$> replicateM bitWidth newIQueue
+    newAnchors = listArray (0, bitWidth - 1) <$> replicateM bitWidth Q.new
 
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Entry a -> PriorityQueue a -> IO ()
@@ -113,7 +116,7 @@ enqueue ent PriorityQueue{..} = do
       where
         total = deficitTable ! weight ent + deficit ent
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
-    push offidx ent' = writeIQueue (anchors ! offidx) ent'
+    push offidx ent' = Q.enqueue ent' (anchors ! offidx)
     updateBits idx = modifyIORef' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
@@ -128,53 +131,14 @@ dequeue PriorityQueue{..} = do
   where
     getIdx = firstBitSet <$> readIORef bitsRef
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
-    pop offidx = readIQueue (anchors ! offidx)
-    checkEmpty offidx = isEmptyIQueue (anchors ! offidx)
+    pop offidx = Q.dequeue (anchors ! offidx)
+    checkEmpty offidx = Q.isEmpty (anchors ! offidx)
     updateOffset offset' = writeIORef offsetRef offset'
     updateBits idx isEmpty = modifyIORef' bitsRef shiftClear
       where
         shiftClear bits
           | isEmpty   = clearBit (shiftR bits idx) 0
           | otherwise = shiftR bits idx
-
-----------------------------------------------------------------
-
-data IQueue a = IQueue {-# UNPACK #-} !(IORef [a])
-                       {-# UNPACK #-} !(IORef [a])
-
-
-newIQueue :: IO (IQueue a)
-newIQueue = IQueue <$> newIORef [] <*> newIORef []
-
-writeIQueue :: IQueue a -> a -> IO ()
-writeIQueue (IQueue _read write) a = do
-  listend <- readIORef write
-  writeIORef write (a:listend)
-
-readIQueue :: IQueue a -> IO a
-readIQueue (IQueue read write) = do
-  xs <- readIORef read
-  case xs of
-    (x:xs') -> do writeIORef read xs'
-                  return x
-    [] -> do ys <- readIORef write
-             case ys of
-               [] -> error "readIQueue"
-               _  -> case reverse ys of
-                       [] -> error "readIQueue"
-                       (z:zs) -> do writeIORef write []
-                                    writeIORef read zs
-                                    return z
-
-isEmptyIQueue :: IQueue a -> IO Bool
-isEmptyIQueue (IQueue read write) = do
-  xs <- readIORef read
-  case xs of
-    (_:_) -> return False
-    [] -> do ys <- readIORef write
-             case ys of
-               [] -> return True
-               _  -> return False
 
 ----------------------------------------------------------------
 
