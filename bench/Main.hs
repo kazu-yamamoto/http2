@@ -15,6 +15,9 @@ import qualified Heap as O
 import qualified Network.HTTP2.Priority.PSQ as P
 import qualified RandomSkewHeap as R
 
+type Key = Int
+type Weight = Int
+
 numOfStreams :: Int
 numOfStreams = 100
 
@@ -24,12 +27,12 @@ numOfTrials = 10000
 main :: IO ()
 main = do
     gen <- getStdGen
-    let ws = take numOfStreams $ randomRs (1,256) gen
-        ks = [1,3..]
+    let ks = [1,3..]
+        ws = take numOfStreams $ randomRs (1,256) gen
         xs = zip ks ws
     defaultMain [
         bgroup "enqueue & dequeue" [
-              bench "Random Skew Heap"      $ whnf enqdeqR ws
+              bench "Random Skew Heap"      $ whnf enqdeqR xs
             , bench "Okasaki Heap"          $ whnf enqdeqO xs
             , bench "Priority Search Queue" $ whnf enqdeqP xs
             , bench "Binary Heap STM"       $ nfIO (enqdeqB ws)
@@ -38,33 +41,40 @@ main = do
             , bench "Array of Queue IO"     $ nfIO (enqdeqAIO ws)
             ]
       , bgroup "delete" [
-              bench "Okasaki Heap"          $ whnf deleteO xs
+              bench "Random Skew Heap"      $ whnf deleteR xs
+            , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
             ]
       ]
 
 ----------------------------------------------------------------
 
-enqdeqR :: [Int] -> ()
-enqdeqR ys = loop pq numOfTrials
+enqdeqR :: [(Key,Weight)] -> ()
+enqdeqR xs = loop pq numOfTrials
   where
-    !pq = createR ys R.empty
+    !pq = createR xs R.empty
     loop _ 0  = ()
     loop q !n = case R.dequeue q of
         Nothing -> error "enqdeqR"
-        Just (ent,q') -> let !q'' = R.enqueue ent q'
-                         in loop q'' (n - 1)
+        Just (k,ent,q') -> let !q'' = R.enqueue k ent q'
+                           in loop q'' (n - 1)
 
-createR :: [Int] -> R.PriorityQueue Int -> R.PriorityQueue Int
-createR [] !q = q
-createR (x:xs) !q = createR xs q'
+deleteR :: [(Key,Weight)] -> R.PriorityQueue Int
+deleteR xs = foldl' (flip R.delete) pq ks
   where
-    !ent = R.newEntry x x
-    !q' = R.enqueue ent q
+    !pq = createR xs R.empty
+    (ks,_) = unzip xs
+
+createR :: [(Key,Weight)] -> R.PriorityQueue Int -> R.PriorityQueue Int
+createR [] !q = q
+createR ((k,w):xs) !q = createR xs q'
+  where
+    !ent = R.newEntry k w
+    !q' = R.enqueue k ent q
 
 ----------------------------------------------------------------
 
-enqdeqO :: [(Int,Int)] -> O.PriorityQueue Int
+enqdeqO :: [(Key,Weight)] -> O.PriorityQueue Int
 enqdeqO xs = loop pq numOfTrials
   where
     !pq = createO xs O.empty
@@ -73,13 +83,13 @@ enqdeqO xs = loop pq numOfTrials
         Nothing -> error "enqdeqO"
         Just (k,ent,q') -> loop (O.enqueue k ent q') (n - 1)
 
-deleteO :: [(Int,Int)] -> O.PriorityQueue Int
+deleteO :: [(Key,Weight)] -> O.PriorityQueue Int
 deleteO xs = foldl' (flip O.delete) pq ks
   where
     !pq = createO xs O.empty
     (ks,_) = unzip xs
 
-createO :: [(Int,Int)] -> O.PriorityQueue Int -> O.PriorityQueue Int
+createO :: [(Key,Weight)] -> O.PriorityQueue Int -> O.PriorityQueue Int
 createO [] !q = q
 createO ((k,w):xs) !q = createO xs q'
   where
@@ -88,7 +98,7 @@ createO ((k,w):xs) !q = createO xs q'
 
 ----------------------------------------------------------------
 
-enqdeqP :: [(Int,Int)] -> P.PriorityQueue Int
+enqdeqP :: [(Key,Weight)] -> P.PriorityQueue Int
 enqdeqP xs = loop pq numOfTrials
   where
     !pq = createP xs P.empty
@@ -97,13 +107,13 @@ enqdeqP xs = loop pq numOfTrials
         Nothing -> error "enqdeqP"
         Just (k,ent,q') -> loop (P.enqueue k ent q') (n - 1)
 
-deleteP :: [(Int,Int)] -> P.PriorityQueue Int
+deleteP :: [(Key,Weight)] -> P.PriorityQueue Int
 deleteP xs = foldl' (flip P.delete) pq ks
   where
     !pq = createP xs P.empty
     (ks,_) = unzip xs
 
-createP :: [(Int,Int)] -> P.PriorityQueue Int -> P.PriorityQueue Int
+createP :: [(Key,Weight)] -> P.PriorityQueue Int -> P.PriorityQueue Int
 createP [] !q = q
 createP ((k,w):xs) !q = createP xs q'
   where
@@ -112,7 +122,7 @@ createP ((k,w):xs) !q = createP xs q'
 
 ----------------------------------------------------------------
 
-enqdeqB :: [Int] -> IO ()
+enqdeqB :: [Weight] -> IO ()
 enqdeqB xs = do
     q <- atomically (B.new numOfStreams)
     createB xs q
@@ -124,7 +134,7 @@ enqdeqB xs = do
         atomically $ B.enqueue ent q
         loop q (n - 1)
 
-createB :: [Int] -> B.PriorityQueue Int -> IO ()
+createB :: [Weight] -> B.PriorityQueue Int -> IO ()
 createB [] _      = return ()
 createB (x:xs) !q = do
     let !ent = B.newEntry x x
@@ -133,7 +143,7 @@ createB (x:xs) !q = do
 
 ----------------------------------------------------------------
 
-enqdeqBIO :: [Int] -> IO ()
+enqdeqBIO :: [Weight] -> IO ()
 enqdeqBIO xs = do
     q <- BIO.new numOfStreams
     createBIO xs q
@@ -145,7 +155,7 @@ enqdeqBIO xs = do
         BIO.enqueue ent q
         loop q (n - 1)
 
-createBIO :: [Int] -> BIO.PriorityQueue Int -> IO ()
+createBIO :: [Weight] -> BIO.PriorityQueue Int -> IO ()
 createBIO [] _      = return ()
 createBIO (x:xs) !q = do
     let !ent = BIO.newEntry x x
@@ -154,7 +164,7 @@ createBIO (x:xs) !q = do
 
 ----------------------------------------------------------------
 
-enqdeqA :: [Int] -> IO ()
+enqdeqA :: [Weight] -> IO ()
 enqdeqA xs = do
     q <- atomically A.new
     createA xs q
@@ -166,7 +176,7 @@ enqdeqA xs = do
         atomically $ A.enqueue ent q
         loop q (n - 1)
 
-createA :: [Int] -> A.PriorityQueue Int -> IO ()
+createA :: [Weight] -> A.PriorityQueue Int -> IO ()
 createA [] _      = return ()
 createA (x:xs) !q = do
     let !ent = A.newEntry x x
@@ -175,7 +185,7 @@ createA (x:xs) !q = do
 
 ----------------------------------------------------------------
 
-enqdeqAIO :: [Int] -> IO ()
+enqdeqAIO :: [Weight] -> IO ()
 enqdeqAIO xs = do
     q <- AIO.new
     createAIO xs q
@@ -187,7 +197,7 @@ enqdeqAIO xs = do
         AIO.enqueue ent q
         loop q (n - 1)
 
-createAIO :: [Int] -> AIO.PriorityQueue Int -> IO ()
+createAIO :: [Weight] -> AIO.PriorityQueue Int -> IO ()
 createAIO [] _      = return ()
 createAIO (x:xs) !q = do
     let !ent = AIO.newEntry x x

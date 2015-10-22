@@ -44,5 +44,5 @@ dequeue (TPriorityQueue th) = do
       writeTVar th h'
       return (key, ent)
 
-delete :: TPriorityQueue a -> Key -> STM ()
-delete (TPriorityQueue th) k = modifyTVar' th $ \q -> Q.delete q k
+delete :: Key -> TPriorityQueue a -> STM ()
+delete k (TPriorityQueue th) = modifyTVar' th $ \q -> Q.delete k q

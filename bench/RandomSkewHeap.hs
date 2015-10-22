@@ -30,6 +30,7 @@ module RandomSkewHeap (
   , isEmpty
   , enqueue
   , dequeue
+  , delete
   ) where
 
 import System.IO.Unsafe (unsafePerformIO)
@@ -37,6 +38,7 @@ import System.Random.MWC (createSystemRandom, uniformR, GenIO)
 
 ----------------------------------------------------------------
 
+type Key = Int
 type Weight = Int
 
 -- | Abstract data type of entries for priority queues.
@@ -58,7 +60,7 @@ item (Entry x _) = x
 ----------------------------------------------------------------
 
 data PriorityQueue a = Leaf | Node {-# UNPACK #-} !Weight -- total
-                                   (Entry a)
+                                   (Entry a, Key)
                                    !(PriorityQueue a)
                                    !(PriorityQueue a) deriving Show
 
@@ -71,13 +73,13 @@ isEmpty :: PriorityQueue a -> Bool
 isEmpty Leaf = True
 isEmpty _    = False
 
-singleton :: Entry a -> PriorityQueue a
-singleton ent@(Entry _ w) = Node w ent Leaf Leaf
+singleton :: Key -> Entry a -> PriorityQueue a
+singleton k ent@(Entry _ w) = Node w (ent,k) Leaf Leaf
 
 ----------------------------------------------------------------
 
-enqueue :: Entry a -> PriorityQueue a -> PriorityQueue a
-enqueue ent q = merge (singleton ent) q
+enqueue :: Key -> Entry a -> PriorityQueue a -> PriorityQueue a
+enqueue k ent q = merge (singleton k ent) q
 
 -- if l is a singleton, w1 == tw1.
 merge :: PriorityQueue t -> PriorityQueue t -> PriorityQueue t
@@ -91,11 +93,29 @@ merge l@(Node tw1 ent1 ll lr) r@(Node tw2 ent2 rl rr)
     g = unsafePerformIO $ uniformR (1,tw) gen
 {-# NOINLINE merge #-}
 
-dequeue :: PriorityQueue a -> Maybe (Entry a, PriorityQueue a)
-dequeue Leaf             = Nothing
-dequeue (Node _ ent l r) = Just (ent, t)
+dequeue :: PriorityQueue a -> Maybe (Key, Entry a, PriorityQueue a)
+dequeue Leaf                 = Nothing
+dequeue (Node _ (ent,k) l r) = Just (k, ent, t)
   where
     !t = merge l r
+
+delete :: Key -> PriorityQueue a -> PriorityQueue a
+delete k q = fromList xs'
+  where
+    !xs = toList q
+    !xs' = filter (\xk -> snd xk /= k) xs
+
+toList :: PriorityQueue a -> [(Entry a, Key)]
+toList q = go q id []
+  where
+    go Leaf b = b
+    go (Node _ x l r) b = go r (go l ((x :) . b))
+
+fromList :: [(Entry a, Key)] -> PriorityQueue a
+fromList xs = go empty xs
+  where
+    go !q [] = q
+    go !q ((x,k):xks) = go (enqueue k x q) xks
 
 gen :: GenIO
 gen = unsafePerformIO createSystemRandom
