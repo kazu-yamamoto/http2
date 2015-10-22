@@ -71,6 +71,7 @@ module Network.HTTP2.Types (
   , Priority(..)
   , defaultPriority
   , highestPriority
+  , controlPriority
   , Padding
   ) where
 
@@ -347,6 +348,10 @@ defaultPriority = Priority False 0 16
 -- Priority {exclusive = False, streamDependency = 0, weight = 256}
 highestPriority :: Priority
 highestPriority = Priority False 0 256
+
+-- | Priority for control frames to be top-queued.
+controlPriority :: Priority
+controlPriority = Priority False 0 (-1)
 
 ----------------------------------------------------------------
 
