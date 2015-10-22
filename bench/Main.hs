@@ -27,13 +27,13 @@ main = do
         ss = [1,3..]
         ys = zip ss xs
     defaultMain [
-        bench "RandomSkewHeap"    $ whnf benchR xs
-      , bench "Okasaki Heap"      $ whnf benchO xs
-      , bench "PSQ"               $ whnf benchP ys
-      , bench "Binary Heap"       $ nfIO (benchB xs)
-      , bench "Binary Heap IO"    $ nfIO (benchBIO xs)
-      , bench "Array of Queue"    $ nfIO (benchA xs)
-      , bench "Array of Queue IO" $ nfIO (benchAIO xs)
+        bench "Random Skew Heap"      $ whnf benchR xs
+      , bench "Okasaki Heap"          $ whnf benchO xs
+      , bench "Priority Search Queue" $ whnf benchP ys
+      , bench "Binary Heap STM"       $ nfIO (benchB xs)
+      , bench "Binary Heap IO"        $ nfIO (benchBIO xs)
+      , bench "Array of Queue STM"    $ nfIO (benchA xs)
+      , bench "Array of Queue IO"     $ nfIO (benchAIO xs)
       ]
 
 ----------------------------------------------------------------
