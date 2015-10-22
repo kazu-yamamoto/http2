@@ -24,21 +24,22 @@ numOfTrials = 10000
 main :: IO ()
 main = do
     gen <- getStdGen
-    let xs = take numOfStreams $ randomRs (1,256) gen
+    let ws = take numOfStreams $ randomRs (1,256) gen
         ks = [1,3..]
-        ys = zip ks xs
+        xs = zip ks ws
     defaultMain [
         bgroup "enqueue & dequeue" [
-              bench "Random Skew Heap"      $ whnf enqdeqR xs
+              bench "Random Skew Heap"      $ whnf enqdeqR ws
             , bench "Okasaki Heap"          $ whnf enqdeqO xs
-            , bench "Priority Search Queue" $ whnf enqdeqP ys
-            , bench "Binary Heap STM"       $ nfIO (enqdeqB xs)
-            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO xs)
-            , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
-            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO xs)
+            , bench "Priority Search Queue" $ whnf enqdeqP xs
+            , bench "Binary Heap STM"       $ nfIO (enqdeqB ws)
+            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO ws)
+            , bench "Array of Queue STM"    $ nfIO (enqdeqA ws)
+            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO ws)
             ]
       , bgroup "delete" [
-              bench "Priority Search Queue" $ whnf deleteP ys
+              bench "Okasaki Heap"          $ whnf deleteO xs
+            , bench "Priority Search Queue" $ whnf deleteP xs
             ]
       ]
 
@@ -63,34 +64,38 @@ createR (x:xs) !q = createR xs q'
 
 ----------------------------------------------------------------
 
-enqdeqO :: [Int] -> ()
+enqdeqO :: [(Int,Int)] -> O.PriorityQueue Int
 enqdeqO xs = loop pq numOfTrials
   where
     !pq = createO xs O.empty
-    loop _ 0  = ()
-    loop q !n = case O.dequeue q of
+    loop !q  0 = q
+    loop !q !n = case O.dequeue q of
         Nothing -> error "enqdeqO"
-        Just (ent,q') -> let !q'' = O.enqueue ent q'
-                         in loop q'' (n - 1)
+        Just (k,ent,q') -> loop (O.enqueue k ent q') (n - 1)
 
-createO :: [Int] -> O.PriorityQueue Int -> O.PriorityQueue Int
-createO [] !q = q
-createO (x:xs) !q = createO xs q'
+deleteO :: [(Int,Int)] -> O.PriorityQueue Int
+deleteO xs = foldl' O.delete pq ks
   where
-    !ent = O.newEntry x x
-    !q' = O.enqueue ent q
+    !pq = createO xs O.empty
+    (ks,_) = unzip xs
+
+createO :: [(Int,Int)] -> O.PriorityQueue Int -> O.PriorityQueue Int
+createO [] !q = q
+createO ((k,w):xs) !q = createO xs q'
+  where
+    !ent = O.newEntry k w
+    !q' = O.enqueue k ent q
 
 ----------------------------------------------------------------
 
-enqdeqP :: [(Int,Int)] -> ()
+enqdeqP :: [(Int,Int)] -> P.PriorityQueue Int
 enqdeqP xs = loop pq numOfTrials
   where
     !pq = createP xs P.empty
-    loop _ 0  = ()
-    loop q !n = case P.dequeue q of
+    loop !q 0  = q
+    loop !q !n = case P.dequeue q of
         Nothing -> error "enqdeqP"
-        Just (k,ent,q') -> let !q'' = P.enqueue k ent q'
-                           in loop q'' (n - 1)
+        Just (k,ent,q') -> loop (P.enqueue k ent q') (n - 1)
 
 deleteP :: [(Int,Int)] -> P.PriorityQueue Int
 deleteP xs = foldl' P.delete pq ks
@@ -100,9 +105,9 @@ deleteP xs = foldl' P.delete pq ks
 
 createP :: [(Int,Int)] -> P.PriorityQueue Int -> P.PriorityQueue Int
 createP [] !q = q
-createP ((k,x):xs) !q = createP xs q'
+createP ((k,w):xs) !q = createP xs q'
   where
-    !ent = P.newEntry x x
+    !ent = P.newEntry k w
     !q' = P.enqueue k ent q
 
 ----------------------------------------------------------------

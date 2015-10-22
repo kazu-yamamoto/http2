@@ -12,6 +12,7 @@ module Heap (
   , isEmpty
   , enqueue
   , dequeue
+  , delete
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -24,6 +25,7 @@ import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
+type Key = Int
 type Weight = Int
 type Deficit = Word64
 
@@ -43,7 +45,7 @@ instance Ord (Entry a) where
 
 -- FIXME: The base (Word64) would be overflowed.
 --        In that case, the heap must be re-constructed.
-data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Deficit (Heap (Entry a))
+data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Deficit (Heap (Key, Entry a))
 
 ----------------------------------------------------------------
 
@@ -82,17 +84,22 @@ empty = PriorityQueue 0 H.empty
 isEmpty :: PriorityQueue a -> Bool
 isEmpty (PriorityQueue _ h) = H.null h
 
-enqueue :: Entry a -> PriorityQueue a -> PriorityQueue a
-enqueue Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
+enqueue :: Key -> Entry a -> PriorityQueue a -> PriorityQueue a
+enqueue k Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
   where
     !b = if deficit == magicDeficit then base else deficit
     !deficit' = b + weightToDeficit weight
     !ent' = Entry item weight deficit'
-    !heap' = H.insert ent' heap
+    !heap' = H.insert (k,ent') heap
 
-dequeue :: PriorityQueue a -> Maybe (Entry a, PriorityQueue a)
+dequeue :: PriorityQueue a -> Maybe (Key, Entry a, PriorityQueue a)
 dequeue (PriorityQueue _ heap) = case H.uncons heap of
     Nothing                     -> Nothing
-    Just (ent@Entry{..}, heap')
-      | H.null heap' -> Just (ent, empty) -- reset the deficit base
-      | otherwise    -> Just (ent, PriorityQueue deficit heap')
+    Just ((k,ent@Entry{..}), heap')
+      | H.null heap' -> Just (k, ent, empty) -- reset the deficit base
+      | otherwise    -> Just (k, ent, PriorityQueue deficit heap')
+
+delete :: PriorityQueue a -> Key -> PriorityQueue a
+delete (PriorityQueue base heap) k = PriorityQueue base heap'
+  where
+    !heap' = H.filter (\x -> fst x /= k) heap
