@@ -4,6 +4,7 @@ module Main where
 
 import Control.Concurrent.STM
 import Criterion.Main
+import Data.List (foldl')
 import System.Random
 
 import qualified ArrayOfQueue as A
@@ -24,24 +25,34 @@ main :: IO ()
 main = do
     gen <- getStdGen
     let xs = take numOfStreams $ randomRs (1,256) gen
-        ss = [1,3..]
-        ys = zip ss xs
+        ks = [1,3..]
+        ys = zip ks xs
     defaultMain [
-        bench "Random Skew Heap"      $ whnf benchR xs
-      , bench "Okasaki Heap"          $ whnf benchO xs
-      , bench "Priority Search Queue" $ whnf benchP ys
-      , bench "Binary Heap STM"       $ nfIO (benchB xs)
-      , bench "Binary Heap IO"        $ nfIO (benchBIO xs)
-      , bench "Array of Queue STM"    $ nfIO (benchA xs)
-      , bench "Array of Queue IO"     $ nfIO (benchAIO xs)
+        bgroup "enqueue & dequeue" [
+              bench "Random Skew Heap"      $ whnf enqdeqR xs
+            , bench "Okasaki Heap"          $ whnf enqdeqO xs
+            , bench "Priority Search Queue" $ whnf enqdeqP ys
+            , bench "Binary Heap STM"       $ nfIO (enqdeqB xs)
+            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO xs)
+            , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
+            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO xs)
+            ]
+      , bgroup "delete" [
+              bench "Priority Search Queue" $ whnf deleteP ys
+            ]
       ]
 
 ----------------------------------------------------------------
 
-benchR :: [Int] -> ()
-benchR ys = enqdeqR pq numOfTrials
+enqdeqR :: [Int] -> ()
+enqdeqR ys = loop pq numOfTrials
   where
     !pq = createR ys R.empty
+    loop _ 0  = ()
+    loop q !n = case R.dequeue q of
+        Nothing -> error "enqdeqR"
+        Just (ent,q') -> let !q'' = R.enqueue ent q'
+                         in loop q'' (n - 1)
 
 createR :: [Int] -> R.PriorityQueue Int -> R.PriorityQueue Int
 createR [] !q = q
@@ -50,19 +61,17 @@ createR (x:xs) !q = createR xs q'
     !ent = R.newEntry x x
     !q' = R.enqueue ent q
 
-enqdeqR :: R.PriorityQueue Int -> Int -> ()
-enqdeqR _ 0  = ()
-enqdeqR q !n = case R.dequeue q of
-    Nothing -> error "enqdeqR"
-    Just (ent,q') -> let !q'' = R.enqueue ent q'
-                       in enqdeqR q'' (n - 1)
-
 ----------------------------------------------------------------
 
-benchO :: [Int] -> ()
-benchO xs = enqdeqO pq numOfTrials
+enqdeqO :: [Int] -> ()
+enqdeqO xs = loop pq numOfTrials
   where
     !pq = createO xs O.empty
+    loop _ 0  = ()
+    loop q !n = case O.dequeue q of
+        Nothing -> error "enqdeqO"
+        Just (ent,q') -> let !q'' = O.enqueue ent q'
+                         in loop q'' (n - 1)
 
 createO :: [Int] -> O.PriorityQueue Int -> O.PriorityQueue Int
 createO [] !q = q
@@ -71,19 +80,23 @@ createO (x:xs) !q = createO xs q'
     !ent = O.newEntry x x
     !q' = O.enqueue ent q
 
-enqdeqO :: O.PriorityQueue Int -> Int -> ()
-enqdeqO _ 0  = ()
-enqdeqO q !n = case O.dequeue q of
-    Nothing -> error "enqdeqO"
-    Just (ent,q') -> let !q'' = O.enqueue ent q'
-                     in enqdeqO q'' (n - 1)
-
 ----------------------------------------------------------------
 
-benchP :: [(Int,Int)] -> ()
-benchP xs = enqdeqP pq numOfTrials
+enqdeqP :: [(Int,Int)] -> ()
+enqdeqP xs = loop pq numOfTrials
   where
     !pq = createP xs P.empty
+    loop _ 0  = ()
+    loop q !n = case P.dequeue q of
+        Nothing -> error "enqdeqP"
+        Just (k,ent,q') -> let !q'' = P.enqueue k ent q'
+                           in loop q'' (n - 1)
+
+deleteP :: [(Int,Int)] -> P.PriorityQueue Int
+deleteP xs = foldl' P.delete pq ks
+  where
+    !pq = createP xs P.empty
+    (ks,_) = unzip xs
 
 createP :: [(Int,Int)] -> P.PriorityQueue Int -> P.PriorityQueue Int
 createP [] !q = q
@@ -92,20 +105,19 @@ createP ((k,x):xs) !q = createP xs q'
     !ent = P.newEntry x x
     !q' = P.enqueue k ent q
 
-enqdeqP :: P.PriorityQueue Int -> Int -> ()
-enqdeqP _ 0  = ()
-enqdeqP q !n = case P.dequeue q of
-    Nothing -> error "enqdeqP"
-    Just (k,ent,q') -> let !q'' = P.enqueue k ent q'
-                       in enqdeqP q'' (n - 1)
-
 ----------------------------------------------------------------
 
-benchB :: [Int] -> IO ()
-benchB xs = do
+enqdeqB :: [Int] -> IO ()
+enqdeqB xs = do
     q <- atomically (B.new numOfStreams)
     createB xs q
-    enqdeqB q numOfTrials
+    loop q numOfTrials
+  where
+    loop _ 0  = return ()
+    loop q !n = do
+        ent <- atomically $ B.dequeue q
+        atomically $ B.enqueue ent q
+        loop q (n - 1)
 
 createB :: [Int] -> B.PriorityQueue Int -> IO ()
 createB [] _      = return ()
@@ -114,20 +126,19 @@ createB (x:xs) !q = do
     atomically $ B.enqueue ent q
     createB xs q
 
-enqdeqB :: B.PriorityQueue Int -> Int -> IO ()
-enqdeqB _ 0  = return ()
-enqdeqB q !n = do
-    ent <- atomically $ B.dequeue q
-    atomically $ B.enqueue ent q
-    enqdeqB q (n - 1)
-
 ----------------------------------------------------------------
 
-benchBIO :: [Int] -> IO ()
-benchBIO xs = do
+enqdeqBIO :: [Int] -> IO ()
+enqdeqBIO xs = do
     q <- BIO.new numOfStreams
     createBIO xs q
-    enqdeqBIO q numOfTrials
+    loop q numOfTrials
+  where
+    loop _ 0  = return ()
+    loop q !n = do
+        ent <- BIO.dequeue q
+        BIO.enqueue ent q
+        loop q (n - 1)
 
 createBIO :: [Int] -> BIO.PriorityQueue Int -> IO ()
 createBIO [] _      = return ()
@@ -136,20 +147,19 @@ createBIO (x:xs) !q = do
     BIO.enqueue ent q
     createBIO xs q
 
-enqdeqBIO :: BIO.PriorityQueue Int -> Int -> IO ()
-enqdeqBIO _ 0  = return ()
-enqdeqBIO q !n = do
-    ent <- BIO.dequeue q
-    BIO.enqueue ent q
-    enqdeqBIO q (n - 1)
-
 ----------------------------------------------------------------
 
-benchA :: [Int] -> IO ()
-benchA xs = do
+enqdeqA :: [Int] -> IO ()
+enqdeqA xs = do
     q <- atomically A.new
     createA xs q
-    enqdeqA q numOfTrials
+    loop q numOfTrials
+  where
+    loop _ 0  = return ()
+    loop q !n = do
+        ent <- atomically $ A.dequeue q
+        atomically $ A.enqueue ent q
+        loop q (n - 1)
 
 createA :: [Int] -> A.PriorityQueue Int -> IO ()
 createA [] _      = return ()
@@ -158,20 +168,19 @@ createA (x:xs) !q = do
     atomically $ A.enqueue ent q
     createA xs q
 
-enqdeqA :: A.PriorityQueue Int -> Int -> IO ()
-enqdeqA _ 0  = return ()
-enqdeqA q !n = do
-    ent <- atomically $ A.dequeue q
-    atomically $ A.enqueue ent q
-    enqdeqA q (n - 1)
-
 ----------------------------------------------------------------
 
-benchAIO :: [Int] -> IO ()
-benchAIO xs = do
+enqdeqAIO :: [Int] -> IO ()
+enqdeqAIO xs = do
     q <- AIO.new
     createAIO xs q
-    enqdeqAIO q numOfTrials
+    loop q numOfTrials
+  where
+    loop _ 0  = return ()
+    loop q !n = do
+        ent <- AIO.dequeue q
+        AIO.enqueue ent q
+        loop q (n - 1)
 
 createAIO :: [Int] -> AIO.PriorityQueue Int -> IO ()
 createAIO [] _      = return ()
@@ -179,12 +188,5 @@ createAIO (x:xs) !q = do
     let !ent = AIO.newEntry x x
     AIO.enqueue ent q
     createAIO xs q
-
-enqdeqAIO :: AIO.PriorityQueue Int -> Int -> IO ()
-enqdeqAIO _ 0  = return ()
-enqdeqAIO q !n = do
-    ent <- AIO.dequeue q
-    AIO.enqueue ent q
-    enqdeqAIO q (n - 1)
 
 ----------------------------------------------------------------
