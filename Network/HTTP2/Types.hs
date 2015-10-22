@@ -611,6 +611,11 @@ framePayloadToFrameTypeId (UnknownFrame w8 _)    = FrameUnknown w8
 ----------------------------------------------------------------
 
 -- | Checking if padding is defined in this frame type.
+--
+-- >>> isPaddingDefined $ DataFrame ""
+-- True
+-- >>> isPaddingDefined $ PingFrame ""
+-- False
 isPaddingDefined :: FramePayload -> Bool
 isPaddingDefined (DataFrame _)          = True
 isPaddingDefined (HeadersFrame _ _)     = True
