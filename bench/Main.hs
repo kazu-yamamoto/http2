@@ -37,13 +37,14 @@ main = do
             , bench "Priority Search Queue" $ whnf enqdeqP xs
             , bench "Binary Heap STM"       $ nfIO (enqdeqB ws)
             , bench "Binary Heap IO"        $ nfIO (enqdeqBIO ws)
-            , bench "Array of Queue STM"    $ nfIO (enqdeqA ws)
+            , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
             , bench "Array of Queue IO"     $ nfIO (enqdeqAIO ws)
             ]
       , bgroup "delete" [
               bench "Random Skew Heap"      $ whnf deleteR xs
             , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
+--            , bench "Array of Queue STM"    $ nfIO (deleteA xs)
             ]
       ]
 
@@ -164,7 +165,7 @@ createBIO (x:xs) !q = do
 
 ----------------------------------------------------------------
 
-enqdeqA :: [Weight] -> IO ()
+enqdeqA :: [(Key,Weight)] -> IO ()
 enqdeqA xs = do
     q <- atomically A.new
     createA xs q
@@ -172,15 +173,27 @@ enqdeqA xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        ent <- atomically $ A.dequeue q
-        atomically $ A.enqueue ent q
+        (k,ent) <- atomically $ A.dequeue q
+        atomically $ A.enqueue k ent q
         loop q (n - 1)
 
-createA :: [Weight] -> A.PriorityQueue Int -> IO ()
+deleteA :: [(Key,Weight)] -> IO ()
+deleteA xs = do
+    !q <- atomically A.new
+    createA xs q
+    loop keys q
+  where
+    (keys,_) = unzip xs
+    loop [] _ = return ()
+    loop (k:ks) q = do
+        atomically $ A.delete k q
+        loop ks q
+
+createA :: [(Key,Weight)] -> A.PriorityQueue Int -> IO ()
 createA [] _      = return ()
-createA (x:xs) !q = do
-    let !ent = A.newEntry x x
-    atomically $ A.enqueue ent q
+createA ((k,w):xs) !q = do
+    let !ent = A.newEntry k w
+    atomically $ A.enqueue k ent q
     createA xs q
 
 ----------------------------------------------------------------
