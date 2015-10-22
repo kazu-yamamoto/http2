@@ -68,8 +68,6 @@ module Network.HTTP2 (
   , defaultInitialWindowSize
   , maxWindowSize
   , isWindowOverflow
-  -- * Misc
-  , recommendedConcurrency
   -- * Error code
   , ErrorCode
   , ErrorCodeId(..)
@@ -78,11 +76,12 @@ module Network.HTTP2 (
   -- * Error
   , HTTP2Error(..)
   , errorCodeId
-  -- * Magic
+  -- * Predefined values
   , connectionPreface
   , connectionPrefaceLength
   , frameHeaderLength
   , maxPayloadLength
+  , recommendedConcurrency
   ) where
 
 import Data.ByteString (ByteString)
