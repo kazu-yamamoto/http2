@@ -6,6 +6,8 @@ module Network.HTTP2 (
     Frame(..)
   , FrameHeader(..)
   , FramePayload(..)
+  , HeaderBlockFragment
+  , Padding
   , isPaddingDefined
   -- * Encoding
   , encodeFrame
@@ -23,12 +25,9 @@ module Network.HTTP2 (
   , FrameType
   , fromFrameTypeId
   , toFrameTypeId
-  -- * Types
-  , HeaderBlockFragment
-  , Padding
-  , Weight
   -- * Priority
   , Priority(..)
+  , Weight
   , defaultPriority
   , highestPriority
   -- * Stream identifier
