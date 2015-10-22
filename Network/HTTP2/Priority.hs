@@ -52,6 +52,7 @@ newEntry x p = Q.newEntry x (weight p)
 -- | Abstract data type for priority trees.
 data PriorityTree a = PriorityTree (TVar (Glue a))
                                    (TNestedPriorityQueue a)
+                                   (TQueue (StreamId, Entry a))
 
 type Glue a = IntMap (TNestedPriorityQueue a, Priority)
 
@@ -66,21 +67,27 @@ data Element a = Child a
 
 -- | Creating a new priority tree.
 newPriorityTree :: IO (PriorityTree a)
-newPriorityTree = PriorityTree <$> newTVarIO Map.empty <*> atomically Q.new
+newPriorityTree = PriorityTree <$> newTVarIO Map.empty
+                               <*> atomically Q.new
+                               <*> newTQueueIO
 
 ----------------------------------------------------------------
 
 -- | Bringing up the structure of the priority tree.
 --   This must be used for Priority frame.
 prepare :: PriorityTree a -> StreamId -> Priority -> IO ()
-prepare (PriorityTree var _) sid p = atomically $ do
+prepare (PriorityTree var _ _) sid p = atomically $ do
     q <- Q.new
     modifyTVar' var $ Map.insert sid (q, p)
 
 -- | Enqueuing an entry to the priority tree.
 --   This must be used for Header frame.
+--   If 'controlPriority' is specified,
+--   it is treated as a control frame and top-queued.
 enqueue :: PriorityTree a -> StreamId -> Priority -> Entry a -> IO ()
-enqueue (PriorityTree var q0) sid p0 ent0 = atomically $ do
+enqueue (PriorityTree _ _ cq) sid p0 ent0
+  | p0 == controlPriority = atomically $ writeTQueue cq (sid,ent0)
+enqueue (PriorityTree var q0 _) sid p0 ent0 = atomically $ do
     m <- readTVar var
     let !x = Q.item ent0
         !el = Child x
@@ -102,7 +109,11 @@ enqueue (PriorityTree var q0) sid p0 ent0 = atomically $ do
 
 -- | Dequeuing an entry from the priority tree.
 dequeue :: PriorityTree a -> IO (StreamId, Entry a)
-dequeue (PriorityTree _ q0) = atomically (loop q0)
+dequeue (PriorityTree _ q0 cq) = atomically $ do
+    mx <- tryReadTQueue cq
+    case mx of
+        Just x  -> return x
+        Nothing -> loop q0
   where
     loop q = do
         (sid,ent) <- Q.dequeue q
@@ -118,4 +129,4 @@ dequeue (PriorityTree _ q0) = atomically (loop q0)
 --   'delete' and 'enqueue' are used to change the priority of
 --   a live stream.
 delete :: PriorityTree a -> StreamId -> IO ()
-delete (PriorityTree _ q) sid = atomically $ Q.delete q sid
+delete (PriorityTree _ q _) sid = atomically $ Q.delete q sid
