@@ -553,6 +553,7 @@ clearExclusive n = n `clearBit` 31
 
 ----------------------------------------------------------------
 
+-- | The type for fragments of a header encoded with HPACK.
 type HeaderBlockFragment = ByteString
 
 -- | The type for padding in payloads.
