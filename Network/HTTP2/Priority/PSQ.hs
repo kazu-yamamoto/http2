@@ -100,8 +100,8 @@ dequeue (PriorityQueue _ heap) = case P.minView heap of
       | P.null heap' -> Just (k, ent, empty) -- reset the deficit base
       | otherwise    -> Just (k, ent, PriorityQueue deficit heap')
 
-delete :: PriorityQueue a -> Key -> PriorityQueue a
-delete (PriorityQueue _ heap) k = case P.findMin heap' of
+delete :: Key -> PriorityQueue a -> PriorityQueue a
+delete k (PriorityQueue _ heap) = case P.findMin heap' of
     Nothing            -> empty
     Just (_,deficit,_) -> PriorityQueue deficit heap'
   where

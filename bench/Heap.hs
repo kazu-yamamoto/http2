@@ -100,7 +100,7 @@ dequeue (PriorityQueue _ heap) = case H.uncons heap of
       | H.null heap' -> Just (k, ent, empty) -- reset the deficit base
       | otherwise    -> Just (k, ent, PriorityQueue deficit heap')
 
-delete :: PriorityQueue a -> Key -> PriorityQueue a
-delete (PriorityQueue base heap) k = PriorityQueue base heap'
+delete :: Key -> PriorityQueue a -> PriorityQueue a
+delete k (PriorityQueue base heap) = PriorityQueue base heap'
   where
     !heap' = H.filter (\xk -> snd xk /= k) heap

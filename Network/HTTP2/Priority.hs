@@ -129,4 +129,4 @@ dequeue (PriorityTree _ q0 cq) = atomically $ do
 --   'delete' and 'enqueue' are used to change the priority of
 --   a live stream.
 delete :: PriorityTree a -> StreamId -> IO ()
-delete (PriorityTree _ q _) sid = atomically $ Q.delete q sid
+delete (PriorityTree _ q _) sid = atomically $ Q.delete sid q

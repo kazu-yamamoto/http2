@@ -74,7 +74,7 @@ enqdeqO xs = loop pq numOfTrials
         Just (k,ent,q') -> loop (O.enqueue k ent q') (n - 1)
 
 deleteO :: [(Int,Int)] -> O.PriorityQueue Int
-deleteO xs = foldl' O.delete pq ks
+deleteO xs = foldl' (flip O.delete) pq ks
   where
     !pq = createO xs O.empty
     (ks,_) = unzip xs
@@ -98,7 +98,7 @@ enqdeqP xs = loop pq numOfTrials
         Just (k,ent,q') -> loop (P.enqueue k ent q') (n - 1)
 
 deleteP :: [(Int,Int)] -> P.PriorityQueue Int
-deleteP xs = foldl' P.delete pq ks
+deleteP xs = foldl' (flip P.delete) pq ks
   where
     !pq = createP xs P.empty
     (ks,_) = unzip xs
