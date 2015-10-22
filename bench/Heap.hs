@@ -45,7 +45,8 @@ instance Ord (Entry a) where
 
 -- FIXME: The base (Word64) would be overflowed.
 --        In that case, the heap must be re-constructed.
-data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Deficit (Heap (Key, Entry a))
+data PriorityQueue a = PriorityQueue {-# UNPACK #-} !Deficit
+                                     (Heap (Entry a, Key)) -- Key MUST be the second
 
 ----------------------------------------------------------------
 
@@ -90,16 +91,16 @@ enqueue k Entry{..} (PriorityQueue base heap) = PriorityQueue base heap'
     !b = if deficit == magicDeficit then base else deficit
     !deficit' = b + weightToDeficit weight
     !ent' = Entry item weight deficit'
-    !heap' = H.insert (k,ent') heap
+    !heap' = H.insert (ent',k) heap
 
 dequeue :: PriorityQueue a -> Maybe (Key, Entry a, PriorityQueue a)
 dequeue (PriorityQueue _ heap) = case H.uncons heap of
     Nothing                     -> Nothing
-    Just ((k,ent@Entry{..}), heap')
+    Just ((ent@Entry{..},k), heap')
       | H.null heap' -> Just (k, ent, empty) -- reset the deficit base
       | otherwise    -> Just (k, ent, PriorityQueue deficit heap')
 
 delete :: PriorityQueue a -> Key -> PriorityQueue a
 delete (PriorityQueue base heap) k = PriorityQueue base heap'
   where
-    !heap' = H.filter (\x -> fst x /= k) heap
+    !heap' = H.filter (\xk -> snd xk /= k) heap
