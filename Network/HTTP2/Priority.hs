@@ -15,19 +15,15 @@
 -- Only one entry per stream should be enqueued.
 
 module Network.HTTP2.Priority (
-  -- * Entry
-    Entry
-  , newEntry
-  , Q.renewEntry
-  , Q.item
   -- * PriorityTree
-  , PriorityTree
+    PriorityTree
   , newPriorityTree
   -- * PriorityTree functions
   , prepare
   , enqueue
   , dequeue
   , delete
+  , clear
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -37,22 +33,16 @@ import Control.Concurrent.STM
 import Control.Monad (when, unless)
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as Map
-import Network.HTTP2.Priority.Queue (TPriorityQueue, Entry)
+import Network.HTTP2.Priority.Queue (TPriorityQueue)
 import qualified Network.HTTP2.Priority.Queue as Q
 import Network.HTTP2.Types
-
-----------------------------------------------------------------
-
--- | Wrapping an item to an entry.
-newEntry :: a -> Priority -> Entry a
-newEntry x p = Q.newEntry x (weight p)
 
 ----------------------------------------------------------------
 
 -- | Abstract data type for priority trees.
 data PriorityTree a = PriorityTree (TVar (Glue a))
                                    (TNestedPriorityQueue a)
-                                   (TQueue (StreamId, Entry a))
+                                   (TQueue (StreamId, a))
 
 type Glue a = IntMap (TNestedPriorityQueue a, Priority)
 
@@ -84,31 +74,30 @@ prepare (PriorityTree var _ _) sid p = atomically $ do
 --   This must be used for Header frame.
 --   If 'controlPriority' is specified,
 --   it is treated as a control frame and top-queued.
-enqueue :: PriorityTree a -> StreamId -> Priority -> Entry a -> IO ()
-enqueue (PriorityTree _ _ cq) sid p0 ent0
-  | p0 == controlPriority = atomically $ writeTQueue cq (sid,ent0)
-enqueue (PriorityTree var q0 _) sid p0 ent0 = atomically $ do
+enqueue :: PriorityTree a -> StreamId -> Priority -> a -> IO ()
+enqueue (PriorityTree _ _ cq) sid p0 x
+  | p0 == controlPriority = atomically $ writeTQueue cq (sid,x)
+enqueue (PriorityTree var q0 _) sid p0 x = atomically $ do
     m <- readTVar var
-    let !x = Q.item ent0
-        !el = Child x
-        !ent' = Q.renewEntry ent0 el
-    loop m ent' p0
+    let !el = Child x
+    loop m el p0
   where
-    loop m ent p
-      | pid == 0  = Q.enqueue q0 sid ent
+    loop m el p
+      | pid == 0  = Q.enqueue q0 sid w el
       | otherwise = case Map.lookup pid m of
-          Nothing -> Q.enqueue q0 sid ent -- error case: checkme
+          Nothing -> Q.enqueue q0 sid w el -- error case: checkme
           Just (q', p') -> do
               notQueued <- Q.isEmpty q'
-              Q.enqueue q' sid ent
+              Q.enqueue q' sid w el
               when notQueued $ do
-                  let !ent' = newEntry (Parent q') p'
-                  loop m ent' p'
+                  let !el' = Parent q'
+                  loop m el' p'
       where
         pid = streamDependency p
+        w   = weight p
 
 -- | Dequeuing an entry from the priority tree.
-dequeue :: PriorityTree a -> IO (StreamId, Entry a)
+dequeue :: PriorityTree a -> IO (StreamId, a)
 dequeue (PriorityTree _ q0 cq) = atomically $ do
     mx <- tryReadTQueue cq
     case mx of
@@ -116,13 +105,13 @@ dequeue (PriorityTree _ q0 cq) = atomically $ do
         Nothing -> loop q0
   where
     loop q = do
-        (sid,ent) <- Q.dequeue q
-        case Q.item ent of
-            Child x   -> return $! (sid, Q.renewEntry ent x)
+        (sid,w,el) <- Q.dequeue q
+        case el of
+            Child x   -> return $! (sid, x)
             Parent q' -> do
                 entr <- loop q'
                 empty <- Q.isEmpty q'
-                unless empty $ Q.enqueue q sid ent
+                unless empty $ Q.enqueue q sid w el
                 return entr
 
 -- | Deleting the entry corresponding to 'StreamId'.
@@ -130,3 +119,9 @@ dequeue (PriorityTree _ q0 cq) = atomically $ do
 --   a live stream.
 delete :: PriorityTree a -> StreamId -> IO ()
 delete (PriorityTree _ q _) sid = atomically $ Q.delete sid q
+
+-- | Clearing the internal state for 'StreamId' from 'PriorityTree'.
+--   When a stream is closed, this function MUST be called
+--   to prevent memory leak.
+clear :: PriorityTree a -> StreamId -> IO ()
+clear = undefined

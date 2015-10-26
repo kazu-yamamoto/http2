@@ -1,11 +1,7 @@
 {-# LANGUAGE CPP #-}
 
 module Network.HTTP2.Priority.Queue (
-    Entry
-  , Q.newEntry
-  , Q.renewEntry
-  , Q.item
-  , TPriorityQueue
+    TPriorityQueue
   , new
   , isEmpty
   , enqueue
@@ -17,12 +13,13 @@ module Network.HTTP2.Priority.Queue (
 import Control.Applicative ((<$>))
 #endif
 import Control.Concurrent.STM
-import Network.HTTP2.Priority.PSQ (PriorityQueue, Entry)
+import Network.HTTP2.Priority.PSQ (PriorityQueue)
 import qualified Network.HTTP2.Priority.PSQ as Q
 
 ----------------------------------------------------------------
 
 type Key = Int
+type Weight = Int
 
 newtype TPriorityQueue a = TPriorityQueue (TVar (PriorityQueue a))
 
@@ -32,17 +29,17 @@ new = TPriorityQueue <$> newTVar Q.empty
 isEmpty :: TPriorityQueue a -> STM Bool
 isEmpty (TPriorityQueue th) = Q.isEmpty <$> readTVar th
 
-enqueue :: TPriorityQueue a -> Key -> Entry a -> STM ()
-enqueue (TPriorityQueue th) key ent = modifyTVar' th $ Q.enqueue key ent
+enqueue :: TPriorityQueue a -> Key -> Weight -> a -> STM ()
+enqueue (TPriorityQueue th) k w x = modifyTVar' th $ Q.enqueue k w x
 
-dequeue :: TPriorityQueue a -> STM (Key, Entry a)
+dequeue :: TPriorityQueue a -> STM (Key, Weight, a)
 dequeue (TPriorityQueue th) = do
   h <- readTVar th
   case Q.dequeue h of
     Nothing -> retry
-    Just (key, ent, h') -> do
+    Just (k, w, x, h') -> do
       writeTVar th h'
-      return (key, ent)
+      return (k, w, x)
 
 delete :: Key -> TPriorityQueue a -> STM ()
 delete k (TPriorityQueue th) = modifyTVar' th $ \q -> Q.delete k q
