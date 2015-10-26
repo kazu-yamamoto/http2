@@ -9,6 +9,7 @@ module Network.HTTP2.Priority.PSQ (
   , enqueue
   , dequeue
   , delete
+  , clean
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -84,4 +85,10 @@ delete k PriorityQueue{..} = case P.findMin queue' of
     Nothing            -> empty
     Just (_,deficit,_) -> PriorityQueue deficit deficitMap queue'
   where
-    queue' = P.delete k queue
+    !queue' = P.delete k queue
+
+clean :: Key -> PriorityQueue a -> PriorityQueue a
+clean k PriorityQueue{..} = PriorityQueue baseDeficit deficitMap' queue'
+  where
+    !deficitMap' = I.delete k deficitMap
+    !queue' = P.delete k queue -- just in case

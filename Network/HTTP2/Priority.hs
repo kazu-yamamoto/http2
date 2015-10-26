@@ -124,4 +124,4 @@ delete (PriorityTree _ q _) sid = atomically $ Q.delete sid q
 --   When a stream is closed, this function MUST be called
 --   to prevent memory leak.
 clear :: PriorityTree a -> StreamId -> IO ()
-clear = undefined
+clear (PriorityTree _ q _) sid = atomically $ Q.clean sid q

@@ -7,6 +7,7 @@ module Network.HTTP2.Priority.Queue (
   , enqueue
   , dequeue
   , delete
+  , clean
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -43,3 +44,6 @@ dequeue (TPriorityQueue th) = do
 
 delete :: Key -> TPriorityQueue a -> STM ()
 delete k (TPriorityQueue th) = modifyTVar' th $ \q -> Q.delete k q
+
+clean :: Key -> TPriorityQueue a -> STM ()
+clean k (TPriorityQueue th) = modifyTVar' th $ \q -> Q.clean k q
