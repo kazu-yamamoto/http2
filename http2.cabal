@@ -247,9 +247,10 @@ Benchmark criterion
   Main-Is:              Main.hs
   Build-Depends:        base
                       , array
+                      , containers
                       , criterion
                       , heaps
                       , mwc-random
+                      , psqueues
                       , random
                       , stm
-                      , psqueues

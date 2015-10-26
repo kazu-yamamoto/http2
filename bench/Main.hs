@@ -106,7 +106,7 @@ enqdeqP xs = loop pq numOfTrials
     loop !q 0  = q
     loop !q !n = case P.dequeue q of
         Nothing -> error "enqdeqP"
-        Just (k,ent,q') -> loop (P.enqueue k ent q') (n - 1)
+        Just (k,w,x,q') -> loop (P.enqueue k w x q') (n - 1)
 
 deleteP :: [(Key,Weight)] -> P.PriorityQueue Int
 deleteP xs = foldl' (flip P.delete) pq ks
@@ -116,10 +116,7 @@ deleteP xs = foldl' (flip P.delete) pq ks
 
 createP :: [(Key,Weight)] -> P.PriorityQueue Int -> P.PriorityQueue Int
 createP [] !q = q
-createP ((k,w):xs) !q = createP xs q'
-  where
-    !ent = P.newEntry k w
-    !q' = P.enqueue k ent q
+createP ((k,w):xs) !q = createP xs (P.enqueue k w k q)
 
 ----------------------------------------------------------------
 
