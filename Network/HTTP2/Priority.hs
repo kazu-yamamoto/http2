@@ -117,11 +117,34 @@ dequeue (PriorityTree _ q0 cq) = atomically $ do
 -- | Deleting the entry corresponding to 'StreamId'.
 --   'delete' and 'enqueue' are used to change the priority of
 --   a live stream.
-delete :: PriorityTree a -> StreamId -> IO ()
-delete (PriorityTree _ q _) sid = atomically $ Q.delete sid q
+delete :: PriorityTree a -> StreamId -> Priority -> IO (Maybe a)
+delete (PriorityTree var q0 _) sid p
+  | pid == 0  = atomically $ del q0
+  | otherwise = atomically $ do
+        m <- readTVar var
+        case Map.lookup pid m of
+            Nothing    -> return Nothing
+            Just (q,_) -> del q
+  where
+    pid = streamDependency p
+    del q = do
+        mel <- Q.delete sid q
+        case mel of
+            Nothing -> return Nothing
+            Just el -> case el of
+                Child  x -> return $ Just x
+                Parent _ -> return Nothing -- fixme: this is error
 
 -- | Clearing the internal state for 'StreamId' from 'PriorityTree'.
 --   When a stream is closed, this function MUST be called
 --   to prevent memory leak.
-clear :: PriorityTree a -> StreamId -> IO ()
-clear (PriorityTree _ q _) sid = atomically $ Q.clean sid q
+clear :: PriorityTree a -> StreamId -> Priority -> IO ()
+clear (PriorityTree var q0 _) sid p
+  | pid == 0  = atomically $ Q.clear sid q0
+  | otherwise = atomically $ do
+        m <- readTVar var
+        case Map.lookup pid m of
+            Nothing    -> return ()
+            Just (q,_) -> Q.clear sid q
+  where
+    pid = streamDependency p

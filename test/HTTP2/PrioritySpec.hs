@@ -44,8 +44,14 @@ firefox = do
     enQ pt 35 (pri  5 32)
     enQ pt 37 (pri  5 32)
     dequeue pt `shouldReturn` (15,15)
+    clear pt 15 (pri  3 32)
+    clear pt 15 (pri  3 32)
     dequeue pt `shouldReturn` (33,33)
     dequeue pt `shouldReturn` (17,17)
+    clear pt 17 (pri  3 32)
+    clear pt 17 (pri  3 32)
+    delete pt 17 (pri  3 32) `shouldReturn` Nothing
+    delete pt 31 (pri 11 22) `shouldReturn` Just 31
     dequeue pt `shouldReturn` (19,19)
     dequeue pt `shouldReturn` (35,35)
     dequeue pt `shouldReturn` (21,21)
@@ -54,7 +60,8 @@ firefox = do
     dequeue pt `shouldReturn` (25,25)
     dequeue pt `shouldReturn` (27,27)
     dequeue pt `shouldReturn` (29,29)
-    dequeue pt `shouldReturn` (31,31)
+    enQ pt 39 (pri  3 32)
+    dequeue pt `shouldReturn` (39,39)
 
 enQ :: PriorityTree Int -> StreamId -> Priority -> IO ()
 enQ pt sid p = enqueue pt sid p sid
