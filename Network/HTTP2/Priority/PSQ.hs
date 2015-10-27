@@ -87,10 +87,9 @@ delete k PriorityQueue{..} = case P.findMin queue' of
     Nothing            -> (mx, empty)
     Just (_,deficit,_) -> (mx, PriorityQueue deficit deficitMap queue')
   where
-    !mx = case P.lookup k queue of
-        Nothing        -> Nothing
-        Just (_,(_,x)) -> Just x
-    !queue' = P.delete k queue
+    (!mx,!queue') = P.alter f k queue
+    f Nothing           = (Nothing, Nothing)
+    f (Just (_, (_,x))) = (Just x,  Nothing)
 
 clear :: Key -> PriorityQueue a -> PriorityQueue a
 clear k PriorityQueue{..} = PriorityQueue baseDeficit deficitMap' queue'
