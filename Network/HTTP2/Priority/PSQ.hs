@@ -66,11 +66,13 @@ enqueue :: Key -> Weight -> a -> PriorityQueue a -> PriorityQueue a
 enqueue k w x PriorityQueue{..} =
     PriorityQueue baseDeficit deficitMap' queue'
   where
-    !b = case I.lookup k deficitMap of
-        Nothing      -> baseDeficit
-        Just deficit -> deficit
-    !deficit' = b + weightToDeficit w
-    !deficitMap' = I.insert k deficit' deficitMap
+    !d = weightToDeficit w
+    !forNew = baseDeficit + d
+    f _ _ old = old + d
+    (!mold, !deficitMap') = I.insertLookupWithKey f k forNew deficitMap
+    !deficit' = case mold of
+        Nothing  -> forNew
+        Just old -> old + d
     !queue' = P.insert k deficit' (w,x) queue
 
 dequeue :: PriorityQueue a -> Maybe (Key, Weight, a, PriorityQueue a)
