@@ -109,7 +109,7 @@ enqdeqP xs = loop pq numOfTrials
         Just (k,w,x,q') -> loop (P.enqueue k w x q') (n - 1)
 
 deleteP :: [(Key,Weight)] -> P.PriorityQueue Int
-deleteP xs = foldl' (flip P.delete) pq ks
+deleteP xs = foldl' (\p k -> snd (P.delete k p)) pq ks
   where
     !pq = createP xs P.empty
     (ks,_) = unzip xs
