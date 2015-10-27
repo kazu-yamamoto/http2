@@ -56,12 +56,12 @@ enqdeqR xs = loop pq numOfTrials
     !pq = createR xs R.empty
     loop _ 0  = ()
     loop q !n = case R.dequeue q of
-        Nothing -> error "enqdeqR"
-        Just (k,ent,q') -> let !q'' = R.enqueue k ent q'
+        Nothing         -> error "enqdeqR"
+        Just (k,w,x,q') -> let !q'' = R.enqueue k w x q'
                            in loop q'' (n - 1)
 
 deleteR :: [(Key,Weight)] -> R.PriorityQueue Int
-deleteR xs = foldl' (flip R.delete) pq ks
+deleteR xs = foldl' (\p k -> snd (R.delete k p)) pq ks
   where
     !pq = createR xs R.empty
     (ks,_) = unzip xs
@@ -70,8 +70,7 @@ createR :: [(Key,Weight)] -> R.PriorityQueue Int -> R.PriorityQueue Int
 createR [] !q = q
 createR ((k,w):xs) !q = createR xs q'
   where
-    !ent = R.newEntry k w
-    !q' = R.enqueue k ent q
+    !q' = R.enqueue k w k q
 
 ----------------------------------------------------------------
 
