@@ -38,13 +38,13 @@ main = do
             , bench "Binary Heap STM"       $ nfIO (enqdeqB ws)
             , bench "Binary Heap IO"        $ nfIO (enqdeqBIO ws)
             , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
-            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO ws)
+            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO xs)
             ]
       , bgroup "delete" [
               bench "Random Skew Heap"      $ whnf deleteR xs
             , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
---            , bench "Array of Queue STM"    $ nfIO (deleteA xs)
+            , bench "Array of Queue IO"     $ nfIO (deleteAIO xs)
             ]
       ]
 
@@ -193,7 +193,7 @@ createA ((k,w):xs) !q = do
 
 ----------------------------------------------------------------
 
-enqdeqAIO :: [Weight] -> IO ()
+enqdeqAIO :: [(Key,Weight)] -> IO ()
 enqdeqAIO xs = do
     q <- AIO.new
     createAIO xs q
@@ -201,15 +201,26 @@ enqdeqAIO xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        ent <- AIO.dequeue q
-        AIO.enqueue ent q
+        (k,w,x) <- AIO.dequeue q
+        AIO.enqueue k w x q
         loop q (n - 1)
 
-createAIO :: [Weight] -> AIO.PriorityQueue Int -> IO ()
+deleteAIO :: [(Key,Weight)] -> IO ()
+deleteAIO xs = do
+    q <- AIO.new
+    createAIO xs q
+    loop keys q
+  where
+    (keys,_) = unzip xs
+    loop [] _ = return ()
+    loop (k:ks) q = do
+        _ <- AIO.delete k q
+        loop ks q
+
+createAIO :: [(Key,Weight)] -> AIO.PriorityQueue Int -> IO ()
 createAIO [] _      = return ()
-createAIO (x:xs) !q = do
-    let !ent = AIO.newEntry x x
-    AIO.enqueue ent q
+createAIO ((k,w):xs) !q = do
+    AIO.enqueue k w k q
     createAIO xs q
 
 ----------------------------------------------------------------
