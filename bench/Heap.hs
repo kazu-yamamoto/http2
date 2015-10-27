@@ -96,7 +96,8 @@ delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
 delete k PriorityQueue{..}
   | H.null queue' = (mx, PriorityQueue baseDeficit deficitMap queue')
   | otherwise     = let Entry d _ _ _ = H.minimum queue'
-                    in (mx, PriorityQueue d deficitMap queue')
+                        deficitMap' = I.delete k deficitMap
+                    in (mx, PriorityQueue d deficitMap' queue')
   where
     (!h, !queue') = H.partition (\(Entry _ k' _ _) -> k == k') queue
     !mx

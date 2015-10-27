@@ -85,7 +85,8 @@ dequeue PriorityQueue{..} = case P.minView queue of
 delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
 delete k PriorityQueue{..} = case P.findMin queue' of
     Nothing            -> (mx, empty)
-    Just (_,deficit,_) -> (mx, PriorityQueue deficit deficitMap queue')
+    Just (_,deficit,_) -> let !deficitMap' = I.delete k deficitMap
+                          in (mx, PriorityQueue deficit deficitMap' queue')
   where
     (!mx,!queue') = P.alter f k queue
     f Nothing           = (Nothing, Nothing)

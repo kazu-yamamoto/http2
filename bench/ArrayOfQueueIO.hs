@@ -143,6 +143,7 @@ dequeue PriorityQueue{..} = do
 delete :: Key -> PriorityQueue a -> IO (Maybe a)
 delete k PriorityQueue{..} = do
     mnode <- H.lookup nodes k
+    H.delete deficits k
     case mnode of
         Nothing   -> return Nothing
         Just node -> do
