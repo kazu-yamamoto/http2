@@ -50,7 +50,7 @@ renewEntry ent x = ent { item = x }
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: IORef Word64
   , offsetRef :: IORef Int
-  , anchors   :: Array Int (Queue (Entry a))
+  , queues   :: Array Int (Queue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -100,9 +100,9 @@ firstBitSet x = ffs x - 1
 ----------------------------------------------------------------
 
 new :: IO (PriorityQueue a)
-new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newAnchors
+new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newQueues
   where
-    newAnchors = listArray (0, bitWidth - 1) <$> replicateM bitWidth Q.new
+    newQueues = listArray (0, bitWidth - 1) <$> replicateM bitWidth Q.new
 
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Entry a -> PriorityQueue a -> IO ()
@@ -116,7 +116,7 @@ enqueue ent PriorityQueue{..} = do
       where
         total = deficitTable ! weight ent + deficit ent
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
-    push offidx ent' = Q.enqueue ent' (anchors ! offidx)
+    push offidx ent' = Q.enqueue ent' (queues ! offidx)
     updateBits idx = modifyIORef' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
@@ -131,8 +131,8 @@ dequeue PriorityQueue{..} = do
   where
     getIdx = firstBitSet <$> readIORef bitsRef
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
-    pop offidx = Q.dequeue (anchors ! offidx)
-    checkEmpty offidx = Q.isEmpty (anchors ! offidx)
+    pop offidx = Q.dequeue (queues ! offidx)
+    checkEmpty offidx = Q.isEmpty (queues ! offidx)
     updateOffset offset' = writeIORef offsetRef offset'
     updateBits idx isEmpty = modifyIORef' bitsRef shiftClear
       where
