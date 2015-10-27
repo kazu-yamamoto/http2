@@ -81,10 +81,10 @@ enqdeqO xs = loop pq numOfTrials
     loop !q  0 = q
     loop !q !n = case O.dequeue q of
         Nothing -> error "enqdeqO"
-        Just (k,ent,q') -> loop (O.enqueue k ent q') (n - 1)
+        Just (k,w,x,q') -> loop (O.enqueue k w x q') (n - 1)
 
 deleteO :: [(Key,Weight)] -> O.PriorityQueue Int
-deleteO xs = foldl' (flip O.delete) pq ks
+deleteO xs = foldl' (\p k -> snd (O.delete k p)) pq ks
   where
     !pq = createO xs O.empty
     (ks,_) = unzip xs
@@ -93,8 +93,7 @@ createO :: [(Key,Weight)] -> O.PriorityQueue Int -> O.PriorityQueue Int
 createO [] !q = q
 createO ((k,w):xs) !q = createO xs q'
   where
-    !ent = O.newEntry k w
-    !q' = O.enqueue k ent q
+    !q' = O.enqueue k w k q
 
 ----------------------------------------------------------------
 
