@@ -168,8 +168,8 @@ enqdeqA xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        (k,ent) <- atomically $ A.dequeue q
-        atomically $ A.enqueue k ent q
+        (k,w,x) <- atomically $ A.dequeue q
+        atomically $ A.enqueue k w x q
         loop q (n - 1)
 
 deleteA :: [(Key,Weight)] -> IO ()
@@ -187,8 +187,7 @@ deleteA xs = do
 createA :: [(Key,Weight)] -> A.PriorityQueue Int -> IO ()
 createA [] _      = return ()
 createA ((k,w):xs) !q = do
-    let !ent = A.newEntry k w
-    atomically $ A.enqueue k ent q
+    atomically $ A.enqueue k w k q
     createA xs q
 
 ----------------------------------------------------------------
