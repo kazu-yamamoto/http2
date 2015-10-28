@@ -196,7 +196,7 @@ enqdeqAIO xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        ent <- AIO.dequeue q
+        Just ent <- AIO.dequeue q
         _ <- AIO.enqueue ent q
         loop q (n - 1)
 

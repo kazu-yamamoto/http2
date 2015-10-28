@@ -94,6 +94,8 @@ foreign import ccall unsafe "strings.h ffsll"
 -- 1
 -- >>> firstBitSet $ setBit 0 0
 -- 0
+-- >>> firstBitSet 0
+-- -1
 firstBitSet :: Word64 -> Int
 firstBitSet x = ffs x - 1
   where
@@ -123,14 +125,20 @@ enqueue ent PriorityQueue{..} = do
     updateBits idx = modifyIORef' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Entry a)
-dequeue PriorityQueue{..} = do
+dequeue :: PriorityQueue a -> IO (Maybe (Entry a))
+dequeue pq@PriorityQueue{..} = do
     !idx <- getIdx
-    !offidx <- getOffIdx idx
-    !ent <- pop offidx
-    updateOffset offidx
-    checkEmpty offidx >>= updateBits idx
-    return ent
+    if idx == -1 then
+        return Nothing
+      else do
+        !offidx <- getOffIdx idx
+        updateOffset offidx
+        queueIsEmpty <- checkEmpty offidx
+        updateBits idx queueIsEmpty
+        if queueIsEmpty then
+            dequeue pq
+          else
+            Just <$> pop offidx
   where
     getIdx = firstBitSet <$> readIORef bitsRef
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
