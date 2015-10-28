@@ -24,6 +24,6 @@ enqdeq pq num = loop pq num []
   where
     loop _   0 xs = return xs
     loop !q !n xs = do
-        (k,w,x) <- atomically $ P.dequeue q
+        Just (k,w,x) <- atomically $ P.dequeue q
         atomically $ P.enqueue k w x q
         loop q (n - 1) (x:xs)

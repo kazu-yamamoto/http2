@@ -168,21 +168,9 @@ enqdeqA xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        (k,w,x) <- atomically $ A.dequeue q
+        Just (k,w,x) <- atomically $ A.dequeue q
         atomically $ A.enqueue k w x q
         loop q (n - 1)
-
-deleteA :: [(Key,Weight)] -> IO ()
-deleteA xs = do
-    !q <- atomically A.new
-    createA xs q
-    loop keys q
-  where
-    (keys,_) = unzip xs
-    loop [] _ = return ()
-    loop (k:ks) q = do
-        atomically $ A.delete k q
-        loop ks q
 
 createA :: [(Key,Weight)] -> A.PriorityQueue Int -> IO ()
 createA [] _      = return ()
