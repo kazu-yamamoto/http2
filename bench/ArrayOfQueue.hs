@@ -50,7 +50,7 @@ renewEntry ent x = ent { item = x }
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: TVar Word64
   , offsetRef :: TVar Int
-  , anchors   :: Array Int (TQueue (Entry a))
+  , queues    :: Array Int (TQueue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -102,9 +102,9 @@ firstBitSet x = ffs x - 1
 ----------------------------------------------------------------
 
 new :: STM (PriorityQueue a)
-new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newAnchors
+new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newQueues
   where
-    newAnchors = listArray (0, bitWidth - 1) <$> replicateM bitWidth newTQueue
+    newQueues = listArray (0, bitWidth - 1) <$> replicateM bitWidth newTQueue
 
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Entry a -> PriorityQueue a -> STM ()
@@ -118,7 +118,7 @@ enqueue ent PriorityQueue{..} = do
       where
         total = deficitTable ! weight ent + deficit ent
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
-    push offidx ent' = writeTQueue (anchors ! offidx) ent'
+    push offidx ent' = writeTQueue (queues ! offidx) ent'
     updateBits idx = modifyTVar' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
@@ -139,8 +139,8 @@ dequeue pq@PriorityQueue{..} = do
   where
     getIdx = firstBitSet <$> readTVar bitsRef
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
-    pop offidx = readTQueue (anchors ! offidx)
-    checkEmpty offidx = isEmptyTQueue (anchors ! offidx)
+    pop offidx = readTQueue (queues ! offidx)
+    checkEmpty offidx = isEmptyTQueue (queues ! offidx)
     updateOffset offset' = writeTVar offsetRef offset'
     updateBits idx isEmpty = modifyTVar' bitsRef shiftClear
       where
