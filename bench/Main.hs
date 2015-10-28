@@ -44,7 +44,9 @@ main = do
               bench "Random Skew Heap"      $ whnf deleteR xs
             , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
---            , bench "Array of Queue STM"    $ nfIO (deleteA xs)
+--            , bench "Binary Heap STM"       $ nfIO (deleteB ws)
+--            , bench "Binary Heap IO"        $ nfIO (deleteBIO ws)
+--            , bench "Array of Queue IO"     $ nfIO (deleteAIO ws)
             ]
       ]
 
