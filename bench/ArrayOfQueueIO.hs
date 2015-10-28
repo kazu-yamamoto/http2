@@ -139,24 +139,3 @@ dequeue PriorityQueue{..} = do
         shiftClear bits
           | isEmpty   = clearBit (shiftR bits idx) 0
           | otherwise = shiftR bits idx
-
-----------------------------------------------------------------
-
-main :: IO ()
-main = do
-    let a = newEntry 201 201
-        b = newEntry 101 101
-        c = newEntry 1 1
-    q <- new
-    enqueue a q
-    enqueue b q
-    enqueue c q
-    loop q 1000
-
-loop :: PriorityQueue Int -> Int -> IO ()
-loop _ 0 = return ()
-loop q !n = do
-    x <- dequeue q
-    print x
-    enqueue x q
-    loop q (n - 1)
