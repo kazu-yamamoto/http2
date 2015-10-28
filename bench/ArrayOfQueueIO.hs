@@ -152,21 +152,3 @@ delete k PriorityQueue{..} = do
             needClear <- Q.isEmpty (queues ! idx)
             when needClear $ modifyIORef' bitsRef $ flip clearBit idx
             return $! Just x
-
-----------------------------------------------------------------
-
-main :: IO ()
-main = do
-    q <- new
-    enqueue 1 201 1 q
-    enqueue 3 101 3 q
-    enqueue 5   1  5 q
-    loop q 1000
-
-loop :: PriorityQueue Int -> Int -> IO ()
-loop _ 0 = return ()
-loop q !n = do
-    ent@(k,w,x) <- dequeue q
-    print ent
-    enqueue k w x q
-    loop q (n - 1)
