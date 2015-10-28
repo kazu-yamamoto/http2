@@ -11,7 +11,6 @@ module ArrayOfQueue (
   , new
   , enqueue
   , dequeue
-  , delete
   ) where
 
 import Control.Concurrent.STM
@@ -130,6 +129,3 @@ dequeue PriorityQueue{..} = do
         shiftClear bits
           | isEmpty   = clearBit (shiftR bits idx) 0
           | otherwise = shiftR bits idx
-
-delete :: Key -> PriorityQueue a -> STM ()
-delete = undefined
