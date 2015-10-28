@@ -3,6 +3,7 @@
 module DoublyLinkedQueueIO (
     Queue
   , Node
+  , item
   , new
   , isEmpty
   , enqueue

@@ -11,10 +11,12 @@ module ArrayOfQueueIO (
   , newEntry
   , renewEntry
   , item
+  , Node
   , PriorityQueue(..)
   , new
   , enqueue
   , dequeue
+  , delete
   ) where
 
 import Control.Monad (replicateM)
@@ -24,7 +26,7 @@ import Data.IORef
 import Data.Word (Word64)
 import Foreign.C.Types (CLLong(..))
 
-import DoublyLinkedQueueIO (Queue)
+import DoublyLinkedQueueIO (Queue, Node)
 import qualified DoublyLinkedQueueIO as Q
 
 ----------------------------------------------------------------
@@ -105,12 +107,13 @@ new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newAnchors
     newAnchors = listArray (0, bitWidth - 1) <$> replicateM bitWidth Q.new
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Entry a -> PriorityQueue a -> IO ()
+enqueue :: Entry a -> PriorityQueue a -> IO (Node (Entry a))
 enqueue ent PriorityQueue{..} = do
     let (!idx,!deficit') = calcIdxAndDeficit
     !offidx <- getOffIdx idx
-    push offidx ent { deficit = deficit' }
+    node <- push offidx ent { deficit = deficit' }
     updateBits idx
+    return node
   where
     calcIdxAndDeficit = total `divMod` deficitSteps
       where
@@ -139,3 +142,7 @@ dequeue PriorityQueue{..} = do
         shiftClear bits
           | isEmpty   = clearBit (shiftR bits idx) 0
           | otherwise = shiftR bits idx
+
+-- bits is not updated because it's difficult.
+delete :: Node (Entry a) -> IO ()
+delete node = Q.delete node

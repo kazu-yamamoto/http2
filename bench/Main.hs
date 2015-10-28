@@ -46,7 +46,7 @@ main = do
             , bench "Priority Search Queue" $ whnf deleteP xs
 --            , bench "Binary Heap STM"       $ nfIO (deleteB ws)
 --            , bench "Binary Heap IO"        $ nfIO (deleteBIO ws)
---            , bench "Array of Queue IO"     $ nfIO (deleteAIO ws)
+            , bench "Array of Queue IO"     $ nfIO (deleteAIO ws)
             ]
       ]
 
@@ -191,20 +191,27 @@ createA (w:ws) !q = do
 enqdeqAIO :: [Weight] -> IO ()
 enqdeqAIO xs = do
     q <- AIO.new
-    createAIO xs q
+    _ <- createAIO xs q
     loop q numOfTrials
   where
     loop _ 0  = return ()
     loop q !n = do
         ent <- AIO.dequeue q
-        AIO.enqueue ent q
+        _ <- AIO.enqueue ent q
         loop q (n - 1)
 
-createAIO :: [Weight] -> AIO.PriorityQueue Int -> IO ()
-createAIO [] _      = return ()
+deleteAIO :: [Weight] -> IO ()
+deleteAIO xs = do
+    q <- AIO.new
+    ns <- createAIO xs q
+    mapM_ AIO.delete ns
+
+createAIO :: [Weight] -> AIO.PriorityQueue Int -> IO [AIO.Node (AIO.Entry Weight)]
+createAIO [] _      = return []
 createAIO (x:xs) !q = do
     let !ent = AIO.newEntry x x
-    AIO.enqueue ent q
-    createAIO xs q
+    n <- AIO.enqueue ent q
+    ns <- createAIO xs q
+    return $ n : ns
 
 ----------------------------------------------------------------
