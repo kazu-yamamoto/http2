@@ -6,6 +6,9 @@
 -- Haskell implementation of H2O's priority queue.
 -- https://github.com/h2o/h2o/blob/master/lib/http2/scheduler.c
 
+-- delete is not supported because TQueue does not support deletion.
+-- So, key is not passed to enqueue.
+
 module ArrayOfQueue (
     Entry
   , newEntry
@@ -15,7 +18,6 @@ module ArrayOfQueue (
   , new
   , enqueue
   , dequeue
-  , delete
   ) where
 
 import Control.Concurrent.STM
@@ -27,7 +29,6 @@ import Foreign.C.Types (CLLong(..))
 
 ----------------------------------------------------------------
 
-type Key = Int
 type Weight = Int
 
 -- | Abstract data type of entries for priority queues.
@@ -49,7 +50,7 @@ renewEntry ent x = ent { item = x }
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: TVar Word64
   , offsetRef :: TVar Int
-  , anchors   :: Array Int (TQueue (Key,Entry a))
+  , anchors   :: Array Int (TQueue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -104,8 +105,8 @@ new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newAnchors
     newAnchors = listArray (0, bitWidth - 1) <$> replicateM bitWidth newTQueue
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Key -> Entry a -> PriorityQueue a -> STM ()
-enqueue k ent PriorityQueue{..} = do
+enqueue :: Entry a -> PriorityQueue a -> STM ()
+enqueue ent PriorityQueue{..} = do
     let (!idx,!deficit') = calcIdxAndDeficit
     !offidx <- getOffIdx idx
     push offidx ent { deficit = deficit' }
@@ -115,18 +116,18 @@ enqueue k ent PriorityQueue{..} = do
       where
         total = deficitTable ! weight ent + deficit ent
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
-    push offidx ent' = writeTQueue (anchors ! offidx) (k,ent')
+    push offidx ent' = writeTQueue (anchors ! offidx) ent'
     updateBits idx = modifyTVar' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> STM (Key,Entry a)
+dequeue :: PriorityQueue a -> STM (Entry a)
 dequeue PriorityQueue{..} = do
     !idx <- getIdx
     !offidx <- getOffIdx idx
-    kent <- pop offidx
+    ent <- pop offidx
     updateOffset offidx
     checkEmpty offidx >>= updateBits idx
-    return kent
+    return ent
   where
     getIdx = firstBitSet <$> readTVar bitsRef
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
