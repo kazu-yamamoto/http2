@@ -14,7 +14,7 @@ module ArrayOfQueueIO (
   , delete
   ) where
 
-import Control.Monad (replicateM, when)
+import Control.Monad (replicateM)
 import Data.Array (Array, listArray, (!))
 import Data.Bits (setBit, clearBit, shiftR)
 import qualified Data.HashTable.IO as H
@@ -39,9 +39,9 @@ type HashTable k v = H.BasicHashTable k v
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: IORef Word64
   , offsetRef :: IORef Index
-  , queues    :: Array Index (Queue (Key, Weight, a, Index))
+  , queues    :: Array Index (Queue (Key, Weight, a))
   , deficits  :: HashTable Key Deficit
-  , nodes     :: HashTable Key (Node (Key, Weight, a, Index))
+  , nodes     :: HashTable Key (Node (Key, Weight, a))
   }
 
 ----------------------------------------------------------------
@@ -83,6 +83,8 @@ foreign import ccall unsafe "strings.h ffsll"
 -- 1
 -- >>> firstBitSet $ setBit 0 0
 -- 0
+-- >>> firstBitSet 0
+-- -1
 firstBitSet :: Word64 -> Index
 firstBitSet x = ffs x - 1
   where
@@ -106,7 +108,7 @@ enqueue k w x PriorityQueue{..} = do
             return d
     let (!idx,!deficit') = calcIdxAndDeficit deficit
     !offidx <- getOffIdx idx
-    node <- push offidx (k,w,x,offidx)
+    node <- push offidx (k,w,x)
     H.insert nodes k node
     H.insert deficits k deficit'
     updateBits idx
@@ -119,15 +121,22 @@ enqueue k w x PriorityQueue{..} = do
     updateBits idx = modifyIORef' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Key, Weight, a)
-dequeue PriorityQueue{..} = do
+dequeue :: PriorityQueue a -> IO (Maybe (Key, Weight, a))
+dequeue pq@PriorityQueue{..} = do
     !idx <- getIdx
-    !offidx <- getOffIdx idx
-    (k,w,x,_) <- pop offidx
-    updateOffset offidx
-    checkEmpty offidx >>= updateBits idx
-    H.delete nodes k
-    return $! (k,w,x)
+    if idx == -1 then
+        return Nothing
+      else do
+        !offidx <- getOffIdx idx
+        updateOffset offidx
+        queueIsEmpty <- checkEmpty offidx
+        updateBits idx queueIsEmpty
+        if queueIsEmpty then
+            dequeue pq
+          else do
+            ent@(k,_,_) <- pop offidx
+            H.delete nodes k
+            return $ Just ent
   where
     getIdx = firstBitSet <$> readIORef bitsRef
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
@@ -140,6 +149,8 @@ dequeue PriorityQueue{..} = do
           | isEmpty   = clearBit (shiftR bits idx) 0
           | otherwise = shiftR bits idx
 
+-- It's hard to update bitsRef.
+-- So, dequeue checks bitsRef carefully.
 delete :: Key -> PriorityQueue a -> IO (Maybe a)
 delete k PriorityQueue{..} = do
     mnode <- H.lookup nodes k
@@ -148,7 +159,5 @@ delete k PriorityQueue{..} = do
         Nothing   -> return Nothing
         Just node -> do
             Q.delete node
-            let (_,_,x,idx) = Q.item node
-            needClear <- Q.isEmpty (queues ! idx)
-            when needClear $ modifyIORef' bitsRef $ flip clearBit idx
-            return $! Just x
+            let (_,_,x) = Q.item node
+            return $ Just x

@@ -200,7 +200,7 @@ enqdeqAIO xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        (k,w,x) <- AIO.dequeue q
+        Just (k,w,x) <- AIO.dequeue q
         AIO.enqueue k w x q
         loop q (n - 1)
 
