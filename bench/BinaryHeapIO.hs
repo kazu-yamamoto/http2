@@ -19,13 +19,10 @@ import Control.Monad (when, void)
 import Data.Array (Array, listArray, (!))
 import Data.Array.IO (IOArray)
 import Data.Array.MArray (newArray_, readArray, writeArray)
-import qualified Data.HashTable.IO as H
 import Data.IORef
 import Data.Word (Word64)
 
 ----------------------------------------------------------------
-
-type HashTable k v = H.BasicHashTable k v
 
 type Key = Int
 type Weight = Int
@@ -62,7 +59,6 @@ type MA a = IOArray Index (Entry a, Key)
 data PriorityQueue a = PriorityQueue (IORef Deficit)
                                      (IORef Index)
                                      (MA a)
-                                     (HashTable Key Index)
 
 ----------------------------------------------------------------
 
@@ -90,88 +86,94 @@ new :: Int -> IO (PriorityQueue a)
 new n = PriorityQueue <$> newIORef 0
                       <*> newIORef 1
                       <*> newArray_ (1,n)
-                      <*> H.new
 
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Key -> Entry a -> PriorityQueue a -> IO ()
-enqueue k Entry{..} (PriorityQueue bref idx arr hash) = do
+enqueue k Entry{..} (PriorityQueue bref idx arr) = do
     i <- readIORef idx
     base <- readIORef bref
     let !b = if deficit == magicDeficit then base else deficit
         !deficit' = b + weightToDeficit weight
         !ent' = Entry item weight deficit'
     writeArray arr i (ent',k)
-    H.insert hash k i
-    shiftUp arr i hash
+    shiftUp arr i
     let !i' = i + 1
     writeIORef idx i'
     return ()
 
 -- | Dequeuing an entry. PriorityQueue is updated.
 dequeue :: PriorityQueue a -> IO (Key, Entry a)
-dequeue (PriorityQueue bref idx arr hash) = do
-    x@(_,ent) <- shrink arr 1 idx hash
+dequeue (PriorityQueue bref idx arr) = do
+    x@(_,ent) <- shrink arr 1 idx
     i <- readIORef idx
-    shiftDown arr 1 i hash
+    shiftDown arr 1 i
     writeIORef bref $ if i == 1 then 0 else deficit ent
     return x
 
-shrink :: MA a -> Index -> IORef Index -> HashTable Key Index -> IO (Key,Entry a)
-shrink arr r idx hash = do
+shrink :: MA a -> Index -> IORef Index -> IO (Key,Entry a)
+shrink arr r idx = do
     (entr,kr) <- readArray arr r
     -- fixme: checking if i == 0
     i <- subtract 1 <$> readIORef idx
-    xi@(_,ki) <- readArray arr i
+    xi <- readArray arr i
     writeArray arr r xi
-    H.insert hash ki r
-    H.delete hash kr
     writeIORef idx i
     return (kr,entr)
 
-shiftUp :: MA a -> Int -> HashTable Key Index -> IO ()
-shiftUp _   1 _    = return ()
-shiftUp arr c hash = do
-    swapped <- swap arr p c hash
-    when swapped $ shiftUp arr p hash
+shiftUp :: MA a -> Int -> IO ()
+shiftUp _   1 = return ()
+shiftUp arr c = do
+    swapped <- swap arr p c
+    when swapped $ shiftUp arr p
   where
     p = c `div` 2
 
-shiftDown :: MA a -> Int -> Int -> HashTable Key Index -> IO ()
-shiftDown arr p n hash
+shiftDown :: MA a -> Int -> Int -> IO ()
+shiftDown arr p n
   | c1 > n    = return ()
-  | c1 == n   = void $ swap arr p c1 hash
+  | c1 == n   = void $ swap arr p c1
   | otherwise = do
       let !c2 = c1 + 1
       xc1 <- readArray arr c1
       xc2 <- readArray arr c2
       let !c = if xc1 < xc2 then c1 else c2
-      swapped <- swap arr p c hash
-      when swapped $ shiftDown arr c n hash
+      swapped <- swap arr p c
+      when swapped $ shiftDown arr c n
   where
     c1 = 2 * p
 
 {-# INLINE swap #-}
-swap :: MA a -> Int -> Int -> HashTable Key Index -> IO Bool
-swap arr p c hash = do
-    xp@(_,kp) <- readArray arr p
-    xc@(_,kc) <- readArray arr c
+swap :: MA a -> Int -> Int -> IO Bool
+swap arr p c = do
+    xp <- readArray arr p
+    xc <- readArray arr c
     if xc < xp then do
         writeArray arr c xp
         writeArray arr p xc
-        H.insert hash kp c
-        H.insert hash kc p
         return True
       else
         return False
 
 delete :: Key -> PriorityQueue a -> IO ()
-delete k pq@(PriorityQueue _ idx arr hash) = do
-    Just r <- H.lookup hash k
+delete k pq@(PriorityQueue _ idx arr) = do
+    i <- readIORef idx
+    r <- find k arr i
     if r == 1 then
         void $ dequeue pq
       else do
-        _ <- shrink arr r idx hash
-        i <- readIORef idx
-        shiftDown arr r i hash
-        shiftUp arr r hash
+        _ <- shrink arr r idx
+        shiftDown arr r (i - 1)
+        shiftUp arr r
         return ()
+
+find :: Key -> MA a -> Index -> IO Index
+find k arr lim = go 1
+  where
+    go !n
+      | n == lim  = error "find"
+      | otherwise = do
+            (_,kn) <- readArray arr n
+            if kn == k then
+                return n
+              else
+                go (n + 1)
