@@ -83,16 +83,19 @@ enqueue k w x (PriorityQueue bref idx arr dmapref) = do
     i <- readIORef idx
     base <- readIORef bref
     dmap <- readIORef dmapref
-    let !b = case I.lookup k dmap of
-            Nothing      -> base
-            Just deficit -> deficit
-        !deficit' = b + weightToDeficit w
+    let !d = weightToDeficit w
+        !forNew = base + d
+        f _ _ old = old + d
+        (!mold, !dmap') = I.insertLookupWithKey f k forNew dmap
+        !deficit' = case mold of
+            Nothing  -> forNew
+            Just old -> old + d
         !ent = Entry deficit' k w x
     writeArray arr i ent
     shiftUp arr i
     let !i' = i + 1
     writeIORef idx i'
-    return ()
+    writeIORef dmapref dmap'
 
 -- | Dequeuing an entry. PriorityQueue is updated.
 dequeue :: PriorityQueue a -> IO (Maybe (Key, Weight, a))
