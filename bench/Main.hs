@@ -35,18 +35,18 @@ main = do
               bench "Random Skew Heap"      $ whnf enqdeqR xs
             , bench "Okasaki Heap"          $ whnf enqdeqO xs
             , bench "Priority Search Queue" $ whnf enqdeqP xs
-            , bench "Binary Heap STM"       $ nfIO (enqdeqB ws)
-            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO ws)
-            , bench "Array of Queue STM"    $ nfIO (enqdeqA ws)
-            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO ws)
+            , bench "Binary Heap STM"       $ nfIO (enqdeqB xs)
+            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO xs)
+            , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
+            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO xs)
             ]
       , bgroup "delete" [
               bench "Random Skew Heap"      $ whnf deleteR xs
             , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
---            , bench "Binary Heap STM"       $ nfIO (deleteB ws)
---            , bench "Binary Heap IO"        $ nfIO (deleteBIO ws)
-            , bench "Array of Queue IO"     $ nfIO (deleteAIO ws)
+--            , bench "Binary Heap STM"       $ nfIO (deleteB xs)
+--            , bench "Binary Heap IO"        $ nfIO (deleteBIO xs)
+            , bench "Array of Queue IO"     $ nfIO (deleteAIO xs)
             ]
       ]
 
@@ -125,7 +125,7 @@ createP ((k,w):xs) !q = createP xs q'
 
 ----------------------------------------------------------------
 
-enqdeqB :: [Weight] -> IO ()
+enqdeqB :: [(Key,Weight)] -> IO ()
 enqdeqB xs = do
     q <- atomically (B.new numOfStreams)
     createB xs q
@@ -137,16 +137,16 @@ enqdeqB xs = do
         atomically $ B.enqueue ent q
         loop q (n - 1)
 
-createB :: [Weight] -> B.PriorityQueue Int -> IO ()
-createB [] _      = return ()
-createB (x:xs) !q = do
-    let !ent = B.newEntry x x
+createB :: [(Key,Weight)] -> B.PriorityQueue Int -> IO ()
+createB []          _ = return ()
+createB ((k,w):xs) !q = do
+    let !ent = B.newEntry k w
     atomically $ B.enqueue ent q
     createB xs q
 
 ----------------------------------------------------------------
 
-enqdeqBIO :: [Weight] -> IO ()
+enqdeqBIO :: [(Key,Weight)] -> IO ()
 enqdeqBIO xs = do
     q <- BIO.new numOfStreams
     createBIO xs q
@@ -158,16 +158,16 @@ enqdeqBIO xs = do
         BIO.enqueue ent q
         loop q (n - 1)
 
-createBIO :: [Weight] -> BIO.PriorityQueue Int -> IO ()
-createBIO [] _      = return ()
-createBIO (x:xs) !q = do
-    let !ent = BIO.newEntry x x
+createBIO :: [(Key,Weight)] -> BIO.PriorityQueue Int -> IO ()
+createBIO []          _ = return ()
+createBIO ((k,w):xs) !q = do
+    let !ent = BIO.newEntry k w
     BIO.enqueue ent q
     createBIO xs q
 
 ----------------------------------------------------------------
 
-enqdeqA :: [Weight] -> IO ()
+enqdeqA :: [(Key,Weight)] -> IO ()
 enqdeqA ws = do
     q <- atomically A.new
     createA ws q
@@ -179,16 +179,16 @@ enqdeqA ws = do
         atomically $ A.enqueue ent q
         loop q (n - 1)
 
-createA :: [Weight] -> A.PriorityQueue Int -> IO ()
-createA [] _      = return ()
-createA (w:ws) !q = do
-    let !ent = A.newEntry w w
+createA :: [(Key,Weight)] -> A.PriorityQueue Int -> IO ()
+createA [] _          = return ()
+createA ((k,w):xs) !q = do
+    let !ent = A.newEntry k w
     atomically $ A.enqueue ent q
-    createA ws q
+    createA xs q
 
 ----------------------------------------------------------------
 
-enqdeqAIO :: [Weight] -> IO ()
+enqdeqAIO :: [(Key,Weight)] -> IO ()
 enqdeqAIO xs = do
     q <- AIO.new
     _ <- createAIO xs q
@@ -200,16 +200,16 @@ enqdeqAIO xs = do
         _ <- AIO.enqueue ent q
         loop q (n - 1)
 
-deleteAIO :: [Weight] -> IO ()
+deleteAIO :: [(Key,Weight)] -> IO ()
 deleteAIO xs = do
     q <- AIO.new
     ns <- createAIO xs q
     mapM_ AIO.delete ns
 
-createAIO :: [Weight] -> AIO.PriorityQueue Int -> IO [AIO.Node (AIO.Entry Weight)]
-createAIO [] _      = return []
-createAIO (x:xs) !q = do
-    let !ent = AIO.newEntry x x
+createAIO :: [(Key,Weight)] -> AIO.PriorityQueue Int -> IO [AIO.Node (AIO.Entry Weight)]
+createAIO []          _ = return []
+createAIO ((k,w):xs) !q = do
+    let !ent = AIO.newEntry k w
     n <- AIO.enqueue ent q
     ns <- createAIO xs q
     return $ n : ns
