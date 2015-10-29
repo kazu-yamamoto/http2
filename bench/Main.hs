@@ -45,7 +45,7 @@ main = do
             , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
 --            , bench "Binary Heap STM"       $ nfIO (deleteB xs)
---            , bench "Binary Heap IO"        $ nfIO (deleteBIO xs)
+            , bench "Binary Heap IO"        $ nfIO (deleteBIO xs)
             , bench "Array of Queue IO"     $ nfIO (deleteAIO xs)
             ]
       ]
@@ -154,15 +154,23 @@ enqdeqBIO xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        ent <- BIO.dequeue q
-        BIO.enqueue ent q
+        (k,ent) <- BIO.dequeue q
+        BIO.enqueue k ent q
         loop q (n - 1)
+
+deleteBIO :: [(Key,Weight)] -> IO ()
+deleteBIO xs = do
+    q <- BIO.new numOfStreams
+    createBIO xs q
+    mapM_ (\k -> BIO.delete k q) ks
+  where
+    (ks,_) = unzip xs
 
 createBIO :: [(Key,Weight)] -> BIO.PriorityQueue Int -> IO ()
 createBIO []          _ = return ()
 createBIO ((k,w):xs) !q = do
     let !ent = BIO.newEntry k w
-    BIO.enqueue ent q
+    BIO.enqueue k ent q
     createBIO xs q
 
 ----------------------------------------------------------------

@@ -12,6 +12,7 @@ module BinaryHeapIO (
   , new
   , enqueue
   , dequeue
+  , delete
   ) where
 
 import Control.Monad (when, void)
@@ -19,10 +20,13 @@ import Data.Array (Array, listArray, (!))
 import Data.Array.IO (IOArray)
 import Data.Array.MArray (newArray_, readArray, writeArray)
 import Data.IORef
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as I
 import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
+type Key = Int
 type Weight = Int
 type Deficit = Word64
 
@@ -50,13 +54,14 @@ renewEntry ent x = ent { item = x }
 ----------------------------------------------------------------
 
 type Index = Int
-type MA a = IOArray Index (Entry a)
+type MA a = IOArray Index (Entry a, Key)
 
 -- FIXME: The base (Word64) would be overflowed.
 --        In that case, the heap must be re-constructed.
 data PriorityQueue a = PriorityQueue (IORef Deficit)
                                      (IORef Index)
                                      (MA a)
+                                     (IORef (IntMap Index))
 
 ----------------------------------------------------------------
 
@@ -81,65 +86,91 @@ weightToDeficit w = deficitTable ! w
 ----------------------------------------------------------------
 
 new :: Int -> IO (PriorityQueue a)
-new n = PriorityQueue <$> newIORef 0 <*> newIORef 1 <*> newArray_ (1,n)
+new n = PriorityQueue <$> newIORef 0
+                      <*> newIORef 1
+                      <*> newArray_ (1,n)
+                      <*> newIORef I.empty
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Entry a -> PriorityQueue a -> IO ()
-enqueue Entry{..} (PriorityQueue bvar idx arr) = do
+enqueue :: Key -> Entry a -> PriorityQueue a -> IO ()
+enqueue k Entry{..} (PriorityQueue bref idx arr iref) = do
     i <- readIORef idx
-    base <- readIORef bvar
+    base <- readIORef bref
     let !b = if deficit == magicDeficit then base else deficit
         !deficit' = b + weightToDeficit weight
         !ent' = Entry item weight deficit'
-    writeArray arr i ent'
-    shiftUp arr i
+    writeArray arr i (ent',k)
+    modifyIORef' iref (I.insert k i)
+    shiftUp arr i iref
     let !i' = i + 1
     writeIORef idx i'
     return ()
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Entry a)
-dequeue (PriorityQueue bvar idx arr) = do
-    ent <- readArray arr 1
+dequeue :: PriorityQueue a -> IO (Key, Entry a)
+dequeue (PriorityQueue bref idx arr iref) = do
+    x@(_,ent) <- shrink arr 1 idx iref
     i <- readIORef idx
-    -- fixme: checking if i == 0
-    let i' = i - 1
-    readArray arr i' >>= writeArray arr 1
-    shiftDown arr 1 i'
-    writeIORef idx i'
-    writeIORef bvar $ if i' == 1 then 0 else deficit ent
-    return ent
+    shiftDown arr 1 i iref
+    writeIORef bref $ if i == 1 then 0 else deficit ent
+    return x
 
-shiftUp :: MA a -> Int -> IO ()
-shiftUp _   1 = return ()
-shiftUp arr c = do
-    swapped <- swap arr p c
-    when swapped $ shiftUp arr p
+shrink :: MA a -> Index -> IORef Index -> IORef (IntMap Index) -> IO (Key,Entry a)
+shrink arr r idx iref = do
+    (entr,kr) <- readArray arr r
+    -- fixme: checking if i == 0
+    i <- subtract 1 <$> readIORef idx
+    xi@(_,ki) <- readArray arr i
+    writeArray arr r xi
+    modifyIORef' iref (I.insert ki r)
+    modifyIORef' iref (I.delete kr)
+    writeIORef idx i
+    return (kr,entr)
+
+shiftUp :: MA a -> Int -> IORef (IntMap Index) -> IO ()
+shiftUp _   1 _    = return ()
+shiftUp arr c iref = do
+    swapped <- swap arr p c iref
+    when swapped $ shiftUp arr p iref
   where
     p = c `div` 2
 
-shiftDown :: MA a -> Int -> Int -> IO ()
-shiftDown arr p n
+shiftDown :: MA a -> Int -> Int -> IORef (IntMap Index) -> IO ()
+shiftDown arr p n iref
   | c1 > n    = return ()
-  | c1 == n   = void $ swap arr p c1
+  | c1 == n   = void $ swap arr p c1 iref
   | otherwise = do
       let !c2 = c1 + 1
       xc1 <- readArray arr c1
       xc2 <- readArray arr c2
       let !c = if xc1 < xc2 then c1 else c2
-      swapped <- swap arr p c
-      when swapped $ shiftDown arr c n
+      swapped <- swap arr p c iref
+      when swapped $ shiftDown arr c n iref
   where
     c1 = 2 * p
 
 {-# INLINE swap #-}
-swap :: MA a -> Int -> Int -> IO Bool
-swap arr p c = do
-    xp <- readArray arr p
-    xc <- readArray arr c
+swap :: MA a -> Int -> Int -> IORef (IntMap Index) -> IO Bool
+swap arr p c iref = do
+    xp@(_,kp) <- readArray arr p
+    xc@(_,kc) <- readArray arr c
     if xc < xp then do
         writeArray arr c xp
         writeArray arr p xc
+        modifyIORef' iref (I.insert kp c)
+        modifyIORef' iref (I.insert kc p)
         return True
       else
         return False
+
+delete :: Key -> PriorityQueue a -> IO ()
+delete k pq@(PriorityQueue _ idx arr iref) = do
+    Just r <- I.lookup k <$> readIORef iref
+    if r == 1 then
+        void $ dequeue pq
+      else do
+        _ <- shrink arr r idx iref
+        i <- readIORef idx
+        shiftDown arr r i iref
+        shiftUp arr r iref
+        return ()
