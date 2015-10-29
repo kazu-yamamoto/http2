@@ -35,7 +35,7 @@ main = do
               bench "Random Skew Heap"      $ whnf enqdeqR xs
             , bench "Okasaki Heap"          $ whnf enqdeqO xs
             , bench "Priority Search Queue" $ whnf enqdeqP xs
-            , bench "Binary Heap STM"       $ nfIO (enqdeqB ws)
+            , bench "Binary Heap STM"       $ nfIO (enqdeqB xs)
             , bench "Binary Heap IO"        $ nfIO (enqdeqBIO xs)
             , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
             , bench "Array of Queue IO"     $ nfIO (enqdeqAIO xs)
@@ -44,6 +44,7 @@ main = do
               bench "Random Skew Heap"      $ whnf deleteR xs
             , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
+            , bench "Binary Heap STM"       $ nfIO (deleteB xs)
             , bench "Binary Heap IO"        $ nfIO (deleteBIO xs)
             , bench "Array of Queue IO"     $ nfIO (deleteAIO xs)
             ]
@@ -119,7 +120,7 @@ createP ((k,w):xs) !q = createP xs (P.enqueue k w k q)
 
 ----------------------------------------------------------------
 
-enqdeqB :: [Weight] -> IO ()
+enqdeqB :: [(Key,Weight)] -> IO ()
 enqdeqB xs = do
     q <- atomically (B.new numOfStreams)
     createB xs q
@@ -127,15 +128,22 @@ enqdeqB xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        ent <- atomically $ B.dequeue q
-        atomically $ B.enqueue ent q
+        Just (k,w,x) <- atomically $ B.dequeue q
+        atomically $ B.enqueue k w x q
         loop q (n - 1)
 
-createB :: [Weight] -> B.PriorityQueue Int -> IO ()
+deleteB :: [(Key,Weight)] -> IO ()
+deleteB xs = do
+    q <- atomically $ B.new numOfStreams
+    createB xs q
+    mapM_ (\k -> atomically $ B.delete k q) keys
+  where
+    (keys,_) = unzip xs
+
+createB :: [(Key,Weight)] -> B.PriorityQueue Int -> IO ()
 createB [] _      = return ()
-createB (x:xs) !q = do
-    let !ent = B.newEntry x x
-    atomically $ B.enqueue ent q
+createB ((k,w):xs) !q = do
+    atomically $ B.enqueue k w k q
     createB xs q
 
 ----------------------------------------------------------------

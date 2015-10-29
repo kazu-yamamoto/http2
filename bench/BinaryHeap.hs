@@ -4,63 +4,54 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module BinaryHeap (
-    Entry
-  , newEntry
-  , renewEntry
-  , item
-  , PriorityQueue(..)
+    PriorityQueue(..)
   , new
   , enqueue
   , dequeue
+  , delete
   ) where
 
 import Control.Concurrent.STM
 import Control.Monad (when, void)
 import Data.Array (Array, listArray, (!))
 import Data.Array.MArray (newArray_, readArray, writeArray)
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as I
 import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
+type Key = Int
 type Weight = Int
 type Deficit = Word64
-
--- | Abstract data type of entries for priority queues.
-data Entry a = Entry {
-    item :: a -- ^ Extracting an item from an entry.
-  , weight  :: {-# UNPACK #-} !Weight
-  , deficit :: {-# UNPACK #-} !Deficit
-  } deriving Show
-
-instance Eq (Entry a) where
-    Entry _ _ p1 == Entry _ _ p2 = p1 == p2
-
-instance Ord (Entry a) where
-    Entry _ _ p1 <  Entry _ _ p2 = p1 <  p2
-    Entry _ _ p1 <= Entry _ _ p2 = p1 <= p2
-
-newEntry :: a -> Weight -> Entry a
-newEntry x w = Entry x w 0
-
--- | Changing the item of an entry.
-renewEntry :: Entry a -> b -> Entry b
-renewEntry ent x = ent { item = x }
+type Index = Int
 
 ----------------------------------------------------------------
 
-type Index = Int
-type TA a = TArray Index (Entry a)
+data Entry a = Entry {-# UNPACK #-} !Deficit
+                     {-# UNPACK #-} !Key
+                     {-# UNPACK #-} !Weight
+                     a
+
+instance Eq (Entry a) where
+    Entry d1 _ _ _ == Entry d2 _ _ _ = d1 == d2
+
+instance Ord (Entry a) where
+    Entry d1 _ _ _ <  Entry d2 _ _ _ = d1 <  d2
+    Entry d1 _ _ _ <= Entry d2 _ _ _ = d1 <= d2
+
+----------------------------------------------------------------
+
+type MA a = TArray Index (Entry a)
 
 -- FIXME: The base (Word64) would be overflowed.
 --        In that case, the heap must be re-constructed.
 data PriorityQueue a = PriorityQueue (TVar Deficit)
                                      (TVar Index)
-                                     (TA a)
+                                     (MA a)
+                                     (TVar (IntMap Deficit))
 
 ----------------------------------------------------------------
-
-magicDeficit :: Deficit
-magicDeficit = 0
 
 deficitSteps :: Int
 deficitSteps = 65536
@@ -80,36 +71,59 @@ weightToDeficit w = deficitTable ! w
 ----------------------------------------------------------------
 
 new :: Int -> STM (PriorityQueue a)
-new n = PriorityQueue <$> newTVar 0 <*> newTVar 1 <*> newArray_ (1,n)
+new n = PriorityQueue <$> newTVar 0
+                      <*> newTVar 1
+                      <*> newArray_ (1,n)
+                      <*> newTVar I.empty
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Entry a -> PriorityQueue a -> STM ()
-enqueue Entry{..} (PriorityQueue bvar idx arr) = do
+enqueue :: Key -> Weight -> a -> PriorityQueue a -> STM ()
+enqueue k w x (PriorityQueue bref idx arr dmapref) = do
     i <- readTVar idx
-    base <- readTVar bvar
-    let !b = if deficit == magicDeficit then base else deficit
-        !deficit' = b + weightToDeficit weight
-        !ent' = Entry item weight deficit'
-    writeArray arr i ent'
+    base <- readTVar bref
+    dmap <- readTVar dmapref
+    let !d = weightToDeficit w
+        !forNew = base + d
+        f _ _ old = old + d
+        (!mold, !dmap') = I.insertLookupWithKey f k forNew dmap
+        !deficit' = case mold of
+            Nothing  -> forNew
+            Just old -> old + d
+        !ent = Entry deficit' k w x
+    writeArray arr i ent
     shiftUp arr i
     let !i' = i + 1
     writeTVar idx i'
-    return ()
+    writeTVar dmapref dmap'
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> STM (Entry a)
-dequeue (PriorityQueue bvar idx arr) = do
-    ent <- readArray arr 1
+dequeue :: PriorityQueue a -> STM (Maybe (Key, Weight, a))
+dequeue (PriorityQueue bref idx arr dmapref) = do
     i <- readTVar idx
-    -- fixme: checking if i == 0
-    let i' = i - 1
-    readArray arr i' >>= writeArray arr 1
-    shiftDown arr 1 i'
-    writeTVar idx i'
-    writeTVar bvar $ if i' == 1 then 0 else deficit ent
-    return ent
+    if i == 1 then
+        return Nothing
+      else do
+        Entry d k w x <- shrink arr 1 idx
+        j <- readTVar idx
+        shiftDown arr 1 j
+        if j == 1 then do
+            writeTVar bref 0
+            writeTVar dmapref I.empty
+          else
+            writeTVar bref d
+        return $ Just (k, w, x)
 
-shiftUp :: TA a -> Int -> STM ()
+shrink :: MA a -> Index -> TVar Index -> STM (Entry a)
+shrink arr r idx = do
+    entr <- readArray arr r
+    -- fixme: checking if i == 0
+    i <- subtract 1 <$> readTVar idx
+    xi <- readArray arr i
+    writeArray arr r xi
+    writeTVar idx i
+    return entr
+
+shiftUp :: MA a -> Int -> STM ()
 shiftUp _   1 = return ()
 shiftUp arr c = do
     swapped <- swap arr p c
@@ -117,7 +131,7 @@ shiftUp arr c = do
   where
     p = c `div` 2
 
-shiftDown :: TA a -> Int -> Int -> STM ()
+shiftDown :: MA a -> Int -> Int -> STM ()
 shiftDown arr p n
   | c1 > n    = return ()
   | c1 == n   = void $ swap arr p c1
@@ -132,7 +146,7 @@ shiftDown arr p n
     c1 = 2 * p
 
 {-# INLINE swap #-}
-swap :: TA a -> Int -> Int -> STM Bool
+swap :: MA a -> Int -> Int -> STM Bool
 swap arr p c = do
     xp <- readArray arr p
     xc <- readArray arr c
@@ -142,3 +156,31 @@ swap arr p c = do
         return True
       else
         return False
+
+delete :: Key -> PriorityQueue a -> STM (Maybe a)
+delete k pq@(PriorityQueue _ idx arr dmapref) = do
+    i <- readTVar idx
+    if i == 1 then
+        return Nothing
+      else do
+        modifyTVar' dmapref (I.delete k)
+        r <- find k arr i
+        if r == 1 then
+            fmap (\(_,_,x) -> x) <$> dequeue pq
+          else do
+            Entry _ _ _ x <- shrink arr r idx
+            shiftDown arr r (i - 1)
+            shiftUp arr r
+            return $ Just x
+
+find :: Key -> MA a -> Index -> STM Index
+find k arr lim = go 1
+  where
+    go !n
+      | n == lim  = error "find"
+      | otherwise = do
+            Entry _ kn _ _ <- readArray arr n
+            if kn == k then
+                return n
+              else
+                go (n + 1)
