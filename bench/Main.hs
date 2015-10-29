@@ -148,7 +148,7 @@ enqdeqBIO xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        (k,w,x) <- BIO.dequeue q
+        Just (k,w,x) <- BIO.dequeue q
         BIO.enqueue k w x q
         loop q (n - 1)
 
