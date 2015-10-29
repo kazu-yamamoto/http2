@@ -249,6 +249,7 @@ Benchmark criterion
                       , array
                       , containers
                       , criterion
+                      , hashtables
                       , heaps
                       , mwc-random
                       , random
