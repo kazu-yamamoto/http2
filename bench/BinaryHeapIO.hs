@@ -95,17 +95,21 @@ enqueue k w x (PriorityQueue bref idx arr dmapref) = do
     return ()
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Key, Weight, a)
+dequeue :: PriorityQueue a -> IO (Maybe (Key, Weight, a))
 dequeue (PriorityQueue bref idx arr dmapref) = do
-    Entry d k w x <- shrink arr 1 idx
     i <- readIORef idx
-    shiftDown arr 1 i
-    if i == 1 then do
-        writeIORef bref 0
-        writeIORef dmapref I.empty
-      else
-        writeIORef bref d
-    return (k, w, x)
+    if i == 1 then
+        return Nothing
+      else do
+        Entry d k w x <- shrink arr 1 idx
+        j <- readIORef idx
+        shiftDown arr 1 j
+        if j == 1 then do
+            writeIORef bref 0
+            writeIORef dmapref I.empty
+          else
+            writeIORef bref d
+        return $ Just (k, w, x)
 
 shrink :: MA a -> Index -> IORef Index -> IO (Entry a)
 shrink arr r idx = do
@@ -151,17 +155,21 @@ swap arr p c = do
       else
         return False
 
-delete :: Key -> PriorityQueue a -> IO ()
+delete :: Key -> PriorityQueue a -> IO (Maybe a)
 delete k pq@(PriorityQueue _ idx arr dmapref) = do
     i <- readIORef idx
-    r <- find k arr i
-    if r == 1 then
-        void $ dequeue pq
+    if i == 1 then
+        return Nothing
       else do
-        _ <- shrink arr r idx
-        shiftDown arr r (i - 1)
-        shiftUp arr r
-    modifyIORef' dmapref (I.delete k)
+        modifyIORef' dmapref (I.delete k)
+        r <- find k arr i
+        if r == 1 then
+            fmap (\(_,_,x) -> x) <$> dequeue pq
+          else do
+            Entry _ _ _ x <- shrink arr r idx
+            shiftDown arr r (i - 1)
+            shiftUp arr r
+            return $ Just x
 
 find :: Key -> MA a -> Index -> IO Index
 find k arr lim = go 1
