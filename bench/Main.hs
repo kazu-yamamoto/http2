@@ -149,29 +149,28 @@ createB ((k,w):xs) !q = do
 enqdeqBIO :: [(Key,Weight)] -> IO ()
 enqdeqBIO xs = do
     q <- BIO.new numOfStreams
-    createBIO xs q
+    _ <- createBIO xs q
     loop q numOfTrials
   where
     loop _ 0  = return ()
     loop q !n = do
-        (k,ent) <- BIO.dequeue q
-        BIO.enqueue k ent q
+        ent <- BIO.dequeue q
+        BIO.enqueue ent q
         loop q (n - 1)
 
 deleteBIO :: [(Key,Weight)] -> IO ()
 deleteBIO xs = do
     q <- BIO.new numOfStreams
-    createBIO xs q
-    mapM_ (\k -> BIO.delete k q) ks
-  where
-    (ks,_) = unzip xs
+    ents <- createBIO xs q
+    mapM_ (\ent -> BIO.delete ent q) ents
 
-createBIO :: [(Key,Weight)] -> BIO.PriorityQueue Int -> IO ()
-createBIO []          _ = return ()
+createBIO :: [(Key,Weight)] -> BIO.PriorityQueue Int -> IO ([BIO.Entry Key])
+createBIO []          _ = return []
 createBIO ((k,w):xs) !q = do
-    let !ent = BIO.newEntry k w
-    BIO.enqueue k ent q
-    createBIO xs q
+    ent <- BIO.newEntry k w
+    BIO.enqueue ent q
+    ents <- createBIO xs q
+    return $ ent:ents
 
 ----------------------------------------------------------------
 

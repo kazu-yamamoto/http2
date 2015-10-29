@@ -24,35 +24,28 @@ import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
-type Key = Int
 type Weight = Int
 type Deficit = Word64
 
 -- | Abstract data type of entries for priority queues.
 data Entry a = Entry {
-    item :: a -- ^ Extracting an item from an entry.
-  , weight  :: {-# UNPACK #-} !Weight
-  , deficit :: {-# UNPACK #-} !Deficit
-  } deriving Show
+    weight  :: {-# UNPACK #-} !Weight
+  , item    :: {-# UNPACK #-} !(IORef a) -- ^ Extracting an item from an entry.
+  , deficit :: {-# UNPACK #-} !(IORef Deficit)
+  , index   :: {-# UNPACK #-} !(IORef Index)
+  }
 
-instance Eq (Entry a) where
-    Entry _ _ p1 == Entry _ _ p2 = p1 == p2
-
-instance Ord (Entry a) where
-    Entry _ _ p1 <  Entry _ _ p2 = p1 <  p2
-    Entry _ _ p1 <= Entry _ _ p2 = p1 <= p2
-
-newEntry :: a -> Weight -> Entry a
-newEntry x w = Entry x w 0
+newEntry :: a -> Weight -> IO (Entry a)
+newEntry x w = Entry w <$> newIORef x <*> newIORef magicDeficit <*> newIORef (-1)
 
 -- | Changing the item of an entry.
-renewEntry :: Entry a -> b -> Entry b
-renewEntry ent x = ent { item = x }
+renewEntry :: Entry a -> a -> IO ()
+renewEntry Entry{..} x = writeIORef item x
 
 ----------------------------------------------------------------
 
 type Index = Int
-type MA a = IOArray Index (Entry a, Key)
+type MA a = IOArray Index (Entry a)
 
 -- FIXME: The base (Word64) would be overflowed.
 --        In that case, the heap must be re-constructed.
@@ -88,37 +81,39 @@ new n = PriorityQueue <$> newIORef 0
                       <*> newArray_ (1,n)
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Key -> Entry a -> PriorityQueue a -> IO ()
-enqueue k Entry{..} (PriorityQueue bref idx arr) = do
+enqueue :: Entry a -> PriorityQueue a -> IO ()
+enqueue ent@Entry{..} (PriorityQueue bref idx arr) = do
     i <- readIORef idx
     base <- readIORef bref
-    let !b = if deficit == magicDeficit then base else deficit
-        !deficit' = b + weightToDeficit weight
-        !ent' = Entry item weight deficit'
-    writeArray arr i (ent',k)
+    d <- readIORef deficit
+    let !b = if d == magicDeficit then base else d
+        !d' = b + weightToDeficit weight
+    writeIORef deficit d'
+    write arr i ent
     shiftUp arr i
     let !i' = i + 1
     writeIORef idx i'
     return ()
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Key, Entry a)
+dequeue :: PriorityQueue a -> IO (Entry a)
 dequeue (PriorityQueue bref idx arr) = do
-    x@(_,ent) <- shrink arr 1 idx
+    ent <- shrink arr 1 idx
     i <- readIORef idx
     shiftDown arr 1 i
-    writeIORef bref $ if i == 1 then 0 else deficit ent
-    return x
+    d <- readIORef $ deficit ent
+    writeIORef bref $ if i == 1 then 0 else d
+    return ent
 
-shrink :: MA a -> Index -> IORef Index -> IO (Key,Entry a)
+shrink :: MA a -> Index -> IORef Index -> IO (Entry a)
 shrink arr r idx = do
-    (entr,kr) <- readArray arr r
+    entr <- readArray arr r
     -- fixme: checking if i == 0
     i <- subtract 1 <$> readIORef idx
     xi <- readArray arr i
-    writeArray arr r xi
+    write arr r xi
     writeIORef idx i
-    return (kr,entr)
+    return entr
 
 shiftUp :: MA a -> Int -> IO ()
 shiftUp _   1 = return ()
@@ -136,44 +131,41 @@ shiftDown arr p n
       let !c2 = c1 + 1
       xc1 <- readArray arr c1
       xc2 <- readArray arr c2
-      let !c = if xc1 < xc2 then c1 else c2
+      d1 <- readIORef $ deficit xc1
+      d2 <- readIORef $ deficit xc2
+      let !c = if d1 < d2 then c1 else c2
       swapped <- swap arr p c
       when swapped $ shiftDown arr c n
   where
     c1 = 2 * p
 
 {-# INLINE swap #-}
-swap :: MA a -> Int -> Int -> IO Bool
+swap :: MA a -> Index -> Index -> IO Bool
 swap arr p c = do
     xp <- readArray arr p
     xc <- readArray arr c
-    if xc < xp then do
-        writeArray arr c xp
-        writeArray arr p xc
+    dp <- readIORef $ deficit xp
+    dc <- readIORef $ deficit xc
+    if dc < dp then do
+        write arr c xp
+        write arr p xc
         return True
       else
         return False
 
-delete :: Key -> PriorityQueue a -> IO ()
-delete k pq@(PriorityQueue _ idx arr) = do
-    i <- readIORef idx
-    r <- find k arr i
-    if r == 1 then
+{-# INLINE write #-}
+write :: MA a -> Index -> Entry a -> IO ()
+write arr i ent = do
+    writeArray arr i ent
+    writeIORef (index ent) i
+
+delete :: Entry a -> PriorityQueue a -> IO ()
+delete ent pq@(PriorityQueue _ idx arr) = do
+    i <- readIORef $ index ent
+    if i == 1 then
         void $ dequeue pq
       else do
-        _ <- shrink arr r idx
+        entr <- shrink arr i idx
+        r <- readIORef $ index entr
         shiftDown arr r (i - 1)
         shiftUp arr r
-        return ()
-
-find :: Key -> MA a -> Index -> IO Index
-find k arr lim = go 1
-  where
-    go !n
-      | n == lim  = error "find"
-      | otherwise = do
-            (_,kn) <- readArray arr n
-            if kn == k then
-                return n
-              else
-                go (n + 1)
