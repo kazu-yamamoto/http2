@@ -36,7 +36,7 @@ main = do
             , bench "Okasaki Heap"          $ whnf enqdeqO xs
             , bench "Priority Search Queue" $ whnf enqdeqP xs
             , bench "Binary Heap STM"       $ nfIO (enqdeqB ws)
-            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO ws)
+            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO xs)
             , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
             , bench "Array of Queue IO"     $ nfIO (enqdeqAIO xs)
             ]
@@ -44,6 +44,7 @@ main = do
               bench "Random Skew Heap"      $ whnf deleteR xs
             , bench "Okasaki Heap"          $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
+            , bench "Binary Heap IO"        $ nfIO (deleteBIO xs)
             , bench "Array of Queue IO"     $ nfIO (deleteAIO xs)
             ]
       ]
@@ -139,7 +140,7 @@ createB (x:xs) !q = do
 
 ----------------------------------------------------------------
 
-enqdeqBIO :: [Weight] -> IO ()
+enqdeqBIO :: [(Key,Weight)] -> IO ()
 enqdeqBIO xs = do
     q <- BIO.new numOfStreams
     createBIO xs q
@@ -147,15 +148,22 @@ enqdeqBIO xs = do
   where
     loop _ 0  = return ()
     loop q !n = do
-        ent <- BIO.dequeue q
-        BIO.enqueue ent q
+        (k,w,x) <- BIO.dequeue q
+        BIO.enqueue k w x q
         loop q (n - 1)
 
-createBIO :: [Weight] -> BIO.PriorityQueue Int -> IO ()
+deleteBIO :: [(Key,Weight)] -> IO ()
+deleteBIO xs = do
+    q <- BIO.new numOfStreams
+    createBIO xs q
+    mapM_ (\k -> BIO.delete k q) keys
+  where
+    (keys,_) = unzip xs
+
+createBIO :: [(Key,Weight)] -> BIO.PriorityQueue Int -> IO ()
 createBIO [] _      = return ()
-createBIO (x:xs) !q = do
-    let !ent = BIO.newEntry x x
-    BIO.enqueue ent q
+createBIO ((k,w):xs) !q = do
+    BIO.enqueue k w k q
     createBIO xs q
 
 ----------------------------------------------------------------
@@ -196,13 +204,9 @@ deleteAIO :: [(Key,Weight)] -> IO ()
 deleteAIO xs = do
     q <- AIO.new
     createAIO xs q
-    loop keys q
+    mapM_ (\k -> AIO.delete k q) keys
   where
     (keys,_) = unzip xs
-    loop [] _ = return ()
-    loop (k:ks) q = do
-        _ <- AIO.delete k q
-        loop ks q
 
 createAIO :: [(Key,Weight)] -> AIO.PriorityQueue Int -> IO ()
 createAIO [] _      = return ()

@@ -4,14 +4,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module BinaryHeapIO (
-    Entry
-  , newEntry
-  , renewEntry
-  , item
-  , PriorityQueue(..)
+    PriorityQueue(..)
   , new
   , enqueue
   , dequeue
+  , delete
   ) where
 
 import Control.Monad (when, void)
@@ -19,37 +16,33 @@ import Data.Array (Array, listArray, (!))
 import Data.Array.IO (IOArray)
 import Data.Array.MArray (newArray_, readArray, writeArray)
 import Data.IORef
+import Data.IntMap.Strict (IntMap)
+import qualified Data.IntMap.Strict as I
 import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
+type Key = Int
 type Weight = Int
 type Deficit = Word64
-
--- | Abstract data type of entries for priority queues.
-data Entry a = Entry {
-    item :: a -- ^ Extracting an item from an entry.
-  , weight  :: {-# UNPACK #-} !Weight
-  , deficit :: {-# UNPACK #-} !Deficit
-  } deriving Show
-
-instance Eq (Entry a) where
-    Entry _ _ p1 == Entry _ _ p2 = p1 == p2
-
-instance Ord (Entry a) where
-    Entry _ _ p1 <  Entry _ _ p2 = p1 <  p2
-    Entry _ _ p1 <= Entry _ _ p2 = p1 <= p2
-
-newEntry :: a -> Weight -> Entry a
-newEntry x w = Entry x w 0
-
--- | Changing the item of an entry.
-renewEntry :: Entry a -> b -> Entry b
-renewEntry ent x = ent { item = x }
+type Index = Int
 
 ----------------------------------------------------------------
 
-type Index = Int
+data Entry a = Entry {-# UNPACK #-} !Deficit
+                     {-# UNPACK #-} !Key
+                     {-# UNPACK #-} !Weight
+                     a
+
+instance Eq (Entry a) where
+    Entry d1 _ _ _ == Entry d2 _ _ _ = d1 == d2
+
+instance Ord (Entry a) where
+    Entry d1 _ _ _ <  Entry d2 _ _ _ = d1 <  d2
+    Entry d1 _ _ _ <= Entry d2 _ _ _ = d1 <= d2
+
+----------------------------------------------------------------
+
 type MA a = IOArray Index (Entry a)
 
 -- FIXME: The base (Word64) would be overflowed.
@@ -57,11 +50,9 @@ type MA a = IOArray Index (Entry a)
 data PriorityQueue a = PriorityQueue (IORef Deficit)
                                      (IORef Index)
                                      (MA a)
+                                     (IORef (IntMap Deficit))
 
 ----------------------------------------------------------------
-
-magicDeficit :: Deficit
-magicDeficit = 0
 
 deficitSteps :: Int
 deficitSteps = 65536
@@ -81,34 +72,50 @@ weightToDeficit w = deficitTable ! w
 ----------------------------------------------------------------
 
 new :: Int -> IO (PriorityQueue a)
-new n = PriorityQueue <$> newIORef 0 <*> newIORef 1 <*> newArray_ (1,n)
+new n = PriorityQueue <$> newIORef 0
+                      <*> newIORef 1
+                      <*> newArray_ (1,n)
+                      <*> newIORef I.empty
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Entry a -> PriorityQueue a -> IO ()
-enqueue Entry{..} (PriorityQueue bvar idx arr) = do
+enqueue :: Key -> Weight -> a -> PriorityQueue a -> IO ()
+enqueue k w x (PriorityQueue bref idx arr dmapref) = do
     i <- readIORef idx
-    base <- readIORef bvar
-    let !b = if deficit == magicDeficit then base else deficit
-        !deficit' = b + weightToDeficit weight
-        !ent' = Entry item weight deficit'
-    writeArray arr i ent'
+    base <- readIORef bref
+    dmap <- readIORef dmapref
+    let !b = case I.lookup k dmap of
+            Nothing      -> base
+            Just deficit -> deficit
+        !deficit' = b + weightToDeficit w
+        !ent = Entry deficit' k w x
+    writeArray arr i ent
     shiftUp arr i
     let !i' = i + 1
     writeIORef idx i'
     return ()
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Entry a)
-dequeue (PriorityQueue bvar idx arr) = do
-    ent <- readArray arr 1
+dequeue :: PriorityQueue a -> IO (Key, Weight, a)
+dequeue (PriorityQueue bref idx arr dmapref) = do
+    Entry d k w x <- shrink arr 1 idx
     i <- readIORef idx
+    shiftDown arr 1 i
+    if i == 1 then do
+        writeIORef bref 0
+        writeIORef dmapref I.empty
+      else
+        writeIORef bref d
+    return (k, w, x)
+
+shrink :: MA a -> Index -> IORef Index -> IO (Entry a)
+shrink arr r idx = do
+    entr <- readArray arr r
     -- fixme: checking if i == 0
-    let i' = i - 1
-    readArray arr i' >>= writeArray arr 1
-    shiftDown arr 1 i'
-    writeIORef idx i'
-    writeIORef bvar $ if i' == 1 then 0 else deficit ent
-    return ent
+    i <- subtract 1 <$> readIORef idx
+    xi <- readArray arr i
+    writeArray arr r xi
+    writeIORef idx i
+    return entr
 
 shiftUp :: MA a -> Int -> IO ()
 shiftUp _   1 = return ()
@@ -144,23 +151,26 @@ swap arr p c = do
       else
         return False
 
-----------------------------------------------------------------
+delete :: Key -> PriorityQueue a -> IO ()
+delete k pq@(PriorityQueue _ idx arr dmapref) = do
+    i <- readIORef idx
+    r <- find k arr i
+    if r == 1 then
+        void $ dequeue pq
+      else do
+        _ <- shrink arr r idx
+        shiftDown arr r (i - 1)
+        shiftUp arr r
+    modifyIORef' dmapref (I.delete k)
 
-main :: IO ()
-main = do
-    let a = newEntry 201 201
-        b = newEntry 101 101
-        c = newEntry 1 1
-    q <- new 100
-    enqueue a q
-    enqueue b q
-    enqueue c q
-    loop q 1000
-
-loop :: PriorityQueue Int -> Int -> IO ()
-loop _ 0 = return ()
-loop q !n = do
-    x <- dequeue q
-    print x
-    enqueue x q
-    loop q (n - 1)
+find :: Key -> MA a -> Index -> IO Index
+find k arr lim = go 1
+  where
+    go !n
+      | n == lim  = error "find"
+      | otherwise = do
+            Entry _ kn _ _ <- readArray arr n
+            if kn == k then
+                return n
+              else
+                go (n + 1)
