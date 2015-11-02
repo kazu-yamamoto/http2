@@ -85,7 +85,8 @@ enqueue (PriorityTree var q0 _) sid p0 x = atomically $ do
     loop m el p
       | pid == 0  = Q.enqueue q0 sid w el
       | otherwise = case Map.lookup pid m of
-          Nothing -> Q.enqueue q0 sid w el -- error case: checkme
+          -- If not found, enqueuing it to the stream 0 queue.
+          Nothing -> Q.enqueue q0 sid w el
           Just (q', p') -> do
               notQueued <- Q.isEmpty q'
               Q.enqueue q' sid w el
