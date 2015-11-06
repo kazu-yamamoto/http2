@@ -6,7 +6,7 @@ module Network.HPACK.Table.Static (
   , toStaticIndex
   , isSIndexValid
   , toStaticEntry
-  , staticHashPSQ
+  , staticHashMap
   , staticTableSize -- fixme
   ) where
 
@@ -48,8 +48,8 @@ toStaticEntry (SIndex sidx) = staticTable ! sidx
 staticTable :: Array Index Entry
 staticTable = listArray (1,staticTableSize) $ map toEntry staticTableList
 
-staticHashPSQ :: DHM.DoubleHashMap SIndex
-staticHashPSQ = DHM.fromList alist
+staticHashMap :: DHM.DoubleHashMap SIndex
+staticHashMap = DHM.fromList alist
   where
     is = map toStaticIndex [1..]
     alist = zip is staticTableList

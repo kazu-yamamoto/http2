@@ -66,7 +66,7 @@ lookupTable h dyntbl = case reverseIndex dyntbl of
             DHM.K  _    -> KeyValue InDynamicTable (fromHIndexToIndex dyntbl hidx)
             DHM.KV sidx -> KeyValue InStaticTable  (fromSIndexToIndex dyntbl sidx)
   where
-    mstatic = DHM.search h staticHashPSQ
+    mstatic = DHM.search h staticHashMap
 
 ----------------------------------------------------------------
 
