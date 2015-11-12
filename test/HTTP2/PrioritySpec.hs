@@ -15,9 +15,9 @@ spec = do
         it "enqueue and dequeue frames from Firefox properly" $ firefox
     describe "base priority queue" $ do
         it "queues entries based on weight" $ do
-            let q = P.enqueue 5   1 5 $
-                    P.enqueue 3 101 3 $
-                    P.enqueue 1 201 1 P.empty
+            let q = P.enqueue 5 (P.newPrecedence   1) 5 $
+                    P.enqueue 3 (P.newPrecedence 101) 3 $
+                    P.enqueue 1 (P.newPrecedence 201) 1 P.empty
                 xs = enqdeq q 1000
             map length (group (sort xs)) `shouldBe` [664,333,3]
 
@@ -29,50 +29,53 @@ firefox = do
     prepare pt  7 (pri 0   1)
     prepare pt  9 (pri 7   1)
     prepare pt 11 (pri 3   1)
-    enQ pt 13 (pri 11 32)
-    dequeue pt `shouldReturn` (13,13)
-    enQ pt 15 (pri  3 32)
-    enQ pt 17 (pri  3 32)
-    enQ pt 19 (pri  3 32)
-    enQ pt 21 (pri  3 32)
-    enQ pt 23 (pri  3 32)
-    enQ pt 25 (pri  3 32)
-    enQ pt 27 (pri 11 22)
-    enQ pt 29 (pri 11 22)
-    enQ pt 31 (pri 11 22)
-    enQ pt 33 (pri  5 32)
-    enQ pt 35 (pri  5 32)
-    enQ pt 37 (pri  5 32)
-    dequeue pt `shouldReturn` (15,15)
-    clear pt 15 (pri  3 32)
-    clear pt 15 (pri  3 32)
-    dequeue pt `shouldReturn` (33,33)
-    dequeue pt `shouldReturn` (17,17)
-    clear pt 17 (pri  3 32)
-    clear pt 17 (pri  3 32)
-    delete pt 17 (pri  3 32) `shouldReturn` Nothing
-    delete pt 31 (pri 11 22) `shouldReturn` Just 31
-    dequeue pt `shouldReturn` (19,19)
-    dequeue pt `shouldReturn` (35,35)
-    dequeue pt `shouldReturn` (21,21)
-    dequeue pt `shouldReturn` (23,23)
-    dequeue pt `shouldReturn` (37,37)
-    dequeue pt `shouldReturn` (25,25)
-    dequeue pt `shouldReturn` (27,27)
-    dequeue pt `shouldReturn` (29,29)
-    enQ pt 39 (pri  3 32)
-    dequeue pt `shouldReturn` (39,39)
+    enQ pt 13 (pre 11 32)
+    deQ pt `shouldReturn` 13
+    enQ pt 15 (pre  3 32)
+    enQ pt 17 (pre  3 32)
+    enQ pt 19 (pre  3 32)
+    enQ pt 21 (pre  3 32)
+    enQ pt 23 (pre  3 32)
+    enQ pt 25 (pre  3 32)
+    enQ pt 27 (pre 11 22)
+    enQ pt 29 (pre 11 22)
+    enQ pt 31 (pre 11 22)
+    enQ pt 33 (pre  5 32)
+    enQ pt 35 (pre  5 32)
+    enQ pt 37 (pre  5 32)
+    deQ pt `shouldReturn` 15
+    deQ pt `shouldReturn` 33
+    deQ pt `shouldReturn` 17
+    delete pt 17 (pre  3 32) `shouldReturn` Nothing
+    delete pt 31 (pre 11 22) `shouldReturn` Just 31
+    deQ pt `shouldReturn` 19
+    deQ pt `shouldReturn` 35
+    deQ pt `shouldReturn` 21
+    deQ pt `shouldReturn` 23
+    deQ pt `shouldReturn` 37
+    deQ pt `shouldReturn` 25
+    deQ pt `shouldReturn` 27
+    deQ pt `shouldReturn` 29
+    enQ pt 39 (pre  3 32)
+    deQ pt `shouldReturn` 39
 
-enQ :: PriorityTree Int -> StreamId -> Priority -> IO ()
+enQ :: PriorityTree Int -> StreamId -> Precedence -> IO ()
 enQ pt sid p = enqueue pt sid p sid
+
+deQ :: PriorityTree Int
+    -> IO StreamId
+deQ pt = (\(x,_,_) -> x) <$> dequeue pt
 
 pri :: StreamId -> Weight -> Priority
 pri dep w = Priority False dep w
 
+pre :: StreamId -> Weight -> Precedence
+pre dep w = toPrecedence $ pri dep w
+
 enqdeq :: P.PriorityQueue Int -> Int -> [Int]
 enqdeq pq num = loop pq num []
   where
-    loop _   0 xs = xs
-    loop !q !n xs = case P.dequeue q of
+    loop _   0 ks = ks
+    loop !q !n ks = case P.dequeue q of
         Nothing         -> error "enqdeq"
-        Just (k,w,x,q') -> loop (P.enqueue k w x q') (n - 1) (x:xs)
+        Just (k,p,v,q') -> loop (P.enqueue k p v q') (n - 1) (k:ks)
