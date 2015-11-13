@@ -29,8 +29,8 @@ type Weight = Int
 type Deficit = Word64
 
 -- | Internal representation of priority in priority queues.
---   This should be passed when the dequeued entry is
---   enqueued again.
+--   The precedence of a dequeued entry should be specified
+--   to 'enqueue' when the entry is enqueued again.
 data Precedence = Precedence {
     deficit    :: {-# UNPACK #-} !Deficit
   , weight     :: {-# UNPACK #-} !Weight

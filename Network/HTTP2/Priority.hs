@@ -60,6 +60,10 @@ data Element a = Child a
 
 ----------------------------------------------------------------
 
+-- | Default precedence.
+defaultPrecedence :: Precedence
+defaultPrecedence = toPrecedence defaultPriority
+
 -- | Converting 'Priority' to 'Precedence'.
 --   When an entry is enqueued at the first time,
 --   this function should be used.
@@ -86,8 +90,6 @@ prepare (PriorityTree var _ _) sid p = atomically $ do
 
 -- | Enqueuing an entry to the priority tree.
 --   This must be used for Header frame.
---   If 'controlPriority' is specified,
---   it is treated as a control frame and top-queued.
 enqueue :: PriorityTree a -> StreamId -> Precedence -> a -> IO ()
 enqueue (PriorityTree var q0 _) sid p0 x = atomically $ do
     m <- readTVar var
@@ -108,9 +110,7 @@ enqueue (PriorityTree var q0 _) sid p0 x = atomically $ do
       where
         pid = Q.dependency p
 
-defaultPrecedence :: Precedence
-defaultPrecedence = toPrecedence defaultPriority
-
+-- | Putting an entry to the top of the priority tree.
 enqueueControl :: PriorityTree a -> StreamId -> a -> IO ()
 enqueueControl (PriorityTree _ _ cq) sid x =
     atomically $ writeTQueue cq (sid,defaultPrecedence,x)
