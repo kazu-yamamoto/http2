@@ -30,7 +30,6 @@ module Network.HTTP2 (
   , Weight
   , defaultPriority
   , highestPriority
-  , controlPriority
   -- * Stream identifier
   , StreamId
   , isControl

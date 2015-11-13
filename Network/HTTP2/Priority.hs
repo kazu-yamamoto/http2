@@ -15,7 +15,9 @@
 -- Only one entry per stream should be enqueued.
 
 module Network.HTTP2.Priority (
+  -- * Precedence
     Precedence
+  , defaultPrecedence
   , toPrecedence
   -- * PriorityTree
   , PriorityTree
@@ -23,6 +25,7 @@ module Network.HTTP2.Priority (
   -- * PriorityTree functions
   , prepare
   , enqueue
+  , enqueueControl
   , dequeue
   , delete
   ) where
@@ -86,8 +89,6 @@ prepare (PriorityTree var _ _) sid p = atomically $ do
 --   If 'controlPriority' is specified,
 --   it is treated as a control frame and top-queued.
 enqueue :: PriorityTree a -> StreamId -> Precedence -> a -> IO ()
-enqueue (PriorityTree _ _ cq) sid p0 x
-  | Q.weight p0 == (-1) = atomically $ writeTQueue cq (sid,p0,x) -- fixme
 enqueue (PriorityTree var q0 _) sid p0 x = atomically $ do
     m <- readTVar var
     let !el = Child x
@@ -106,6 +107,13 @@ enqueue (PriorityTree var q0 _) sid p0 x = atomically $ do
                   loop m el' p'
       where
         pid = Q.dependency p
+
+defaultPrecedence :: Precedence
+defaultPrecedence = toPrecedence defaultPriority
+
+enqueueControl :: PriorityTree a -> StreamId -> a -> IO ()
+enqueueControl (PriorityTree _ _ cq) sid x =
+    atomically $ writeTQueue cq (sid,defaultPrecedence,x)
 
 -- | Dequeuing an entry from the priority tree.
 dequeue :: PriorityTree a -> IO (StreamId, Precedence, a)
@@ -128,7 +136,7 @@ dequeue (PriorityTree _ q0 cq) = atomically $ do
 -- | Deleting the entry corresponding to 'StreamId'.
 --   'delete' and 'enqueue' are used to change the priority of
 --   a live stream.
-delete :: PriorityTree a -> StreamId -> Priority -> IO (Maybe a)
+delete :: PriorityTree a -> StreamId -> Precedence -> IO (Maybe a)
 delete (PriorityTree var q0 _) sid p
   | pid == 0  = atomically $ del q0
   | otherwise = atomically $ do
@@ -137,7 +145,7 @@ delete (PriorityTree var q0 _) sid p
             Nothing    -> return Nothing
             Just (q,_) -> del q
   where
-    pid = streamDependency p
+    pid = Q.dependency p
     del q = do
         mel <- Q.delete sid q
         case mel of
