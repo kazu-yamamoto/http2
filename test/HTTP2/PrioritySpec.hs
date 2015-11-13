@@ -46,8 +46,8 @@ firefox = do
     deQ pt `shouldReturn` 15
     deQ pt `shouldReturn` 33
     deQ pt `shouldReturn` 17
-    delete pt 17 (pri  3 32) `shouldReturn` Nothing
-    delete pt 31 (pri 11 22) `shouldReturn` Just 31
+    delete pt 17 (pre  3 32) `shouldReturn` Nothing
+    delete pt 31 (pre 11 22) `shouldReturn` Just 31
     deQ pt `shouldReturn` 19
     deQ pt `shouldReturn` 35
     deQ pt `shouldReturn` 21
