@@ -57,6 +57,9 @@ data Element a = Child a
 
 ----------------------------------------------------------------
 
+-- | Converting 'Priority' to 'Precedence'.
+--   When an entry is enqueued at the first time,
+--   this function should be used.
 toPrecedence :: Priority -> Precedence
 toPrecedence (Priority _ dep w) = Q.Precedence 0 w dep
 
