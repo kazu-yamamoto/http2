@@ -1,7 +1,10 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 
 module HTTP2.PrioritySpec where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative
+#endif
 import Data.List (group, sort)
 import Test.Hspec
 
