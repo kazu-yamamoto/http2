@@ -71,6 +71,7 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | EmptyEncodedString -- ^ Encoded string has no length
                  | EmptyBlock -- ^ Header block is empty
                  | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit
+                 | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
