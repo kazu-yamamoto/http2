@@ -1,3 +1,7 @@
+## 1.3.1
+
+* Defining IllegalTableSizeUpdate.
+
 ## 1.3.0
 
 * APIs `Network.HTTP2.Priority` are changed again. `Precedence` is introduced.
