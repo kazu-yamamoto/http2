@@ -32,7 +32,7 @@ type ShiftedArray = Array Int Shifted
 
 data Shifted = Shifted !Int  -- Total bytes
                        !Int  -- How many bits in the last byte
-                       ByteString -- Up to 5 bytes
+                       !ByteString -- Up to 5 bytes
                        deriving Show
 
 ----------------------------------------------------------------

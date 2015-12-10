@@ -21,13 +21,13 @@ type EOSInfo = Maybe Int
 
 -- | Type for Huffman decoding.
 data HTree = Tip
-             EOSInfo             -- EOS info from 1
+             !EOSInfo            -- EOS info from 1
              {-# UNPACK #-} !Int -- Decoded value. Essentially Word8
            | Bin
-             EOSInfo             -- EOS info from 1
+             !EOSInfo            -- EOS info from 1
              {-# UNPACK #-} !Int -- Sequence no from 0
-             HTree               -- Left
-             HTree               -- Right
+             !HTree              -- Left
+             !HTree              -- Right
            deriving Show
 
 eosInfo :: HTree -> EOSInfo

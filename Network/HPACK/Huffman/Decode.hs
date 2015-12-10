@@ -28,7 +28,7 @@ data Pin = EndOfString
                    {-# UNPACK #-} !Word8 -- a decoded value
          deriving Show
 
-data Way16 = Way16 (Maybe Int) (Array Word8 Pin)
+data Way16 = Way16 !(Maybe Int) !(Array Word8 Pin)
 type Way256 = Array Word8 Way16
 
 next :: Way16 -> Word8 -> Pin

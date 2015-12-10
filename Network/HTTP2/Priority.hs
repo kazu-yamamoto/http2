@@ -44,9 +44,9 @@ import Network.HTTP2.Types
 ----------------------------------------------------------------
 
 -- | Abstract data type for priority trees.
-data PriorityTree a = PriorityTree (TVar (Glue a))
-                                   (TNestedPriorityQueue a)
-                                   (TQueue (StreamId, Precedence, a))
+data PriorityTree a = PriorityTree !(TVar (Glue a))
+                                   !(TNestedPriorityQueue a)
+                                   !(TQueue (StreamId, Precedence, a))
 
 type Glue a = IntMap (TNestedPriorityQueue a, Precedence)
 
@@ -54,8 +54,8 @@ type Glue a = IntMap (TNestedPriorityQueue a, Precedence)
 -- another TNestedPriorityQueue.
 type TNestedPriorityQueue a = TPriorityQueue (Element a)
 
-data Element a = Child a
-               | Parent (TNestedPriorityQueue a)
+data Element a = Child !a
+               | Parent !(TNestedPriorityQueue a)
 
 
 ----------------------------------------------------------------

@@ -42,8 +42,9 @@ data WhichTable = InDynamicTable | InStaticTable deriving (Eq,Show)
 
 -- | Is header key-value stored in the tables?
 data HeaderCache = None
-                 | KeyOnly WhichTable Index
-                 | KeyValue WhichTable Index deriving Show
+                 | KeyOnly  !WhichTable !Index
+                 | KeyValue !WhichTable !Index
+                 deriving Show
 
 ----------------------------------------------------------------
 

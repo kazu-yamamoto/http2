@@ -22,13 +22,13 @@ emptyHeaderBlock :: HeaderBlock
 emptyHeaderBlock = []
 
 -- | Type for representation.
-data HeaderField = ChangeTableSize Int
-                 | Indexed Index
-                 | Literal Indexing Naming HeaderValue
+data HeaderField = ChangeTableSize !Int
+                 | Indexed !Index
+                 | Literal !Indexing !Naming !HeaderValue
                  deriving (Eq,Show)
 
 -- | Whether or not adding to a table.
 data Indexing = Add | NotAdd | Never deriving (Eq,Show)
 
 -- | Index or literal.
-data Naming = Idx Index | Lit HeaderName deriving (Eq,Show)
+data Naming = Idx !Index | Lit !HeaderName deriving (Eq,Show)

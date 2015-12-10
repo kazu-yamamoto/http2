@@ -68,13 +68,13 @@ data DynamicTable = DynamicTable {
   --   If 'Nothing', dynamic table size update is not necessary.
   --   Otherwise, dynamic table size update is sent
   --   and this value should be set to 'Nothing'.
-  , limitForEncoding :: IORef (Maybe Size)
+  , limitForEncoding :: !(IORef (Maybe Size))
   -- | The limit size of a dynamic table for decoding
   , limitForDecoding :: !Size
   -- | Header to the index in Dynamic Table for encoder.
   --   Static Table is not included.
   --   Nothing for decoder.
-  , reverseIndex :: Maybe (DHM.DoubleHashMap HIndex)
+  , reverseIndex :: !(Maybe (DHM.DoubleHashMap HIndex))
   }
 
 adj :: Int -> Int -> Int
@@ -113,7 +113,7 @@ isDynamicTableEmpty dyntbl = numOfEntries dyntbl == 0
 isSuitableSize :: Size -> DynamicTable -> Bool
 isSuitableSize siz tbl = siz <= limitForDecoding tbl
 
-data TableSizeAction = Keep | Change Size | Ignore Size
+data TableSizeAction = Keep | Change !Size | Ignore !Size
 
 needChangeTableSize :: DynamicTable -> IO TableSizeAction
 needChangeTableSize tbl = do

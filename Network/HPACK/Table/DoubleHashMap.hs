@@ -53,7 +53,7 @@ fromList alist = hashinner
 deleteList :: Ord a => [Header] -> DoubleHashMap a -> DoubleHashMap a
 deleteList hs hp = foldl' (flip delete) hp hs
 
-data Res a = N | K a | KV a
+data Res a = N | K !a | KV !a
 
 search :: Ord a => Header -> DoubleHashMap a -> Res a
 search (k,v) (DoubleHashMap outer) = case H.lookup k outer of

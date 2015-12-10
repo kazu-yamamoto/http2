@@ -55,7 +55,7 @@ type Heap a = IntPSQ Precedence a
 --        In that case, the heap must be re-constructed.
 data PriorityQueue a = PriorityQueue {
     baseDeficit :: {-# UNPACK #-} !Deficit
-  , queue :: Heap a
+  , queue :: !(Heap a)
   }
 
 ----------------------------------------------------------------
