@@ -67,10 +67,10 @@ defaultPrecedence = toPrecedence defaultPriority
 --   When an entry is enqueued at the first time,
 --   this function should be used.
 toPrecedence :: Priority -> Precedence
-toPrecedence (Priority _ dep w) = Q.Precedence 0 w dep
+toPrecedence (Priority _ dep w) = Q.Precedence (-1) w dep -- (-1) to use the internal base
 
 controlPrecedence :: Precedence
-controlPrecedence = Q.Precedence 1 256 0
+controlPrecedence = Q.Precedence 0 256 0
 
 ----------------------------------------------------------------
 
