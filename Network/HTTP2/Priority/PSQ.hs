@@ -92,7 +92,7 @@ enqueue k p v PriorityQueue{..}
   | otherwise               = slowPath
   where
     !d = weightToDeficit (weight p)
-    !b = if deficit p < 0 then baseDeficit else deficit p
+    !b = if deficit p == 0 then baseDeficit else deficit p
     !deficit' = b + d
     fastPath = PriorityQueue baseDeficit queue'
       where
