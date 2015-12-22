@@ -27,6 +27,8 @@ module Network.HTTP2.Priority (
   , enqueue
   , dequeue
   , dequeueSTM
+  , isEmpty
+  , isEmptySTM
   , delete
   ) where
 
@@ -107,6 +109,15 @@ enqueue (PriorityTree var q0) sid p0 x = atomically $ do
                   loop m el' p'
       where
         pid = Q.dependency p
+
+
+-- | Checking if the priority tree is empty.
+isEmpty :: PriorityTree a -> IO Bool
+isEmpty = atomically . isEmptySTM
+
+-- | Checking if the priority tree is empty.
+isEmptySTM :: PriorityTree a -> STM Bool
+isEmptySTM (PriorityTree _ q0) = Q.isEmpty q0
 
 -- | Dequeuing an entry from the priority tree.
 dequeue :: PriorityTree a -> IO (StreamId, Precedence, a)
