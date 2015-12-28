@@ -53,21 +53,16 @@ data HeaderCache = None
 lookupTable :: Header -> DynamicTable -> HeaderCache
 lookupTable h dyntbl = case reverseIndex dyntbl of
     Nothing            -> None
-    Just rev -> case DHM.search h rev of
-        DHM.N       -> case mstatic of
+    Just rev -> case DHM.search h staticHashMap of
+        DHM.KV sidx -> KeyValue InStaticTable  $ fromSIndexToIndex sidx
+        DHM.K  sidx -> case DHM.search h rev of
+            DHM.N       -> KeyOnly  InStaticTable  $ fromSIndexToIndex sidx
+            DHM.K  _    -> KeyOnly  InStaticTable  $ fromSIndexToIndex sidx
+            DHM.KV hidx -> KeyValue InDynamicTable $ fromHIndexToIndex dyntbl hidx
+        DHM.N       -> case DHM.search h rev of
             DHM.N       -> None
-            DHM.K  sidx -> KeyOnly  InStaticTable  $ fromSIndexToIndex sidx
-            DHM.KV sidx -> KeyValue InStaticTable  $ fromSIndexToIndex sidx
-        DHM.K hidx  -> case mstatic of
-            DHM.N       -> KeyOnly  InDynamicTable $ fromHIndexToIndex dyntbl hidx
-            DHM.K  sidx -> KeyOnly  InStaticTable  $ fromSIndexToIndex sidx
-            DHM.KV sidx -> KeyValue InStaticTable  $ fromSIndexToIndex sidx
-        DHM.KV hidx -> case mstatic of
-            DHM.N       -> KeyValue InDynamicTable $ fromHIndexToIndex dyntbl hidx
-            DHM.K  _    -> KeyValue InDynamicTable $ fromHIndexToIndex dyntbl hidx
-            DHM.KV sidx -> KeyValue InStaticTable  $ fromSIndexToIndex sidx
-  where
-    mstatic = DHM.search h staticHashMap
+            DHM.K  hidx -> KeyOnly  InDynamicTable $ fromHIndexToIndex dyntbl hidx
+            DHM.KV hidx -> KeyValue InDynamicTable $ fromHIndexToIndex dyntbl hidx
 
 ----------------------------------------------------------------
 
