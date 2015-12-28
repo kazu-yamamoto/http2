@@ -66,6 +66,7 @@ lookupTable h dyntbl = case reverseIndex dyntbl of
 
 ----------------------------------------------------------------
 
+{-# INLINE isIn #-}
 isIn :: Int -> DynamicTable -> Bool
 isIn idx DynamicTable{..} = idx > staticTableSize
 
