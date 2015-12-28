@@ -144,21 +144,25 @@ newtype HIndex = HIndex Int deriving (Eq, Ord, Show)
 
 ----------------------------------------------------------------
 
+{-# INLINE fromHIndexToIndex #-}
 fromHIndexToIndex :: DynamicTable -> HIndex -> Index
 fromHIndexToIndex DynamicTable{..} (HIndex hidx) = idx
   where
     idx = adj maxNumOfEntries (hidx - offset) + staticTableSize
 
+{-# INLINE fromIndexToHIndex #-}
 fromIndexToHIndex :: DynamicTable -> Index -> HIndex
 fromIndexToHIndex DynamicTable{..} idx = HIndex hidx
   where
     hidx = adj maxNumOfEntries (idx + offset - staticTableSize)
 
-fromSIndexToIndex :: DynamicTable -> SIndex -> Index
-fromSIndexToIndex _ sidx = fromStaticIndex sidx
+{-# INLINE fromSIndexToIndex #-}
+fromSIndexToIndex :: SIndex -> Index
+fromSIndexToIndex sidx = fromStaticIndex sidx
 
-fromIndexToSIndex :: DynamicTable -> Index -> SIndex
-fromIndexToSIndex _ idx = toStaticIndex idx
+{-# INLINE fromIndexToSIndex #-}
+fromIndexToSIndex :: Index -> SIndex
+fromIndexToSIndex idx = toStaticIndex idx
 
 ----------------------------------------------------------------
 
