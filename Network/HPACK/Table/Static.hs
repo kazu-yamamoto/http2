@@ -18,12 +18,15 @@ import qualified Network.HPACK.Table.DoubleHashMap as DHM
 
 newtype SIndex = SIndex Int deriving (Eq,Ord,Show)
 
+{-# INLINE fromStaticIndex #-}
 fromStaticIndex :: SIndex -> Int
 fromStaticIndex (SIndex sidx) = sidx
 
+{-# INLINE toStaticIndex #-}
 toStaticIndex :: Int -> SIndex
 toStaticIndex = SIndex
 
+{-# INLINE isSIndexValid #-}
 isSIndexValid :: SIndex -> Bool
 isSIndexValid (SIndex sidx) = 1 <= sidx && sidx <= staticTableSize
 
@@ -33,6 +36,7 @@ isSIndexValid (SIndex sidx) = 1 <= sidx && sidx <= staticTableSize
 staticTableSize :: Size
 staticTableSize = length staticTableList
 
+{-# INLINE toStaticEntry #-}
 -- | Get 'Entry' from the static table.
 --
 -- >>> toStaticEntry (SIndex 1)
