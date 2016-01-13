@@ -14,19 +14,31 @@ module Network.HPACK.Table.Dynamic (
   , resetLimitForEncoding
   , insertEntry
   , toHeaderEntry
-  , fromHIndexToIndex
-  , fromIndexToHIndex
-  , fromSIndexToIndex
-  , fromIndexToSIndex
+  , fromDIndexToIndex
+  , fromIndexToDIndex
   ) where
 
 import Control.Monad (forM)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
-import qualified Network.HPACK.Table.DoubleHashMap as DHM
 import Network.HPACK.Table.Entry
+import Network.HPACK.Table.RevIndex
 import Network.HPACK.Table.Static
+
+----------------------------------------------------------------
+
+{-# INLINE fromDIndexToIndex #-}
+fromDIndexToIndex :: DynamicTable -> DIndex -> Index
+fromDIndexToIndex DynamicTable{..} (DIndex didx) = idx
+  where
+    idx = adj maxNumOfEntries (didx - offset) + staticTableSize
+
+{-# INLINE fromIndexToDIndex #-}
+fromIndexToDIndex :: DynamicTable -> Index -> DIndex
+fromIndexToDIndex DynamicTable{..} idx = DIndex didx
+  where
+    didx = adj maxNumOfEntries (idx + offset - staticTableSize)
 
 ----------------------------------------------------------------
 
@@ -74,7 +86,7 @@ data DynamicTable = DynamicTable {
   -- | Header to the index in Dynamic Table for encoder.
   --   Static Table is not included.
   --   Nothing for decoder.
-  , reverseIndex :: !(Maybe (DHM.DoubleHashMap HIndex))
+  , reverseIndex :: !(Maybe Outer)
   }
 
 adj :: Int -> Int -> Int
@@ -139,42 +151,15 @@ resetLimitForEncoding dyntbl = writeIORef (limitForEncoding dyntbl) Nothing
 
 ----------------------------------------------------------------
 
--- Physical array index for Dynamic Table.
-newtype HIndex = HIndex Int deriving (Eq, Ord, Show)
-
-----------------------------------------------------------------
-
-{-# INLINE fromHIndexToIndex #-}
-fromHIndexToIndex :: DynamicTable -> HIndex -> Index
-fromHIndexToIndex DynamicTable{..} (HIndex hidx) = idx
-  where
-    idx = adj maxNumOfEntries (hidx - offset) + staticTableSize
-
-{-# INLINE fromIndexToHIndex #-}
-fromIndexToHIndex :: DynamicTable -> Index -> HIndex
-fromIndexToHIndex DynamicTable{..} idx = HIndex hidx
-  where
-    hidx = adj maxNumOfEntries (idx + offset - staticTableSize)
-
-{-# INLINE fromSIndexToIndex #-}
-fromSIndexToIndex :: SIndex -> Index
-fromSIndexToIndex sidx = fromStaticIndex sidx
-
-{-# INLINE fromIndexToSIndex #-}
-fromIndexToSIndex :: Index -> SIndex
-fromIndexToSIndex idx = toStaticIndex idx
-
-----------------------------------------------------------------
-
 -- | Creating 'DynamicTable'.
 newDynamicTableForEncoding :: Size -> IO DynamicTable
-newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz maxsiz (Just DHM.empty)
+newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz maxsiz (Just defaultRevIndex)
 
 -- | Creating 'DynamicTable'.
 newDynamicTableForDecoding :: Size -> IO DynamicTable
 newDynamicTableForDecoding maxsiz = newDynamicTable maxsiz maxsiz Nothing
 
-newDynamicTable :: Size -> Size -> Maybe (DHM.DoubleHashMap HIndex) -> IO DynamicTable
+newDynamicTable :: Size -> Size -> Maybe Outer -> IO DynamicTable
 newDynamicTable maxsiz dlim mhp = do
     tbl <- newArray (0,end) dummyEntry
     lim <- newIORef Nothing
@@ -201,7 +186,7 @@ renewDynamicTable maxsiz olddyntbl | shouldRenew olddyntbl maxsiz =
     dlim = limitForDecoding olddyntbl
     mhp = case reverseIndex olddyntbl of
         Nothing -> Nothing
-        _       -> Just DHM.empty
+        _       -> Just defaultRevIndex
 renewDynamicTable _ olddyntbl = return olddyntbl
 
 copyTable :: DynamicTable -> DynamicTable -> IO DynamicTable
@@ -235,7 +220,7 @@ insertEntry e dyntbl = do
     (dyntbl', hs) <- insertFront e dyntbl >>= adjustTableSize
     let dyntbl'' = case reverseIndex dyntbl' of
             Nothing  -> dyntbl'
-            Just rev -> dyntbl' { reverseIndex = Just (DHM.deleteList hs rev) }
+            Just rev -> dyntbl' { reverseIndex = Just (deleteDynamicList hs rev) }
     return dyntbl''
 
 insertFront :: Entry -> DynamicTable -> IO DynamicTable
@@ -253,7 +238,7 @@ insertFront e dyntbl@DynamicTable{..} = do
     offset' = adj maxNumOfEntries (offset - 1)
     reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
-        Just rev -> Just $ DHM.insert (entryHeader e) (HIndex i) rev
+        Just rev -> Just $ insertDynamic (entryHeader e) (DIndex i) rev
 
 adjustTableSize :: DynamicTable -> IO (DynamicTable, [Header])
 adjustTableSize dyntbl = adjust dyntbl []
@@ -280,7 +265,7 @@ insertEnd e dyntbl@DynamicTable{..} = do
     headerTableSize' = headerTableSize + entrySize e
     reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
-        Just rev -> Just $ DHM.insert (entryHeader e) (HIndex i) rev
+        Just rev -> Just $ insertDynamic (entryHeader e) (DIndex i) rev
 
 ----------------------------------------------------------------
 
@@ -299,5 +284,5 @@ removeEnd dyntbl@DynamicTable{..} = do
 
 ----------------------------------------------------------------
 
-toHeaderEntry :: DynamicTable -> HIndex -> IO Entry
-toHeaderEntry DynamicTable{..} (HIndex hidx) = readArray circularTable hidx
+toHeaderEntry :: DynamicTable -> DIndex -> IO Entry
+toHeaderEntry DynamicTable{..} (DIndex didx) = readArray circularTable didx

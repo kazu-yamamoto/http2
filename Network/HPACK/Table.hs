@@ -29,9 +29,10 @@ module Network.HPACK.Table (
 import Control.Applicative ((<$>))
 #endif
 import Control.Exception (throwIO)
+import qualified Data.Map as M
 import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.Entry
-import qualified Network.HPACK.Table.DoubleHashMap as DHM
+import Network.HPACK.Table.RevIndex
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
@@ -51,18 +52,19 @@ data HeaderCache = None
 -- | Resolving an index from a header.
 --   Static table is prefer to dynamic table.
 lookupTable :: Header -> DynamicTable -> HeaderCache
-lookupTable h dyntbl = case reverseIndex dyntbl of
-    Nothing            -> None
-    Just rev -> case DHM.search h staticHashMap of
-        DHM.KV sidx -> KeyValue InStaticTable  $ fromSIndexToIndex sidx
-        DHM.K  sidx -> case DHM.search h rev of
-            DHM.N       -> KeyOnly  InStaticTable  $ fromSIndexToIndex sidx
-            DHM.K  _    -> KeyOnly  InStaticTable  $ fromSIndexToIndex sidx
-            DHM.KV hidx -> KeyValue InDynamicTable $ fromHIndexToIndex dyntbl hidx
-        DHM.N       -> case DHM.search h rev of
-            DHM.N       -> None
-            DHM.K  hidx -> KeyOnly  InDynamicTable $ fromHIndexToIndex dyntbl hidx
-            DHM.KV hidx -> KeyValue InDynamicTable $ fromHIndexToIndex dyntbl hidx
+lookupTable (k,v) dyntbl = case reverseIndex dyntbl of
+    Nothing  -> None
+    Just (Outer rev) -> case M.lookup k rev of
+        Nothing -> None
+        Just (Inner ss ds) -> case lookup v ss of
+            Just sidx -> KeyValue InStaticTable $ fromSIndexToIndex sidx
+            Nothing   -> case lookup v ds of
+                Just didx -> KeyValue InDynamicTable $ fromDIndexToIndex dyntbl didx
+                Nothing -> case ss of
+                    ((_,sidx):_) -> KeyOnly InStaticTable $ fromSIndexToIndex sidx
+                    [] -> case ds of
+                        ((_,didx):_) -> KeyOnly InDynamicTable $ fromDIndexToIndex dyntbl didx
+                        _ -> error "search"
 
 ----------------------------------------------------------------
 
@@ -77,5 +79,5 @@ which dyntbl idx
   | isSIndexValid sidx = return (InStaticTable, toStaticEntry sidx)
   | otherwise          = throwIO $ IndexOverrun idx
   where
-    hidx = fromIndexToHIndex dyntbl idx
+    hidx = fromIndexToDIndex dyntbl idx
     sidx = fromIndexToSIndex idx

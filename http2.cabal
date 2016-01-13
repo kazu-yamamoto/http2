@@ -48,9 +48,9 @@ Library
                         Network.HPACK.HeaderBlock.String
                         Network.HPACK.HeaderBlock.To
                         Network.HPACK.Table
-                        Network.HPACK.Table.DoubleHashMap
                         Network.HPACK.Table.Dynamic
                         Network.HPACK.Table.Entry
+                        Network.HPACK.Table.RevIndex
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
                         Network.HTTP2.Decode

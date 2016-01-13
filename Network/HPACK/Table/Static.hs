@@ -2,29 +2,31 @@
 
 module Network.HPACK.Table.Static (
     SIndex(..)
-  , fromStaticIndex
-  , toStaticIndex
+  , fromSIndexToIndex
+  , fromIndexToSIndex
   , isSIndexValid
   , toStaticEntry
-  , staticHashMap
-  , staticTableSize -- fixme
+  , staticTableSize
+  , staticTableList
   ) where
 
 import Data.Array (Array, listArray, (!))
 import Network.HPACK.Table.Entry
-import qualified Network.HPACK.Table.DoubleHashMap as DHM
 
 ----------------------------------------------------------------
 
+-- Physical array index for Static Table.
 newtype SIndex = SIndex Int deriving (Eq,Ord,Show)
 
-{-# INLINE fromStaticIndex #-}
-fromStaticIndex :: SIndex -> Int
-fromStaticIndex (SIndex sidx) = sidx
+{-# INLINE fromSIndexToIndex #-}
+fromSIndexToIndex :: SIndex -> Index
+fromSIndexToIndex (SIndex idx) = idx
 
-{-# INLINE toStaticIndex #-}
-toStaticIndex :: Int -> SIndex
-toStaticIndex = SIndex
+{-# INLINE fromIndexToSIndex #-}
+fromIndexToSIndex :: Index -> SIndex
+fromIndexToSIndex idx = SIndex idx
+
+----------------------------------------------------------------
 
 {-# INLINE isSIndexValid #-}
 isSIndexValid :: SIndex -> Bool
@@ -51,12 +53,6 @@ toStaticEntry (SIndex sidx) = staticTable ! sidx
 -- | Pre-defined static table.
 staticTable :: Array Index Entry
 staticTable = listArray (1,staticTableSize) $ map toEntry staticTableList
-
-staticHashMap :: DHM.DoubleHashMap SIndex
-staticHashMap = DHM.fromList alist
-  where
-    is = map toStaticIndex [1..]
-    alist = zip is staticTableList
 
 ----------------------------------------------------------------
 
