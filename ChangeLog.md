@@ -1,3 +1,7 @@
+## 1.4.1
+
+* The reverse indices for static and dynamic are combined for performance.
+
 ## 1.4.0
 
 * Providing dequeueSTM, isEmpty and isEmptySTM. Users can compose
