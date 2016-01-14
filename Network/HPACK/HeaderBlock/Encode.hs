@@ -41,8 +41,8 @@ fromHeaderField huff (Literal Add    (Idx idx) v) = indexedName huff 6 set01 idx
 fromHeaderField huff (Literal Add    (Lit key) v) = newName     huff set01 key v
 fromHeaderField huff (Literal NotAdd (Idx idx) v) = indexedName huff 4 set0000 idx v
 fromHeaderField huff (Literal NotAdd (Lit key) v) = newName     huff set0000 key v
-fromHeaderField huff (Literal Never (Idx idx) v)  = indexedName huff 4 set0001 idx v
-fromHeaderField huff (Literal Never (Lit key) v)  = newName     huff set0001 key v
+fromHeaderField huff (Literal Never  (Idx idx) v) = indexedName huff 4 set0001 idx v
+fromHeaderField huff (Literal Never  (Lit key) v) = newName     huff set0001 key v
 
 ----------------------------------------------------------------
 
