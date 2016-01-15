@@ -10,6 +10,28 @@ Category:               Network
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
 Extra-Source-Files:     ChangeLog.md
+                        test-hpack/hpack-test-case/go-hpack/*.json
+                        test-hpack/hpack-test-case/haskell-http2-linear/*.json
+                        test-hpack/hpack-test-case/haskell-http2-linear-huffman/*.json
+                        test-hpack/hpack-test-case/haskell-http2-naive/*.json
+                        test-hpack/hpack-test-case/haskell-http2-naive-huffman/*.json
+                        test-hpack/hpack-test-case/haskell-http2-static/*.json
+                        test-hpack/hpack-test-case/haskell-http2-static-huffman/*.json
+                        test-hpack/hpack-test-case/nghttp2/*.json
+                        test-hpack/hpack-test-case/nghttp2-16384-4096/*.json
+                        test-hpack/hpack-test-case/nghttp2-change-table-size/*.json
+                        test-hpack/hpack-test-case/node-http2-hpack/*.json
+                        test-frame/http2-frame-test-case/continuation/*.json
+                        test-frame/http2-frame-test-case/data/*.json
+                        test-frame/http2-frame-test-case/error/*.json
+                        test-frame/http2-frame-test-case/goaway/*.json
+                        test-frame/http2-frame-test-case/headers/*.json
+                        test-frame/http2-frame-test-case/ping/*.json
+                        test-frame/http2-frame-test-case/priority/*.json
+                        test-frame/http2-frame-test-case/push_promise/*.json
+                        test-frame/http2-frame-test-case/rst_stream/*.json
+                        test-frame/http2-frame-test-case/settings/*.json
+                        test-frame/http2-frame-test-case/window_update/*.json
 
 ----------------------------------------------------------------
 
