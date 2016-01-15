@@ -2,4 +2,5 @@ dist/
 .cabal-sandbox/
 cabal.sandbox.config
 .gitignore
-test-hpack/hpack-test-case/
+test-misc/hpack-test-case/
+test-misc/http2-frame-test-case/
