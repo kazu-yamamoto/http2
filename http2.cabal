@@ -264,9 +264,17 @@ Executable frame-encode
 Benchmark criterion
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
-  Hs-Source-Dirs:       bench, .
+  Hs-Source-Dirs:       bench-priority, .
   Ghc-Options:          -Wall
   Main-Is:              Main.hs
+  Other-Modules:        BinaryHeap
+                        BinaryHeapSTM
+                        DoublyLinkedQueueIO
+                        Heap
+                        RandomSkewHeap
+                        RingOfQueues
+                        RingOfQueuesSTM
+
   Build-Depends:        base
                       , array
                       , containers

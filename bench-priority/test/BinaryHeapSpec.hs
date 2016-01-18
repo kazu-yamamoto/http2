@@ -1,12 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
 
-module BinaryHeapIOSpec where
+module BinaryHeapSpec where
 
 import Data.IORef (readIORef)
 import Data.List (group, sort)
 import Test.Hspec
 
-import qualified BinaryHeapIO as P
+import qualified BinaryHeap as P
 
 spec :: Spec
 spec = do

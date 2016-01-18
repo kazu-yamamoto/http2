@@ -7,10 +7,10 @@ import Criterion.Main
 import Data.List (foldl')
 import System.Random
 
-import qualified ArrayOfQueue as A
-import qualified ArrayOfQueueIO as AIO
-import qualified BinaryHeap as B
-import qualified BinaryHeapIO as BIO
+import qualified RingOfQueuesSTM as A
+import qualified RingOfQueues as AIO
+import qualified BinaryHeapSTM as B
+import qualified BinaryHeap as BIO
 import qualified Heap as O
 import qualified Network.HTTP2.Priority.PSQ as P
 import qualified RandomSkewHeap as R

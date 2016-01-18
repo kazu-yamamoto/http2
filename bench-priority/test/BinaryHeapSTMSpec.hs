@@ -1,13 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
 
-module BinaryHeapSpec where
+module BinaryHeapSTMSpec where
 
 import Control.Concurrent.STM
 import Data.IORef (readIORef)
 import Data.List (group, sort)
 import Test.Hspec
 
-import qualified BinaryHeap as P
+import qualified BinaryHeapSTM as P
 
 spec :: Spec
 spec = do

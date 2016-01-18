@@ -1,13 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
 
-module ArrayOfQueueSpec where
+module RingOfQueuesSTMSpec where
 
 import Control.Concurrent.STM
 import Data.IORef (readIORef)
 import Data.List (group, sort)
 import Test.Hspec
 
-import qualified ArrayOfQueue as P
+import qualified RingOfQueuesSTM as P
 
 spec :: Spec
 spec = do

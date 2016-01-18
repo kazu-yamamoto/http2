@@ -3,7 +3,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module BinaryHeapIO (
+module BinaryHeap (
     Entry
   , newEntry
   , renewEntry

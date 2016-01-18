@@ -6,28 +6,26 @@
 -- Haskell implementation of H2O's priority queue.
 -- https://github.com/h2o/h2o/blob/master/lib/http2/scheduler.c
 
-module ArrayOfQueueIO (
+-- delete is not supported because TQueue does not support deletion.
+-- So, key is not passed to enqueue.
+
+module RingOfQueuesSTM (
     Entry
   , newEntry
   , renewEntry
   , item
-  , Node
   , PriorityQueue(..)
   , new
   , enqueue
   , dequeue
-  , delete
   ) where
 
+import Control.Concurrent.STM
 import Control.Monad (replicateM)
 import Data.Array (Array, listArray, (!))
 import Data.Bits (setBit, clearBit, shiftR)
-import Data.IORef
 import Data.Word (Word64)
 import Foreign.C.Types (CLLong(..))
-
-import DoublyLinkedQueueIO (Queue, Node)
-import qualified DoublyLinkedQueueIO as Q
 
 ----------------------------------------------------------------
 
@@ -50,9 +48,9 @@ renewEntry ent x = ent { item = x }
 ----------------------------------------------------------------
 
 data PriorityQueue a = PriorityQueue {
-    bitsRef   :: IORef Word64
-  , offsetRef :: IORef Int
-  , queues    :: Array Int (Queue (Entry a))
+    bitsRef   :: TVar Word64
+  , offsetRef :: TVar Int
+  , queues    :: Array Int (TQueue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -103,33 +101,32 @@ firstBitSet x = ffs x - 1
 
 ----------------------------------------------------------------
 
-new :: IO (PriorityQueue a)
-new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newQueues
+new :: STM (PriorityQueue a)
+new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newQueues
   where
-    newQueues = listArray (0, bitWidth - 1) <$> replicateM bitWidth Q.new
+    newQueues = listArray (0, bitWidth - 1) <$> replicateM bitWidth newTQueue
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Entry a -> PriorityQueue a -> IO (Node (Entry a))
+enqueue :: Entry a -> PriorityQueue a -> STM ()
 enqueue ent PriorityQueue{..} = do
     let (!idx,!deficit') = calcIdxAndDeficit
     !offidx <- getOffIdx idx
-    node <- push offidx ent { deficit = deficit' }
+    push offidx ent { deficit = deficit' }
     updateBits idx
-    return node
   where
     calcIdxAndDeficit = total `divMod` deficitSteps
       where
         total = deficitTable ! weight ent + deficit ent
-    getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
-    push offidx ent' = Q.enqueue ent' (queues ! offidx)
-    updateBits idx = modifyIORef' bitsRef $ flip setBit idx
+    getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
+    push offidx ent' = writeTQueue (queues ! offidx) ent'
+    updateBits idx = modifyTVar' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Maybe (Entry a))
+dequeue :: PriorityQueue a -> STM (Entry a)
 dequeue pq@PriorityQueue{..} = do
     !idx <- getIdx
     if idx == -1 then
-        return Nothing
+        retry
       else do
         !offidx <- getOffIdx idx
         updateOffset offidx
@@ -138,19 +135,15 @@ dequeue pq@PriorityQueue{..} = do
         if queueIsEmpty then
             dequeue pq
           else
-            Just <$> pop offidx
+            pop offidx
   where
-    getIdx = firstBitSet <$> readIORef bitsRef
-    getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
-    pop offidx = Q.dequeue (queues ! offidx)
-    checkEmpty offidx = Q.isEmpty (queues ! offidx)
-    updateOffset offset' = writeIORef offsetRef offset'
-    updateBits idx isEmpty = modifyIORef' bitsRef shiftClear
+    getIdx = firstBitSet <$> readTVar bitsRef
+    getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
+    pop offidx = readTQueue (queues ! offidx)
+    checkEmpty offidx = isEmptyTQueue (queues ! offidx)
+    updateOffset offset' = writeTVar offsetRef offset'
+    updateBits idx isEmpty = modifyTVar' bitsRef shiftClear
       where
         shiftClear bits
           | isEmpty   = clearBit (shiftR bits idx) 0
           | otherwise = shiftR bits idx
-
--- bits is not updated because it's difficult.
-delete :: Node (Entry a) -> IO ()
-delete node = Q.delete node

@@ -1,11 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 
-module ArrayOfQueueIOSpec where
+module RingOfQueuesSpec where
 
 import Data.List (group, sort)
 import Test.Hspec
 
-import qualified ArrayOfQueueIO as P
+import qualified RingOfQueues as P
 
 spec :: Spec
 spec = do
