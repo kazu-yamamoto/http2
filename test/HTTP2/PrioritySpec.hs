@@ -23,6 +23,17 @@ spec = do
                     P.enqueue 1 (P.newPrecedence 201) 1 P.empty
                 xs = enqdeq q 1000
             map length (group (sort xs)) `shouldBe` [664,333,3]
+        it "deletes entries properly" $ do
+            let q = P.enqueue 5 (P.newPrecedence   1) 5 $
+                    P.enqueue 3 (P.newPrecedence 101) 3 $
+                    P.enqueue 1 (P.newPrecedence 201) 1 P.empty
+                (mv1,q1) = P.delete 1 q
+                (mv2,q2) = P.delete 3 q
+            P.baseDeficit q `shouldBe` 0
+            mv1 `shouldBe` Just (1 :: Int)
+            P.baseDeficit q1 `shouldBe` 326
+            mv2 `shouldBe` Just 3
+            P.baseDeficit q2 `shouldBe` 0
 
 firefox :: IO ()
 firefox = do

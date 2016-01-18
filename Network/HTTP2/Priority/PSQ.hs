@@ -6,7 +6,7 @@ module Network.HTTP2.Priority.PSQ (
     Key
   , Precedence(..)
   , newPrecedence
-  , PriorityQueue
+  , PriorityQueue(..)
   , empty
   , isEmpty
   , enqueue
@@ -118,10 +118,13 @@ dequeue PriorityQueue{..} = case P.minView queue of
                          in Just (k, p, v, PriorityQueue base queue')
 
 delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
-delete k PriorityQueue{..} = case P.findMin queue' of
-    Nothing      -> (mv, empty)
-    Just (_,p,_) -> (mv, PriorityQueue (deficit p) queue')
+delete k q@PriorityQueue{..} = case P.alter f k queue of
+    (mv@(Just _), queue') -> case P.minView queue of
+        Nothing          -> error "delete"
+        Just (k',p',_,_)
+          | k' == k      -> (mv, PriorityQueue (deficit p') queue')
+          | otherwise    -> (mv, PriorityQueue baseDeficit queue')
+    (Nothing, _)         -> (Nothing, q)
   where
-    (!mv,!queue') = P.alter f k queue
     f Nothing      = (Nothing, Nothing)
     f (Just (_,v)) = (Just v,  Nothing)
