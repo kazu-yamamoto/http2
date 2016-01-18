@@ -28,6 +28,8 @@ type Weight = Int
 type Deficit = Word64
 
 -- | Abstract data type of entries for priority queues.
+--   This does not contain Key because Entry is assumed to be stored
+--   in HTTP/2 stream information, too.
 data Entry a = Entry {
     weight  :: {-# UNPACK #-} !Weight
   , item    :: {-# UNPACK #-} !(IORef a) -- ^ Extracting an item from an entry.
