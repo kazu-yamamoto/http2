@@ -6,8 +6,15 @@
 -- Haskell implementation of H2O's priority queue.
 -- https://github.com/h2o/h2o/blob/master/lib/http2/scheduler.c
 
+-- delete is not supported because TQueue does not support deletion.
+-- So, key is not passed to enqueue.
+
 module ArrayOfQueue (
-    PriorityQueue(..)
+    Entry
+  , newEntry
+  , renewEntry
+  , item
+  , PriorityQueue(..)
   , new
   , enqueue
   , dequeue
@@ -17,25 +24,33 @@ import Control.Concurrent.STM
 import Control.Monad (replicateM)
 import Data.Array (Array, listArray, (!))
 import Data.Bits (setBit, clearBit, shiftR)
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as I
 import Data.Word (Word64)
 import Foreign.C.Types (CLLong(..))
 
 ----------------------------------------------------------------
 
-type Key = Int
 type Weight = Int
-type Deficit = Int
-type Index = Int
+
+-- | Abstract data type of entries for priority queues.
+data Entry a = Entry {
+    item :: a -- ^ Extracting an item from an entry.
+  , weight  :: {-# UNPACK #-} !Weight
+  , deficit :: {-# UNPACK #-} !Int
+  } deriving Show
+
+newEntry :: a -> Weight -> Entry a
+newEntry x w = Entry x w 0
+
+-- | Changing the item of an entry.
+renewEntry :: Entry a -> b -> Entry b
+renewEntry ent x = ent { item = x }
 
 ----------------------------------------------------------------
 
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: TVar Word64
-  , offsetRef :: TVar Index
-  , deficits  :: TVar (IntMap Deficit)
-  , queues    :: Array Index (TQueue (Key, Weight, a))
+  , offsetRef :: TVar Int
+  , queues    :: Array Int (TQueue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -87,36 +102,31 @@ firstBitSet x = ffs x - 1
 ----------------------------------------------------------------
 
 new :: STM (PriorityQueue a)
-new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newTVar I.empty <*> newQueues
+new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newQueues
   where
     newQueues = listArray (0, bitWidth - 1) <$> replicateM bitWidth newTQueue
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Key -> Weight -> a -> PriorityQueue a -> STM ()
-enqueue k w x PriorityQueue{..} = do
-    md <- lookupDeficit
-    let !deficit = maybe 0 id md
-        (!idx,!deficit') = calcIdxAndDeficit deficit
+enqueue :: Entry a -> PriorityQueue a -> STM ()
+enqueue ent PriorityQueue{..} = do
+    let (!idx,!deficit') = calcIdxAndDeficit
     !offidx <- getOffIdx idx
-    push offidx (k,w,x)
-    updateDeficits deficit'
+    push offidx ent { deficit = deficit' }
     updateBits idx
   where
-    calcIdxAndDeficit deficit = total `divMod` deficitSteps
+    calcIdxAndDeficit = total `divMod` deficitSteps
       where
-        total = deficitTable ! w + deficit
+        total = deficitTable ! weight ent + deficit ent
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
-    push offidx kwx = writeTQueue (queues ! offidx) kwx
+    push offidx ent' = writeTQueue (queues ! offidx) ent'
     updateBits idx = modifyTVar' bitsRef $ flip setBit idx
-    lookupDeficit = I.lookup k <$> readTVar deficits
-    updateDeficits d = modifyTVar' deficits $ I.insert k d
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> STM (Maybe (Key, Weight, a))
+dequeue :: PriorityQueue a -> STM (Entry a)
 dequeue pq@PriorityQueue{..} = do
     !idx <- getIdx
     if idx == -1 then
-        return Nothing
+        retry
       else do
         !offidx <- getOffIdx idx
         updateOffset offidx
@@ -125,7 +135,7 @@ dequeue pq@PriorityQueue{..} = do
         if queueIsEmpty then
             dequeue pq
           else
-            Just <$> pop offidx
+            pop offidx
   where
     getIdx = firstBitSet <$> readTVar bitsRef
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef

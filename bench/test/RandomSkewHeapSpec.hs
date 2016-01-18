@@ -23,7 +23,7 @@ spec = do
 enqdeq :: P.PriorityQueue Int -> Int -> [Int]
 enqdeq pq num = loop pq num []
   where
-    loop _   0 xs = xs
-    loop !q !n xs = case P.dequeue q of
+    loop _   0 ks = ks
+    loop !q !n ks = case P.dequeue q of
         Nothing         -> error "enqdeq"
-        Just (k,w,x,q') -> loop (P.enqueue k w x q') (n - 1) (x:xs)
+        Just (k,w,v,q') -> loop (P.enqueue k w v q') (n - 1) (k:ks)

@@ -3,7 +3,9 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Heap (
-    PriorityQueue
+    PriorityQueue(..)
+  , Precedence(..)
+  , newPrecedence
   , empty
   , isEmpty
   , enqueue
@@ -17,8 +19,6 @@ import Control.Applicative ((<$>))
 import Data.Array (Array, listArray, (!))
 import Data.Heap (Heap)
 import qualified Data.Heap as H
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as I
 import Data.Word (Word64)
 
 ----------------------------------------------------------------
@@ -27,29 +27,44 @@ type Key = Int
 type Weight = Int
 type Deficit = Word64
 
+data Precedence = Precedence {
+    deficit    :: {-# UNPACK #-} !Deficit
+  , weight     :: {-# UNPACK #-} !Weight
+  -- stream dependency, used by the upper layer
+  , dependency :: {-# UNPACK #-} !Key
+  } deriving Show
+
+-- | For test only
+newPrecedence :: Weight -> Precedence
+newPrecedence w = Precedence 0 w 0
+
+instance Eq Precedence where
+  Precedence d1 _ _ == Precedence d2 _ _ = d1 == d2
+
+instance Ord Precedence where
+  Precedence d1 _ _ <  Precedence d2 _ _ = d1 <  d2
+  Precedence d1 _ _ <= Precedence d2 _ _ = d1 <= d2
+
+data Entry a = Entry Key Precedence a
+
+instance Eq (Entry a) where
+    Entry _ p1 _ == Entry _ p2 _ = p1 == p2
+
+instance Ord (Entry a) where
+    Entry _ p1 _ <  Entry _ p2 _ = p1 <  p2
+    Entry _ p1 _ <= Entry _ p2 _ = p1 <= p2
+
 -- FIXME: The base (Word64) would be overflowed.
 --        In that case, the heap must be re-constructed.
 data PriorityQueue a = PriorityQueue {
     baseDeficit :: {-# UNPACK #-} !Deficit
-  , deficitMap :: IntMap Deficit
   , queue :: Heap (Entry a)
   }
 
 ----------------------------------------------------------------
 
-data Entry a = Entry {-# UNPACK #-} !Deficit
-                     {-# UNPACK #-} !Key
-                     {-# UNPACK #-} !Weight
-                     a
-
-instance Eq (Entry a) where
-    Entry d1 _ _ _ == Entry d2 _ _ _ = d1 == d2
-
-instance Ord (Entry a) where
-    Entry d1 _ _ _ <  Entry d2 _ _ _ = d1 <  d2
-    Entry d1 _ _ _ <= Entry d2 _ _ _ = d1 <= d2
-
-----------------------------------------------------------------
+magicDeficit :: Deficit
+magicDeficit = 0
 
 deficitSteps :: Int
 deficitSteps = 65536
@@ -69,40 +84,35 @@ weightToDeficit w = deficitTable ! w
 ----------------------------------------------------------------
 
 empty :: PriorityQueue a
-empty = PriorityQueue 0 I.empty H.empty
+empty = PriorityQueue 0 H.empty
 
 isEmpty :: PriorityQueue a -> Bool
-isEmpty PriorityQueue{..} = H.null queue
+isEmpty (PriorityQueue _ h) = H.null h
 
-enqueue :: Key -> Weight -> a -> PriorityQueue a -> PriorityQueue a
-enqueue k w x PriorityQueue{..} = PriorityQueue baseDeficit deficitMap' queue'
+enqueue :: Key -> Precedence -> a -> PriorityQueue a -> PriorityQueue a
+enqueue k p v PriorityQueue{..} = PriorityQueue b queue'
   where
-    !d = weightToDeficit w
-    !forNew = baseDeficit + d
-    f _ _ old = old + d
-    (!mold, !deficitMap') = I.insertLookupWithKey f k forNew deficitMap
-    !deficit' = case mold of
-        Nothing  -> forNew
-        Just old -> old + d
-    !ent = Entry deficit' k w x
-    !queue' = H.insert ent queue
+    !b = if deficit p == magicDeficit then baseDeficit else deficit p
+    !deficit' = b + weightToDeficit (weight p)
+    !p' = p { deficit = deficit' }
+    !queue' = H.insert (Entry k p' v) queue
 
-dequeue :: PriorityQueue a -> Maybe (Key, Weight, a, PriorityQueue a)
-dequeue PriorityQueue{..} = case H.uncons queue of
+dequeue :: PriorityQueue a -> Maybe (Key, Precedence, a, PriorityQueue a)
+dequeue (PriorityQueue _ heap) = case H.uncons heap of
     Nothing                     -> Nothing
-    Just (Entry d k w x, queue')
-      | H.null queue' -> Just (k, w, x, empty) -- reset the deficit base
-      | otherwise     -> Just (k, w, x, PriorityQueue d deficitMap queue')
+    Just (Entry k p v, heap')
+      | H.null heap' -> Just (k, p, v, empty) -- reset the deficit base
+      | otherwise    -> Just (k, p, v, PriorityQueue (deficit p) heap')
 
 delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
-delete k PriorityQueue{..}
-  | H.null queue' = (mx, PriorityQueue baseDeficit deficitMap queue')
-  | otherwise     = let Entry d _ _ _ = H.minimum queue'
-                        deficitMap' = I.delete k deficitMap
-                    in (mx, PriorityQueue d deficitMap' queue')
+delete k (PriorityQueue base heap) = (mv, PriorityQueue base' heap')
   where
-    (!h, !queue') = H.partition (\(Entry _ k' _ _) -> k == k') queue
-    !mx
-      | H.null h  = Nothing
-      | otherwise = let Entry _ _ _ x = H.minimum h
-                    in Just x
+    !(h,heap') = H.partition  (\(Entry k' _ _) -> k' == k) heap
+    mv = case H.viewMin h of
+        Nothing               -> Nothing
+        Just (Entry _ _ v, _) -> Just v
+    base' = case H.viewMin heap of
+        Nothing       -> base
+        Just (Entry k' p _, _)
+          | k == k'   -> deficit p
+          | otherwise -> base

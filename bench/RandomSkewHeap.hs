@@ -41,7 +41,9 @@ type Weight = Int
 ----------------------------------------------------------------
 
 data PriorityQueue a = Leaf | Node {-# UNPACK #-} !Weight -- total
-                                   (Key, Weight, a)
+                                   {-# UNPACK #-} !Key
+                                   {-# UNPACK #-} !Weight
+                                   !a
                                    !(PriorityQueue a)
                                    !(PriorityQueue a) deriving Show
 
@@ -55,52 +57,51 @@ isEmpty Leaf = True
 isEmpty _    = False
 
 singleton :: Key -> Weight -> a -> PriorityQueue a
-singleton k w x = Node w (k,w,x) Leaf Leaf
+singleton k w v = Node w k w v Leaf Leaf
 
 ----------------------------------------------------------------
 
 enqueue :: Key -> Weight -> a -> PriorityQueue a -> PriorityQueue a
-enqueue k w x q = merge (singleton k w x) q
+enqueue k w v q = merge (singleton k w v) q
 
 -- if l is a singleton, w1 == tw1.
 merge :: PriorityQueue t -> PriorityQueue t -> PriorityQueue t
 merge t Leaf = t
 merge Leaf t = t
-merge l@(Node tw1 ent1 ll lr) r@(Node tw2 ent2 rl rr)
-  | g <= tw1  = Node tw ent1 lr $ merge ll r
-  | otherwise = Node tw ent2 rr $ merge rl l
+merge l@(Node tw1 k1 w1 v1 ll lr) r@(Node tw2 k2 w2 v2 rl rr)
+  | g <= w1   = Node tw k1 w1 v1 lr $ merge ll r
+  | otherwise = Node tw k2 w2 v2 rr $ merge rl l
   where
     tw = tw1 + tw2
     g = unsafePerformIO $ uniformR (1,tw) gen
 {-# NOINLINE merge #-}
 
 dequeue :: PriorityQueue a -> Maybe (Key, Weight, a, PriorityQueue a)
-dequeue Leaf                 = Nothing
-dequeue (Node _ (k,w,x) l r) = Just (k, w, x, t)
+dequeue Leaf               = Nothing
+dequeue (Node _ k w v l r) = Just (k, w, v, t)
   where
     !t = merge l r
 
 delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
-delete k q = (r, q')
+delete k q = (mv, fromList xs')
   where
     !xs = toList q
-    (ds, !ys) = partition (\(k',_,_) -> k' == k) xs
-    !q' = fromList ys
-    !r = case ds of
-        []          -> Nothing
-        ((_,_,x):_) -> Just x
+    (!ds,!xs') = partition (\(k',_,_) -> k' == k) xs
+    mv = case ds of
+       []          -> Nothing
+       ((_,_,v):_) -> Just v
 
-toList :: PriorityQueue a -> [(Key,Weight,a)]
+toList :: PriorityQueue a -> [(Key, Weight, a)]
 toList q = go q id []
   where
-    go Leaf b             = b
-    go (Node _ ent l r) b = go r (go l ((ent :) . b))
+    go Leaf b = b
+    go (Node _ k w v l r) b = go r (go l (((k,w,v) :) . b))
 
-fromList :: [(Key,Weight,a)] -> PriorityQueue a
+fromList :: [(Key, Weight, a)] -> PriorityQueue a
 fromList xs = go empty xs
   where
     go !q [] = q
-    go !q ((k,w,x):kwxs) = go (enqueue k w x q) kwxs
+    go !q ((k,w,v):xks) = go (enqueue k w v q) xks
 
 gen :: GenIO
 gen = unsafePerformIO createSystemRandom

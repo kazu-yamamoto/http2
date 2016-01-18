@@ -7,7 +7,12 @@
 -- https://github.com/h2o/h2o/blob/master/lib/http2/scheduler.c
 
 module ArrayOfQueueIO (
-    PriorityQueue(..)
+    Entry
+  , newEntry
+  , renewEntry
+  , item
+  , Node
+  , PriorityQueue(..)
   , new
   , enqueue
   , dequeue
@@ -17,7 +22,6 @@ module ArrayOfQueueIO (
 import Control.Monad (replicateM)
 import Data.Array (Array, listArray, (!))
 import Data.Bits (setBit, clearBit, shiftR)
-import qualified Data.HashTable.IO as H
 import Data.IORef
 import Data.Word (Word64)
 import Foreign.C.Types (CLLong(..))
@@ -27,21 +31,28 @@ import qualified DoublyLinkedQueueIO as Q
 
 ----------------------------------------------------------------
 
-type Key = Int
 type Weight = Int
-type Deficit = Int
-type Index = Int
 
-type HashTable k v = H.BasicHashTable k v
+-- | Abstract data type of entries for priority queues.
+data Entry a = Entry {
+    item :: a -- ^ Extracting an item from an entry.
+  , weight  :: {-# UNPACK #-} !Weight
+  , deficit :: {-# UNPACK #-} !Int
+  } deriving Show
+
+newEntry :: a -> Weight -> Entry a
+newEntry x w = Entry x w 0
+
+-- | Changing the item of an entry.
+renewEntry :: Entry a -> b -> Entry b
+renewEntry ent x = ent { item = x }
 
 ----------------------------------------------------------------
 
 data PriorityQueue a = PriorityQueue {
     bitsRef   :: IORef Word64
-  , offsetRef :: IORef Index
-  , queues    :: Array Index (Queue (Key, Weight, a))
-  , deficits  :: HashTable Key Deficit
-  , nodes     :: HashTable Key (Node (Key, Weight, a))
+  , offsetRef :: IORef Int
+  , queues    :: Array Int (Queue (Entry a))
   }
 
 ----------------------------------------------------------------
@@ -49,7 +60,7 @@ data PriorityQueue a = PriorityQueue {
 bitWidth :: Int
 bitWidth = 64
 
-relativeIndex :: Index -> Index -> Index
+relativeIndex :: Int -> Int -> Int
 relativeIndex idx offset = (offset + idx) `mod` bitWidth
 
 ----------------------------------------------------------------
@@ -85,7 +96,7 @@ foreign import ccall unsafe "strings.h ffsll"
 -- 0
 -- >>> firstBitSet 0
 -- -1
-firstBitSet :: Word64 -> Index
+firstBitSet :: Word64 -> Int
 firstBitSet x = ffs x - 1
   where
     ffs = fromIntegral . c_ffs . fromIntegral
@@ -93,35 +104,28 @@ firstBitSet x = ffs x - 1
 ----------------------------------------------------------------
 
 new :: IO (PriorityQueue a)
-new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newQueues <*> H.new <*> H.new
+new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newQueues
   where
     newQueues = listArray (0, bitWidth - 1) <$> replicateM bitWidth Q.new
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Key -> Weight -> a -> PriorityQueue a -> IO ()
-enqueue k w x PriorityQueue{..} = do
-    md <- H.lookup deficits k
-    !deficit <- case md of
-        Nothing -> return 0
-        Just d  -> do
-            H.delete deficits k
-            return d
-    let (!idx,!deficit') = calcIdxAndDeficit deficit
+enqueue :: Entry a -> PriorityQueue a -> IO (Node (Entry a))
+enqueue ent PriorityQueue{..} = do
+    let (!idx,!deficit') = calcIdxAndDeficit
     !offidx <- getOffIdx idx
-    node <- push offidx (k,w,x)
-    H.insert nodes k node
-    H.insert deficits k deficit'
+    node <- push offidx ent { deficit = deficit' }
     updateBits idx
+    return node
   where
-    calcIdxAndDeficit deficit = total `divMod` deficitSteps
+    calcIdxAndDeficit = total `divMod` deficitSteps
       where
-        total = deficitTable ! w + deficit
+        total = deficitTable ! weight ent + deficit ent
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
-    push offidx kwx = Q.enqueue kwx (queues ! offidx)
+    push offidx ent' = Q.enqueue ent' (queues ! offidx)
     updateBits idx = modifyIORef' bitsRef $ flip setBit idx
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> IO (Maybe (Key, Weight, a))
+dequeue :: PriorityQueue a -> IO (Maybe (Entry a))
 dequeue pq@PriorityQueue{..} = do
     !idx <- getIdx
     if idx == -1 then
@@ -133,10 +137,8 @@ dequeue pq@PriorityQueue{..} = do
         updateBits idx queueIsEmpty
         if queueIsEmpty then
             dequeue pq
-          else do
-            ent@(k,_,_) <- pop offidx
-            H.delete nodes k
-            return $ Just ent
+          else
+            Just <$> pop offidx
   where
     getIdx = firstBitSet <$> readIORef bitsRef
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
@@ -149,15 +151,6 @@ dequeue pq@PriorityQueue{..} = do
           | isEmpty   = clearBit (shiftR bits idx) 0
           | otherwise = shiftR bits idx
 
--- It's hard to update bitsRef.
--- So, dequeue checks bitsRef carefully.
-delete :: Key -> PriorityQueue a -> IO (Maybe a)
-delete k PriorityQueue{..} = do
-    mnode <- H.lookup nodes k
-    H.delete deficits k
-    case mnode of
-        Nothing   -> return Nothing
-        Just node -> do
-            Q.delete node
-            let (_,_,x) = Q.item node
-            return $ Just x
+-- bits is not updated because it's difficult.
+delete :: Node (Entry a) -> IO ()
+delete node = Q.delete node

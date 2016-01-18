@@ -4,7 +4,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module BinaryHeap (
-    PriorityQueue(..)
+    Entry
+  , newEntry
+  , renewEntry
+  , item
+  , PriorityQueue(..)
   , new
   , enqueue
   , dequeue
@@ -15,33 +19,31 @@ import Control.Concurrent.STM
 import Control.Monad (when, void)
 import Data.Array (Array, listArray, (!))
 import Data.Array.MArray (newArray_, readArray, writeArray)
-import Data.IntMap.Strict (IntMap)
-import qualified Data.IntMap.Strict as I
 import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
-type Key = Int
 type Weight = Int
 type Deficit = Word64
+
+-- | Abstract data type of entries for priority queues.
+data Entry a = Entry {
+    weight  :: {-# UNPACK #-} !Weight
+  , item    :: {-# UNPACK #-} !(TVar a) -- ^ Extracting an item from an entry.
+  , deficit :: {-# UNPACK #-} !(TVar Deficit)
+  , index   :: {-# UNPACK #-} !(TVar Index)
+  }
+
+newEntry :: a -> Weight -> STM (Entry a)
+newEntry x w = Entry w <$> newTVar x <*> newTVar magicDeficit <*> newTVar (-1)
+
+-- | Changing the item of an entry.
+renewEntry :: Entry a -> a -> STM ()
+renewEntry Entry{..} x = writeTVar item x
+
+----------------------------------------------------------------
+
 type Index = Int
-
-----------------------------------------------------------------
-
-data Entry a = Entry {-# UNPACK #-} !Deficit
-                     {-# UNPACK #-} !Key
-                     {-# UNPACK #-} !Weight
-                     a
-
-instance Eq (Entry a) where
-    Entry d1 _ _ _ == Entry d2 _ _ _ = d1 == d2
-
-instance Ord (Entry a) where
-    Entry d1 _ _ _ <  Entry d2 _ _ _ = d1 <  d2
-    Entry d1 _ _ _ <= Entry d2 _ _ _ = d1 <= d2
-
-----------------------------------------------------------------
-
 type MA a = TArray Index (Entry a)
 
 -- FIXME: The base (Word64) would be overflowed.
@@ -49,9 +51,11 @@ type MA a = TArray Index (Entry a)
 data PriorityQueue a = PriorityQueue (TVar Deficit)
                                      (TVar Index)
                                      (MA a)
-                                     (TVar (IntMap Deficit))
 
 ----------------------------------------------------------------
+
+magicDeficit :: Deficit
+magicDeficit = 0
 
 deficitSteps :: Int
 deficitSteps = 65536
@@ -74,44 +78,31 @@ new :: Int -> STM (PriorityQueue a)
 new n = PriorityQueue <$> newTVar 0
                       <*> newTVar 1
                       <*> newArray_ (1,n)
-                      <*> newTVar I.empty
 
 -- | Enqueuing an entry. PriorityQueue is updated.
-enqueue :: Key -> Weight -> a -> PriorityQueue a -> STM ()
-enqueue k w x (PriorityQueue bref idx arr dmapref) = do
+enqueue :: Entry a -> PriorityQueue a -> STM ()
+enqueue ent@Entry{..} (PriorityQueue bref idx arr) = do
     i <- readTVar idx
     base <- readTVar bref
-    dmap <- readTVar dmapref
-    let !d = weightToDeficit w
-        !forNew = base + d
-        f _ _ old = old + d
-        (!mold, !dmap') = I.insertLookupWithKey f k forNew dmap
-        !deficit' = case mold of
-            Nothing  -> forNew
-            Just old -> old + d
-        !ent = Entry deficit' k w x
-    writeArray arr i ent
+    d <- readTVar deficit
+    let !b = if d == magicDeficit then base else d
+        !d' = b + weightToDeficit weight
+    writeTVar deficit d'
+    write arr i ent
     shiftUp arr i
     let !i' = i + 1
     writeTVar idx i'
-    writeTVar dmapref dmap'
+    return ()
 
 -- | Dequeuing an entry. PriorityQueue is updated.
-dequeue :: PriorityQueue a -> STM (Maybe (Key, Weight, a))
-dequeue (PriorityQueue bref idx arr dmapref) = do
+dequeue :: PriorityQueue a -> STM (Entry a)
+dequeue (PriorityQueue bref idx arr) = do
+    ent <- shrink arr 1 idx
     i <- readTVar idx
-    if i == 1 then
-        return Nothing
-      else do
-        Entry d k w x <- shrink arr 1 idx
-        j <- readTVar idx
-        shiftDown arr 1 j
-        if j == 1 then do
-            writeTVar bref 0
-            writeTVar dmapref I.empty
-          else
-            writeTVar bref d
-        return $ Just (k, w, x)
+    shiftDown arr 1 i
+    d <- readTVar $ deficit ent
+    writeTVar bref $ if i == 1 then 0 else d
+    return ent
 
 shrink :: MA a -> Index -> TVar Index -> STM (Entry a)
 shrink arr r idx = do
@@ -119,7 +110,7 @@ shrink arr r idx = do
     -- fixme: checking if i == 0
     i <- subtract 1 <$> readTVar idx
     xi <- readArray arr i
-    writeArray arr r xi
+    write arr r xi
     writeTVar idx i
     return entr
 
@@ -139,48 +130,41 @@ shiftDown arr p n
       let !c2 = c1 + 1
       xc1 <- readArray arr c1
       xc2 <- readArray arr c2
-      let !c = if xc1 < xc2 then c1 else c2
+      d1 <- readTVar $ deficit xc1
+      d2 <- readTVar $ deficit xc2
+      let !c = if d1 < d2 then c1 else c2
       swapped <- swap arr p c
       when swapped $ shiftDown arr c n
   where
     c1 = 2 * p
 
 {-# INLINE swap #-}
-swap :: MA a -> Int -> Int -> STM Bool
+swap :: MA a -> Index -> Index -> STM Bool
 swap arr p c = do
     xp <- readArray arr p
     xc <- readArray arr c
-    if xc < xp then do
-        writeArray arr c xp
-        writeArray arr p xc
+    dp <- readTVar $ deficit xp
+    dc <- readTVar $ deficit xc
+    if dc < dp then do
+        write arr c xp
+        write arr p xc
         return True
       else
         return False
 
-delete :: Key -> PriorityQueue a -> STM (Maybe a)
-delete k pq@(PriorityQueue _ idx arr dmapref) = do
-    i <- readTVar idx
-    if i == 1 then
-        return Nothing
-      else do
-        modifyTVar' dmapref (I.delete k)
-        r <- find k arr i
-        if r == 1 then
-            fmap (\(_,_,x) -> x) <$> dequeue pq
-          else do
-            Entry _ _ _ x <- shrink arr r idx
-            shiftDown arr r (i - 1)
-            shiftUp arr r
-            return $ Just x
+{-# INLINE write #-}
+write :: MA a -> Index -> Entry a -> STM ()
+write arr i ent = do
+    writeArray arr i ent
+    writeTVar (index ent) i
 
-find :: Key -> MA a -> Index -> STM Index
-find k arr lim = go 1
-  where
-    go !n
-      | n == lim  = error "find"
-      | otherwise = do
-            Entry _ kn _ _ <- readArray arr n
-            if kn == k then
-                return n
-              else
-                go (n + 1)
+delete :: Entry a -> PriorityQueue a -> STM ()
+delete ent pq@(PriorityQueue _ idx arr) = do
+    i <- readTVar $ index ent
+    if i == 1 then
+        void $ dequeue pq
+      else do
+        entr <- shrink arr i idx
+        r <- readTVar $ index entr
+        shiftDown arr r (i - 1)
+        shiftUp arr r
