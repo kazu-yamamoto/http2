@@ -33,20 +33,20 @@ main = do
     defaultMain [
         bgroup "enqueue & dequeue" [
               bench "Random Skew Heap"      $ whnf enqdeqR xs
-            , bench "Okasaki Heap"          $ whnf enqdeqO xs
+            , bench "Skew Binomial Heap"    $ whnf enqdeqO xs
             , bench "Priority Search Queue" $ whnf enqdeqP xs
+            , bench "Binary Heap"           $ nfIO (enqdeqBIO xs)
             , bench "Binary Heap STM"       $ nfIO (enqdeqB xs)
-            , bench "Binary Heap IO"        $ nfIO (enqdeqBIO xs)
-            , bench "Array of Queue STM"    $ nfIO (enqdeqA xs)
-            , bench "Array of Queue IO"     $ nfIO (enqdeqAIO xs)
+            , bench "Ring of Queues"        $ nfIO (enqdeqAIO xs)
+            , bench "Ring of Queues STM"    $ nfIO (enqdeqA xs)
             ]
       , bgroup "delete" [
               bench "Random Skew Heap"      $ whnf deleteR xs
-            , bench "Okasaki Heap"          $ whnf deleteO xs
+            , bench "Skew Binomial Heap"    $ whnf deleteO xs
             , bench "Priority Search Queue" $ whnf deleteP xs
+            , bench "Binary Heap"           $ nfIO (deleteBIO xs)
             , bench "Binary Heap STM"       $ nfIO (deleteB xs)
-            , bench "Binary Heap IO"        $ nfIO (deleteBIO xs)
-            , bench "Array of Queue IO"     $ nfIO (deleteAIO xs)
+            , bench "Ring of Queues IO"     $ nfIO (deleteAIO xs)
             ]
       ]
 
