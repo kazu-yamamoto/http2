@@ -1,3 +1,12 @@
+## 1.4.3
+
+* Priority benchmark is now external information versions.
+* Using proper baseDeficit for deletion.
+
+## 1.4.2
+
+* Test files are now self-contained.
+
 ## 1.4.1
 
 * The reverse indices for static and dynamic are combined for performance.
