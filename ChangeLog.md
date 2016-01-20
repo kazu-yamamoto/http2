@@ -1,3 +1,7 @@
+## 1.4.4
+
+* Fixing a bug of reverse index.
+
 ## 1.4.3
 
 * Priority benchmark is now external information versions.
