@@ -51,4 +51,3 @@ dec hpacks = do
     go !tbl (f:fs) = do
         (tbl', !_) <- decodeHeader tbl f
         go tbl' fs
-
