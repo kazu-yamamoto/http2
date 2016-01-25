@@ -41,7 +41,7 @@ decodeStep dyntbl (!builder,beginning) (ChangeTableSize siz)
   | beginning = do
         suitable <- isSuitableSize siz dyntbl
         unless suitable $ throwIO TooLargeTableSize
-        dyntbl' <- renewDynamicTable siz dyntbl -- fimxe
+        renewDynamicTable siz dyntbl
         return (builder,True)
   | otherwise = throwIO IllegalTableSizeUpdate
 decodeStep dyntbl (!builder,_) (Indexed idx) = do

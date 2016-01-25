@@ -35,7 +35,6 @@ module Network.HPACK2 (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Arrow (second)
 import Control.Exception (throwIO)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)

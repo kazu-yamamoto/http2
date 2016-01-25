@@ -19,7 +19,7 @@ module Network.HPACK2.Table.Dynamic (
   , fromIndexToDIndex
   ) where
 
-import Control.Monad (forM)
+import Control.Monad (forM, when)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
@@ -105,11 +105,11 @@ printDynamicTable DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     n <- readIORef numOfEntries
-    let beg = off + 1
-        end = off + n
+    let !beg = off + 1
+        !end = off + n
     tbl <- readIORef circularTable
     es <- mapM (readArray tbl . adj maxN) [beg .. end]
-    let ts = zip [1..] es
+    let !ts = zip [1..] es
     mapM_ printEntry ts
     dsize <- readIORef dynamicTableSize
     maxdsize <- readIORef maxDynamicTableSize
@@ -183,45 +183,48 @@ newDynamicTable maxsiz dlim mhp = do
                  <*> newIORef dlim    -- limitForDecoding
                  <*> newIORef mhp     -- reverseIndex
   where
-    maxN = maxNumbers maxsiz
-    end = maxN - 1
+    !maxN = maxNumbers maxsiz
+    !end = maxN - 1
 
 -- | Renewing 'DynamicTable' with necessary entries copied.
-renewDynamicTable :: Size -> DynamicTable -> IO DynamicTable -- fixme
-renewDynamicTable maxsiz olddyntbl = do
-    putStrLn "renew!!!!"
-    renew <- shouldRenew olddyntbl maxsiz
-    dlim <- readIORef $ limitForDecoding olddyntbl
-    orev <- readIORef $ reverseIndex olddyntbl
-    let mhp = case orev of
-            Nothing -> Nothing
-            _       -> Just defaultRevIndex -- fixme
-    if renew then
-        newDynamicTable maxsiz dlim mhp >>= copyTable olddyntbl
-      else
-        return olddyntbl
-
-copyTable :: DynamicTable -> DynamicTable -> IO DynamicTable
-copyTable olddyntbl newdyntbl = getEntries olddyntbl >>= copyEntries newdyntbl
+renewDynamicTable :: Size -> DynamicTable -> IO ()
+renewDynamicTable maxsiz dyntbl@DynamicTable{..} = do
+    renew <- shouldRenew dyntbl maxsiz
+    when renew $ do
+        !entries <- getEntries dyntbl
+        mrev <- readIORef reverseIndex
+        let !maxN = maxNumbers maxsiz
+            !end = maxN - 1
+            !mrev' = case mrev of
+                Nothing -> Nothing
+                Just _  -> Just defaultRevIndex
+        newtbl <- newArray (0,end) dummyEntry
+        writeIORef circularTable newtbl
+        writeIORef offset end
+        writeIORef numOfEntries 0
+        writeIORef maxNumOfEntries maxN
+        writeIORef dynamicTableSize 0
+        writeIORef maxDynamicTableSize maxsiz
+        writeIORef reverseIndex mrev'
+        copyEntries dyntbl entries
 
 getEntries :: DynamicTable -> IO [Entry]
 getEntries DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
+    n <- readIORef numOfEntries
     table <- readIORef circularTable
     let readTable i = readArray table $ adj maxN (off + i)
-    forM [1 .. maxN] readTable
+    forM [1 .. n] readTable
 
-copyEntries :: DynamicTable -> [Entry] -> IO DynamicTable
-copyEntries dyntbl                 [] = return dyntbl
+copyEntries :: DynamicTable -> [Entry] -> IO ()
+copyEntries _                           [] = return ()
 copyEntries dyntbl@DynamicTable{..} (e:es) = do
     dsize <- readIORef dynamicTableSize
     maxdsize <- readIORef maxDynamicTableSize
-    if dsize + entrySize e <= maxdsize then do
+    when (dsize + entrySize e <= maxdsize) $ do
         insertEnd e dyntbl
         copyEntries dyntbl es
-      else
-        return dyntbl
 
 -- | Is the size of 'DynamicTable' really changed?
 shouldRenew :: DynamicTable -> Size -> IO Bool
@@ -287,9 +290,9 @@ insertEnd e DynamicTable{..} = do
     dsize <- readIORef dynamicTableSize
     mrev <- readIORef reverseIndex
     table <- readIORef circularTable
-    let i = adj maxN (off + n + 1)
-        dsize' = dsize + entrySize e
-        mrev' = case mrev of
+    let !i = adj maxN (off + n + 1)
+        !dsize' = dsize + entrySize e
+        !mrev' = case mrev of
             Nothing  -> Nothing
             Just rev -> Just $ insertDynamic (entryHeader e) (DIndex i) rev
     writeArray table i e
@@ -304,13 +307,13 @@ removeEnd DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     n <- readIORef numOfEntries
-    let i = adj maxN (off + n)
+    let !i = adj maxN (off + n)
     table <- readIORef circularTable
     e <- readArray table i
     writeArray table i dummyEntry -- let the entry GCed
     dsize <- readIORef dynamicTableSize
-    let dsize' = dsize - entrySize e
-        h = entryHeader e
+    let !dsize' = dsize - entrySize e
+        !h = entryHeader e
     writeIORef numOfEntries (n - 1)
     writeIORef dynamicTableSize dsize'
     return h

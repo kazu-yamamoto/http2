@@ -26,7 +26,7 @@ toHeaderBlock algo !dyntbl hs = do
         Keep -> do
             return id
         Change lim -> do
-            renewDynamicTable lim dyntbl -- fixme
+            renewDynamicTable lim dyntbl
             return (ChangeTableSize lim :)
         Ignore lim -> do
             resetLimitForEncoding dyntbl
