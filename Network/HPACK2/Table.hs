@@ -35,6 +35,7 @@ import Network.HPACK2.Table.Entry
 import Network.HPACK2.Table.RevIndex
 import Network.HPACK2.Table.Static
 import Network.HPACK2.Types
+import Data.IORef (readIORef)
 
 ----------------------------------------------------------------
 
@@ -51,20 +52,22 @@ data HeaderCache = None
 
 -- | Resolving an index from a header.
 --   Static table is prefer to dynamic table.
-lookupTable :: Header -> DynamicTable -> HeaderCache
-lookupTable (k,v) dyntbl = case reverseIndex dyntbl of
-    Nothing  -> None
-    Just (Outer rev) -> case M.lookup k rev of
-        Nothing -> None
-        Just (Inner ss ds) -> case lookup v ss of
-            Just sidx -> KeyValue InStaticTable $ fromSIndexToIndex sidx
-            Nothing   -> case lookup v ds of
-                Just didx -> KeyValue InDynamicTable $ fromDIndexToIndex dyntbl didx
-                Nothing -> case ss of
-                    ((_,sidx):_) -> KeyOnly InStaticTable $ fromSIndexToIndex sidx
-                    [] -> case ds of
-                        ((_,didx):_) -> KeyOnly InDynamicTable $ fromDIndexToIndex dyntbl didx
-                        _ -> error "search"
+lookupTable :: Header -> DynamicTable -> IO HeaderCache
+lookupTable (k,v) dyntbl@DynamicTable{..} = do
+    mrev <- readIORef reverseIndex
+    case mrev of
+        Nothing -> return None
+        Just (Outer rev) -> case M.lookup k rev of
+            Nothing -> return None
+            Just (Inner ss ds) -> case lookup v ss of
+                Just sidx -> return $! KeyValue InStaticTable (fromSIndexToIndex sidx)
+                Nothing   -> case lookup v ds of
+                    Just didx -> KeyValue InDynamicTable <$> fromDIndexToIndex dyntbl didx
+                    Nothing -> case ss of
+                        ((_,sidx):_) -> return $! KeyOnly InStaticTable (fromSIndexToIndex sidx)
+                        [] -> case ds of
+                            ((_,didx):_) -> KeyOnly InDynamicTable <$> fromDIndexToIndex dyntbl didx
+                            _ -> error "search"
 
 ----------------------------------------------------------------
 
@@ -75,9 +78,10 @@ isIn idx DynamicTable{..} = idx > staticTableSize
 -- | Which table does 'Index' belong to?
 which :: DynamicTable -> Index -> IO (WhichTable, Entry)
 which dyntbl idx
-  | idx `isIn` dyntbl  = (InDynamicTable,) <$> toHeaderEntry dyntbl hidx
+  | idx `isIn` dyntbl  = do
+        hidx <- fromIndexToDIndex dyntbl idx
+        (InDynamicTable,) <$> toHeaderEntry dyntbl hidx
   | isSIndexValid sidx = return (InStaticTable, toStaticEntry sidx)
   | otherwise          = throwIO $ IndexOverrun idx
   where
-    hidx = fromIndexToDIndex dyntbl idx
     sidx = fromIndexToSIndex idx

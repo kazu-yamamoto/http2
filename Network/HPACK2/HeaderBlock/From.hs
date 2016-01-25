@@ -17,59 +17,60 @@ import Network.HPACK2.Types
 
 ----------------------------------------------------------------
 
-type Ctx = (DynamicTable, Builder Header, Bool)
-type Step = Ctx -> HeaderField -> IO Ctx
+type Ctx = (Builder Header, Bool)
+type Step = DynamicTable -> Ctx -> HeaderField -> IO Ctx
 
 -- | Decoding 'HeaderBlock' to 'HeaderList'.
 fromHeaderBlock :: DynamicTable
                 -> HeaderBlock
-                -> IO (DynamicTable, HeaderList)
-fromHeaderBlock !dyntbl rs = decodeLoop rs (dyntbl,empty,True)
+                -> IO (HeaderList)
+fromHeaderBlock !dyntbl rs = decodeLoop rs dyntbl (empty,True)
 
 ----------------------------------------------------------------
 
-decodeLoop :: HeaderBlock -> Ctx -> IO (DynamicTable, HeaderList)
-decodeLoop (r:rs) !dyntbl = decodeStep dyntbl r >>= decodeLoop rs
-decodeLoop []     !dyntbl = decodeFinal dyntbl
+decodeLoop :: HeaderBlock -> DynamicTable -> Ctx -> IO HeaderList
+decodeLoop (r:rs) dyntbl ctx = decodeStep dyntbl ctx r >>= decodeLoop rs dyntbl
+decodeLoop []     _      ctx = decodeFinal ctx
 
 ----------------------------------------------------------------
 
 -- | Decoding step for one 'HeaderField'. Exporting for the
 --   test purpose.
 decodeStep :: Step
-decodeStep (!dyntbl,!builder,beginning) (ChangeTableSize siz)
+decodeStep dyntbl (!builder,beginning) (ChangeTableSize siz)
   | beginning = do
-    unless (isSuitableSize siz dyntbl) $ throwIO TooLargeTableSize
-    dyntbl' <- renewDynamicTable siz dyntbl
-    return (dyntbl',builder,True)
+        suitable <- isSuitableSize siz dyntbl
+        unless suitable $ throwIO TooLargeTableSize
+        dyntbl' <- renewDynamicTable siz dyntbl -- fimxe
+        return (builder,True)
   | otherwise = throwIO IllegalTableSizeUpdate
-decodeStep (!dyntbl,!builder,_) (Indexed idx) = do
+decodeStep dyntbl (!builder,_) (Indexed idx) = do
       w <- which dyntbl idx
       case w of
           (InStaticTable, e) -> do
               let b = builder << fromEntry e
-              return (dyntbl,b,False)
+              return (b,False)
           (InDynamicTable, e) -> do
               let b = builder << fromEntry e
-              return (dyntbl,b,False)
-decodeStep (!dyntbl,!builder,_) (Literal NotAdd naming v) = do
+              return (b,False)
+decodeStep dyntbl (!builder,_) (Literal NotAdd naming v) = do
     k <- fromNaming naming dyntbl
     let b = builder << (k,v)
-    return (dyntbl, b, False)
-decodeStep (!dyntbl,!builder,_) (Literal Never naming v) = do
+    return (b, False)
+decodeStep dyntbl (!builder,_) (Literal Never naming v) = do
     k <- fromNaming naming dyntbl
     let b = builder << (k,v)
-    return (dyntbl, b, False)
-decodeStep (!dyntbl,!builder,_) (Literal Add naming v) = do
+    return (b, False)
+decodeStep dyntbl (!builder,_) (Literal Add naming v) = do
     k <- fromNaming naming dyntbl
     let h = (k,v)
         e = toEntry (k,v)
         b = builder << h
-    dyntbl' <- insertEntry e dyntbl
-    return (dyntbl',b,False)
+    insertEntry e dyntbl
+    return (b,False)
 
-decodeFinal :: Ctx -> IO (DynamicTable, HeaderList)
-decodeFinal (!dyntbl,!builder,_) = return (dyntbl, run builder)
+decodeFinal :: Ctx -> IO HeaderList
+decodeFinal (!builder,_) = return $! run builder
 
 ----------------------------------------------------------------
 

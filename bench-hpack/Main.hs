@@ -62,8 +62,8 @@ enc2 hdrs = do
   where
     go _    []     = return ()
     go !tbl (h:hs) = do
-        (tbl', !_) <- N.encodeHeader N.defaultEncodeStrategy tbl h
-        go tbl' hs
+        !_ <- N.encodeHeader N.defaultEncodeStrategy tbl h
+        go tbl hs
 
 dec2 :: [ByteString] -> IO ()
 dec2 hpacks = do
@@ -72,5 +72,5 @@ dec2 hpacks = do
   where
     go _    []     = return ()
     go !tbl (f:fs) = do
-        (tbl', !_) <- N.decodeHeader tbl f
-        go tbl' fs
+        !_ <- N.decodeHeader tbl f
+        go tbl fs
