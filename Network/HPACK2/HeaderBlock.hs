@@ -3,8 +3,8 @@ module Network.HPACK2.HeaderBlock (
     module Network.HPACK2.HeaderBlock.HeaderField
   -- * Header block from/to Low level
   , toByteString
-  , fromByteString
-  , fromByteStringDebug
+  , decodeByteString
+  , decodeByteStringDebug
   , toBuilder
   -- * Header block from/to header list
   , toHeaderBlock

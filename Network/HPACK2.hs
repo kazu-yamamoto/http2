@@ -30,15 +30,16 @@ module Network.HPACK2 (
   -- * Basic types
   , Size
   , Index
+  , Buffer
+  , BufferSize
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception (throwIO)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
-import Network.HPACK2.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, fromByteString, toBuilder)
+import Network.HPACK2.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, decodeByteString, toBuilder)
 import Network.HPACK2.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
 import Network.HPACK2.Types
 
@@ -59,7 +60,7 @@ type HPACKEncoding = DynamicTable -> HeaderList -> IO ByteString
 type HPACKEncodingBuilder = DynamicTable -> HeaderList -> IO Builder
 
 -- | HPACK decoding from 'ByteString' to 'HeaderList'.
-type HPACKDecoding = DynamicTable -> ByteString -> IO HeaderList
+type HPACKDecoding = DynamicTable -> ByteString -> Buffer -> BufferSize -> IO HeaderList
 
 ----------------------------------------------------------------
 
@@ -80,6 +81,4 @@ encodeHeaderBuilder stgy ctx hs = toBB <$> toHeaderBlock algo ctx hs
 -- | Converting the low level format for HTTP header to 'HeaderList'.
 --   'DecodeError' would be thrown.
 decodeHeader :: HPACKDecoding
-decodeHeader ctx bs = either throwIO (fromHeaderBlock ctx) ehb
-  where
-    ehb = fromByteString bs
+decodeHeader ctx bs buf siz = decodeByteString bs buf siz>>= fromHeaderBlock ctx

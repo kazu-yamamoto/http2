@@ -53,7 +53,6 @@ Library
                         Network.HTTP2
                         Network.HTTP2.Priority
   Other-Modules:        Network.HPACK.Builder
-                        Network.HPACK.Builder.Word8
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit
                         Network.HPACK.Huffman.ByteString
@@ -77,7 +76,6 @@ Library
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
                         Network.HPACK2.Builder
-                        Network.HPACK2.Builder.Word8
                         Network.HPACK2.Huffman
                         Network.HPACK2.Huffman.Bit
                         Network.HPACK2.Huffman.ByteString

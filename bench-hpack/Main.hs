@@ -7,12 +7,15 @@ import Criterion.Main
 import Network.HPACK
 import qualified Network.HPACK2 as N
 import Data.ByteString (ByteString)
+import Foreign.Marshal.Alloc
 
 main :: IO ()
 main = do
     hdrs <- read <$> readFile "bench-hpack/headers.hs"
     hpacks <- prepare hdrs
     _ <- evaluate hpacks
+    let bufsiz = 4096
+    buf <- mallocBytes bufsiz
     defaultMain [
         bgroup "HPACK encoding" [
               bench "Pure" $ nfIO (enc hdrs)
@@ -20,7 +23,7 @@ main = do
             ]
       , bgroup "HPACK decoding" [
               bench "Pure" $ nfIO (dec hpacks)
-            , bench "New"  $ nfIO (dec2 hpacks)
+            , bench "New"  $ nfIO (dec2 hpacks buf bufsiz)
             ]
       ]
 
@@ -65,12 +68,12 @@ enc2 hdrs = do
         !_ <- N.encodeHeader N.defaultEncodeStrategy tbl h
         go tbl hs
 
-dec2 :: [ByteString] -> IO ()
-dec2 hpacks = do
+dec2 :: [ByteString] -> N.Buffer -> N.BufferSize -> IO ()
+dec2 hpacks buf siz = do
     tbl <- N.newDynamicTableForDecoding N.defaultDynamicTableSize
     go tbl hpacks
   where
     go _    []     = return ()
     go !tbl (f:fs) = do
-        !_ <- N.decodeHeader tbl f
+        !_ <- N.decodeHeader tbl f buf siz
         go tbl fs

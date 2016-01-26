@@ -14,11 +14,16 @@ module Network.HPACK2.Types (
   , EncodeStrategy(..)
   , defaultEncodeStrategy
   , DecodeError(..)
+  -- * Buffer
+  , Buffer
+  , BufferSize
   ) where
 
 import Control.Exception as E
 import Data.ByteString (ByteString)
 import Data.Typeable
+import Data.Word (Word8)
+import Foreign.Ptr (Ptr)
 
 -- | Header name.
 type HeaderName = ByteString
@@ -72,6 +77,10 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | EmptyBlock -- ^ Header block is empty
                  | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit
                  | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
+                 | TooLongHeaderString -- ^ String to be decoded is too long against a working buffer
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
+
+type Buffer = Ptr Word8
+type BufferSize = Int

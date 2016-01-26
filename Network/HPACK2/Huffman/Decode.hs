@@ -1,24 +1,91 @@
+{-# LANGUAGE BangPatterns, RecordWildCards #-}
+
 module Network.HPACK2.Huffman.Decode (
   -- * Huffman decoding
     HuffmanDecoding
   , decode
   ) where
 
-import Data.ByteString (ByteString)
+import Control.Exception (throwIO)
 import Data.Array (Array, (!), listArray)
+import Data.Bits
+import Data.ByteString.Internal
+import Data.IORef
 import Data.Word (Word8)
-import Network.HPACK2.Builder.Word8
+import Foreign.ForeignPtr
+import Foreign.Ptr
+import Foreign.Storable
 import Network.HPACK2.Huffman.Bit
-import Network.HPACK2.Huffman.ByteString
 import Network.HPACK2.Huffman.Params
 import Network.HPACK2.Huffman.Table
 import Network.HPACK2.Huffman.Tree
-import Network.HPACK2.Types (DecodeError(..))
+import Network.HPACK2.Types (DecodeError(..), Buffer, BufferSize)
+
+----------------------------------------------------------------
+data Digit = Upper | Lower deriving Eq
+
+data NibbleSource = NibbleSource {
+    beg :: !(Ptr Word8)
+  , end :: !(Ptr Word8)
+  , cur :: !(IORef (Ptr Word8))
+  , dig :: !(IORef Digit)
+  }
+
+newNibbleSource :: ByteString -> IO NibbleSource
+newNibbleSource (PS fp off len) = withForeignPtr fp $ \ptr -> do
+    let !bg = ptr `plusPtr` off
+        !ed = bg `plusPtr` len
+    NibbleSource bg ed <$> newIORef bg <*> newIORef Upper
+
+getNibble :: NibbleSource -> IO (Maybe Word8)
+getNibble NibbleSource{..} = do
+    ptr <- readIORef cur
+    if ptr >= end then
+        return Nothing
+      else do
+        d <- readIORef dig
+        w <- peek ptr
+        if d == Upper then do
+            writeIORef dig Lower
+            let !nib = w `shiftR` 4
+            return $! Just nib
+         else do
+            writeIORef dig Upper
+            writeIORef cur $ ptr `plusPtr` 1
+            let !nib = w .&. 0x0f
+            return $! Just nib
+
+----------------------------------------------------------------
+
+data WorkingBuffer = WorkingBuffer {
+    start :: !(Ptr Word8)
+  , limit :: !(Ptr Word8)
+  , offset :: !(IORef (Ptr Word8))
+  }
+
+newWorkingBuffer :: Buffer -> BufferSize -> IO WorkingBuffer
+newWorkingBuffer buf siz = WorkingBuffer buf (buf `plusPtr` siz) <$> newIORef buf
+
+write :: WorkingBuffer -> Word8 -> IO ()
+write WorkingBuffer{..} w = do
+    ptr <- readIORef offset
+    if ptr >= limit then
+        throwIO TooLongHeaderString
+      else do
+        poke ptr w
+        let ptr' = ptr `plusPtr` 1
+        writeIORef offset ptr'
+
+toByteString :: WorkingBuffer -> IO ByteString
+toByteString WorkingBuffer{..} = do
+    ptr <- readIORef offset
+    let !len = ptr `minusPtr` start
+    create len $ \p -> memcpy p start len
 
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-type HuffmanDecoding = ByteString -> Either DecodeError ByteString
+type HuffmanDecoding = ByteString -> Buffer -> BufferSize -> IO ByteString
 
 ----------------------------------------------------------------
 
@@ -38,22 +105,28 @@ next (Way16 _ a16) w = a16 ! w
 
 -- | Huffman decoding.
 decode :: HuffmanDecoding
-decode bs = dec qs
-  where
-    qs = unpack4bits bs
+decode bs buf siz = do
+    wrkbuf <- newWorkingBuffer buf siz
+    nibsrc <- newNibbleSource bs
+    dec nibsrc wrkbuf
 
-dec :: [Word8] -> Either DecodeError ByteString
-dec inp = go (way256 ! 0) inp w8empty
+dec :: NibbleSource -> WorkingBuffer -> IO ByteString
+dec src tmp = go (way256 ! 0)
   where
-    go :: Way16 -> [Word8] -> Word8Builder -> Either DecodeError ByteString
-    go (Way16 Nothing  _) [] _       = Left IllegalEos
-    go (Way16 (Just i) _) [] builder
-        | i <= 8                     = Right $ toByteString builder
-        | otherwise                  = Left TooLongEos
-    go way (w:ws) builder = case next way w of
-        EndOfString                 -> Left EosInTheMiddle
-        Forward n                   -> go (way256 ! n) ws builder
-        GoBack  n v                 -> go (way256 ! n) ws (builder <| v)
+    go way = do
+        mn <- getNibble src
+        case mn of
+            Nothing -> case way of
+                Way16 Nothing  _ -> throwIO IllegalEos
+                Way16 (Just i) _
+                  | i <= 8       -> toByteString tmp
+                  | otherwise    -> throwIO TooLongEos
+            Just w  -> case next way w of
+                EndOfString      -> throwIO EosInTheMiddle
+                Forward n        -> go (way256 ! n)
+                GoBack  n v      -> do
+                    write tmp v
+                    go (way256 ! n)
 
 ----------------------------------------------------------------
 
@@ -65,8 +138,8 @@ construct decoder = listArray (0,255) $ map to16ways $ flatten decoder
   where
     to16ways x = Way16 ei a16
       where
-        ei = eosInfo x
-        a16 = listArray (0,15) $ map (step decoder x Nothing) bits4s
+        !ei = eosInfo x
+        !a16 = listArray (0,15) $ map (step decoder x Nothing) bits4s
 
 step :: HTree -> HTree -> Maybe Word8 -> [B] -> Pin
 step root (Tip _ v)     _  bss

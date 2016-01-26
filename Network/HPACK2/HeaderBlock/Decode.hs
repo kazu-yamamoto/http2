@@ -1,8 +1,9 @@
 module Network.HPACK2.HeaderBlock.Decode (
-    fromByteString
-  , fromByteStringDebug
+    decodeByteString
+  , decodeByteStringDebug
   ) where
 
+import Control.Exception (throwIO)
 import Data.Bits (testBit, clearBit, (.&.))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -16,100 +17,97 @@ import Network.HPACK2.Types
 ----------------------------------------------------------------
 
 -- | Converting the low level format to 'HeaderBlock'.
-fromByteString :: ByteString -> Either DecodeError HeaderBlock
-fromByteString inp = go inp empty
+decodeByteString :: ByteString -> Buffer -> BufferSize -> IO HeaderBlock
+decodeByteString inp buf siz = go inp empty
   where
     go bs builder
-      | BS.null bs = Right $ run builder
+      | BS.null bs = return $! run builder
       | otherwise  = do
-        (hf, bs') <- toHeaderField bs
+        (hf, bs') <- toHeaderField bs buf siz
         go bs' (builder << hf)
 
 -- | Converting the low level format to 'HeaderBlock'.
 --   'HeaderBlock' forms a pair with corresponding 'ByteString'.
-fromByteStringDebug :: ByteString -> Either DecodeError [(ByteString,HeaderField)]
-fromByteStringDebug inp = go inp empty
+decodeByteStringDebug :: ByteString -> Buffer -> BufferSize -> IO [(ByteString,HeaderField)]
+decodeByteStringDebug inp buf siz = go inp empty
   where
     go bs builder
-      | BS.null bs = Right $ run builder
+      | BS.null bs = return $! run builder
       | otherwise  = do
-        (hf, bs') <- toHeaderField bs
+        (hf, bs') <- toHeaderField bs buf siz
         let len = BS.length bs - BS.length bs'
             consumed = BS.take len bs
         go bs' (builder << (consumed,hf))
 
-toHeaderField :: ByteString
-              -> Either DecodeError (HeaderField, ByteString)
-toHeaderField bs
-  | BS.null bs    = Left EmptyBlock
+toHeaderField :: ByteString -> Buffer -> BufferSize -> IO (HeaderField, ByteString)
+toHeaderField bs buf siz
+  | BS.null bs    = throwIO EmptyBlock
   | w `testBit` 7 = indexed w bs'
-  | w `testBit` 6 = incrementalIndexing w bs'
+  | w `testBit` 6 = incrementalIndexing w bs' buf siz
   | w `testBit` 5 = maxSize w bs'
-  | w `testBit` 4 = neverIndexing w bs'
-  | otherwise     = withoutIndexing w bs'
+  | w `testBit` 4 = neverIndexing w bs' buf siz
+  | otherwise     = withoutIndexing w bs' buf siz
   where
     w = BS.head bs
     bs' = BS.tail bs
 
 ----------------------------------------------------------------
 
-indexed :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
-indexed w ws = Right (Indexed idx , ws')
+indexed :: Word8 -> ByteString -> IO (HeaderField, ByteString)
+indexed w ws = return (Indexed idx , ws')
   where
     w' = clearBit w 7
     (idx, ws') = I.parseInteger 7 w' ws
 
-incrementalIndexing :: Word8 -> ByteString
-                    -> Either DecodeError (HeaderField, ByteString)
-incrementalIndexing w ws
-  | isIndexedName1 w = indexedName Add w ws 6 mask6
-  | otherwise        = newName Add ws
+incrementalIndexing :: Word8 -> ByteString -> Buffer -> BufferSize -> IO (HeaderField, ByteString)
+incrementalIndexing w ws buf siz
+  | isIndexedName1 w = indexedName Add w ws 6 mask6 buf siz
+  | otherwise        = newName Add ws buf siz
 
-maxSize :: Word8 -> ByteString -> Either DecodeError (HeaderField, ByteString)
-maxSize w ws = Right (ChangeTableSize siz, ws')
+maxSize :: Word8 -> ByteString -> IO (HeaderField, ByteString)
+maxSize w ws = return (ChangeTableSize siz, ws')
   where
     w' = mask5 w
     (siz, ws') = I.parseInteger 5 w' ws
 
-withoutIndexing :: Word8 -> ByteString
-                -> Either DecodeError (HeaderField, ByteString)
-withoutIndexing w ws
-  | isIndexedName2 w = indexedName NotAdd w ws 4 mask4
-  | otherwise        = newName NotAdd ws
+withoutIndexing :: Word8 -> ByteString -> Buffer -> BufferSize -> IO (HeaderField, ByteString)
+withoutIndexing w ws buf siz
+  | isIndexedName2 w = indexedName NotAdd w ws 4 mask4 buf siz
+  | otherwise        = newName NotAdd ws buf siz
 
-neverIndexing :: Word8 -> ByteString
-                -> Either DecodeError (HeaderField, ByteString)
-neverIndexing w ws
-  | isIndexedName2 w = indexedName Never w ws 4 mask4
-  | otherwise        = newName Never ws
+neverIndexing :: Word8 -> ByteString -> Buffer -> BufferSize -> IO (HeaderField, ByteString)
+neverIndexing w ws buf siz
+  | isIndexedName2 w = indexedName Never w ws 4 mask4 buf siz
+  | otherwise        = newName Never ws buf siz
 
 ----------------------------------------------------------------
 
 indexedName :: Indexing -> Word8 -> ByteString -> Int -> (Word8 -> Word8)
-            -> Either DecodeError (HeaderField, ByteString)
-indexedName indexing w ws n mask = do
-    (val,ws'') <- headerStuff ws'
+            -> Buffer -> BufferSize
+            -> IO (HeaderField, ByteString)
+indexedName indexing w ws n mask buf siz = do
+    (val,ws'') <- headerStuff ws' buf siz
     let hf = Literal indexing (Idx idx) val
     return (hf, ws'')
   where
     p = mask w
     (idx,ws') = I.parseInteger n p ws
 
-newName :: Indexing -> ByteString
-        -> Either DecodeError (HeaderField, ByteString)
-newName indexing ws = do
-    (key,ws')  <- headerStuff ws
-    (val,ws'') <- headerStuff ws'
+newName :: Indexing -> ByteString -> Buffer -> BufferSize
+        -> IO (HeaderField, ByteString)
+newName indexing ws buf siz = do
+    (key,ws')  <- headerStuff ws buf siz
+    (val,ws'') <- headerStuff ws' buf siz
     let hf = Literal indexing (Lit key) val
     return (hf, ws'')
 
 ----------------------------------------------------------------
 
-headerStuff :: ByteString
-            -> Either DecodeError (HeaderStuff, ByteString)
-headerStuff bs
-  | BS.null bs  = Left EmptyEncodedString
-  | otherwise   = S.parseString huff len bs''
+headerStuff :: ByteString -> Buffer -> BufferSize
+            -> IO (HeaderStuff, ByteString)
+headerStuff bs buf siz
+  | BS.null bs  = throwIO EmptyEncodedString
+  | otherwise   = S.parseString huff len bs'' buf siz
   where
     w = BS.head bs
     bs' = BS.tail bs
