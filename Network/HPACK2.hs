@@ -4,7 +4,6 @@
 module Network.HPACK2 (
   -- * Encoding and decoding
     HPACKEncoding
-  , HPACKDecoding
   , encodeHeader
   , decodeHeader
   -- * Encoding with builders
@@ -39,7 +38,7 @@ import Control.Applicative ((<$>))
 #endif
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
-import Network.HPACK2.HeaderBlock (toHeaderBlock, fromHeaderBlock, toByteString, decodeByteString, toBuilder)
+import Network.HPACK2.HeaderBlock (toHeaderBlock, toByteString, decodeHeader, toBuilder)
 import Network.HPACK2.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
 import Network.HPACK2.Types
 
@@ -59,9 +58,6 @@ type HPACKEncoding = DynamicTable -> HeaderList -> IO ByteString
 -- | HPACK encoding from 'HeaderList' to 'Builder'.
 type HPACKEncodingBuilder = DynamicTable -> HeaderList -> IO Builder
 
--- | HPACK decoding from 'ByteString' to 'HeaderList'.
-type HPACKDecoding = DynamicTable -> ByteString -> Buffer -> BufferSize -> IO HeaderList
-
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderList' for HTTP header to the low level format.
@@ -77,8 +73,3 @@ encodeHeaderBuilder stgy ctx hs = toBB <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBB = toBuilder (useHuffman stgy)
-
--- | Converting the low level format for HTTP header to 'HeaderList'.
---   'DecodeError' would be thrown.
-decodeHeader :: HPACKDecoding
-decodeHeader ctx bs buf siz = decodeByteString bs buf siz>>= fromHeaderBlock ctx

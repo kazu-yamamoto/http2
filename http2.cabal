@@ -87,7 +87,6 @@ Library
                         Network.HPACK2.HeaderBlock
                         Network.HPACK2.HeaderBlock.Decode
                         Network.HPACK2.HeaderBlock.Encode
-                        Network.HPACK2.HeaderBlock.From
                         Network.HPACK2.HeaderBlock.HeaderField
                         Network.HPACK2.HeaderBlock.Integer
                         Network.HPACK2.HeaderBlock.String
