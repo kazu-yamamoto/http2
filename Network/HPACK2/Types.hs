@@ -25,6 +25,8 @@ import Data.Typeable
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr)
 
+----------------------------------------------------------------
+
 -- | Header name.
 type HeaderName = ByteString
 
@@ -42,6 +44,8 @@ type HeaderStuff = ByteString
 
 -- | Index for table.
 type Index = Int
+
+----------------------------------------------------------------
 
 -- | Compression algorithms for HPACK encoding.
 data CompressionAlgo = Naive  -- ^ No compression
@@ -67,6 +71,7 @@ defaultEncodeStrategy = EncodeStrategy {
   , useHuffman = True
   }
 
+----------------------------------------------------------------
 
 -- | Errors for decoder.
 data DecodeError = IndexOverrun Index -- ^ Index is out of range
@@ -82,5 +87,18 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
 
 instance Exception DecodeError
 
+----------------------------------------------------------------
+
+-- ! Errors for encoder.
+data EncodeError = TooSmallBuffer -- ^ The buffer size is not enough
+                   deriving (Eq,Show,Typeable)
+
+instance Exception EncodeError
+
+----------------------------------------------------------------
+
+-- | Buffer type.
 type Buffer = Ptr Word8
+
+-- | The size of buffer.
 type BufferSize = Int
