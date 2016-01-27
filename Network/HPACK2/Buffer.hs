@@ -1,11 +1,17 @@
 {-# LANGUAGE BangPatterns, RecordWildCards #-}
 
 module Network.HPACK2.Buffer (
-    WorkingBuffer
+    Buffer
+  , BufferSize
+  , WorkingBuffer
   , newWorkingBuffer
+  , rewind1
+  , readW
+  , readWord8
   , writeWord8
   , finalPointer
   , toByteString
+  , copyByteString
   , NibbleSource
   , newNibbleSource
   , getNibble
@@ -23,13 +29,34 @@ import Network.HPACK2.Types (Buffer, BufferSize)
 ----------------------------------------------------------------
 
 data WorkingBuffer = WorkingBuffer {
-    start :: !(Ptr Word8)
-  , limit :: !(Ptr Word8)
-  , offset :: !(IORef (Ptr Word8))
+    start :: !Buffer
+  , limit :: !Buffer
+  , offset :: !(IORef Buffer)
   }
 
 newWorkingBuffer :: Buffer -> BufferSize -> IO WorkingBuffer
 newWorkingBuffer buf siz = WorkingBuffer buf (buf `plusPtr` siz) <$> newIORef buf
+
+{-# INLINE rewind1 #-}
+rewind1 :: WorkingBuffer -> IO ()
+rewind1 WorkingBuffer{..} = do
+    ptr <- readIORef offset
+    let !ptr' = ptr `plusPtr` (-1)
+    writeIORef offset ptr'
+
+{-# INLINE readW #-}
+readW :: WorkingBuffer -> IO Word8
+readW WorkingBuffer{..} = readIORef offset >>= peek
+
+{-# INLINE readWord8 #-}
+readWord8 :: WorkingBuffer -> IO (Maybe Word8)
+readWord8 WorkingBuffer{..} = do
+    ptr <- readIORef offset
+    if ptr >= limit then
+        return Nothing
+      else do
+        w <- peek ptr
+        return $! Just w
 
 {-# INLINE writeWord8 #-}
 writeWord8 :: WorkingBuffer -> Word8 -> IO Bool
@@ -43,8 +70,21 @@ writeWord8 WorkingBuffer{..} w = do
         writeIORef offset ptr'
         return True
 
-finalPointer :: WorkingBuffer -> IO (Ptr Word8)
+finalPointer :: WorkingBuffer -> IO Buffer
 finalPointer WorkingBuffer{..} = readIORef offset
+
+{-# INLINE copyByteString #-}
+copyByteString :: WorkingBuffer -> ByteString -> IO Bool
+copyByteString WorkingBuffer{..} (PS fptr off len) = withForeignPtr fptr $ \ptr -> do
+    let src = ptr `plusPtr` off
+    dst <- readIORef offset
+    let !dst' = dst `plusPtr` len
+    if dst' >= limit then
+        return False
+      else do
+        memcpy dst src len
+        writeIORef offset dst'
+        return True
 
 toByteString :: WorkingBuffer -> IO ByteString
 toByteString WorkingBuffer{..} = do
@@ -56,9 +96,9 @@ toByteString WorkingBuffer{..} = do
 data Digit = Upper | Lower deriving Eq
 
 data NibbleSource = NibbleSource {
-    beg :: !(Ptr Word8)
-  , end :: !(Ptr Word8)
-  , cur :: !(IORef (Ptr Word8))
+    beg :: !Buffer
+  , end :: !Buffer
+  , cur :: !(IORef Buffer)
   , dig :: !(IORef Digit)
   }
 

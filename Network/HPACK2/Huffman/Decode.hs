@@ -16,7 +16,7 @@ import Network.HPACK2.Huffman.Bit
 import Network.HPACK2.Huffman.Params
 import Network.HPACK2.Huffman.Table
 import Network.HPACK2.Huffman.Tree
-import Network.HPACK2.Types (DecodeError(..), Buffer, BufferSize)
+import Network.HPACK2.Types (DecodeError(..))
 
 ----------------------------------------------------------------
 

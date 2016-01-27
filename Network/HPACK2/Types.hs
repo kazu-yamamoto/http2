@@ -14,6 +14,7 @@ module Network.HPACK2.Types (
   , EncodeStrategy(..)
   , defaultEncodeStrategy
   , DecodeError(..)
+  , EncodeError(..)
   -- * Buffer
   , Buffer
   , BufferSize
