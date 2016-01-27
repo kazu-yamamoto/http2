@@ -63,7 +63,7 @@ decodeStep (!dyntbl,!builder,_) (Literal Never naming v) = do
 decodeStep (!dyntbl,!builder,_) (Literal Add naming v) = do
     k <- fromNaming naming dyntbl
     let h = (k,v)
-        e = toEntry (k,v)
+        e = toEntry h
         b = builder << h
     dyntbl' <- insertEntry e dyntbl
     return (dyntbl',b,False)

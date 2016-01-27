@@ -73,7 +73,7 @@ data DynamicTable = DynamicTable {
   -- | The size of the array
   , maxNumOfEntries :: !Int
   -- | The current dynamic table size (defined in HPACK)
-  , headerTableSize :: !Size
+  , dynamicTableSize :: !Size
   -- | The max dynamic table size (defined in HPACK)
   , maxDynamicTableSize :: !Size
   -- | The value informed by SETTINGS_HEADER_TABLE_SIZE.
@@ -100,7 +100,7 @@ printDynamicTable DynamicTable{..} = do
     es <- mapM (readArray circularTable . adj maxNumOfEntries) [beg .. end]
     let ts = zip [1..] es
     mapM_ printEntry ts
-    putStrLn $ "      Table size: " ++ show headerTableSize ++ "/" ++ show maxDynamicTableSize
+    putStrLn $ "      Table size: " ++ show dynamicTableSize ++ "/" ++ show maxDynamicTableSize
     print reverseIndex
   where
     beg = offset + 1
@@ -168,7 +168,7 @@ newDynamicTable maxsiz dlim mhp = do
       , offset = end
       , numOfEntries = 0
       , circularTable = tbl
-      , headerTableSize = 0
+      , dynamicTableSize = 0
       , maxDynamicTableSize = maxsiz
       , limitForEncoding = lim
       , limitForDecoding = dlim
@@ -200,7 +200,7 @@ getEntries DynamicTable{..} = forM [1 .. numOfEntries] readTable
 copyEntries :: DynamicTable -> [Entry] -> IO DynamicTable
 copyEntries dyntbl                 [] = return dyntbl
 copyEntries dyntbl@DynamicTable{..} (e:es)
-  | headerTableSize + entrySize e <= maxDynamicTableSize = do
+  | dynamicTableSize + entrySize e <= maxDynamicTableSize = do
       dyntbl' <- insertEnd e dyntbl
       copyEntries dyntbl' es
   | otherwise = return dyntbl
@@ -229,12 +229,12 @@ insertFront e dyntbl@DynamicTable{..} = do
     return $ dyntbl {
         offset = offset'
       , numOfEntries = numOfEntries + 1
-      , headerTableSize = headerTableSize'
+      , dynamicTableSize = dynamicTableSize'
       , reverseIndex = reverseIndex'
       }
   where
     i = offset
-    headerTableSize' = headerTableSize + entrySize e
+    dynamicTableSize' = dynamicTableSize + entrySize e
     offset' = adj maxNumOfEntries (offset - 1)
     reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
@@ -245,7 +245,7 @@ adjustTableSize dyntbl = adjust dyntbl []
 
 adjust :: DynamicTable -> [Header] -> IO (DynamicTable, [Header])
 adjust dyntbl@DynamicTable{..} hs
-  | headerTableSize <= maxDynamicTableSize = return (dyntbl, hs)
+  | dynamicTableSize <= maxDynamicTableSize = return (dyntbl, hs)
   | otherwise         = do
       (dyntbl', h) <- removeEnd dyntbl
       adjust dyntbl' (h:hs)
@@ -257,12 +257,12 @@ insertEnd e dyntbl@DynamicTable{..} = do
     writeArray circularTable i e
     return $ dyntbl {
         numOfEntries = numOfEntries + 1
-      , headerTableSize = headerTableSize'
+      , dynamicTableSize = dynamicTableSize'
       , reverseIndex = reverseIndex'
       }
   where
     i = adj maxNumOfEntries (offset + numOfEntries + 1)
-    headerTableSize' = headerTableSize + entrySize e
+    dynamicTableSize' = dynamicTableSize + entrySize e
     reverseIndex' = case reverseIndex of
         Nothing  -> Nothing
         Just rev -> Just $ insertDynamic (entryHeader e) (DIndex i) rev
@@ -274,11 +274,11 @@ removeEnd dyntbl@DynamicTable{..} = do
     let i = adj maxNumOfEntries (offset + numOfEntries)
     e <- readArray circularTable i
     writeArray circularTable i dummyEntry -- let the entry GCed
-    let tsize = headerTableSize - entrySize e
+    let tsize = dynamicTableSize - entrySize e
         h = entryHeader e
         dyntbl' = dyntbl {
             numOfEntries = numOfEntries - 1
-          , headerTableSize = tsize
+          , dynamicTableSize = tsize
           }
     return (dyntbl', h)
 
