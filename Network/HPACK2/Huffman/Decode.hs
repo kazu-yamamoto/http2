@@ -7,14 +7,11 @@ module Network.HPACK2.Huffman.Decode (
   ) where
 
 import Control.Exception (throwIO)
+import Control.Monad (unless)
 import Data.Array (Array, (!), listArray)
-import Data.Bits
-import Data.ByteString.Internal
-import Data.IORef
+import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr
-import Foreign.Ptr
-import Foreign.Storable
+import Network.HPACK2.Buffer
 import Network.HPACK2.Huffman.Bit
 import Network.HPACK2.Huffman.Params
 import Network.HPACK2.Huffman.Table
@@ -22,65 +19,11 @@ import Network.HPACK2.Huffman.Tree
 import Network.HPACK2.Types (DecodeError(..), Buffer, BufferSize)
 
 ----------------------------------------------------------------
-data Digit = Upper | Lower deriving Eq
-
-data NibbleSource = NibbleSource {
-    beg :: !(Ptr Word8)
-  , end :: !(Ptr Word8)
-  , cur :: !(IORef (Ptr Word8))
-  , dig :: !(IORef Digit)
-  }
-
-newNibbleSource :: ByteString -> IO NibbleSource
-newNibbleSource (PS fp off len) = withForeignPtr fp $ \ptr -> do
-    let !bg = ptr `plusPtr` off
-        !ed = bg `plusPtr` len
-    NibbleSource bg ed <$> newIORef bg <*> newIORef Upper
-
-getNibble :: NibbleSource -> IO (Maybe Word8)
-getNibble NibbleSource{..} = do
-    ptr <- readIORef cur
-    if ptr >= end then
-        return Nothing
-      else do
-        d <- readIORef dig
-        w <- peek ptr
-        if d == Upper then do
-            writeIORef dig Lower
-            let !nib = w `shiftR` 4
-            return $! Just nib
-         else do
-            writeIORef dig Upper
-            writeIORef cur $ ptr `plusPtr` 1
-            let !nib = w .&. 0x0f
-            return $! Just nib
-
-----------------------------------------------------------------
-
-data WorkingBuffer = WorkingBuffer {
-    start :: !(Ptr Word8)
-  , limit :: !(Ptr Word8)
-  , offset :: !(IORef (Ptr Word8))
-  }
-
-newWorkingBuffer :: Buffer -> BufferSize -> IO WorkingBuffer
-newWorkingBuffer buf siz = WorkingBuffer buf (buf `plusPtr` siz) <$> newIORef buf
 
 write :: WorkingBuffer -> Word8 -> IO ()
-write WorkingBuffer{..} w = do
-    ptr <- readIORef offset
-    if ptr >= limit then
-        throwIO TooLongHeaderString
-      else do
-        poke ptr w
-        let ptr' = ptr `plusPtr` 1
-        writeIORef offset ptr'
-
-toByteString :: WorkingBuffer -> IO ByteString
-toByteString WorkingBuffer{..} = do
-    ptr <- readIORef offset
-    let !len = ptr `minusPtr` start
-    create len $ \p -> memcpy p start len
+write wbuf w = do
+    success <- writeWord8 wbuf w
+    unless success $ throwIO TooLongHeaderString
 
 ----------------------------------------------------------------
 

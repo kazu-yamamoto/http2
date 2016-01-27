@@ -75,6 +75,7 @@ Library
                         Network.HPACK.Table.RevIndex
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
+                        Network.HPACK2.Buffer
                         Network.HPACK2.Builder
                         Network.HPACK2.Huffman
                         Network.HPACK2.Huffman.Bit
