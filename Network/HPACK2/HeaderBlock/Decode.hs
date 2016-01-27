@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Network.HPACK2.HeaderBlock.Decode (
-    decodeHeader
+    HPACKDecoding
+  , decodeHeaderWithWorkingBuffer
   ) where
 
 import Control.Exception (throwIO)
@@ -18,10 +19,14 @@ import Network.HPACK2.Types
 
 ----------------------------------------------------------------
 
+-- | HPACK decoding from 'ByteString' to 'HeaderList'.
+type HPACKDecoding = DynamicTable -> ByteString -> IO HeaderList
+
 -- | Converting the low level format for HTTP header to 'HeaderList'.
+--   A working buffer is used for Huffman decoding.
 --   'DecodeError' would be thrown.
-decodeHeader :: DynamicTable -> ByteString -> Buffer -> BufferSize -> IO HeaderList
-decodeHeader dyntbl inp buf siz = chkChange inp
+decodeHeaderWithWorkingBuffer :: Buffer -> BufferSize -> HPACKDecoding
+decodeHeaderWithWorkingBuffer buf siz dyntbl inp = chkChange inp
   where
     chkChange bs
       | BS.null bs          = return []
@@ -35,17 +40,17 @@ decodeHeader dyntbl inp buf siz = chkChange inp
     go bs builder
       | BS.null bs = return $! run builder
       | otherwise  = do
-        (!kv, bs') <- toHeader dyntbl bs buf siz
+        (!kv, bs') <- toHeader buf siz dyntbl bs
         go bs' (builder << kv)
 
-toHeader :: DynamicTable -> ByteString -> Buffer -> BufferSize -> IO (Header, ByteString)
-toHeader dyntbl bs buf siz
+toHeader :: Buffer -> BufferSize -> DynamicTable -> ByteString -> IO (Header, ByteString)
+toHeader buf siz dyntbl bs
   | BS.null bs    = throwIO EmptyBlock
   | w `testBit` 7 = indexed dyntbl w bs'
-  | w `testBit` 6 = incrementalIndexing dyntbl w bs' buf siz
+  | w `testBit` 6 = incrementalIndexing buf siz dyntbl w bs'
   | w `testBit` 5 = throwIO IllegalTableSizeUpdate
-  | w `testBit` 4 = neverIndexing dyntbl w bs' buf siz
-  | otherwise     = withoutIndexing dyntbl w bs' buf siz
+  | w `testBit` 4 = neverIndexing       buf siz dyntbl w bs'
+  | otherwise     = withoutIndexing     buf siz dyntbl w bs'
   where
     w = BS.head bs
     bs' = BS.tail bs
@@ -70,52 +75,52 @@ indexed dyntbl w ws = do
     w' = clearBit w 7
     (idx, ws') = I.parseInteger 7 w' ws
 
-incrementalIndexing :: DynamicTable -> Word8 -> ByteString -> Buffer -> BufferSize -> IO (Header, ByteString)
-incrementalIndexing dyntbl w ws buf siz = do
+incrementalIndexing :: Buffer -> BufferSize -> DynamicTable -> Word8 -> ByteString -> IO (Header, ByteString)
+incrementalIndexing buf siz dyntbl w ws = do
     r@(kv,_) <- if isIndexedName1 w then
-                    indexedName dyntbl w ws 6 mask6 buf siz
+                    indexedName buf siz dyntbl w ws 6 mask6
                   else
-                    newName ws buf siz
+                    newName buf siz ws
     let !e = toEntry kv
     insertEntry e dyntbl
     return r
 
-withoutIndexing :: DynamicTable -> Word8 -> ByteString -> Buffer -> BufferSize -> IO (Header, ByteString)
-withoutIndexing dyntbl w ws buf siz
-  | isIndexedName2 w = indexedName dyntbl w ws 4 mask4 buf siz
-  | otherwise        = newName ws buf siz
+withoutIndexing :: Buffer -> BufferSize -> DynamicTable -> Word8 -> ByteString -> IO (Header, ByteString)
+withoutIndexing buf siz dyntbl w ws
+  | isIndexedName2 w = indexedName buf siz dyntbl w ws 4 mask4
+  | otherwise        = newName buf siz ws
 
-neverIndexing :: DynamicTable -> Word8 -> ByteString -> Buffer -> BufferSize -> IO (Header, ByteString)
-neverIndexing dyntbl w ws buf siz
-  | isIndexedName2 w = indexedName dyntbl w ws 4 mask4 buf siz
-  | otherwise        = newName ws buf siz
+neverIndexing :: Buffer -> BufferSize -> DynamicTable -> Word8 -> ByteString -> IO (Header, ByteString)
+neverIndexing buf siz dyntbl w ws
+  | isIndexedName2 w = indexedName buf siz dyntbl w ws 4 mask4
+  | otherwise        = newName buf siz ws
 
 ----------------------------------------------------------------
 
-indexedName :: DynamicTable -> Word8 -> ByteString -> Int -> (Word8 -> Word8)
-            -> Buffer -> BufferSize
+indexedName :: Buffer -> BufferSize -> DynamicTable
+            -> Word8 -> ByteString -> Int -> (Word8 -> Word8)
             -> IO (Header, ByteString)
-indexedName dyntbl w ws n mask buf siz = do
-    (!val,!ws'') <- headerStuff ws' buf siz
+indexedName buf siz dyntbl w ws n mask = do
+    (!val,!ws'') <- headerStuff buf siz ws'
     !key <- entryHeaderName . snd <$> which dyntbl idx
     return ((key,val), ws'')
   where
     p = mask w
     (idx,ws') = I.parseInteger n p ws
 
-newName :: ByteString -> Buffer -> BufferSize
+newName :: Buffer -> BufferSize -> ByteString
         -> IO (Header, ByteString)
-newName ws buf siz = do
-    (!key,!ws')  <- headerStuff ws buf siz
-    (!val,!ws'') <- headerStuff ws' buf siz
+newName buf siz ws = do
+    (!key,!ws')  <- headerStuff buf siz ws
+    (!val,!ws'') <- headerStuff buf siz ws'
     return ((key,val), ws'')
 
 ----------------------------------------------------------------
 
-headerStuff :: ByteString -> Buffer -> BufferSize -> IO (HeaderStuff, ByteString)
-headerStuff bs buf siz
+headerStuff :: Buffer -> BufferSize -> ByteString -> IO (HeaderStuff, ByteString)
+headerStuff buf siz bs
   | BS.null bs  = throwIO EmptyEncodedString
-  | otherwise   = S.parseString huff len bs'' buf siz
+  | otherwise   = S.parseString buf siz huff len bs''
   where
     w = BS.head bs
     bs' = BS.tail bs

@@ -85,7 +85,7 @@ toByteString WorkingBuffer{..} = do
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-type HuffmanDecoding = ByteString -> Buffer -> BufferSize -> IO ByteString
+type HuffmanDecoding = Buffer -> BufferSize -> ByteString -> IO ByteString
 
 ----------------------------------------------------------------
 
@@ -105,7 +105,7 @@ next (Way16 _ a16) w = a16 ! w
 
 -- | Huffman decoding.
 decode :: HuffmanDecoding
-decode bs buf siz = do
+decode buf siz bs = do
     wrkbuf <- newWorkingBuffer buf siz
     nibsrc <- newNibbleSource bs
     dec nibsrc wrkbuf

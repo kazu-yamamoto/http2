@@ -16,11 +16,11 @@ encode _    h = h
 -- | Parsing 'HeaderStuff' from 'ByteString'.
 --   The second 'Bool' is whether or not huffman encoding is used.
 --   The third 'Int' is the length of the encoded string.
-parseString :: Bool -> Int -> ByteString -> Buffer -> BufferSize
+parseString :: Buffer -> BufferSize -> Bool -> Int -> ByteString
             -> IO (HeaderStuff, ByteString)
-parseString False len bs _ _ = return (es, bs')
+parseString _   _   False len bs = return (es, bs')
   where
     (es, bs') = BS.splitAt len bs
-parseString True  len bs buf siz = Huffman.decode es buf siz >>= \x -> return (x,bs')
+parseString buf siz True  len bs = Huffman.decode buf siz es >>= \x -> return (x,bs')
   where
     (es, bs') = BS.splitAt len bs
