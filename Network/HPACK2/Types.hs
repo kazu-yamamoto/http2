@@ -75,7 +75,7 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | TooLongEos -- ^ Eos of huffman string is more than 7 bits
                  | EmptyEncodedString -- ^ Encoded string has no length
                  | EmptyBlock -- ^ Header block is empty
-                 | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit
+                 | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit (or sometime less than 32)
                  | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
                  | TooLongHeaderString -- ^ String to be decoded is too long against a working buffer
                  deriving (Eq,Show,Typeable)

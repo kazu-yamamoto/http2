@@ -138,7 +138,7 @@ isDynamicTableEmpty DynamicTable{..} = do
 isSuitableSize :: Size -> DynamicTable -> IO Bool
 isSuitableSize siz DynamicTable{..} = do
     lim <- readIORef limitForDecoding
-    return $! siz <= lim
+    return $! siz <= lim && maxNumbers siz /= 0
 
 data TableSizeAction = Keep | Change !Size | Ignore !Size
 
