@@ -14,6 +14,7 @@ module Network.HPACK2.Buffer (
   , copyByteString
   , NibbleSource
   , withNibbleSource
+  , hasMoreNibble
   , getNibble
   ) where
 
@@ -109,21 +110,24 @@ withNibbleSource (PS fp off len) action = withForeignPtr fp $ \ptr -> do
     nsrc <- NibbleSource bg ed <$> newIORef bg <*> newIORef Upper
     action nsrc
 
+{-# INLINE hasMoreNibble #-}
+hasMoreNibble :: NibbleSource -> IO Bool
+hasMoreNibble NibbleSource{..} = do
+    ptr <- readIORef cur
+    return $! ptr < end
+
 {-# INLINE getNibble #-}
-getNibble :: NibbleSource -> IO (Maybe Word8)
+getNibble :: NibbleSource -> IO Word8
 getNibble NibbleSource{..} = do
     ptr <- readIORef cur
-    if ptr >= end then
-        return Nothing
-      else do
-        d <- readIORef dig
-        w <- peek ptr
-        if d == Upper then do
-            writeIORef dig Lower
-            let !nib = w `shiftR` 4
-            return $! Just nib
-         else do
-            writeIORef dig Upper
-            writeIORef cur $ ptr `plusPtr` 1
-            let !nib = w .&. 0x0f
-            return $! Just nib
+    d <- readIORef dig
+    w <- peek ptr
+    if d == Upper then do
+        writeIORef dig Lower
+        let !nib = w `shiftR` 4
+        return nib
+     else do
+        writeIORef dig Upper
+        writeIORef cur $! ptr `plusPtr` 1
+        let !nib = w .&. 0x0f
+        return nib

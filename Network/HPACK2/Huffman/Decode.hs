@@ -57,19 +57,21 @@ dec :: NibbleSource -> WorkingBuffer -> IO ByteString
 dec src tmp = go (way256 ! 0)
   where
     go way = do
-        mn <- getNibble src
-        case mn of
-            Nothing -> case way of
-                Way16 Nothing  _ -> throwIO IllegalEos
-                Way16 (Just i) _
-                  | i <= 8       -> toByteString tmp
-                  | otherwise    -> throwIO TooLongEos
-            Just w  -> case next way w of
+        more <- hasMoreNibble src
+        if more then do
+            w <- getNibble src
+            case next way w of
                 EndOfString      -> throwIO EosInTheMiddle
                 Forward n        -> go (way256 ! n)
                 GoBack  n v      -> do
                     write tmp v
                     go (way256 ! n)
+          else
+             case way of
+                Way16 Nothing  _ -> throwIO IllegalEos
+                Way16 (Just i) _
+                  | i <= 8       -> toByteString tmp
+                  | otherwise    -> throwIO TooLongEos
 
 -- | Huffman decoding.
 decodeDummy :: HuffmanDecoding
