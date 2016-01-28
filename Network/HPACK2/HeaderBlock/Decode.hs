@@ -9,8 +9,8 @@ import Control.Exception (throwIO)
 import Control.Monad (unless)
 import Data.Bits (testBit, clearBit, (.&.))
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import Data.Word (Word8)
+import Network.HPACK2.Buffer
 import Network.HPACK2.Builder
 import qualified Network.HPACK2.HeaderBlock.Integer as I
 import Network.HPACK2.Huffman
@@ -25,106 +25,107 @@ type HPACKDecoding = DynamicTable -> ByteString -> IO HeaderList
 -- | Converting the low level format for HTTP header to 'HeaderList'.
 --   'DecodeError' would be thrown.
 decodeHeader :: HPACKDecoding
-decodeHeader dyntbl inp = chkChange inp
+decodeHeader dyntbl inp = withReadBuffer inp $ \rbuf -> chkChange rbuf
   where
-    chkChange bs
-      | BS.null bs          = return []
-      | isTableSizeUpdate w = do
-            bs' <- tableSizeUpdate dyntbl w ws
-            chkChange bs'
-      | otherwise           = go bs empty
-      where
-        w = BS.head bs
-        ws = BS.tail bs
-    go bs builder
-      | BS.null bs = return $! run builder
-      | otherwise  = do
-        (!kv, bs') <- toHeader dyntbl bs
-        go bs' (builder << kv)
+    chkChange rbuf = do
+        more <- hasOneByte rbuf
+        if more then do
+            w <- getByte rbuf
+            if isTableSizeUpdate w then do
+                tableSizeUpdate dyntbl w rbuf
+                chkChange rbuf
+              else do
+                rewindOneByte rbuf
+                go rbuf empty
+          else
+            return []
+    go rbuf builder = do
+        more <- hasOneByte rbuf
+        if more then do
+            w <- getByte rbuf
+            !kv <- toHeader dyntbl w rbuf
+            let builder' = builder << kv
+            go rbuf builder'
+          else
+            return $! run builder
 
-toHeader :: DynamicTable -> ByteString -> IO (Header, ByteString)
-toHeader dyntbl bs
-  | BS.null bs    = throwIO EmptyBlock
-  | w `testBit` 7 = indexed dyntbl w bs'
-  | w `testBit` 6 = incrementalIndexing dyntbl w bs'
+toHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+toHeader dyntbl w rbuf
+  | w `testBit` 7 = indexed             dyntbl w rbuf
+  | w `testBit` 6 = incrementalIndexing dyntbl w rbuf
   | w `testBit` 5 = throwIO IllegalTableSizeUpdate
-  | w `testBit` 4 = neverIndexing       dyntbl w bs'
-  | otherwise     = withoutIndexing     dyntbl w bs'
-  where
-    w = BS.head bs
-    bs' = BS.tail bs
+  | w `testBit` 4 = neverIndexing       dyntbl w rbuf
+  | otherwise     = withoutIndexing     dyntbl w rbuf
 
-tableSizeUpdate :: DynamicTable -> Word8 -> ByteString -> IO ByteString
-tableSizeUpdate dyntbl w ws = do
+tableSizeUpdate :: DynamicTable -> Word8 -> ReadBuffer -> IO ()
+tableSizeUpdate dyntbl w rbuf = do
+    let !w' = mask5 w
+    !siz <- I.parseInteger 5 w' rbuf
     suitable <- isSuitableSize siz dyntbl
     unless suitable $ throwIO TooLargeTableSize
     renewDynamicTable siz dyntbl
-    return ws'
-  where
-    w' = mask5 w
-    (siz, ws') = I.parseInteger 5 w' ws
 
 ----------------------------------------------------------------
 
-indexed :: DynamicTable -> Word8 -> ByteString -> IO (Header, ByteString)
-indexed dyntbl w ws = do
-    !kv <- fromEntry . snd <$> which dyntbl idx
-    return (kv, ws')
-  where
-    w' = clearBit w 7
-    (idx, ws') = I.parseInteger 7 w' ws
+indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+indexed dyntbl w rbuf = do
+    let !w' = clearBit w 7
+    !idx <- I.parseInteger 7 w' rbuf
+    fromEntry . snd <$> which dyntbl idx
 
-incrementalIndexing :: DynamicTable -> Word8 -> ByteString -> IO (Header, ByteString)
-incrementalIndexing dyntbl w ws = do
-    r@(kv,_) <- if isIndexedName1 w then
-                    indexedName dyntbl w ws 6 mask6
-                  else
-                    newName dyntbl ws
+incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+incrementalIndexing dyntbl w rbuf = do
+    kv <- if isIndexedName1 w then
+              indexedName dyntbl w rbuf 6 mask6
+            else
+              newName dyntbl rbuf
     let !e = toEntry kv
     insertEntry e dyntbl
-    return r
+    return kv
 
-withoutIndexing :: DynamicTable -> Word8 -> ByteString -> IO (Header, ByteString)
-withoutIndexing dyntbl w ws
-  | isIndexedName2 w = indexedName dyntbl w ws 4 mask4
-  | otherwise        = newName dyntbl ws
+withoutIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+withoutIndexing dyntbl w rbuf
+  | isIndexedName2 w = indexedName dyntbl w rbuf 4 mask4
+  | otherwise        = newName dyntbl rbuf
 
-neverIndexing :: DynamicTable -> Word8 -> ByteString -> IO (Header, ByteString)
-neverIndexing dyntbl w ws
-  | isIndexedName2 w = indexedName dyntbl w ws 4 mask4
-  | otherwise        = newName dyntbl ws
+neverIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+neverIndexing dyntbl w rbuf
+  | isIndexedName2 w = indexedName dyntbl w rbuf 4 mask4
+  | otherwise        = newName dyntbl rbuf
 
 ----------------------------------------------------------------
 
-indexedName :: DynamicTable
-            -> Word8 -> ByteString -> Int -> (Word8 -> Word8)
-            -> IO (Header, ByteString)
-indexedName dyntbl w ws n mask = do
-    (!val,!ws'') <- headerStuff dyntbl ws'
+indexedName :: DynamicTable -> Word8 -> ReadBuffer
+            -> Int -> (Word8 -> Word8)
+            -> IO Header
+indexedName dyntbl w rbuf n mask = do
+    let !p = mask w
+    !idx <- I.parseInteger n p rbuf -- fixme: ordering?
     !key <- entryHeaderName . snd <$> which dyntbl idx
-    return ((key,val), ws'')
-  where
-    p = mask w
-    (idx,ws') = I.parseInteger n p ws
+    !val <- headerStuff dyntbl rbuf
+    let !kv = (key,val)
+    return kv
 
-newName :: DynamicTable -> ByteString -> IO (Header, ByteString)
-newName dyntbl ws = do
-    (!key,!ws')  <- headerStuff dyntbl ws
-    (!val,!ws'') <- headerStuff dyntbl ws'
-    return ((key,val), ws'')
+newName :: DynamicTable -> ReadBuffer -> IO Header
+newName dyntbl rbuf = do
+    !key <- headerStuff dyntbl rbuf
+    !val <- headerStuff dyntbl rbuf
+    let !kv = (key,val)
+    return kv
 
 ----------------------------------------------------------------
 
-headerStuff :: DynamicTable -> ByteString -> IO (HeaderStuff, ByteString)
-headerStuff dyntbl bs
-  | BS.null bs  = throwIO EmptyEncodedString
-  | otherwise   = parseString (huffmanDecode dyntbl) huff len bs''
-  where
-    w = BS.head bs
-    bs' = BS.tail bs
-    p = dropHuffman w
-    huff = isHuffman w
-    (len, bs'') = I.parseInteger 7 p bs'
+headerStuff :: DynamicTable -> ReadBuffer -> IO HeaderStuff
+headerStuff dyntbl rbuf = do
+    more <- hasOneByte rbuf
+    if more then do
+        w <- getByte rbuf
+        let !p = dropHuffman w
+            !huff = isHuffman w
+        !len <- I.parseInteger 7 p rbuf
+        parseString huff (huffmanDecode dyntbl) len rbuf
+      else
+        throwIO EmptyEncodedString
 
 ----------------------------------------------------------------
 
@@ -156,15 +157,13 @@ dropHuffman w = w `clearBit` 7
 
 ----------------------------------------------------------------
 
--- | Parsing 'HeaderStuff' from 'ByteString'.
---   The second 'Bool' is whether or not huffman encoding is used.
---   The third 'Int' is the length of the encoded string.
-
-parseString :: HuffmanDecoding -> Bool -> Int -> ByteString
-            -> IO (HeaderStuff, ByteString)
-parseString _      False len bs = return (es, bs')
-  where
-    (es, bs') = BS.splitAt len bs
-parseString hufdec True  len bs = hufdec es >>= \x -> return (x,bs')
-  where
-    (es, bs') = BS.splitAt len bs
+parseString :: Bool -> HuffmanDecoding -> Int -> ReadBuffer -> IO HeaderStuff
+parseString huff hufdec len rbuf = do
+    more <- hasMoreBytes rbuf len
+    if more then
+        if huff then
+            hufdec len rbuf
+          else
+            extractByteString rbuf len
+      else
+        throwIO HeaderBlockTruncated

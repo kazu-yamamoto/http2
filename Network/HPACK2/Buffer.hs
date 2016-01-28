@@ -12,16 +12,18 @@ module Network.HPACK2.Buffer (
   , finalPointer
   , toByteString
   , copyByteString
-  , NibbleSource
-  , withNibbleSource
-  , hasMoreNibble
-  , getNibble
+  , ReadBuffer
+  , withReadBuffer
+  , hasOneByte
+  , hasMoreBytes
+  , rewindOneByte
+  , getByte
+  , extractByteString
   ) where
 
 import Foreign.ForeignPtr (withForeignPtr)
-import Data.Bits (shiftR, (.&.))
 import Data.ByteString.Internal (ByteString(..), create, memcpy)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (peek, poke)
@@ -94,40 +96,47 @@ toByteString WorkingBuffer{..} = do
     create len $ \p -> memcpy p start len
 
 ----------------------------------------------------------------
-data Digit = Upper | Lower deriving Eq
 
-data NibbleSource = NibbleSource {
+data ReadBuffer = ReadBuffer {
     beg :: !Buffer
   , end :: !Buffer
   , cur :: !(IORef Buffer)
-  , dig :: !(IORef Digit)
   }
 
-withNibbleSource :: ByteString -> (NibbleSource -> IO a) -> IO a
-withNibbleSource (PS fp off len) action = withForeignPtr fp $ \ptr -> do
+withReadBuffer :: ByteString -> (ReadBuffer -> IO a) -> IO a
+withReadBuffer (PS fp off len) action = withForeignPtr fp $ \ptr -> do
     let !bg = ptr `plusPtr` off
         !ed = bg `plusPtr` len
-    nsrc <- NibbleSource bg ed <$> newIORef bg <*> newIORef Upper
+    nsrc <- ReadBuffer bg ed <$> newIORef bg
     action nsrc
 
-{-# INLINE hasMoreNibble #-}
-hasMoreNibble :: NibbleSource -> IO Bool
-hasMoreNibble NibbleSource{..} = do
+{-# INLINE hasOneByte #-}
+hasOneByte :: ReadBuffer -> IO Bool
+hasOneByte ReadBuffer{..} = do
     ptr <- readIORef cur
     return $! ptr < end
 
-{-# INLINE getNibble #-}
-getNibble :: NibbleSource -> IO Word8
-getNibble NibbleSource{..} = do
+{-# INLINE hasMoreBytes #-}
+hasMoreBytes :: ReadBuffer -> Int -> IO Bool
+hasMoreBytes ReadBuffer{..} n = do
     ptr <- readIORef cur
-    d <- readIORef dig
+    return $! (end `minusPtr` ptr) >= n
+
+{-# INLINE rewindOneByte #-}
+rewindOneByte :: ReadBuffer -> IO ()
+rewindOneByte ReadBuffer{..} = modifyIORef' cur (`plusPtr` (-1))
+
+{-# INLINE getByte #-}
+getByte :: ReadBuffer -> IO Word8
+getByte ReadBuffer{..} = do
+    ptr <- readIORef cur
     w <- peek ptr
-    if d == Upper then do
-        writeIORef dig Lower
-        let !nib = w `shiftR` 4
-        return nib
-     else do
-        writeIORef dig Upper
-        writeIORef cur $! ptr `plusPtr` 1
-        let !nib = w .&. 0x0f
-        return nib
+    writeIORef cur $! ptr `plusPtr` 1
+    return w
+
+extractByteString :: ReadBuffer -> Int -> IO ByteString
+extractByteString ReadBuffer{..} len = do
+    src <- readIORef cur
+    bs <- create len $ \dst -> memcpy dst src len
+    writeIORef cur $! src `plusPtr` len
+    return bs

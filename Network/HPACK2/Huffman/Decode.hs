@@ -10,6 +10,7 @@ module Network.HPACK2.Huffman.Decode (
 import Control.Exception (throwIO)
 import Control.Monad (unless)
 import Data.Array (Array, (!), listArray)
+import Data.Bits (shiftR, (.&.))
 import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
 import Network.HPACK2.Buffer
@@ -29,7 +30,7 @@ write wbuf w = do
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-type HuffmanDecoding = ByteString -> IO ByteString
+type HuffmanDecoding = Int -> ReadBuffer -> IO ByteString
 
 ----------------------------------------------------------------
 
@@ -49,33 +50,35 @@ next (Way16 _ a16) w = a16 ! w
 
 -- | Huffman decoding.
 decode :: Buffer -> BufferSize -> HuffmanDecoding
-decode buf siz bs = do
+decode buf siz len rbuf = do
     wrkbuf <- newWorkingBuffer buf siz
-    withNibbleSource bs $ \nibsrc -> dec nibsrc wrkbuf
+    dec wrkbuf len rbuf
 
-dec :: NibbleSource -> WorkingBuffer -> IO ByteString
-dec src tmp = go (way256 ! 0)
+dec :: WorkingBuffer -> HuffmanDecoding
+dec tmp len rbuf = go len (way256 ! 0)
   where
-    go way = do
-        more <- hasMoreNibble src
-        if more then do
-            w <- getNibble src
-            case next way w of
-                EndOfString      -> throwIO EosInTheMiddle
-                Forward n        -> go (way256 ! n)
-                GoBack  n v      -> do
-                    write tmp v
-                    go (way256 ! n)
-          else
-             case way of
-                Way16 Nothing  _ -> throwIO IllegalEos
-                Way16 (Just i) _
-                  | i <= 8       -> toByteString tmp
-                  | otherwise    -> throwIO TooLongEos
+    go 0 way0 = case way0 of
+        Way16 Nothing  _ -> throwIO IllegalEos
+        Way16 (Just i) _
+          | i <= 8       -> toByteString tmp
+          | otherwise    -> throwIO TooLongEos
+    go !n !way0 = do
+        w <- getByte rbuf
+        let w0 = w `shiftR` 4
+            w1 = w .&. 0x0f
+        way1 <- doit way0 w0
+        way2 <- doit way1 w1
+        go (n - 1) way2
+    doit !way !w = case next way w of
+        EndOfString -> throwIO EosInTheMiddle
+        Forward n   -> return $ way256 ! n
+        GoBack  n v -> do
+            write tmp v
+            return $ way256 ! n
 
 -- | Huffman decoding.
 decodeDummy :: HuffmanDecoding
-decodeDummy _ = return ""
+decodeDummy _ _ = return ""
 
 ----------------------------------------------------------------
 

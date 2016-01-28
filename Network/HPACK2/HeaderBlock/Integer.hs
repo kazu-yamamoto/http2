@@ -7,10 +7,9 @@ module Network.HPACK2.HeaderBlock.Integer (
   ) where
 
 import Data.Array (Array, listArray, (!))
-import Data.Bits ((.&.), shiftR)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
+import Data.Bits ((.&.), shiftR, testBit)
 import Data.Word (Word8)
+import Network.HPACK2.Buffer
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
@@ -72,6 +71,7 @@ decode I from the next N bits
        return I
 -}
 
+{-# INLINE decode #-}
 -- | Integer decoding. The first argument is N of prefix.
 --
 -- >>> decode 5 10 $ BS.empty
@@ -80,38 +80,34 @@ decode I from the next N bits
 -- 1337
 -- >>> decode 8 42 $ BS.empty
 -- 42
-decode :: Int -> Word8 -> ByteString -> Int
-decode n w bs
-  | i < p      = i
-  | BS.null bs = error $ "decode: n = " ++ show n ++ ", w = " ++ show w ++ ", bs = empty"
-  | otherwise  = decode' bs 0 i
+decode :: Int -> Word8 -> ReadBuffer -> IO Int
+decode n w rbuf
+  | i < p     = return i
+  | otherwise = decode' rbuf 0 i
   where
     p = powerArray ! n
     i = fromIntegral w
 
-decode' :: ByteString -> Int -> Int -> Int
-decode' "" _ i = i
-decode' bs m i = decode' bs' m' i'
-  where
-    !b   = fromIntegral $ BS.head bs
-    !bs' = BS.tail bs
-    !i'  = i + (b .&. 127) * 2 ^ m
-    !m'  = m + 7
+{-# INLINE decode' #-}
+decode' :: ReadBuffer -> Int -> Int -> IO Int
+decode' rbuf m i = do
+    !b <- fromIntegral <$> getByte rbuf
+    let !i' = i + (b .&. 0x7f) * 2 ^ m
+        !m' = m + 7
+        !cont = b `testBit` 7
+    if cont then decode' rbuf m' i' else return i'
 
 ----------------------------------------------------------------
 
+{-# INLINE parseInteger #-}
 -- |
 --
 -- >>> parseInteger 7 127 $ BS.pack [210,211,212,87,88,89,90]
 -- (183839313,"XYZ")
-parseInteger :: Int -> Word8 -> ByteString -> (Int, ByteString)
-parseInteger n w bs
-  | i < p     = (i, bs)
-  | otherwise = (len, rest)
+parseInteger :: Int -> Word8 -> ReadBuffer -> IO Int
+parseInteger n w rbuf
+  | i < p     = return i
+  | otherwise = decode n w rbuf
   where
     p = powerArray ! n
     i = fromIntegral w
-    Just idx = BS.findIndex (< 128) bs
-    (bs', rest) = BS.splitAt (idx + 1) bs
-    len = decode n w bs'
-

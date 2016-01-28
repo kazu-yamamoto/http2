@@ -3,7 +3,6 @@ module Network.HPACK2.HeaderBlock.String (
   ) where
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import qualified Network.HPACK2.Huffman as Huffman
 import Network.HPACK2.Types
 
