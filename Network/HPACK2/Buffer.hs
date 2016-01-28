@@ -13,7 +13,7 @@ module Network.HPACK2.Buffer (
   , toByteString
   , copyByteString
   , NibbleSource
-  , newNibbleSource
+  , withNibbleSource
   , getNibble
   ) where
 
@@ -22,7 +22,7 @@ import Data.Bits (shiftR, (.&.))
 import Data.ByteString.Internal (ByteString(..), create, memcpy)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Word (Word8)
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (peek, poke)
 import Network.HPACK2.Types (Buffer, BufferSize)
 
@@ -102,11 +102,12 @@ data NibbleSource = NibbleSource {
   , dig :: !(IORef Digit)
   }
 
-newNibbleSource :: ByteString -> IO NibbleSource
-newNibbleSource (PS fp off len) = withForeignPtr fp $ \ptr -> do
+withNibbleSource :: ByteString -> (NibbleSource -> IO a) -> IO a
+withNibbleSource (PS fp off len) action = withForeignPtr fp $ \ptr -> do
     let !bg = ptr `plusPtr` off
         !ed = bg `plusPtr` len
-    NibbleSource bg ed <$> newIORef bg <*> newIORef Upper
+    nsrc <- NibbleSource bg ed <$> newIORef bg <*> newIORef Upper
+    action nsrc
 
 {-# INLINE getNibble #-}
 getNibble :: NibbleSource -> IO (Maybe Word8)

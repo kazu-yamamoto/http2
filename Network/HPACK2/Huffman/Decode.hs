@@ -51,8 +51,7 @@ next (Way16 _ a16) w = a16 ! w
 decode :: Buffer -> BufferSize -> HuffmanDecoding
 decode buf siz bs = do
     wrkbuf <- newWorkingBuffer buf siz
-    nibsrc <- newNibbleSource bs
-    dec nibsrc wrkbuf
+    withNibbleSource bs $ \nibsrc -> dec nibsrc wrkbuf
 
 dec :: NibbleSource -> WorkingBuffer -> IO ByteString
 dec src tmp = go (way256 ! 0)
