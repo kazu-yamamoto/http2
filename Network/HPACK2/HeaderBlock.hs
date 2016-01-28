@@ -4,7 +4,7 @@ module Network.HPACK2.HeaderBlock (
   -- * Header block from/to Low level
   , toByteString
   , HPACKDecoding
-  , decodeHeaderWithWorkingBuffer
+  , decodeHeader
   , toBuilder
   -- * Header block from/to header list
   , toHeaderBlock

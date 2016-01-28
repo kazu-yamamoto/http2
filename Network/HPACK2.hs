@@ -11,7 +11,6 @@ module Network.HPACK2 (
   -- * Decoding
   , HPACKDecoding
   , decodeHeader
-  , decodeHeaderWithWorkingBuffer
   -- * DynamicTable
   , DynamicTable
   , defaultDynamicTableSize
@@ -39,11 +38,9 @@ module Network.HPACK2 (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception (bracket)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
-import Foreign.Marshal.Alloc (mallocBytes, free)
-import Network.HPACK2.HeaderBlock (toHeaderBlock, toByteString, decodeHeaderWithWorkingBuffer, HPACKDecoding, toBuilder)
+import Network.HPACK2.HeaderBlock (toHeaderBlock, toByteString, decodeHeader, HPACKDecoding, toBuilder)
 import Network.HPACK2.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
 import Network.HPACK2.Types
 
@@ -78,11 +75,3 @@ encodeHeaderBuilder stgy ctx hs = toBB <$> toHeaderBlock algo ctx hs
   where
     algo = compressionAlgo stgy
     toBB = toBuilder (useHuffman stgy)
-
--- | Converting the low level format for HTTP header to 'HeaderList'.
---   'DecodeError' would be thrown.
-decodeHeader :: HPACKDecoding
-decodeHeader dyntbl bs = bracket (mallocBytes bufsiz) free $ \buf ->
-    decodeHeaderWithWorkingBuffer buf bufsiz dyntbl bs
-  where
-    bufsiz = 4096

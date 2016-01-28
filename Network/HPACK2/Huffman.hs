@@ -5,6 +5,7 @@ module Network.HPACK2.Huffman (
   -- * Encoding/decoding
   , encode
   , decode
+  , decodeDummy
   ) where
 
 import Network.HPACK2.Huffman.Decode

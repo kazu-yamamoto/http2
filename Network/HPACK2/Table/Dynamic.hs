@@ -6,6 +6,7 @@ module Network.HPACK2.Table.Dynamic (
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
   , renewDynamicTable
+  , huffmanDecode
   , printDynamicTable
   , isDynamicTableEmpty
   , isSuitableSize
@@ -23,9 +24,11 @@ import Control.Monad (forM, when)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
+import Network.HPACK2.Huffman
 import Network.HPACK2.Table.Entry
 import Network.HPACK2.Table.RevIndex
 import Network.HPACK2.Table.Static
+import Foreign.Marshal.Alloc
 
 ----------------------------------------------------------------
 
@@ -68,8 +71,9 @@ After insertion:
 
 -- | Type for dynamic table.
 data DynamicTable = DynamicTable {
+    huffmanDecode :: HuffmanDecoding
   -- | An array
-    circularTable :: !(IORef Table)
+  , circularTable :: !(IORef Table)
   -- | Start point
   , offset :: !(IORef Index)
   -- | The current number of entries
@@ -164,25 +168,31 @@ resetLimitForEncoding DynamicTable{..} = writeIORef limitForEncoding Nothing
 
 -- | Creating 'DynamicTable'.
 newDynamicTableForEncoding :: Size -> IO DynamicTable
-newDynamicTableForEncoding maxsiz = newDynamicTable maxsiz maxsiz (Just defaultRevIndex)
+newDynamicTableForEncoding maxsiz =
+    newDynamicTable maxsiz (Just defaultRevIndex) decodeDummy
 
 -- | Creating 'DynamicTable'.
 newDynamicTableForDecoding :: Size -> IO DynamicTable
-newDynamicTableForDecoding maxsiz = newDynamicTable maxsiz maxsiz Nothing
+newDynamicTableForDecoding maxsiz = do
+    let bufsiz = 4096
+    buf <- mallocBytes bufsiz -- fixme: how to free?
+    let !decoder = decode buf bufsiz
+    newDynamicTable maxsiz Nothing decoder
 
-newDynamicTable :: Size -> Size -> Maybe Outer -> IO DynamicTable
-newDynamicTable maxsiz dlim mhp = do
+newDynamicTable :: Size -> Maybe Outer -> HuffmanDecoding -> IO DynamicTable
+newDynamicTable maxsiz mhp decoder = do
     tbl <- newArray (0,end) dummyEntry
-    DynamicTable <$> newIORef tbl     -- circularTable
-                 <*> newIORef end     -- offset
-                 <*> newIORef 0       -- numOfEntries
-                 <*> newIORef maxN    -- maxNumOfEntries
-                 <*> newIORef 0       -- dynamicTableSize
-                 <*> newIORef maxsiz  -- maxDynamicTableSize
-                 <*> newIORef Nothing -- limitForEncoding
-                 <*> newIORef dlim    -- limitForDecoding
-                 <*> newIORef mhp     -- reverseIndex
+    DynamicTable decoder <$> newIORef tbl     -- circularTable
+                         <*> newIORef end     -- offset
+                         <*> newIORef 0       -- numOfEntries
+                         <*> newIORef maxN    -- maxNumOfEntries
+                         <*> newIORef 0       -- dynamicTableSize
+                         <*> newIORef maxsiz  -- maxDynamicTableSize
+                         <*> newIORef Nothing -- limitForEncoding
+                         <*> newIORef dlim    -- limitForDecoding
+                         <*> newIORef mhp     -- reverseIndex
   where
+    !dlim = maxsiz
     !maxN = maxNumbers maxsiz
     !end = maxN - 1
 

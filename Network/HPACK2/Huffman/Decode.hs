@@ -1,9 +1,10 @@
-{-# LANGUAGE BangPatterns, RecordWildCards #-}
+{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
 
 module Network.HPACK2.Huffman.Decode (
   -- * Huffman decoding
     HuffmanDecoding
   , decode
+  , decodeDummy
   ) where
 
 import Control.Exception (throwIO)
@@ -28,7 +29,7 @@ write wbuf w = do
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-type HuffmanDecoding = Buffer -> BufferSize -> ByteString -> IO ByteString
+type HuffmanDecoding = ByteString -> IO ByteString
 
 ----------------------------------------------------------------
 
@@ -47,7 +48,7 @@ next (Way16 _ a16) w = a16 ! w
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-decode :: HuffmanDecoding
+decode :: Buffer -> BufferSize -> HuffmanDecoding
 decode buf siz bs = do
     wrkbuf <- newWorkingBuffer buf siz
     nibsrc <- newNibbleSource bs
@@ -70,6 +71,10 @@ dec src tmp = go (way256 ! 0)
                 GoBack  n v      -> do
                     write tmp v
                     go (way256 ! n)
+
+-- | Huffman decoding.
+decodeDummy :: HuffmanDecoding
+decodeDummy _ = return ""
 
 ----------------------------------------------------------------
 
