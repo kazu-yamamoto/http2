@@ -9,7 +9,7 @@ module Network.HPACK2.Buffer (
   , readWord8
   , writeWord8
   , shiftLastN
-  , currentOffset
+  , returnLength
   , toByteString
   , copyByteString
   , ReadBuffer
@@ -63,10 +63,6 @@ writeWord8 WorkingBuffer{..} w = do
         let !ptr' = ptr `plusPtr` 1
         writeIORef offset ptr'
 
-{-# INLINE currentOffset #-}
-currentOffset :: WorkingBuffer -> IO Buffer
-currentOffset WorkingBuffer{..} = readIORef offset
-
 {-# INLINE shiftLastN #-}
 shiftLastN :: WorkingBuffer -> Int -> Int -> IO ()
 shiftLastN WorkingBuffer{..} i len = do
@@ -97,6 +93,14 @@ toByteString WorkingBuffer{..} = do
     ptr <- readIORef offset
     let !len = ptr `minusPtr` start
     create len $ \p -> memcpy p start len
+
+{-# INLINE returnLength #-}
+returnLength :: WorkingBuffer -> IO () -> IO Int
+returnLength WorkingBuffer{..} body = do
+    beg <- readIORef offset
+    body
+    end <- readIORef offset
+    return $ end `minusPtr` beg
 
 ----------------------------------------------------------------
 

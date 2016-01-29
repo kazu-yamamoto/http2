@@ -15,7 +15,6 @@ import Data.Bits ((.|.))
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
-import Foreign.Ptr (minusPtr)
 import Network.HPACK2.Buffer
 import Network.HPACK2.Huffman.Bit
 import Network.HPACK2.Huffman.Params
@@ -74,11 +73,7 @@ encode :: HuffmanEncoding
 encode dst bs = withReadBuffer bs $ enc dst
 
 enc :: WorkingBuffer -> ReadBuffer -> IO Int
-enc dst rbuf = do
-    beg <- currentOffset dst
-    go 0
-    end <- currentOffset dst
-    return $ end `minusPtr` beg
+enc dst rbuf = returnLength dst $ go 0
   where
     go n = do
         more <- hasOneByte rbuf
