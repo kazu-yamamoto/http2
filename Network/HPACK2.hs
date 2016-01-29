@@ -5,9 +5,8 @@ module Network.HPACK2 (
   -- * Encoding
     HPACKEncoding
   , encodeHeader
-  -- * Encoding with builders
-  , HPACKEncodingBuilder
-  , encodeHeaderBuilder
+  , HPACKEncodingOne
+  , prepareEncodeHeader
   -- * Decoding
   , HPACKDecoding
   , decodeHeader
@@ -39,10 +38,13 @@ module Network.HPACK2 (
 import Control.Applicative ((<$>))
 #endif
 import Data.ByteString (ByteString)
-import Data.ByteString.Builder (Builder)
-import Network.HPACK2.HeaderBlock (toHeaderBlock, toByteString, decodeHeader, HPACKDecoding, toBuilder)
+import Network.HPACK2.HeaderBlock (HPACKDecoding, decodeHeader, HPACKEncodingOne, prepareEncodeHeader)
 import Network.HPACK2.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
 import Network.HPACK2.Types
+import Network.HPACK2.Buffer
+
+import Foreign.Marshal.Alloc
+import Control.Exception
 
 -- | Default dynamic table size.
 --   The value is 4,096 bytes: an array has 128 entries.
@@ -57,21 +59,17 @@ defaultDynamicTableSize = 4096
 -- | HPACK encoding from 'HeaderList' to 'ByteString'.
 type HPACKEncoding = DynamicTable -> HeaderList -> IO ByteString
 
--- | HPACK encoding from 'HeaderList' to 'Builder'.
-type HPACKEncodingBuilder = DynamicTable -> HeaderList -> IO Builder
-
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderList' for HTTP header to the low level format.
 encodeHeader :: EncodeStrategy -> HPACKEncoding
-encodeHeader stgy ctx hs = toBS <$> toHeaderBlock algo ctx hs
+encodeHeader stgy dyntbl hs0 = bracket (mallocBytes 4096) free $ \buf -> do
+    wbuf <- newWorkingBuffer buf 4096
+    encodeHeaderOne <- prepareEncodeHeader stgy dyntbl wbuf
+    go encodeHeaderOne wbuf hs0
+    toByteString wbuf
   where
-    algo = compressionAlgo stgy
-    toBS = toByteString (useHuffman stgy)
-
--- | Converting 'HeaderList' for HTTP header to bytestring builder.
-encodeHeaderBuilder :: EncodeStrategy -> HPACKEncodingBuilder
-encodeHeaderBuilder stgy ctx hs = toBB <$> toHeaderBlock algo ctx hs
-  where
-    algo = compressionAlgo stgy
-    toBB = toBuilder (useHuffman stgy)
+    go _   _    []     = return ()
+    go enc wbuf (h:hs) = do
+        _ <- enc dyntbl wbuf h -- fixme: why?
+        go enc wbuf hs

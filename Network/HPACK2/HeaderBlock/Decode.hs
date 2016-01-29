@@ -100,7 +100,7 @@ indexedName :: DynamicTable -> Word8 -> ReadBuffer
             -> IO Header
 indexedName dyntbl w rbuf n mask = do
     let !p = mask w
-    !idx <- I.parseInteger n p rbuf -- fixme: ordering?
+    !idx <- I.parseInteger n p rbuf
     !key <- entryHeaderName . snd <$> which dyntbl idx
     !val <- headerStuff dyntbl rbuf
     let !kv = (key,val)

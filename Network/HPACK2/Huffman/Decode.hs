@@ -8,7 +8,6 @@ module Network.HPACK2.Huffman.Decode (
   ) where
 
 import Control.Exception (throwIO)
-import Control.Monad (unless)
 import Data.Array (Array, (!), listArray)
 import Data.Bits (shiftR, (.&.))
 import Data.ByteString.Internal (ByteString(..))
@@ -19,13 +18,6 @@ import Network.HPACK2.Huffman.Params
 import Network.HPACK2.Huffman.Table
 import Network.HPACK2.Huffman.Tree
 import Network.HPACK2.Types (DecodeError(..))
-
-----------------------------------------------------------------
-
-write :: WorkingBuffer -> Word8 -> IO ()
-write wbuf w = do
-    success <- writeWord8 wbuf w
-    unless success $ throwIO TooLongHeaderString
 
 ----------------------------------------------------------------
 
@@ -73,7 +65,7 @@ dec tmp len rbuf = go len (way256 ! 0)
         EndOfString -> throwIO EosInTheMiddle
         Forward n   -> return $ way256 ! n
         GoBack  n v -> do
-            write tmp v
+            writeWord8 tmp v
             return $ way256 ! n
 
 -- | Huffman decoding.

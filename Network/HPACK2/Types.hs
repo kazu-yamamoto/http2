@@ -14,10 +14,10 @@ module Network.HPACK2.Types (
   , EncodeStrategy(..)
   , defaultEncodeStrategy
   , DecodeError(..)
-  , EncodeError(..)
   -- * Buffer
   , Buffer
   , BufferSize
+  , BufferOverrun(..)
   ) where
 
 import Control.Exception as E
@@ -80,22 +80,12 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | IllegalEos -- ^ Non-eos appears in the end of huffman string
                  | TooLongEos -- ^ Eos of huffman string is more than 7 bits
                  | EmptyEncodedString -- ^ Encoded string has no length
-                 | EmptyBlock -- ^ Header block is empty
                  | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit (or sometime less than 32)
                  | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
-                 | TooLongHeaderString -- ^ String to be decoded is too long against a working buffer
                  | HeaderBlockTruncated
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
-
-----------------------------------------------------------------
-
--- ! Errors for encoder.
-data EncodeError = TooSmallBuffer -- ^ The buffer size is not enough
-                   deriving (Eq,Show,Typeable)
-
-instance Exception EncodeError
 
 ----------------------------------------------------------------
 
@@ -104,3 +94,8 @@ type Buffer = Ptr Word8
 
 -- | The size of buffer.
 type BufferSize = Int
+
+data BufferOverrun = BufferOverrun -- ^ The buffer size is not enough
+                     deriving (Eq,Show,Typeable)
+
+instance Exception BufferOverrun

@@ -5,11 +5,11 @@ module Network.HPACK2.Buffer (
   , BufferSize
   , WorkingBuffer
   , newWorkingBuffer
-  , rewind1
-  , readW
+  , wind
   , readWord8
   , writeWord8
-  , finalPointer
+  , shiftLastN
+  , currentOffset
   , toByteString
   , copyByteString
   , ReadBuffer
@@ -21,13 +21,14 @@ module Network.HPACK2.Buffer (
   , extractByteString
   ) where
 
-import Foreign.ForeignPtr (withForeignPtr)
+import Control.Exception (throwIO)
 import Data.ByteString.Internal (ByteString(..), create, memcpy)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
 import Data.Word (Word8)
+import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (peek, poke)
-import Network.HPACK2.Types (Buffer, BufferSize)
+import Network.HPACK2.Types (Buffer, BufferSize, BufferOverrun(..))
 
 ----------------------------------------------------------------
 
@@ -40,54 +41,56 @@ data WorkingBuffer = WorkingBuffer {
 newWorkingBuffer :: Buffer -> BufferSize -> IO WorkingBuffer
 newWorkingBuffer buf siz = WorkingBuffer buf (buf `plusPtr` siz) <$> newIORef buf
 
-{-# INLINE rewind1 #-}
-rewind1 :: WorkingBuffer -> IO ()
-rewind1 WorkingBuffer{..} = do
+{-# INLINE wind #-}
+wind :: WorkingBuffer -> Int -> IO ()
+wind WorkingBuffer{..} n = do
     ptr <- readIORef offset
-    let !ptr' = ptr `plusPtr` (-1)
+    let !ptr' = ptr `plusPtr` n
     writeIORef offset ptr'
 
-{-# INLINE readW #-}
-readW :: WorkingBuffer -> IO Word8
-readW WorkingBuffer{..} = readIORef offset >>= peek
-
 {-# INLINE readWord8 #-}
-readWord8 :: WorkingBuffer -> IO (Maybe Word8)
-readWord8 WorkingBuffer{..} = do
-    ptr <- readIORef offset
-    if ptr >= limit then
-        return Nothing
-      else do
-        w <- peek ptr
-        return $! Just w
+readWord8 :: WorkingBuffer -> IO Word8
+readWord8 WorkingBuffer{..} = readIORef offset >>= peek
 
 {-# INLINE writeWord8 #-}
-writeWord8 :: WorkingBuffer -> Word8 -> IO Bool
+writeWord8 :: WorkingBuffer -> Word8 -> IO ()
 writeWord8 WorkingBuffer{..} w = do
     ptr <- readIORef offset
     if ptr >= limit then
-        return False
+        throwIO BufferOverrun
       else do
         poke ptr w
-        let ptr' = ptr `plusPtr` 1
+        let !ptr' = ptr `plusPtr` 1
         writeIORef offset ptr'
-        return True
 
-finalPointer :: WorkingBuffer -> IO Buffer
-finalPointer WorkingBuffer{..} = readIORef offset
+{-# INLINE currentOffset #-}
+currentOffset :: WorkingBuffer -> IO Buffer
+currentOffset WorkingBuffer{..} = readIORef offset
+
+{-# INLINE shiftLastN #-}
+shiftLastN :: WorkingBuffer -> Int -> Int -> IO ()
+shiftLastN WorkingBuffer{..} i len = do
+    ptr <- readIORef offset
+    let !src = ptr `plusPtr` negate len
+        !dst = src `plusPtr` i
+        !ptr' = ptr `plusPtr` i
+    if ptr' >= limit then
+        throwIO BufferOverrun
+      else do
+        memcpy dst src len
+        writeIORef offset ptr'
 
 {-# INLINE copyByteString #-}
-copyByteString :: WorkingBuffer -> ByteString -> IO Bool
+copyByteString :: WorkingBuffer -> ByteString -> IO ()
 copyByteString WorkingBuffer{..} (PS fptr off len) = withForeignPtr fptr $ \ptr -> do
     let src = ptr `plusPtr` off
     dst <- readIORef offset
     let !dst' = dst `plusPtr` len
     if dst' >= limit then
-        return False
+        throwIO BufferOverrun
       else do
         memcpy dst src len
         writeIORef offset dst'
-        return True
 
 toByteString :: WorkingBuffer -> IO ByteString
 toByteString WorkingBuffer{..} = do

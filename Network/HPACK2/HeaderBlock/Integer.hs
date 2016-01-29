@@ -14,8 +14,6 @@ import Network.HPACK2.Buffer
 -- $setup
 -- >>> import qualified Data.ByteString as BS
 
-----------------------------------------------------------------
-
 powerArray :: Array Int Int
 powerArray = listArray (1,8) [1,3,7,15,31,63,127,255]
 
@@ -32,27 +30,22 @@ if I < 2^N - 1, encode I on N bits
        encode I on 8 bits
 -}
 
--- | Integer encoding. The first argument is N of prefix.
---
--- >>> encode 5 10
--- [10]
--- >>> encode 5 1337
--- [31,154,10]
--- >>> encode 8 42
--- [42]
-encode :: Int -> Int -> [Word8]
-encode n i
-  | i < p     = fromIntegral i : []
-  | otherwise = fromIntegral p : encode' (i - p)
+encode :: WorkingBuffer -> (Word8 -> Word8) -> Int -> Int -> IO ()
+encode wbuf set n i
+  | i < p     = writeWord8 wbuf $ set $ fromIntegral i
+  | otherwise = do
+        writeWord8 wbuf $ set $ fromIntegral p
+        encode' wbuf (i - p)
   where
     p = powerArray ! n
 
-encode' :: Int -> [Word8]
-encode' i
-  | i < 128   = fromIntegral i : []
-  | otherwise = fromIntegral (r + 128) : encode' q
+encode' :: WorkingBuffer -> Int -> IO ()
+encode' wbuf i
+  | i < 128   = writeWord8 wbuf $ fromIntegral i
+  | otherwise = do
+        writeWord8 wbuf $ fromIntegral (r + 128)
+        encode' wbuf q
   where
---    (q,r) = i `divMod` 128
     q = i `shiftR` 7
     r = i .&. 0x7f
 
