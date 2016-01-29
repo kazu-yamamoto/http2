@@ -6,7 +6,7 @@ module Network.HPACK2.Table.Dynamic (
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
   , renewDynamicTable
-  , huffmanDecode
+  , huffmanDecoder
   , printDynamicTable
   , isDynamicTableEmpty
   , isSuitableSize
@@ -100,6 +100,9 @@ data DynamicTable = DynamicTable {
 {-# INLINE adj #-}
 adj :: Int -> Int -> Int
 adj maxN x = (x + maxN) `mod` maxN
+
+huffmanDecoder :: DynamicTable -> HuffmanDecoding
+huffmanDecoder = huffmanDecode
 
 ----------------------------------------------------------------
 

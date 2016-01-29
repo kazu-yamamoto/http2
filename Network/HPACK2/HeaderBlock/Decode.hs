@@ -123,7 +123,7 @@ headerStuff dyntbl rbuf = do
         let !p = dropHuffman w
             !huff = isHuffman w
         !len <- I.parseInteger 7 p rbuf
-        parseString huff (huffmanDecode dyntbl) len rbuf
+        parseString huff (huffmanDecoder dyntbl) len rbuf
       else
         throwIO EmptyEncodedString
 
