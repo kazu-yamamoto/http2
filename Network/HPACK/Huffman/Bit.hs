@@ -1,4 +1,4 @@
-module Network.HPACK.Huffman.Bit (
+module Network.HPACK2.Huffman.Bit (
   -- * Bits
     B(..)
   , Bits

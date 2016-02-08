@@ -1,6 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module Network.HPACK.Huffman.ByteString (
+module Network.HPACK2.Huffman.ByteString (
     unpack4bits
   , copy
   ) where

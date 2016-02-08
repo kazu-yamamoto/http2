@@ -1,4 +1,4 @@
-module Network.HPACK.Huffman.Params where
+module Network.HPACK2.Huffman.Params where
 
 idxEos :: Int
 idxEos = 256

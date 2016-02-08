@@ -1,11 +1,9 @@
-{-# LANGUAGE BangPatterns #-}
-
-module Network.HPACK.Table.RevIndex where
+module Network.HPACK2.Table.RevIndex where
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import Network.HPACK.Types
-import Network.HPACK.Table.Static
+import Network.HPACK2.Types
+import Network.HPACK2.Table.Static
 
 -- Physical array index for Dynamic Table.
 -- Defining here due to dependency, sigh.

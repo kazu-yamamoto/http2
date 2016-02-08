@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Network.HPACK.Types (
+module Network.HPACK2.Types (
   -- * Header
     HeaderName
   , HeaderValue
@@ -14,11 +14,19 @@ module Network.HPACK.Types (
   , EncodeStrategy(..)
   , defaultEncodeStrategy
   , DecodeError(..)
+  -- * Buffer
+  , Buffer
+  , BufferSize
+  , BufferOverrun(..)
   ) where
 
 import Control.Exception as E
 import Data.ByteString (ByteString)
 import Data.Typeable
+import Data.Word (Word8)
+import Foreign.Ptr (Ptr)
+
+----------------------------------------------------------------
 
 -- | Header name.
 type HeaderName = ByteString
@@ -37,6 +45,8 @@ type HeaderStuff = ByteString
 
 -- | Index for table.
 type Index = Int
+
+----------------------------------------------------------------
 
 -- | Compression algorithms for HPACK encoding.
 data CompressionAlgo = Naive  -- ^ No compression
@@ -62,6 +72,7 @@ defaultEncodeStrategy = EncodeStrategy {
   , useHuffman = True
   }
 
+----------------------------------------------------------------
 
 -- | Errors for decoder.
 data DecodeError = IndexOverrun Index -- ^ Index is out of range
@@ -69,9 +80,22 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | IllegalEos -- ^ Non-eos appears in the end of huffman string
                  | TooLongEos -- ^ Eos of huffman string is more than 7 bits
                  | EmptyEncodedString -- ^ Encoded string has no length
-                 | EmptyBlock -- ^ Header block is empty
-                 | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit
+                 | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit (or sometime less than 32)
                  | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
+                 | HeaderBlockTruncated
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
+
+----------------------------------------------------------------
+
+-- | Buffer type.
+type Buffer = Ptr Word8
+
+-- | The size of buffer.
+type BufferSize = Int
+
+data BufferOverrun = BufferOverrun -- ^ The buffer size is not enough
+                     deriving (Eq,Show,Typeable)
+
+instance Exception BufferOverrun
