@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
-module Network.HPACK2.Table.Entry (
+module Network.HPACK.Table.Entry (
   -- * Type
     Size
   , Entry
@@ -22,7 +22,7 @@ module Network.HPACK2.Table.Entry (
   ) where
 
 import qualified Data.ByteString as BS
-import Network.HPACK2.Types
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 

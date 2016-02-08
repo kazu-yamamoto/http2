@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, RecordWildCards #-}
 
-module Network.HPACK2.Buffer (
+module Network.HPACK.Buffer (
     Buffer
   , BufferSize
   , WorkingBuffer
@@ -28,7 +28,7 @@ import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (peek, poke)
-import Network.HPACK2.Types (Buffer, BufferSize, BufferOverrun(..))
+import Network.HPACK.Types (Buffer, BufferSize, BufferOverrun(..))
 
 ----------------------------------------------------------------
 

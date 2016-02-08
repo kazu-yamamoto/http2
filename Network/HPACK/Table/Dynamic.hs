@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections, RecordWildCards, FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 
-module Network.HPACK2.Table.Dynamic (
+module Network.HPACK.Table.Dynamic (
     DynamicTable(..)
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
@@ -24,10 +24,10 @@ import Control.Monad (forM, when)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
-import Network.HPACK2.Huffman
-import Network.HPACK2.Table.Entry
-import Network.HPACK2.Table.RevIndex
-import Network.HPACK2.Table.Static
+import Network.HPACK.Huffman
+import Network.HPACK.Table.Entry
+import Network.HPACK.Table.RevIndex
+import Network.HPACK.Table.Static
 import Foreign.Marshal.Alloc
 
 ----------------------------------------------------------------

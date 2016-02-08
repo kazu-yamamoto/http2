@@ -1,4 +1,4 @@
-module Network.HPACK2.Builder where
+module Network.HPACK.Builder where
 
 newtype Builder a = Builder ([a] -> [a])
 

@@ -49,11 +49,10 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
-                        Network.HPACK2
                         Network.HTTP2
                         Network.HTTP2.Priority
-  Other-Modules:        Network.HPACK.Builder
-                        Network.HPACK.Builder.Word8
+  Other-Modules:        Network.HPACK.Buffer
+                        Network.HPACK.Builder
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit
                         Network.HPACK.Huffman.ByteString
@@ -65,37 +64,13 @@ Library
                         Network.HPACK.HeaderBlock
                         Network.HPACK.HeaderBlock.Decode
                         Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.From
-                        Network.HPACK.HeaderBlock.HeaderField
                         Network.HPACK.HeaderBlock.Integer
-                        Network.HPACK.HeaderBlock.String
-                        Network.HPACK.HeaderBlock.To
                         Network.HPACK.Table
                         Network.HPACK.Table.Dynamic
                         Network.HPACK.Table.Entry
                         Network.HPACK.Table.RevIndex
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
-                        Network.HPACK2.Buffer
-                        Network.HPACK2.Builder
-                        Network.HPACK2.Huffman
-                        Network.HPACK2.Huffman.Bit
-                        Network.HPACK2.Huffman.ByteString
-                        Network.HPACK2.Huffman.Decode
-                        Network.HPACK2.Huffman.Encode
-                        Network.HPACK2.Huffman.Params
-                        Network.HPACK2.Huffman.Table
-                        Network.HPACK2.Huffman.Tree
-                        Network.HPACK2.HeaderBlock
-                        Network.HPACK2.HeaderBlock.Decode
-                        Network.HPACK2.HeaderBlock.Encode
-                        Network.HPACK2.HeaderBlock.Integer
-                        Network.HPACK2.Table
-                        Network.HPACK2.Table.Dynamic
-                        Network.HPACK2.Table.Entry
-                        Network.HPACK2.Table.RevIndex
-                        Network.HPACK2.Table.Static
-                        Network.HPACK2.Types
                         Network.HTTP2.Decode
                         Network.HTTP2.Encode
                         Network.HTTP2.Priority.PSQ

@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Network.HPACK2.Huffman.Tree (
+module Network.HPACK.Huffman.Tree (
   -- * Huffman decoding
     HTree(..)
   , eosInfo
@@ -12,8 +12,8 @@ module Network.HPACK2.Huffman.Tree (
 
 import Control.Arrow (second)
 import Data.List (partition)
-import Network.HPACK2.Huffman.Bit
-import Network.HPACK2.Huffman.Params
+import Network.HPACK.Huffman.Bit
+import Network.HPACK.Huffman.Params
 
 ----------------------------------------------------------------
 

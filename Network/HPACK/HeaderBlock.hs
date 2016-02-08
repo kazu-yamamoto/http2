@@ -1,4 +1,4 @@
-module Network.HPACK2.HeaderBlock (
+module Network.HPACK.HeaderBlock (
   -- * Header block from/to Low level
     HPACKDecoding
   , decodeHeader
@@ -6,5 +6,5 @@ module Network.HPACK2.HeaderBlock (
   , prepareEncodeHeader
   ) where
 
-import Network.HPACK2.HeaderBlock.Decode
-import Network.HPACK2.HeaderBlock.Encode
+import Network.HPACK.HeaderBlock.Decode
+import Network.HPACK.HeaderBlock.Encode

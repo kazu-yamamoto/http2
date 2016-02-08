@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Network.HPACK2.Types (
+module Network.HPACK.Types (
   -- * Header
     HeaderName
   , HeaderValue

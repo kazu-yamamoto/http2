@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, CPP #-}
 
-module Network.HPACK2.Huffman.Encode (
+module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
     HuffmanEncoding
   , encode
@@ -15,10 +15,10 @@ import Data.Bits ((.|.))
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
-import Network.HPACK2.Buffer
-import Network.HPACK2.Huffman.Bit
-import Network.HPACK2.Huffman.Params
-import Network.HPACK2.Huffman.Table
+import Network.HPACK.Buffer
+import Network.HPACK.Huffman.Bit
+import Network.HPACK.Huffman.Params
+import Network.HPACK.Huffman.Table
 
 ----------------------------------------------------------------
 

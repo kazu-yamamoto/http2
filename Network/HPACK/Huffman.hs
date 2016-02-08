@@ -1,4 +1,4 @@
-module Network.HPACK2.Huffman (
+module Network.HPACK.Huffman (
   -- * Type
     HuffmanEncoding
   , HuffmanDecoding
@@ -8,5 +8,5 @@ module Network.HPACK2.Huffman (
   , decodeDummy
   ) where
 
-import Network.HPACK2.Huffman.Decode
-import Network.HPACK2.Huffman.Encode
+import Network.HPACK.Huffman.Decode
+import Network.HPACK.Huffman.Encode

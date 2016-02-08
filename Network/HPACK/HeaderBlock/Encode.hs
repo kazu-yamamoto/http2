@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP, BangPatterns, RecordWildCards, OverloadedStrings #-}
 
-module Network.HPACK2.HeaderBlock.Encode (
+module Network.HPACK.HeaderBlock.Encode (
     HPACKEncodingOne
   , prepareEncodeHeader
   ) where
@@ -14,14 +14,14 @@ import qualified Data.ByteString as BS
 import Data.IORef (readIORef)
 import qualified Data.Map as M
 import Data.Word (Word8)
-import Network.HPACK2.Buffer
-import qualified Network.HPACK2.HeaderBlock.Integer as I
-import qualified Network.HPACK2.Huffman as Huffman
-import Network.HPACK2.Table
-import Network.HPACK2.Table.Dynamic
-import Network.HPACK2.Table.RevIndex
-import Network.HPACK2.Table.Static
-import Network.HPACK2.Types
+import Network.HPACK.Buffer
+import qualified Network.HPACK.HeaderBlock.Integer as I
+import qualified Network.HPACK.Huffman as Huffman
+import Network.HPACK.Table
+import Network.HPACK.Table.Dynamic
+import Network.HPACK.Table.RevIndex
+import Network.HPACK.Table.Static
+import Network.HPACK.Types
 
 type HPACKEncodingOne = DynamicTable -> WorkingBuffer -> Header -> IO ()
 

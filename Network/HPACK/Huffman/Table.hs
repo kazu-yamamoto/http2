@@ -1,6 +1,6 @@
-module Network.HPACK2.Huffman.Table where
+module Network.HPACK.Huffman.Table where
 
-import Network.HPACK2.Huffman.Bit
+import Network.HPACK.Huffman.Bit
 
 huffmanTable :: [Bits]
 huffmanTable = [

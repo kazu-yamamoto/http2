@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Network.HPACK2.HeaderBlock.Decode (
+module Network.HPACK.HeaderBlock.Decode (
     HPACKDecoding
   , decodeHeader
   ) where
@@ -10,12 +10,12 @@ import Control.Monad (unless)
 import Data.Bits (testBit, clearBit, (.&.))
 import Data.ByteString (ByteString)
 import Data.Word (Word8)
-import Network.HPACK2.Buffer
-import Network.HPACK2.Builder
-import qualified Network.HPACK2.HeaderBlock.Integer as I
-import Network.HPACK2.Huffman
-import Network.HPACK2.Table
-import Network.HPACK2.Types
+import Network.HPACK.Buffer
+import Network.HPACK.Builder
+import qualified Network.HPACK.HeaderBlock.Integer as I
+import Network.HPACK.Huffman
+import Network.HPACK.Table
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 

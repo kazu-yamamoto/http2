@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.HPACK2.Table.Static (
+module Network.HPACK.Table.Static (
     SIndex(..)
   , fromSIndexToIndex
   , fromIndexToSIndex
@@ -11,7 +11,7 @@ module Network.HPACK2.Table.Static (
   ) where
 
 import Data.Array (Array, listArray, (!))
-import Network.HPACK2.Table.Entry
+import Network.HPACK.Table.Entry
 
 ----------------------------------------------------------------
 

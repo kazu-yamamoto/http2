@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 
 -- | HPACK(<https://tools.ietf.org/html/rfc7541>) encoding and decoding a header list.
-module Network.HPACK2 (
+module Network.HPACK (
   -- * Encoding
     HPACKEncoding
   , encodeHeader
@@ -38,10 +38,10 @@ module Network.HPACK2 (
 import Control.Applicative ((<$>))
 #endif
 import Data.ByteString (ByteString)
-import Network.HPACK2.HeaderBlock (HPACKDecoding, decodeHeader, HPACKEncodingOne, prepareEncodeHeader)
-import Network.HPACK2.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
-import Network.HPACK2.Types
-import Network.HPACK2.Buffer
+import Network.HPACK.HeaderBlock (HPACKDecoding, decodeHeader, HPACKEncodingOne, prepareEncodeHeader)
+import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
+import Network.HPACK.Types
+import Network.HPACK.Buffer
 
 import Foreign.Marshal.Alloc
 import Control.Exception

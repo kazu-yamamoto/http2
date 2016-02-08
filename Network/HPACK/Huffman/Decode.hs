@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
-module Network.HPACK2.Huffman.Decode (
+module Network.HPACK.Huffman.Decode (
   -- * Huffman decoding
     HuffmanDecoding
   , decode
@@ -11,12 +11,12 @@ import Control.Exception (throwIO)
 import Data.Array (Array, (!), listArray)
 import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
-import Network.HPACK2.Buffer
-import Network.HPACK2.Huffman.Bit
-import Network.HPACK2.Huffman.Params
-import Network.HPACK2.Huffman.Table
-import Network.HPACK2.Huffman.Tree
-import Network.HPACK2.Types (DecodeError(..))
+import Network.HPACK.Buffer
+import Network.HPACK.Huffman.Bit
+import Network.HPACK.Huffman.Params
+import Network.HPACK.Huffman.Table
+import Network.HPACK.Huffman.Tree
+import Network.HPACK.Types (DecodeError(..))
 
 ----------------------------------------------------------------
 

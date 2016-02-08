@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections, RecordWildCards, CPP #-}
 
-module Network.HPACK2.Table (
+module Network.HPACK.Table (
   -- * dynamic table
     DynamicTable
   , newDynamicTableForEncoding
@@ -17,7 +17,7 @@ module Network.HPACK2.Table (
   -- * Insertion
   , insertEntry
   -- * Entry
-  , module Network.HPACK2.Table.Entry
+  , module Network.HPACK.Table.Entry
   -- * Which tables
   , WhichTable(..)
   , which
@@ -27,10 +27,10 @@ module Network.HPACK2.Table (
 import Control.Applicative ((<$>))
 #endif
 import Control.Exception (throwIO)
-import Network.HPACK2.Table.Dynamic
-import Network.HPACK2.Table.Entry
-import Network.HPACK2.Table.Static
-import Network.HPACK2.Types
+import Network.HPACK.Table.Dynamic
+import Network.HPACK.Table.Entry
+import Network.HPACK.Table.Static
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 

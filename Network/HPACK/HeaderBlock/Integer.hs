@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
-module Network.HPACK2.HeaderBlock.Integer (
+module Network.HPACK.HeaderBlock.Integer (
     encode
   , decode
   , parseInteger
@@ -9,7 +9,7 @@ module Network.HPACK2.HeaderBlock.Integer (
 import Data.Array (Array, listArray, (!))
 import Data.Bits ((.&.), shiftR, testBit)
 import Data.Word (Word8)
-import Network.HPACK2.Buffer
+import Network.HPACK.Buffer
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
