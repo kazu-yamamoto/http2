@@ -60,29 +60,18 @@ staticStep huff dyntbl wbuf h@(k,v) = do
 -- by 'Index 0' and uses indexing as much as possible.
 
 linearStep :: Step
-linearStep huff dyntbl wbuf h = do
+linearStep huff dyntbl wbuf h@(k,v) = do
     cache <- lookupTable h dyntbl
     case cache of
-        None                      -> check wbuf huff dyntbl h Nothing
-        KeyOnly  InStaticTable  i -> check wbuf huff dyntbl h (Just i)
-        KeyOnly  InDynamicTable i -> check wbuf huff dyntbl h (Just i)
-        KeyValue InStaticTable  i -> index wbuf i
-        KeyValue InDynamicTable i -> index wbuf i
-
-{-# INLINE check #-}
-check :: WorkingBuffer -> Bool -> DynamicTable -> Header -> Maybe Int -> IO ()
-check wbuf huff dyntbl h@(k,v) x
-  | k `elem` headersNotToIndex = do
-      case x of
-          Nothing -> newName     wbuf huff set0000 k v
-          Just i  -> indexedName wbuf huff 4 set0000 i v
-  | otherwise = do
-      case x of
-          Nothing -> newName     wbuf huff set01 k v
-          Just i  -> indexedName wbuf huff 6 set01 i v
-      let e = toEntry h
-      insertEntry e dyntbl
-
+        None
+          | k `elem` headersNotToIndex -> newName     wbuf huff   set0000 k v
+          | otherwise                  -> newName     wbuf huff   set01   k v
+                                       >> insertEntry (toEntry h) dyntbl
+        KeyOnly  _ i
+          | k `elem` headersNotToIndex -> indexedName wbuf huff 4 set0000 i v
+          | otherwise                  -> indexedName wbuf huff 6 set01   i v
+                                       >> insertEntry (toEntry h) dyntbl
+        KeyValue _ i                   -> index wbuf i
 
 headersNotToIndex :: [HeaderName]
 headersNotToIndex = [

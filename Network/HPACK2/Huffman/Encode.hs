@@ -80,16 +80,15 @@ enc dst rbuf = returnLength dst $ go 0
         if more then do
             !i <- fromIntegral <$> getByte rbuf
             let Shifted n' b bs = (aosa ! i) ! n
-            if n == 0 then do
+            if n == 0 then
                 writeWord8 dst b
-                copyByteString dst bs
               else do
                 b0 <- readWord8 dst
                 writeWord8 dst (b0 .|. b)
-                copyByteString dst bs
+            copyByteString dst bs
             when (n' /= 0) $ wind dst (-1)
             go n'
-          else do
+          else
             when (n /= 0) $ do
                 let Shifted _ b _ = (aosa ! idxEos) ! n
                 b0 <- readWord8 dst

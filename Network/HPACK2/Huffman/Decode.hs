@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.HPACK2.Huffman.Decode (
   -- * Huffman decoding

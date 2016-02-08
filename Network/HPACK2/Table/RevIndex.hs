@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Network.HPACK2.Table.RevIndex where
 
 import Data.Map.Strict (Map)
