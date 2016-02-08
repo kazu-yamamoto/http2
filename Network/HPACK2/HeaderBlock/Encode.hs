@@ -11,11 +11,16 @@ import Control.Applicative ((<$>))
 import Data.Bits (setBit)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import Data.IORef (readIORef)
+import qualified Data.Map as M
 import Data.Word (Word8)
 import Network.HPACK2.Buffer
 import qualified Network.HPACK2.HeaderBlock.Integer as I
 import qualified Network.HPACK2.Huffman as Huffman
 import Network.HPACK2.Table
+import Network.HPACK2.Table.Dynamic
+import Network.HPACK2.Table.RevIndex
+import Network.HPACK2.Table.Static
 import Network.HPACK2.Types
 
 type HPACKEncodingOne = DynamicTable -> WorkingBuffer -> Header -> IO ()
@@ -46,32 +51,60 @@ naiveStep huff _dyntbl wbuf (k,v) = newName wbuf huff set0000 k v
 ----------------------------------------------------------------
 
 staticStep :: Step
-staticStep huff dyntbl wbuf h@(k,v) = do
-    x <- lookupTable h dyntbl
-    case x of
-        None                      -> newName     wbuf huff   set0000 k v
-        KeyOnly  InStaticTable i  -> indexedName wbuf huff 4 set0000 i v
-        KeyOnly  InDynamicTable _ -> newName     wbuf huff   set0000 k v
-        KeyValue InStaticTable i  -> indexedName wbuf huff 4 set0000 i v
-        KeyValue InDynamicTable _ -> newName     wbuf huff   set0000 k v
+staticStep huff DynamicTable{..} wbuf (k,v) = do
+    mrev <- readIORef reverseIndex
+    case mrev of
+        Nothing -> error "linearStep (1)"
+        Just (Outer rev) -> case M.lookup k rev of
+            Nothing -> newName     wbuf huff   set0000 k v
+            Just (Inner ss ds) -> case lookup v ss of
+                Just sidx -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
+                Nothing   -> case lookup v ds of
+                    Just _  -> newName     wbuf huff   set0000 k v
+                    Nothing -> case ss of
+                        ((_,sidx):_) -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
+                        [] -> case ds of
+                            [] -> error "linearStep (2)"
+                            _  -> newName     wbuf huff   set0000 k v
 
 ----------------------------------------------------------------
--- A simple encoding strategy to reset the reference set first
--- by 'Index 0' and uses indexing as much as possible.
 
 linearStep :: Step
-linearStep huff dyntbl wbuf h@(k,v) = do
-    cache <- lookupTable h dyntbl
-    case cache of
-        None
-          | k `elem` headersNotToIndex -> newName     wbuf huff   set0000 k v
-          | otherwise                  -> newName     wbuf huff   set01   k v
-                                       >> insertEntry (toEntry h) dyntbl
-        KeyOnly  _ i
-          | k `elem` headersNotToIndex -> indexedName wbuf huff 4 set0000 i v
-          | otherwise                  -> indexedName wbuf huff 6 set01   i v
-                                       >> insertEntry (toEntry h) dyntbl
-        KeyValue _ i                   -> index wbuf i
+linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
+    mrev <- readIORef reverseIndex
+    case mrev of
+        Nothing -> error "linearStep (1)"
+        Just (Outer rev) -> case M.lookup k rev of
+            Nothing
+             | notToIndex -> newName     wbuf huff   set0000 k v
+             | otherwise  -> do
+                   newName     wbuf huff   set01   k v
+                   insertEntry (toEntry h) dyntbl
+            Just (Inner ss ds) -> case lookup v ss of
+                Just sidx -> index wbuf (fromSIndexToIndex sidx)
+                Nothing   -> case lookup v ds of
+                    Just didx -> fromDIndexToIndex dyntbl didx >>= index wbuf
+                    Nothing   -> case ss of
+                        ((_,sidx):_)
+                          | notToIndex -> do
+                              let i = fromSIndexToIndex sidx
+                              indexedName wbuf huff 4 set0000 i v
+                          | otherwise  -> do
+                              let i = fromSIndexToIndex sidx
+                              indexedName wbuf huff 6 set01   i v
+                              insertEntry (toEntry h) dyntbl
+                        [] -> case ds of
+                            ((_,didx):_)
+                              | notToIndex -> do
+                                  i <- fromDIndexToIndex dyntbl didx
+                                  indexedName wbuf huff 4 set0000 i v
+                              | otherwise  -> do
+                                  i <- fromDIndexToIndex dyntbl didx
+                                  indexedName wbuf huff 6 set01   i v
+                                  insertEntry (toEntry h) dyntbl
+                            _ -> error "linearStep (2)"
+  where
+    notToIndex = k `elem` headersNotToIndex
 
 headersNotToIndex :: [HeaderName]
 headersNotToIndex = [
