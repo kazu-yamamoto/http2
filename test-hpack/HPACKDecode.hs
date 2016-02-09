@@ -17,7 +17,6 @@ import qualified Data.ByteString.Char8 as B8
 import Data.Hex
 import Data.List (sort)
 import Network.HPACK
-import Network.HPACK.HeaderBlock
 import Network.HPACK.Table
 
 import JSON
@@ -32,56 +31,51 @@ run :: Bool -> Test -> IO Result
 run _ (Test _ [])        = return $ Pass
 run d (Test _ ccs) = do
     -- 'size c' must not be used. Initial value is 4,096!
-    dhdrtbl <- newDynamicTableForDecoding 4096
+    dyntbl <- newDynamicTableForDecoding 4096
     let conf = Conf { debug = d }
-    testLoop conf ccs dhdrtbl
+    testLoop conf ccs dyntbl
 
 testLoop :: Conf
          -> [Case]
          -> DynamicTable
          -> IO Result
-testLoop _    []     _    = return $ Pass
-testLoop conf (c:cs) dhdrtbl  = do
-    res <- test conf c dhdrtbl
+testLoop _    []     _      = return $ Pass
+testLoop conf (c:cs) dyntbl = do
+    res <- test conf c dyntbl
     case res of
-        Right dhdrtbl' -> testLoop conf cs dhdrtbl'
-        Left  e     -> return $ Fail e
+        Nothing -> testLoop conf cs dyntbl
+        Just  e -> return $ Fail e
 
 test :: Conf
      -> Case
      -> DynamicTable
-     -> IO (Either String DynamicTable)
-test conf c dhdrtbl = do
+     -> IO (Maybe String)
+test conf c dyntbl = do
     -- context is destructive!!!
     when (debug conf) $ do
         putStrLn "--------------------------------"
         putStrLn "---- Input header list"
         printHeaderList $ sort hs
         putStrLn "---- Input header table"
-        printDynamicTable dhdrtbl
+        printDynamicTable dyntbl
         putStrLn "---- Input Hex"
         B8.putStrLn wirehex
-        putStrLn "---- Input header block"
-        print bshd'
-    dhdrtbl0 <- case size c of
-        Nothing  -> return dhdrtbl
-        Just siz -> renewDynamicTable siz dhdrtbl
-    x <- try $ decodeHeader dhdrtbl0 inp
+    case size c of
+        Nothing  -> return ()
+        Just siz -> renewDynamicTable siz dyntbl
+    x <- try $ decodeHeader dyntbl inp
     case x of
-        Left e -> return $ Left $ show (e :: DecodeError)
-        Right (dhdrtbl',hs') -> do
+        Left e -> return $ Just $ show (e :: DecodeError)
+        Right hs' -> do
             let pass = sort hs == sort hs'
             if pass then
-                return $ Right (dhdrtbl')
+                return Nothing
               else
-                return $ Left $ "Headers are different in " ++ B8.unpack wirehex ++ ":\n" ++ show hd ++ "\n" ++ show hs ++ "\n" ++ show hs'
+                return $ Just $ "Headers are different in " ++ B8.unpack wirehex ++ ":\n" ++ show hs ++ "\n" ++ show hs'
   where
     wirehex = wire c
     Just inp = unhex wirehex
     hs = headers c
-    bshd = fromByteStringDebug inp
-    hd = map snd <$> bshd
-    bshd' = map (\(x,y)->(hex x,y)) <$> bshd
 
 -- | Printing 'HeaderList'.
 printHeaderList :: HeaderList -> IO ()

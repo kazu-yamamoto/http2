@@ -104,7 +104,6 @@ Test-Suite spec
   Main-Is:              Spec.hs
   Other-Modules:        HPACK.DecodeSpec
                         HPACK.HeaderBlock
-                        HPACK.HeaderBlockSpec
                         HPACK.HuffmanSpec
                         HPACK.IntegerSpec
                         HTTP2.FrameSpec

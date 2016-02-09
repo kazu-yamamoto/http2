@@ -4,12 +4,13 @@ module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
     HuffmanEncoding
   , encode
+  , encodeHuffman
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Data.Array
 import Data.Bits ((.|.))
 import qualified Data.ByteString as BS
@@ -39,11 +40,11 @@ aosa = listArray (0,idxEos) $ map toShiftedArray huffmanTable
 -- |
 --
 -- >>> toShifted [T,T,T,T] 0
--- Shifted 1 4 "\240"
+-- Shifted 4 240 ""
 -- >>> toShifted [T,T,T,T] 4
--- Shifted 1 0 "\SI"
+-- Shifted 0 15 ""
 -- >>> toShifted [T,T,T,T] 5
--- Shifted 2 1 "\a\128"
+-- Shifted 1 7 "\128"
 
 toShifted :: Bits -> Int -> Shifted
 toShifted bits n = Shifted r w bs
@@ -93,3 +94,7 @@ enc dst rbuf = returnLength dst $ go 0
                 let Shifted _ b _ = (aosa ! idxEos) ! n
                 b0 <- readWord8 dst
                 writeWord8 dst (b0 .|. b)
+
+encodeHuffman :: ByteString -> IO ByteString
+encodeHuffman bs = withTemporaryBuffer 4096 $ \wbuf ->
+    void $ encode wbuf bs

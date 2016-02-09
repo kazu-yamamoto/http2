@@ -5,10 +5,12 @@ module Network.HPACK.Huffman.Decode (
     HuffmanDecoding
   , decode
   , decodeDummy
+  , decodeHuffman
   ) where
 
 import Control.Exception (throwIO)
 import Data.Array (Array, (!), listArray)
+import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
 import Data.Word (Word8)
 import Network.HPACK.Buffer
@@ -21,7 +23,7 @@ import Network.HPACK.Types (DecodeError(..))
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-type HuffmanDecoding = Int -> ReadBuffer -> IO ByteString
+type HuffmanDecoding = ReadBuffer -> Int -> IO ByteString
 
 ----------------------------------------------------------------
 
@@ -44,18 +46,19 @@ next (WayStep _ a16) w = a16 ! w
 
 -- | Huffman decoding.
 decode :: Buffer -> BufferSize -> HuffmanDecoding
-decode buf siz len rbuf = do
-    wrkbuf <- newWorkingBuffer buf siz
-    dec wrkbuf len rbuf
+decode buf siz rbuf len = do
+    wbuf <- newWorkingBuffer buf siz
+    dec wbuf rbuf len
+    toByteString wbuf
 
-dec :: WorkingBuffer -> HuffmanDecoding
-dec tmp len rbuf = go len (way256 ! 0)
+dec :: WorkingBuffer -> ReadBuffer -> Int -> IO ()
+dec wbuf rbuf len = go len (way256 ! 0)
   where
     go 0 way0 = case way0 of
         WayStep Nothing  _ -> throwIO IllegalEos
         WayStep (Just i) _
-          | i <= 8       -> toByteString tmp
-          | otherwise    -> throwIO TooLongEos
+          | i <= 8         -> return ()
+          | otherwise      -> throwIO TooLongEos
     go !n !way0 = do
         w <- getByte rbuf
         way <- doit way0 w
@@ -64,16 +67,20 @@ dec tmp len rbuf = go len (way256 ! 0)
         EndOfString -> throwIO EosInTheMiddle
         Forward n   -> return $ way256 ! n
         GoBack  n v -> do
-            writeWord8 tmp v
+            writeWord8 wbuf v
             return $ way256 ! n
         GoBack2 n v1 v2 -> do
-            writeWord8 tmp v1
-            writeWord8 tmp v2
+            writeWord8 wbuf v1
+            writeWord8 wbuf v2
             return $ way256 ! n
 
 -- | Huffman decoding.
 decodeDummy :: HuffmanDecoding
 decodeDummy _ _ = return ""
+
+decodeHuffman :: ByteString -> IO ByteString
+decodeHuffman bs = withTemporaryBuffer 4096 $ \wbuf ->
+    withReadBuffer bs $ \rbuf -> dec wbuf rbuf (BS.length bs)
 
 ----------------------------------------------------------------
 

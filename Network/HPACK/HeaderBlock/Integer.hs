@@ -2,12 +2,15 @@
 
 module Network.HPACK.HeaderBlock.Integer (
     encode
+  , encodeInteger
   , decode
+  , decodeInteger
   , parseInteger
   ) where
 
 import Data.Array (Array, listArray, (!))
 import Data.Bits ((.&.), shiftR, testBit)
+import Data.ByteString (ByteString)
 import Data.Word (Word8)
 import Network.HPACK.Buffer
 
@@ -49,6 +52,9 @@ encode' wbuf i
     q = i `shiftR` 7
     r = i .&. 0x7f
 
+encodeInteger :: Int -> Int -> IO ByteString
+encodeInteger n i = withTemporaryBuffer 4096 $ \wbuf -> encode wbuf id n i
+
 ----------------------------------------------------------------
 
 {-
@@ -66,13 +72,6 @@ decode I from the next N bits
 
 {-# INLINE decode #-}
 -- | Integer decoding. The first argument is N of prefix.
---
--- >>> decode 5 10 $ BS.empty
--- 10
--- >>> decode 5 31 $ BS.pack [154,10]
--- 1337
--- >>> decode 8 42 $ BS.empty
--- 42
 decode :: Int -> Word8 -> ReadBuffer -> IO Int
 decode n w rbuf
   | i < p     = return i
@@ -90,13 +89,20 @@ decode' rbuf m i = do
         !cont = b `testBit` 7
     if cont then decode' rbuf m' i' else return i'
 
+-- | Integer decoding. The first argument is N of prefix.
+--
+-- >>> decodeInteger 5 10 $ BS.empty
+-- 10
+-- >>> decodeInteger 5 31 $ BS.pack [154,10]
+-- 1337
+-- >>> decodeInteger 8 42 $ BS.empty
+-- 42
+decodeInteger :: Int -> Word8 -> ByteString -> IO Int
+decodeInteger n w bs = withReadBuffer bs $ \rbuf -> decode n w rbuf
+
 ----------------------------------------------------------------
 
 {-# INLINE parseInteger #-}
--- |
---
--- >>> parseInteger 7 127 $ BS.pack [210,211,212,87,88,89,90]
--- (183839313,"XYZ")
 parseInteger :: Int -> Word8 -> ReadBuffer -> IO Int
 parseInteger n w rbuf
   | i < p     = return i

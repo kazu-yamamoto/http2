@@ -43,9 +43,6 @@ import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newD
 import Network.HPACK.Types
 import Network.HPACK.Buffer
 
-import Foreign.Marshal.Alloc
-import Control.Exception
-
 -- | Default dynamic table size.
 --   The value is 4,096 bytes: an array has 128 entries.
 --
@@ -63,11 +60,9 @@ type HPACKEncoding = DynamicTable -> HeaderList -> IO ByteString
 
 -- | Converting 'HeaderList' for HTTP header to the low level format.
 encodeHeader :: EncodeStrategy -> HPACKEncoding
-encodeHeader stgy dyntbl hs0 = bracket (mallocBytes 4096) free $ \buf -> do
-    wbuf <- newWorkingBuffer buf 4096
+encodeHeader stgy dyntbl hs0 = withTemporaryBuffer 4096 $ \wbuf -> do
     encodeHeaderOne <- prepareEncodeHeader stgy dyntbl wbuf
     go encodeHeaderOne wbuf hs0
-    toByteString wbuf
   where
     go _   _    []     = return ()
     go enc wbuf (h:hs) = do

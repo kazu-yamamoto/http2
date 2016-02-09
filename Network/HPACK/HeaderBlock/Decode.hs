@@ -123,7 +123,7 @@ headerStuff dyntbl rbuf = do
         let !p = dropHuffman w
             !huff = isHuffman w
         !len <- I.parseInteger 7 p rbuf
-        parseString huff (huffmanDecoder dyntbl) len rbuf
+        parseString huff (huffmanDecoder dyntbl) rbuf len
       else
         throwIO EmptyEncodedString
 
@@ -157,12 +157,12 @@ dropHuffman w = w `clearBit` 7
 
 ----------------------------------------------------------------
 
-parseString :: Bool -> HuffmanDecoding -> Int -> ReadBuffer -> IO HeaderStuff
-parseString huff hufdec len rbuf = do
+parseString :: Bool -> HuffmanDecoding -> ReadBuffer -> Int -> IO HeaderStuff
+parseString huff hufdec rbuf len = do
     more <- hasMoreBytes rbuf len
     if more then
         if huff then
-            hufdec len rbuf
+            hufdec rbuf len
           else
             extractByteString rbuf len
       else

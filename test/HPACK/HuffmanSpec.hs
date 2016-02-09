@@ -28,27 +28,32 @@ testData = [
   ]
 
 shouldBeEncoded :: ByteString -> ByteString -> Expectation
-shouldBeEncoded inp out = enc inp `shouldBe` out
-  where
-    enc = BS.map toLower . hex . encode
+shouldBeEncoded inp out = do
+    out' <- BS.map toLower . hex <$> encodeHuffman inp
+    out' `shouldBe` out
 
-shouldBeDecoded :: ByteString -> Either DecodeError ByteString -> Expectation
-shouldBeDecoded inp out = dec inp `shouldBe` out
-  where
-    dec = decode . fromJust . unhex
+shouldBeDecoded :: ByteString -> ByteString -> Expectation
+shouldBeDecoded inp out = do
+    out' <- decodeHuffman $ fromJust $ unhex inp
+    out' `shouldBe` out
+
+tryDecode :: ByteString -> IO ByteString
+tryDecode inp = decodeHuffman $ fromJust $ unhex inp
 
 spec :: Spec
 spec = do
     describe "encode and decode" $ do
-        prop "duality" $ \cs ->
+        prop "duality" $ \cs -> do
             let bs = BS.pack cs
-            in decode (encode bs) == Right bs
+            es <- encodeHuffman bs
+            ds <- decodeHuffman es
+            ds `shouldBe` bs
     describe "encode" $ do
         it "encodes" $ do
             mapM_ (\(x,y) -> x `shouldBeEncoded` y) testData
     describe "decode" $ do
         it "decodes" $ do
-            "ff" `shouldBeDecoded` Left TooLongEos
-            "ffffea" `shouldBeDecoded` Right "\9"
-            "ffffeaff" `shouldBeDecoded` Left TooLongEos
-            mapM_ (\(x,y) -> y `shouldBeDecoded` Right x) testData
+            tryDecode       "ff" `shouldThrow` (== TooLongEos)
+            tryDecode "ffffeaff" `shouldThrow` (== TooLongEos)
+            "ffffea" `shouldBeDecoded` "\9"
+            mapM_ (\(x,y) -> y `shouldBeDecoded` x) testData

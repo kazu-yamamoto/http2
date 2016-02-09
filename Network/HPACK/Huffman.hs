@@ -4,8 +4,10 @@ module Network.HPACK.Huffman (
   , HuffmanDecoding
   -- * Encoding/decoding
   , encode
+  , encodeHuffman
   , decode
   , decodeDummy
+  , decodeHuffman
   ) where
 
 import Network.HPACK.Huffman.Decode

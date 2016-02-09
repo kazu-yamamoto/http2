@@ -12,6 +12,7 @@ module Network.HPACK.Buffer (
   , returnLength
   , toByteString
   , copyByteString
+  , withTemporaryBuffer
   , ReadBuffer
   , withReadBuffer
   , hasOneByte
@@ -21,11 +22,12 @@ module Network.HPACK.Buffer (
   , extractByteString
   ) where
 
-import Control.Exception (throwIO)
+import Control.Exception (bracket, throwIO)
 import Data.ByteString.Internal (ByteString(..), create, memcpy)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
+import Foreign.Marshal.Alloc
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (peek, poke)
 import Network.HPACK.Types (Buffer, BufferSize, BufferOverrun(..))
@@ -101,6 +103,12 @@ returnLength WorkingBuffer{..} body = do
     body
     end <- readIORef offset
     return $ end `minusPtr` beg
+
+withTemporaryBuffer :: Int -> (WorkingBuffer -> IO ()) -> IO ByteString
+withTemporaryBuffer siz action = bracket (mallocBytes siz) free $ \buf -> do
+    wbuf <- newWorkingBuffer buf 4096
+    action wbuf
+    toByteString wbuf
 
 ----------------------------------------------------------------
 
