@@ -18,6 +18,7 @@ module Network.HPACK.Table.Dynamic (
   , toHeaderEntry
   , fromDIndexToIndex
   , fromIndexToDIndex
+  , CodeInfo(..)
   ) where
 
 import Control.Monad (forM, when)
@@ -69,9 +70,19 @@ After insertion:
         1 2 3 4      (numOfEntries = 4)
 -}
 
+data CodeInfo =
+    EncodeInfo !(IORef Outer) -- Reverse index
+               -- The value informed by SETTINGS_HEADER_TABLE_SIZE.
+               -- If 'Nothing', dynamic table size update is not necessary.
+               -- Otherwise, dynamic table size update is sent
+               -- and this value should be set to 'Nothing'.
+               !(IORef (Maybe Size))
+  | DecodeInfo !HuffmanDecoding
+               !(IORef Size)  -- The limit size
+
 -- | Type for dynamic table.
 data DynamicTable = DynamicTable {
-    huffmanDecode :: HuffmanDecoding
+    codeInfo :: !CodeInfo
   -- | An array
   , circularTable :: !(IORef Table)
   -- | Start point
@@ -84,17 +95,6 @@ data DynamicTable = DynamicTable {
   , dynamicTableSize :: !(IORef Size)
   -- | The max dynamic table size (defined in HPACK)
   , maxDynamicTableSize :: !(IORef Size)
-  -- | The value informed by SETTINGS_HEADER_TABLE_SIZE.
-  --   If 'Nothing', dynamic table size update is not necessary.
-  --   Otherwise, dynamic table size update is sent
-  --   and this value should be set to 'Nothing'.
-  , limitForEncoding :: !(IORef (Maybe Size))
-  -- | The limit size of a dynamic table for decoding
-  , limitForDecoding :: !(IORef Size)
-  -- | Header to the index in Dynamic Table for encoder.
-  --   Static Table is not included.
-  --   Nothing for decoder.
-  , reverseIndex :: !(IORef (Maybe Outer))
   }
 
 {-# INLINE adj #-}
@@ -102,7 +102,9 @@ adj :: Int -> Int -> Int
 adj maxN x = (x + maxN) `mod` maxN
 
 huffmanDecoder :: DynamicTable -> HuffmanDecoding
-huffmanDecoder = huffmanDecode
+huffmanDecoder DynamicTable{..} = dec
+  where
+    DecodeInfo dec _ = codeInfo
 
 ----------------------------------------------------------------
 
@@ -121,8 +123,9 @@ printDynamicTable DynamicTable{..} = do
     dsize <- readIORef dynamicTableSize
     maxdsize <- readIORef maxDynamicTableSize
     putStrLn $ "      Table size: " ++ show dsize ++ "/" ++ show maxdsize
-    rev <- readIORef reverseIndex
-    print rev
+    case codeInfo of
+        EncodeInfo revref _ -> readIORef revref >>= print
+        _                   -> return ()
 
 printEntry :: (Index,Entry) -> IO ()
 printEntry (i,e) = do
@@ -144,14 +147,16 @@ isDynamicTableEmpty DynamicTable{..} = do
 
 isSuitableSize :: Size -> DynamicTable -> IO Bool
 isSuitableSize siz DynamicTable{..} = do
-    lim <- readIORef limitForDecoding
+    let DecodeInfo _ limref = codeInfo
+    lim <- readIORef limref
     return $! siz <= lim && maxNumbers siz /= 0
 
 data TableSizeAction = Keep | Change !Size | Ignore !Size
 
 needChangeTableSize :: DynamicTable -> IO TableSizeAction
 needChangeTableSize DynamicTable{..} = do
-    mlim <- readIORef limitForEncoding
+    let EncodeInfo _ limref = codeInfo
+    mlim <- readIORef limref
     maxsiz <- readIORef maxDynamicTableSize
     return $ case mlim of
         Nothing          -> Keep
@@ -162,42 +167,47 @@ needChangeTableSize DynamicTable{..} = do
 -- | When SETTINGS_HEADER_TABLE_SIZE is received from a peer,
 --   its value should be set by this function.
 setLimitForEncoding :: Size -> DynamicTable -> IO ()
-setLimitForEncoding siz DynamicTable{..} = writeIORef limitForEncoding $ Just siz
+setLimitForEncoding siz DynamicTable{..} = do
+    let EncodeInfo _ limref = codeInfo
+    writeIORef limref $! Just siz
 
 resetLimitForEncoding :: DynamicTable -> IO ()
-resetLimitForEncoding DynamicTable{..} = writeIORef limitForEncoding Nothing
+resetLimitForEncoding DynamicTable{..} = do
+    let EncodeInfo _ limref = codeInfo
+    writeIORef limref Nothing
 
 ----------------------------------------------------------------
 
 -- | Creating 'DynamicTable'.
 newDynamicTableForEncoding :: Size -- ^ The dynamic table size
                            -> IO DynamicTable
-newDynamicTableForEncoding maxsiz =
-    newDynamicTable maxsiz (Just defaultRevIndex) decodeDummy
+newDynamicTableForEncoding maxsiz = do
+    rev <- newIORef defaultRevIndex
+    lim <- newIORef Nothing
+    let !info = EncodeInfo rev lim
+    newDynamicTable maxsiz info
 
 -- | Creating 'DynamicTable'.
 newDynamicTableForDecoding :: Size -- ^ The dynamic table size
                            -> Size -- ^ The size of temporary buffer for Huffman decoding
                            -> IO DynamicTable
 newDynamicTableForDecoding maxsiz huftmpsiz = do
+    lim <- newIORef maxsiz
     buf <- mallocBytes huftmpsiz
     let !decoder = decode buf huftmpsiz
-    newDynamicTable maxsiz Nothing decoder
+        !info = DecodeInfo decoder lim
+    newDynamicTable maxsiz info
 
-newDynamicTable :: Size -> Maybe Outer -> HuffmanDecoding -> IO DynamicTable
-newDynamicTable maxsiz mhp decoder = do
+newDynamicTable :: Size -> CodeInfo -> IO DynamicTable
+newDynamicTable maxsiz info = do
     tbl <- newArray (0,end) dummyEntry
-    DynamicTable decoder <$> newIORef tbl     -- circularTable
-                         <*> newIORef end     -- offset
-                         <*> newIORef 0       -- numOfEntries
-                         <*> newIORef maxN    -- maxNumOfEntries
-                         <*> newIORef 0       -- dynamicTableSize
-                         <*> newIORef maxsiz  -- maxDynamicTableSize
-                         <*> newIORef Nothing -- limitForEncoding
-                         <*> newIORef dlim    -- limitForDecoding
-                         <*> newIORef mhp     -- reverseIndex
+    DynamicTable info <$> newIORef tbl     -- circularTable
+                      <*> newIORef end     -- offset
+                      <*> newIORef 0       -- numOfEntries
+                      <*> newIORef maxN    -- maxNumOfEntries
+                      <*> newIORef 0       -- dynamicTableSize
+                      <*> newIORef maxsiz  -- maxDynamicTableSize
   where
-    !dlim = maxsiz
     !maxN = maxNumbers maxsiz
     !end = maxN - 1
 
@@ -207,12 +217,8 @@ renewDynamicTable maxsiz dyntbl@DynamicTable{..} = do
     renew <- shouldRenew dyntbl maxsiz
     when renew $ do
         !entries <- getEntries dyntbl
-        mrev <- readIORef reverseIndex
         let !maxN = maxNumbers maxsiz
             !end = maxN - 1
-            !mrev' = case mrev of
-                Nothing -> Nothing
-                Just _  -> Just defaultRevIndex
         newtbl <- newArray (0,end) dummyEntry
         writeIORef circularTable newtbl
         writeIORef offset end
@@ -220,7 +226,9 @@ renewDynamicTable maxsiz dyntbl@DynamicTable{..} = do
         writeIORef maxNumOfEntries maxN
         writeIORef dynamicTableSize 0
         writeIORef maxDynamicTableSize maxsiz
-        writeIORef reverseIndex mrev'
+        case codeInfo of
+            EncodeInfo revref _ -> writeIORef revref defaultRevIndex
+            _                   -> return ()
         copyEntries dyntbl entries
 
 getEntries :: DynamicTable -> IO [Entry]
@@ -257,10 +265,11 @@ insertEntry :: Entry -> DynamicTable -> IO ()
 insertEntry e dyntbl@DynamicTable{..} = do
     insertFront e dyntbl
     hs <- adjustTableSize dyntbl
-    mrev <- readIORef reverseIndex
-    case mrev of
-        Nothing  -> return ()
-        Just rev -> writeIORef reverseIndex $ Just (deleteDynamicList hs rev)
+    case codeInfo of
+        EncodeInfo revref _ -> do
+            rev <- readIORef revref
+            writeIORef revref $! deleteDynamicList hs rev
+        _                   -> return ()
 
 insertFront :: Entry -> DynamicTable -> IO ()
 insertFront e DynamicTable{..} = do
@@ -268,19 +277,19 @@ insertFront e DynamicTable{..} = do
     off <- readIORef offset
     n <- readIORef numOfEntries
     dsize <- readIORef dynamicTableSize
-    mrev <- readIORef reverseIndex
     table <- readIORef circularTable
     let i = off
         !dsize' = dsize + entrySize e
         !off' = adj maxN (off - 1)
-        !mrev' = case mrev of
-            Nothing  -> Nothing
-            Just rev -> Just $ insertDynamic (entryHeader e) (DIndex i) rev
     writeArray table i e
     writeIORef offset off'
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
-    writeIORef reverseIndex mrev'
+    case codeInfo of
+        EncodeInfo revref _ -> do
+            rev <- readIORef revref
+            writeIORef revref $! insertDynamic (entryHeader e) (DIndex i) rev
+        _                   -> return ()
 
 adjustTableSize :: DynamicTable -> IO [Header]
 adjustTableSize dyntbl = adjust dyntbl []
@@ -303,17 +312,17 @@ insertEnd e DynamicTable{..} = do
     off <- readIORef offset
     n <- readIORef numOfEntries
     dsize <- readIORef dynamicTableSize
-    mrev <- readIORef reverseIndex
     table <- readIORef circularTable
     let !i = adj maxN (off + n + 1)
         !dsize' = dsize + entrySize e
-        !mrev' = case mrev of
-            Nothing  -> Nothing
-            Just rev -> Just $ insertDynamic (entryHeader e) (DIndex i) rev
     writeArray table i e
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
-    writeIORef reverseIndex mrev'
+    case codeInfo of
+        EncodeInfo revref _ -> do
+            rev <- readIORef revref
+            writeIORef revref $! insertDynamic (entryHeader e) (DIndex i) rev
+        _                   -> return ()
 
 ----------------------------------------------------------------
 

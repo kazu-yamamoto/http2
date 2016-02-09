@@ -4,7 +4,6 @@ module Network.HPACK.Huffman.Decode (
   -- * Huffman decoding
     HuffmanDecoding
   , decode
-  , decodeDummy
   , decodeHuffman
   ) where
 
@@ -73,10 +72,6 @@ dec wbuf rbuf len = go len (way256 ! 0)
             writeWord8 wbuf v1
             writeWord8 wbuf v2
             return $ way256 ! n
-
--- | Huffman decoding.
-decodeDummy :: HuffmanDecoding
-decodeDummy _ _ = return ""
 
 decodeHuffman :: ByteString -> IO ByteString
 decodeHuffman bs = withTemporaryBuffer 4096 $ \wbuf ->

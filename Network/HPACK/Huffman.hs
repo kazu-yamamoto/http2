@@ -6,7 +6,6 @@ module Network.HPACK.Huffman (
   , encode
   , encodeHuffman
   , decode
-  , decodeDummy
   , decodeHuffman
   ) where
 
