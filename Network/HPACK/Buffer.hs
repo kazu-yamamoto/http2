@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, RecordWildCards #-}
+{-# LANGUAGE BangPatterns, RecordWildCards, CPP #-}
 
 module Network.HPACK.Buffer (
     Buffer
@@ -22,6 +22,9 @@ module Network.HPACK.Buffer (
   , extractByteString
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Control.Exception (bracket, throwIO)
 import Data.ByteString.Internal (ByteString(..), create, memcpy)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
