@@ -1,7 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, CPP #-}
 
 module HPACK.HuffmanSpec where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import Data.Char (toLower)

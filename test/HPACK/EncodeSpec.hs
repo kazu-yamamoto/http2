@@ -1,5 +1,10 @@
+{-# LANGUAGE CPP #-}
+
 module HPACK.EncodeSpec where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Control.Exception (onException)
 import Network.HPACK
 import Test.Hspec
