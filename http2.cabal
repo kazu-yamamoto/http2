@@ -103,6 +103,7 @@ Test-Suite spec
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
   Other-Modules:        HPACK.DecodeSpec
+                        HPACK.EncodeSpec
                         HPACK.HeaderBlock
                         HPACK.HuffmanSpec
                         HPACK.IntegerSpec
