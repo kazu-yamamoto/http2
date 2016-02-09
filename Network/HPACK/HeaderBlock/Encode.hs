@@ -1,19 +1,23 @@
 {-# LANGUAGE CPP, BangPatterns, RecordWildCards, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Encode (
-    HPACKEncodingOne
-  , prepareEncodeHeader
+    encodeHeader
+  , encodeHeaderBuffer
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
+import Control.Exception (bracket, try)
+import Control.Monad (when)
 import Data.Bits (setBit)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import Data.ByteString.Internal (ByteString, create, memcpy)
 import Data.IORef (readIORef)
 import qualified Data.Map as M
 import Data.Word (Word8)
+import Foreign.Marshal.Alloc
+import Foreign.Ptr (minusPtr)
 import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman
@@ -23,12 +27,10 @@ import Network.HPACK.Table.RevIndex
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
-type HPACKEncodingOne = DynamicTable -> WorkingBuffer -> Header -> IO ()
+----------------------------------------------------------------
 
-type Step = Bool -> HPACKEncodingOne
-
-prepareEncodeHeader :: EncodeStrategy -> DynamicTable -> WorkingBuffer -> IO HPACKEncodingOne
-prepareEncodeHeader EncodeStrategy{..} dyntbl wbuf = do
+changeTableSize :: DynamicTable -> WorkingBuffer -> IO ()
+changeTableSize dyntbl wbuf = do
     msiz <- needChangeTableSize dyntbl
     case msiz of
         Keep -> return ()
@@ -38,19 +40,61 @@ prepareEncodeHeader EncodeStrategy{..} dyntbl wbuf = do
         Ignore lim -> do
             resetLimitForEncoding dyntbl
             change wbuf lim
-    return $ case compressionAlgo of
-        Naive  -> naiveStep  useHuffman
-        Static -> staticStep useHuffman
-        Linear -> linearStep useHuffman
 
 ----------------------------------------------------------------
 
-naiveStep :: Step
+-- | Converting 'HeaderList' to the HPACK format.
+--   'BufferOverrun' will be thrown if the temporary buffer is too small.
+encodeHeader :: EncodeStrategy
+             -> Size -- ^ The size of a temporary buffer.
+             -> DynamicTable
+             -> HeaderList
+             -> IO ByteString -- ^ An HPACK format
+encodeHeader stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
+  where
+    enc buf = do
+        ([],len) <- encodeHeaderBuffer buf siz stgy True dyntbl hs
+        create len $ \p -> memcpy p buf len
+
+----------------------------------------------------------------
+
+encodeHeaderBuffer :: Buffer
+                   -> BufferSize
+                   -> EncodeStrategy
+                   -> Bool -- ^ 'True' at the first time, 'False' when continued.
+                   -> DynamicTable
+                   -> HeaderList
+                   -> IO (HeaderList, Int) -- ^ Leftover 'HeaderList' and the number of filled bytes.
+encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
+    let step = case compressionAlgo of
+            Naive  -> naiveStep  useHuffman
+            Static -> staticStep useHuffman
+            Linear -> linearStep useHuffman
+    wbuf <- newWorkingBuffer buf siz
+    when first $ changeTableSize dyntbl wbuf
+    loop wbuf step hs0
+  where
+    loop wbuf _    []     = do
+        end <- currentOffset wbuf
+        let !len = end `minusPtr` buf
+        return ([], len)
+    loop wbuf step hhs@(h:hs) = do
+        end <- currentOffset wbuf
+        ex <- try $ step dyntbl wbuf h
+        case ex of
+            Right ()           -> loop wbuf step hs
+            Left BufferOverrun -> do
+                let !len = end `minusPtr` buf
+                return (hhs,len)
+
+----------------------------------------------------------------
+
+naiveStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 naiveStep huff _dyntbl wbuf (k,v) = newName wbuf huff set0000 k v
 
 ----------------------------------------------------------------
 
-staticStep :: Step
+staticStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 staticStep huff DynamicTable{..} wbuf (k,v) = do
     Outer rev <- readIORef revref
     case M.lookup k rev of
@@ -69,7 +113,7 @@ staticStep huff DynamicTable{..} wbuf (k,v) = do
 
 ----------------------------------------------------------------
 
-linearStep :: Step
+linearStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
     Outer rev <- readIORef revref
     case M.lookup k rev of

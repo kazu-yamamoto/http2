@@ -13,6 +13,7 @@ module Network.HPACK.Buffer (
   , toByteString
   , copyByteString
   , withTemporaryBuffer
+  , currentOffset
   , ReadBuffer
   , withReadBuffer
   , hasOneByte
@@ -112,6 +113,9 @@ withTemporaryBuffer siz action = bracket (mallocBytes siz) free $ \buf -> do
     wbuf <- newWorkingBuffer buf 4096
     action wbuf
     toByteString wbuf
+
+currentOffset :: WorkingBuffer -> IO Buffer
+currentOffset WorkingBuffer{..} = readIORef offset
 
 ----------------------------------------------------------------
 

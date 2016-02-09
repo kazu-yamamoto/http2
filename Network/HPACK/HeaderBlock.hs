@@ -1,8 +1,7 @@
 module Network.HPACK.HeaderBlock (
-  -- * Header block from/to Low level
     decodeHeader
-  , HPACKEncodingOne
-  , prepareEncodeHeader
+  , encodeHeader
+  , encodeHeaderBuffer
   ) where
 
 import Network.HPACK.HeaderBlock.Decode
