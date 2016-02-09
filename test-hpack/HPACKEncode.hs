@@ -37,20 +37,20 @@ testLoop :: Conf
          -> IO [ByteString]
 testLoop _    []     _    hexs = return $ reverse hexs
 testLoop conf (c:cs) ehdrtbl hxs = do
-    (ehdrtbl',hx) <- test conf c ehdrtbl
-    testLoop conf cs ehdrtbl' (C8.map toLower hx : hxs)
+    hx <- test conf c ehdrtbl
+    testLoop conf cs ehdrtbl (C8.map toLower hx : hxs)
 
 test :: Conf
      -> Case
      -> DynamicTable
-     -> IO (DynamicTable, ByteString)
+     -> IO ByteString
 test conf c ehdrtbl = do
-    (ehdrtbl',out) <- enc conf ehdrtbl hs
+    out <- enc conf ehdrtbl hs
     let hex' = hex out
     when (debug conf) $ do
         putStrLn "---- Output context"
-        printDynamicTable ehdrtbl'
+        printDynamicTable ehdrtbl
         putStrLn "--------------------------------"
-    return (ehdrtbl', hex')
+    return hex'
   where
     hs = headers c
