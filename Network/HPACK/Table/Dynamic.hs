@@ -19,8 +19,12 @@ module Network.HPACK.Table.Dynamic (
   , fromDIndexToIndex
   , fromIndexToDIndex
   , CodeInfo(..)
+  , clearDynamicTable
+  , withDynamicTableForEncoding
+  , withDynamicTableForDecoding
   ) where
 
+import Control.Exception (bracket)
 import Control.Monad (forM, when)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
@@ -79,6 +83,7 @@ data CodeInfo =
                !(IORef (Maybe Size))
   | DecodeInfo !HuffmanDecoding
                !(IORef Size)  -- The limit size
+               !(IO ())       -- Action to free the buffer
 
 -- | Type for dynamic table.
 data DynamicTable = DynamicTable {
@@ -104,7 +109,7 @@ adj maxN x = (x + maxN) `mod` maxN
 huffmanDecoder :: DynamicTable -> HuffmanDecoding
 huffmanDecoder DynamicTable{..} = dec
   where
-    DecodeInfo dec _ = codeInfo
+    DecodeInfo dec _ _ = codeInfo
 
 ----------------------------------------------------------------
 
@@ -147,7 +152,7 @@ isDynamicTableEmpty DynamicTable{..} = do
 
 isSuitableSize :: Size -> DynamicTable -> IO Bool
 isSuitableSize siz DynamicTable{..} = do
-    let DecodeInfo _ limref = codeInfo
+    let DecodeInfo _ limref _ = codeInfo
     lim <- readIORef limref
     return $! siz <= lim && maxNumbers siz /= 0
 
@@ -195,7 +200,8 @@ newDynamicTableForDecoding maxsiz huftmpsiz = do
     lim <- newIORef maxsiz
     buf <- mallocBytes huftmpsiz
     let !decoder = decode buf huftmpsiz
-        !info = DecodeInfo decoder lim
+        !clear = free buf
+        !info = DecodeInfo decoder lim clear
     newDynamicTable maxsiz info
 
 newDynamicTable :: Size -> CodeInfo -> IO DynamicTable
@@ -254,6 +260,27 @@ shouldRenew :: DynamicTable -> Size -> IO Bool
 shouldRenew DynamicTable{..} maxsiz = do
     maxdsize <- readIORef maxDynamicTableSize
     return $! maxdsize /= maxsiz
+
+----------------------------------------------------------------
+
+withDynamicTableForEncoding :: Size -- ^ The dynamic table size
+                            -> (DynamicTable -> IO a)
+                            -> IO a
+withDynamicTableForEncoding maxsiz action =
+    bracket (newDynamicTableForEncoding maxsiz) clearDynamicTable action
+
+withDynamicTableForDecoding :: Size -- ^ The dynamic table size
+                            -> Size -- ^ The size of temporary buffer for Huffman
+                            -> (DynamicTable -> IO a)
+                            -> IO a
+withDynamicTableForDecoding maxsiz huftmpsiz action =
+    bracket (newDynamicTableForDecoding maxsiz huftmpsiz) clearDynamicTable action
+
+-- | Clearing 'DynamicTable'.
+clearDynamicTable :: DynamicTable -> IO ()
+clearDynamicTable DynamicTable{..} = case codeInfo of
+    EncodeInfo _ _       -> return ()
+    DecodeInfo _ _ clear -> clear
 
 ----------------------------------------------------------------
 

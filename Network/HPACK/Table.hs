@@ -5,6 +5,9 @@ module Network.HPACK.Table (
     DynamicTable
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
+  , clearDynamicTable
+  , withDynamicTableForEncoding
+  , withDynamicTableForDecoding
   , huffmanDecoder
   , renewDynamicTable
   , printDynamicTable

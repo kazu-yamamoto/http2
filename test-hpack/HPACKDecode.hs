@@ -31,9 +31,9 @@ run :: Bool -> Test -> IO Result
 run _ (Test _ [])        = return $ Pass
 run d (Test _ ccs) = do
     -- 'size c' must not be used. Initial value is defaultDynamicTableSize!
-    dyntbl <- newDynamicTableForDecoding defaultDynamicTableSize 4096
-    let conf = Conf { debug = d }
-    testLoop conf ccs dyntbl
+    withDynamicTableForDecoding defaultDynamicTableSize 4096 $ \dyntbl -> do
+        let conf = Conf { debug = d }
+        testLoop conf ccs dyntbl
 
 testLoop :: Conf
          -> [Case]

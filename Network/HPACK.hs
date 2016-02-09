@@ -13,6 +13,9 @@ module Network.HPACK (
   , defaultDynamicTableSize
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
+  , clearDynamicTable
+  , withDynamicTableForEncoding
+  , withDynamicTableForDecoding
   , setLimitForEncoding
   -- * Strategy for encoding
   , CompressionAlgo(..)
@@ -37,8 +40,8 @@ module Network.HPACK (
 import Control.Applicative ((<$>))
 #endif
 import Data.ByteString (ByteString)
-import Network.HPACK.HeaderBlock (decodeHeader, HPACKEncodingOne, prepareEncodeHeader)
-import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
+import Network.HPACK.HeaderBlock
+import Network.HPACK.Table
 import Network.HPACK.Types
 import Network.HPACK.Buffer
 
