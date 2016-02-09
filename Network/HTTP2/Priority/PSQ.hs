@@ -51,8 +51,6 @@ instance Ord Precedence where
 
 type Heap a = IntPSQ Precedence a
 
--- FIXME: The base (Word64) would be overflowed.
---        In that case, the heap must be re-constructed.
 data PriorityQueue a = PriorityQueue {
     baseDeficit :: {-# UNPACK #-} !Deficit
   , queue :: !(Heap a)
