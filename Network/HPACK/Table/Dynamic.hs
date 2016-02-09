@@ -1,5 +1,5 @@
 {-# LANGUAGE TupleSections, RecordWildCards, FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 
 module Network.HPACK.Table.Dynamic (
     DynamicTable(..)
@@ -24,6 +24,9 @@ module Network.HPACK.Table.Dynamic (
   , withDynamicTableForDecoding
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>), (<*>))
+#endif
 import Control.Exception (bracket)
 import Control.Monad (forM, when)
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
