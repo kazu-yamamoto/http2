@@ -1,9 +1,12 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, CPP #-}
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>))
+#endif
 import Control.Exception (throwIO)
 import Control.Monad (unless)
 import Data.Bits (testBit, clearBit, (.&.))
