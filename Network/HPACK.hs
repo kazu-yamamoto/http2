@@ -3,12 +3,10 @@
 -- | HPACK(<https://tools.ietf.org/html/rfc7541>) encoding and decoding a header list.
 module Network.HPACK (
   -- * Encoding
-    HPACKEncoding
-  , encodeHeader
+    encodeHeader
   , HPACKEncodingOne
   , prepareEncodeHeader
   -- * Decoding
-  , HPACKDecoding
   , decodeHeader
   -- * DynamicTable
   , DynamicTable
@@ -38,7 +36,7 @@ module Network.HPACK (
 import Control.Applicative ((<$>))
 #endif
 import Data.ByteString (ByteString)
-import Network.HPACK.HeaderBlock (HPACKDecoding, decodeHeader, HPACKEncodingOne, prepareEncodeHeader)
+import Network.HPACK.HeaderBlock (decodeHeader, HPACKEncodingOne, prepareEncodeHeader)
 import Network.HPACK.Table (DynamicTable, Size, newDynamicTableForEncoding, newDynamicTableForDecoding, setLimitForEncoding)
 import Network.HPACK.Types
 import Network.HPACK.Buffer
@@ -53,13 +51,8 @@ defaultDynamicTableSize = 4096
 
 ----------------------------------------------------------------
 
--- | HPACK encoding from 'HeaderList' to 'ByteString'.
-type HPACKEncoding = DynamicTable -> HeaderList -> IO ByteString
-
-----------------------------------------------------------------
-
 -- | Converting 'HeaderList' for HTTP header to the low level format.
-encodeHeader :: EncodeStrategy -> HPACKEncoding
+encodeHeader :: EncodeStrategy -> DynamicTable -> HeaderList -> IO ByteString
 encodeHeader stgy dyntbl hs0 = withTemporaryBuffer 4096 $ \wbuf -> do
     encodeHeaderOne <- prepareEncodeHeader stgy dyntbl wbuf
     go encodeHeaderOne wbuf hs0

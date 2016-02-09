@@ -1,8 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Network.HPACK.HeaderBlock.Decode (
-    HPACKDecoding
-  , decodeHeader
+    decodeHeader
   ) where
 
 import Control.Exception (throwIO)
@@ -19,12 +18,9 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | HPACK decoding from 'ByteString' to 'HeaderList'.
-type HPACKDecoding = DynamicTable -> ByteString -> IO HeaderList
-
 -- | Converting the low level format for HTTP header to 'HeaderList'.
 --   'DecodeError' would be thrown.
-decodeHeader :: HPACKDecoding
+decodeHeader :: DynamicTable -> ByteString -> IO HeaderList
 decodeHeader dyntbl inp = withReadBuffer inp $ \rbuf -> chkChange rbuf
   where
     chkChange rbuf = do

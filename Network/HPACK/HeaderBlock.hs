@@ -1,7 +1,6 @@
 module Network.HPACK.HeaderBlock (
   -- * Header block from/to Low level
-    HPACKDecoding
-  , decodeHeader
+    decodeHeader
   , HPACKEncodingOne
   , prepareEncodeHeader
   ) where
