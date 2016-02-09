@@ -29,7 +29,7 @@ prepare hdrs = do
   where
     go _    []     b = return (b [])
     go !tbl (h:hs) b = do
-        !frag <- encodeHeader defaultEncodeStrategy tbl h
+        !frag <- encodeHeader defaultEncodeStrategy 4096 tbl h
         go tbl hs (b . (frag :))
 
 enc :: [HeaderList] -> IO ()
@@ -39,12 +39,12 @@ enc hdrs = do
   where
     go _    []     = return ()
     go !tbl (h:hs) = do
-        !_ <- encodeHeader defaultEncodeStrategy { compressionAlgo = Linear, useHuffman = True }  tbl h
+        !_ <- encodeHeader defaultEncodeStrategy { compressionAlgo = Linear, useHuffman = True } 4096 tbl h
         go tbl hs
 
 dec :: [ByteString] -> IO ()
 dec hpacks = do
-    tbl <- newDynamicTableForDecoding defaultDynamicTableSize
+    tbl <- newDynamicTableForDecoding defaultDynamicTableSize 4096
     go tbl hpacks
   where
     go _    []     = return ()

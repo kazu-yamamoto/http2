@@ -50,8 +50,8 @@ type Index = Int
 
 -- | Compression algorithms for HPACK encoding.
 data CompressionAlgo = Naive  -- ^ No compression
-                     | Static -- ^ Using the static table only
-                     | Linear -- ^ Using indices only
+                     | Static -- ^ Using indices in the static table only
+                     | Linear -- ^ Using indices
                      deriving (Eq, Show)
 
 -- | Strategy for HPACK encoding.

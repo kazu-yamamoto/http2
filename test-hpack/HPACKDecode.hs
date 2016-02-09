@@ -30,8 +30,8 @@ data Result = Pass | Fail String deriving (Eq,Show)
 run :: Bool -> Test -> IO Result
 run _ (Test _ [])        = return $ Pass
 run d (Test _ ccs) = do
-    -- 'size c' must not be used. Initial value is 4,096!
-    dyntbl <- newDynamicTableForDecoding 4096
+    -- 'size c' must not be used. Initial value is defaultDynamicTableSize!
+    dyntbl <- newDynamicTableForDecoding defaultDynamicTableSize 4096
     let conf = Conf { debug = d }
     testLoop conf ccs dyntbl
 

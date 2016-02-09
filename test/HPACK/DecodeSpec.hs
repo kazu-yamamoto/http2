@@ -11,7 +11,7 @@ spec :: Spec
 spec = do
     describe "fromHeaderBlock" $ do
         it "decodes HeaderList in request" $ do
-            dyntabl <- newDynamicTableForDecoding 4096
+            dyntabl <- newDynamicTableForDecoding 4096 4096
             h1 <- decodeHeader dyntabl d41b
             h1 `shouldBe` d41h
             h2 <- decodeHeader dyntabl d42b
@@ -19,7 +19,7 @@ spec = do
             h3 <- decodeHeader dyntabl d43b
             h3 `shouldBe` d43h
         it "decodes HeaderList in response" $ do
-            dyntabl <- newDynamicTableForDecoding 256
+            dyntabl <- newDynamicTableForDecoding 256 4096
             h1 <- decodeHeader dyntabl d61b
             h1 `shouldBe` d61h
             h2 <- decodeHeader dyntabl d62b
@@ -28,7 +28,7 @@ spec = do
             h3 `shouldBe` d63h
 {- fixme
         it "decodes HeaderList even if an entry is larger than DynamicTable" $ do
-            dyntabl <- newDynamicTableForDecoding 64
+            dyntabl <- newDynamicTableForDecoding 64 4096
             h1 <- decodeHeader dyntabl undefined
             h1 `shouldBe` hl1
             isDynamicTableEmpty dyntabl `shouldReturn` True

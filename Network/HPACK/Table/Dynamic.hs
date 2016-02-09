@@ -170,16 +170,18 @@ resetLimitForEncoding DynamicTable{..} = writeIORef limitForEncoding Nothing
 ----------------------------------------------------------------
 
 -- | Creating 'DynamicTable'.
-newDynamicTableForEncoding :: Size -> IO DynamicTable
+newDynamicTableForEncoding :: Size -- ^ The dynamic table size
+                           -> IO DynamicTable
 newDynamicTableForEncoding maxsiz =
     newDynamicTable maxsiz (Just defaultRevIndex) decodeDummy
 
 -- | Creating 'DynamicTable'.
-newDynamicTableForDecoding :: Size -> IO DynamicTable
-newDynamicTableForDecoding maxsiz = do
-    let bufsiz = 4096
-    buf <- mallocBytes bufsiz -- fixme: how to free?
-    let !decoder = decode buf bufsiz
+newDynamicTableForDecoding :: Size -- ^ The dynamic table size
+                           -> Size -- ^ The size of temporary buffer for Huffman decoding
+                           -> IO DynamicTable
+newDynamicTableForDecoding maxsiz huftmpsiz = do
+    buf <- mallocBytes huftmpsiz
+    let !decoder = decode buf huftmpsiz
     newDynamicTable maxsiz Nothing decoder
 
 newDynamicTable :: Size -> Maybe Outer -> HuffmanDecoding -> IO DynamicTable

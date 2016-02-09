@@ -19,7 +19,7 @@ import JSON
 
 data Conf = Conf {
     debug :: Bool
-  , enc :: HPACKEncoding
+  , enc :: DynamicTable -> HeaderList -> IO ByteString
   }
 
 run :: Bool -> EncodeStrategy -> Test -> IO [ByteString]
@@ -27,7 +27,7 @@ run _ _    (Test        _ []) = return []
 run d stgy (Test _ ccs@(c:_)) = do
     let siz = maybe 4096 id $ size c
     ehdrtbl <- newDynamicTableForEncoding siz
-    let conf = Conf { debug = d, enc = encodeHeader stgy }
+    let conf = Conf { debug = d, enc = encodeHeader stgy 4096 }
     testLoop conf ccs ehdrtbl []
 
 testLoop :: Conf

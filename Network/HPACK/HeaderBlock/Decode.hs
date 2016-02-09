@@ -18,9 +18,12 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | Converting the low level format for HTTP header to 'HeaderList'.
---   'DecodeError' would be thrown.
-decodeHeader :: DynamicTable -> ByteString -> IO HeaderList
+-- | Converting the HPACK format to 'HeaderList'.
+--   'DecodeError' would be thrown if the HPACK format is broken.
+--   'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
+decodeHeader :: DynamicTable
+             -> ByteString -- ^ An HPACK format
+             -> IO HeaderList
 decodeHeader dyntbl inp = withReadBuffer inp $ \rbuf -> chkChange rbuf
   where
     chkChange rbuf = do

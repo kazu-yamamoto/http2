@@ -2,12 +2,12 @@
 
 -- | HPACK(<https://tools.ietf.org/html/rfc7541>) encoding and decoding a header list.
 module Network.HPACK (
-  -- * Encoding
+  -- * Encoding and decoding
     encodeHeader
+  , decodeHeader
+  -- * Low level
   , HPACKEncodingOne
   , prepareEncodeHeader
-  -- * Decoding
-  , decodeHeader
   -- * DynamicTable
   , DynamicTable
   , defaultDynamicTableSize
@@ -18,8 +18,9 @@ module Network.HPACK (
   , CompressionAlgo(..)
   , EncodeStrategy(..)
   , defaultEncodeStrategy
-  -- * Errors for decoding
+  -- * Errors
   , DecodeError(..)
+  , BufferOverrun(..)
   -- * Headers
   , HeaderList
   , Header
@@ -51,9 +52,14 @@ defaultDynamicTableSize = 4096
 
 ----------------------------------------------------------------
 
--- | Converting 'HeaderList' for HTTP header to the low level format.
-encodeHeader :: EncodeStrategy -> DynamicTable -> HeaderList -> IO ByteString
-encodeHeader stgy dyntbl hs0 = withTemporaryBuffer 4096 $ \wbuf -> do
+-- | Converting 'HeaderList' to the HPACK format.
+--   'BufferOverrun' will be thrown if the temporary buffer is too small.
+encodeHeader :: EncodeStrategy
+             -> Size -- ^ The size of a temporary buffer.
+             -> DynamicTable
+             -> HeaderList
+             -> IO ByteString -- ^ An HPACK format
+encodeHeader stgy siz dyntbl hs0 = withTemporaryBuffer siz $ \wbuf -> do
     encodeHeaderOne <- prepareEncodeHeader stgy dyntbl wbuf
     go encodeHeaderOne wbuf hs0
   where
