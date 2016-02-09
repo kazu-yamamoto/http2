@@ -1,3 +1,7 @@
+## 1.4.5
+
+* Removing zero reset from priority queues.
+
 ## 1.4.4
 
 * Fixing a bug of reverse index.
