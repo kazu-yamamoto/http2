@@ -111,11 +111,9 @@ enqueue k p v PriorityQueue{..}
 
 dequeue :: PriorityQueue a -> Maybe (Key, Precedence, a, PriorityQueue a)
 dequeue PriorityQueue{..} = case P.minView queue of
-    Nothing           -> Nothing
-    Just (k, p, v, queue')
-      | P.null queue' -> Just (k, p, v, empty)
-      | otherwise     -> let !base = deficit p
-                         in Just (k, p, v, PriorityQueue base queue')
+    Nothing                -> Nothing
+    Just (k, p, v, queue') -> let !base = deficit p
+                              in Just (k, p, v, PriorityQueue base queue')
 
 delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
 delete k q@PriorityQueue{..} = case P.alter f k queue of

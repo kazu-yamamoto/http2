@@ -99,10 +99,8 @@ enqueue k p v PriorityQueue{..} = PriorityQueue b queue'
 
 dequeue :: PriorityQueue a -> Maybe (Key, Precedence, a, PriorityQueue a)
 dequeue (PriorityQueue _ heap) = case H.uncons heap of
-    Nothing                     -> Nothing
-    Just (Entry k p v, heap')
-      | H.null heap' -> Just (k, p, v, empty) -- reset the deficit base
-      | otherwise    -> Just (k, p, v, PriorityQueue (deficit p) heap')
+    Nothing                   -> Nothing
+    Just (Entry k p v, heap') -> Just (k, p, v, PriorityQueue (deficit p) heap')
 
 delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
 delete k (PriorityQueue base heap) = (mv, PriorityQueue base' heap')
