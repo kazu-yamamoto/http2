@@ -79,7 +79,7 @@ instance FromJSON HeaderList where
 instance ToJSON HeaderList where
     toJSON hs = toJSON $ map toJSON hs
 
-instance FromJSON Header where
+instance {-# OVERLAPPING #-} FromJSON Header where
     parseJSON (Array a)  = pure (toKey (a ! 0), toValue (a ! 1)) -- old
       where
         toKey = toValue
@@ -88,7 +88,7 @@ instance FromJSON Header where
         (k,v) = head $ H.toList o
     parseJSON _          = mzero
 
-instance ToJSON Header where
+instance {-# OVERLAPPING #-} ToJSON Header where
     toJSON (k,v) = object [ byteStringToText k .= byteStringToText v ]
 
 textToByteString :: Text -> ByteString
