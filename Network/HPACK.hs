@@ -5,7 +5,7 @@ module Network.HPACK (
   -- * Encoding and decoding
     encodeHeader
   , decodeHeader
-  -- * Low level
+  -- * Encoding in a buffer
   , encodeHeaderBuffer
   -- * DynamicTable
   , DynamicTable

@@ -8,7 +8,7 @@ module Network.HPACK.HeaderBlock.Encode (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception (bracket, try)
+import Control.Exception (bracket, try, throwIO)
 import Control.Monad (when)
 import Data.Bits (setBit)
 import qualified Data.ByteString as BS
@@ -53,11 +53,26 @@ encodeHeader :: EncodeStrategy
 encodeHeader stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
   where
     enc buf = do
-        ([],len) <- encodeHeaderBuffer buf siz stgy True dyntbl hs
-        create len $ \p -> memcpy p buf len
+        (hs',len) <- encodeHeaderBuffer buf siz stgy True dyntbl hs
+        case hs' of
+            [] -> create len $ \p -> memcpy p buf len
+            _  -> throwIO BufferOverrun
 
 ----------------------------------------------------------------
 
+-- | Converting 'HeaderList' to the HPACK format directly in the buffer.
+--
+--   4th argument is relating to dynamic table size update.
+--   When calling this function for a new 'HeaderList',
+--   it must be 'True'.
+--   If 'True' and set by 'setLimitForEncoding',
+--   dynamic table size update is generated at the beginning of
+--   the HPACK format.
+--
+--   If the buffer for encoding is small, leftover 'HeaderList' will
+--   be returned. In this case, this function should be called with it
+--   again. 4th argument must be 'False'.
+--
 encodeHeaderBuffer :: Buffer
                    -> BufferSize
                    -> EncodeStrategy
