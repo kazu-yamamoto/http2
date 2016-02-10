@@ -3,6 +3,7 @@
 module HPACK.DecodeSpec where
 
 import Network.HPACK
+import Network.HPACK.Table
 import Test.Hspec
 
 import HPACK.HeaderBlock
@@ -26,20 +27,14 @@ spec = do
                 h2 `shouldBe` d62h
                 h3 <- decodeHeader dyntabl d63b
                 h3 `shouldBe` d63h
-{- fixme
-        it "decodes HeaderList even if an entry is larger than DynamicTable" $ do
-            withDynamicTableForDecoding 64 4096 -> $ \dyntabl -> do
-                h1 <- decodeHeader dyntabl undefined
-                h1 `shouldBe` hl1
-                isDynamicTableEmpty dyntabl `shouldReturn` True
-
-hb1 :: HeaderBlock
-hb1 = [Literal Add (Lit "custom-key") "custom-value"
-       -- this is larger than the header table
-      ,Literal Add (Lit "loooooooooooooooooooooooooooooooooooooooooog-key")
-                        "loooooooooooooooooooooooooooooooooooooooooog-value"
-      ]
--}
+        it "decodes HeaderList even if an entry is larger than DynamicTable" $
+            withDynamicTableForEncoding 64 $ \etbl ->
+                withDynamicTableForDecoding 64 4096 $ \dtbl -> do
+                    hs <- encodeHeader defaultEncodeStrategy 4096 etbl hl1
+                    h1 <- decodeHeader dtbl hs
+                    h1 `shouldBe` hl1
+                    isDynamicTableEmpty etbl `shouldReturn` True
+                    isDynamicTableEmpty dtbl `shouldReturn` True
 
 hl1 :: HeaderList
 hl1 = [("custom-key","custom-value")
