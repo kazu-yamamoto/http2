@@ -14,7 +14,7 @@ import Data.Bits (setBit)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString, create, memcpy)
 import Data.IORef (readIORef)
-import qualified Data.Map as M
+import qualified Data.HashMap.Strict as M
 import Data.Word (Word8)
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (minusPtr)

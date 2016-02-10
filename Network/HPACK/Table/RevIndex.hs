@@ -1,7 +1,7 @@
 module Network.HPACK.Table.RevIndex where
 
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as M
 import Network.HPACK.Types
 import Network.HPACK.Table.Static
 
@@ -11,7 +11,7 @@ newtype DIndex = DIndex Int deriving (Eq, Ord, Show)
 
 data Inner = Inner [(HeaderValue, SIndex)] [(HeaderValue, DIndex)] deriving Show
 
-newtype Outer = Outer (Map HeaderName Inner) deriving Show
+newtype Outer = Outer (HashMap HeaderName Inner) deriving Show
 
 defaultRevIndex :: Outer
 defaultRevIndex = Outer $! foldr op M.empty lst
@@ -30,7 +30,7 @@ insertDynamic (k,v) didx (Outer rev) = Outer $! M.alter f k rev
     f (Just (Inner ss ds)) = let ds' = (v,didx):ds
                              in Just $! Inner ss ds'
 
-deleteDynamic :: Header -> Map HeaderName Inner -> Map HeaderName Inner
+deleteDynamic :: Header -> HashMap HeaderName Inner -> HashMap HeaderName Inner
 deleteDynamic (k,v) rev = M.alter f k rev
   where
     f Nothing              = Nothing
