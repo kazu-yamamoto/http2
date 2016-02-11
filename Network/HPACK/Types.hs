@@ -65,11 +65,11 @@ data EncodeStrategy = EncodeStrategy {
 -- | Default 'EncodeStrategy'.
 --
 -- >>> defaultEncodeStrategy
--- EncodeStrategy {compressionAlgo = Linear, useHuffman = True}
+-- EncodeStrategy {compressionAlgo = Linear, useHuffman = False}
 defaultEncodeStrategy :: EncodeStrategy
 defaultEncodeStrategy = EncodeStrategy {
     compressionAlgo = Linear
-  , useHuffman = True
+  , useHuffman = False
   }
 
 ----------------------------------------------------------------
