@@ -5,7 +5,6 @@ module Network.HPACK.HeaderBlock.Integer (
   , encodeInteger
   , decode
   , decodeInteger
-  , parseInteger
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -36,27 +35,27 @@ if I < 2^N - 1, encode I on N bits
        encode I on 8 bits
 -}
 
+encodeInteger :: Int -> Int -> IO ByteString
+encodeInteger n i = withTemporaryBuffer 4096 $ \wbuf -> encode wbuf id n i
+
+{-# INLINABLE encode #-}
 encode :: WorkingBuffer -> (Word8 -> Word8) -> Int -> Int -> IO ()
 encode wbuf set n i
   | i < p     = writeWord8 wbuf $ set $ fromIntegral i
   | otherwise = do
         writeWord8 wbuf $ set $ fromIntegral p
-        encode' wbuf (i - p)
+        encode' (i - p)
   where
     p = powerArray ! n
-
-encode' :: WorkingBuffer -> Int -> IO ()
-encode' wbuf i
-  | i < 128   = writeWord8 wbuf $ fromIntegral i
-  | otherwise = do
-        writeWord8 wbuf $ fromIntegral (r + 128)
-        encode' wbuf q
-  where
-    q = i `shiftR` 7
-    r = i .&. 0x7f
-
-encodeInteger :: Int -> Int -> IO ByteString
-encodeInteger n i = withTemporaryBuffer 4096 $ \wbuf -> encode wbuf id n i
+    encode' :: Int -> IO ()
+    encode' j
+      | j < 128   = writeWord8 wbuf $ fromIntegral j
+      | otherwise = do
+            writeWord8 wbuf $ fromIntegral (r + 128)
+            encode' q
+      where
+        q = j `shiftR` 7
+        r = j .&. 0x7f
 
 ----------------------------------------------------------------
 
@@ -73,25 +72,6 @@ decode I from the next N bits
        return I
 -}
 
-{-# INLINE decode #-}
--- | Integer decoding. The first argument is N of prefix.
-decode :: Int -> Word8 -> ReadBuffer -> IO Int
-decode n w rbuf
-  | i < p     = return i
-  | otherwise = decode' rbuf 0 i
-  where
-    p = powerArray ! n
-    i = fromIntegral w
-
-{-# INLINE decode' #-}
-decode' :: ReadBuffer -> Int -> Int -> IO Int
-decode' rbuf m i = do
-    !b <- fromIntegral <$> getByte rbuf
-    let !i' = i + (b .&. 0x7f) * 2 ^ m
-        !m' = m + 7
-        !cont = b `testBit` 7
-    if cont then decode' rbuf m' i' else return i'
-
 -- | Integer decoding. The first argument is N of prefix.
 --
 -- >>> decodeInteger 5 10 $ BS.empty
@@ -103,13 +83,19 @@ decode' rbuf m i = do
 decodeInteger :: Int -> Word8 -> ByteString -> IO Int
 decodeInteger n w bs = withReadBuffer bs $ \rbuf -> decode n w rbuf
 
-----------------------------------------------------------------
-
-{-# INLINE parseInteger #-}
-parseInteger :: Int -> Word8 -> ReadBuffer -> IO Int
-parseInteger n w rbuf
+{-# INLINABLE decode #-}
+-- | Integer decoding. The first argument is N of prefix.
+decode :: Int -> Word8 -> ReadBuffer -> IO Int
+decode n w rbuf
   | i < p     = return i
-  | otherwise = decode n w rbuf
+  | otherwise = decode' 0 i
   where
     p = powerArray ! n
     i = fromIntegral w
+    decode' :: Int -> Int -> IO Int
+    decode' m j = do
+        !b <- fromIntegral <$> getByte rbuf
+        let !j' = j + (b .&. 0x7f) * 2 ^ m
+            !m' = m + 7
+            !cont = b `testBit` 7
+        if cont then decode' m' j' else return j'

@@ -62,7 +62,7 @@ toHeader dyntbl w rbuf
 tableSizeUpdate :: DynamicTable -> Word8 -> ReadBuffer -> IO ()
 tableSizeUpdate dyntbl w rbuf = do
     let !w' = mask5 w
-    !siz <- I.parseInteger 5 w' rbuf
+    !siz <- I.decode 5 w' rbuf
     suitable <- isSuitableSize siz dyntbl
     unless suitable $ throwIO TooLargeTableSize
     renewDynamicTable siz dyntbl
@@ -72,7 +72,7 @@ tableSizeUpdate dyntbl w rbuf = do
 indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
 indexed dyntbl w rbuf = do
     let !w' = clearBit w 7
-    !idx <- I.parseInteger 7 w' rbuf
+    !idx <- I.decode 7 w' rbuf
     fromEntry . snd <$> which dyntbl idx
 
 incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
@@ -102,7 +102,7 @@ indexedName :: DynamicTable -> Word8 -> ReadBuffer
             -> IO Header
 indexedName dyntbl w rbuf n mask = do
     let !p = mask w
-    !idx <- I.parseInteger n p rbuf
+    !idx <- I.decode n p rbuf
     !key <- entryHeaderName . snd <$> which dyntbl idx
     !val <- headerStuff dyntbl rbuf
     let !kv = (key,val)
@@ -124,7 +124,7 @@ headerStuff dyntbl rbuf = do
         w <- getByte rbuf
         let !p = dropHuffman w
             !huff = isHuffman w
-        !len <- I.parseInteger 7 p rbuf
+        !len <- I.decode 7 p rbuf
         parseString huff (huffmanDecoder dyntbl) rbuf len
       else
         throwIO EmptyEncodedString
