@@ -16,17 +16,17 @@ module Network.HTTP2.Priority.PSQ (
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+import Data.Word (Word)
 #endif
 import Data.Array (Array, listArray, (!))
 import Data.IntPSQ (IntPSQ)
 import qualified Data.IntPSQ as P
-import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
 type Key = Int
 type Weight = Int
-type Deficit = Word64
+type Deficit = Word -- Deficit can be overflowed
 
 -- | Internal representation of priority in priority queues.
 --   The precedence of a dequeued entry should be specified
@@ -46,8 +46,9 @@ instance Eq Precedence where
   Precedence d1 _ _ == Precedence d2 _ _ = d1 == d2
 
 instance Ord Precedence where
-  Precedence d1 _ _ <  Precedence d2 _ _ = d1 <  d2
-  Precedence d1 _ _ <= Precedence d2 _ _ = d1 <= d2
+  -- This is correct even if one of them is overflowed
+  Precedence d1 _ _ <  Precedence d2 _ _ = d2 - d1 <= deficitStepsW
+  Precedence d1 _ _ <= Precedence d2 _ _ = d2 - d1 <= deficitStepsW || d1 == d2
 
 type Heap a = IntPSQ Precedence a
 
@@ -60,6 +61,9 @@ data PriorityQueue a = PriorityQueue {
 
 deficitSteps :: Int
 deficitSteps = 65536
+
+deficitStepsW :: Word
+deficitStepsW = fromIntegral deficitSteps
 
 deficitList :: [Deficit]
 deficitList = map calc idxs
@@ -87,7 +91,7 @@ enqueue k p@Precedence{..} v PriorityQueue{..} =
   where
     !d = weightToDeficit weight
     !b = if deficit == 0 then baseDeficit else deficit
-    !deficit' = b + d
+    !deficit' = max (b + d) baseDeficit
     !p' = p { deficit = deficit' }
     !queue' = P.insert k p' v queue
 
