@@ -80,7 +80,8 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | IllegalEos -- ^ Non-eos appears in the end of huffman string
                  | TooLongEos -- ^ Eos of huffman string is more than 7 bits
                  | EmptyEncodedString -- ^ Encoded string has no length
-                 | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit (or sometime less than 32)
+                 | TooSmallTableSize -- ^ A peer set the dynamic table size less than 32
+                 | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit
                  | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
                  | HeaderBlockTruncated
                  deriving (Eq,Show,Typeable)

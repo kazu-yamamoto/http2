@@ -27,16 +27,17 @@ module Network.HPACK.Table.Dynamic (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
 #endif
-import Control.Exception (bracket)
-import Control.Monad (forM, when)
+import Control.Exception (bracket, throwIO)
+import Control.Monad (forM, when, (>=>))
 import Data.Array.IO (IOArray, newArray, readArray, writeArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
+import Foreign.Marshal.Alloc
 import Network.HPACK.Huffman
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.RevIndex
 import Network.HPACK.Table.Static
-import Foreign.Marshal.Alloc
+import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
@@ -45,14 +46,15 @@ fromDIndexToIndex :: DynamicTable -> DIndex -> IO Index
 fromDIndexToIndex DynamicTable{..} (DIndex didx) = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
-    return $! adj maxN (didx - off) + staticTableSize
+    x <- adj maxN (didx - off)
+    return $! x + staticTableSize
 
 {-# INLINE fromIndexToDIndex #-}
 fromIndexToDIndex :: DynamicTable -> Index -> IO DIndex
 fromIndexToDIndex DynamicTable{..} idx = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
-    let !didx = adj maxN (idx + off - staticTableSize)
+    !didx <- adj maxN (idx + off - staticTableSize)
     return $! DIndex didx
 
 ----------------------------------------------------------------
@@ -106,8 +108,11 @@ data DynamicTable = DynamicTable {
   }
 
 {-# INLINE adj #-}
-adj :: Int -> Int -> Int
-adj maxN x = (x + maxN) `mod` maxN
+adj :: Int -> Int -> IO Int
+adj maxN x
+  | maxN == 0 = throwIO TooSmallTableSize
+  | otherwise = let !ret = (x + maxN) `mod` maxN
+                in return ret
 
 huffmanDecoder :: DynamicTable -> HuffmanDecoding
 huffmanDecoder DynamicTable{..} = dec
@@ -125,7 +130,7 @@ printDynamicTable DynamicTable{..} = do
     let !beg = off + 1
         !end = off + n
     tbl <- readIORef circularTable
-    es <- mapM (readArray tbl . adj maxN) [beg .. end]
+    es <- mapM (adj maxN >=> readArray tbl) [beg .. end]
     let !ts = zip [1..] es
     mapM_ printEntry ts
     dsize <- readIORef dynamicTableSize
@@ -157,7 +162,7 @@ isSuitableSize :: Size -> DynamicTable -> IO Bool
 isSuitableSize siz DynamicTable{..} = do
     let DecodeInfo _ limref _ = codeInfo
     lim <- readIORef limref
-    return $! siz <= lim && maxNumbers siz /= 0
+    return $! siz <= lim
 
 data TableSizeAction = Keep | Change !Size | Ignore !Size
 
@@ -246,7 +251,7 @@ getEntries DynamicTable{..} = do
     off <- readIORef offset
     n <- readIORef numOfEntries
     table <- readIORef circularTable
-    let readTable i = readArray table $ adj maxN (off + i)
+    let readTable i = adj maxN (off + i) >>= readArray table
     forM [1 .. n] readTable
 
 copyEntries :: DynamicTable -> [Entry] -> IO ()
@@ -310,7 +315,7 @@ insertFront e DynamicTable{..} = do
     table <- readIORef circularTable
     let i = off
         !dsize' = dsize + entrySize e
-        !off' = adj maxN (off - 1)
+    !off' <- adj maxN (off - 1)
     writeArray table i e
     writeIORef offset off'
     writeIORef numOfEntries $ n + 1
@@ -343,8 +348,8 @@ insertEnd e DynamicTable{..} = do
     n <- readIORef numOfEntries
     dsize <- readIORef dynamicTableSize
     table <- readIORef circularTable
-    let !i = adj maxN (off + n + 1)
-        !dsize' = dsize + entrySize e
+    !i <- adj maxN (off + n + 1)
+    let !dsize' = dsize + entrySize e
     writeArray table i e
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
@@ -361,7 +366,7 @@ removeEnd DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     n <- readIORef numOfEntries
-    let !i = adj maxN (off + n)
+    !i <- adj maxN (off + n)
     table <- readIORef circularTable
     e <- readArray table i
     writeArray table i dummyEntry -- let the entry GCed
