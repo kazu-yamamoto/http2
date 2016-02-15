@@ -73,9 +73,6 @@ deficitTable = listArray (1,256) deficitList
 weightToDeficit :: Weight -> Deficit
 weightToDeficit w = deficitTable ! w
 
-deficitLimit :: Deficit
-deficitLimit = 10000000000000000000 -- more than 2^63 and less than 2^63 + 2^62
-
 ----------------------------------------------------------------
 
 empty :: PriorityQueue a
@@ -85,27 +82,14 @@ isEmpty :: PriorityQueue a -> Bool
 isEmpty PriorityQueue{..} = P.null queue
 
 enqueue :: Key -> Precedence -> a -> PriorityQueue a -> PriorityQueue a
-enqueue k p v PriorityQueue{..}
-  | deficit' < deficitLimit = fastPath
-  | otherwise               = slowPath
+enqueue k p@Precedence{..} v PriorityQueue{..} =
+    PriorityQueue baseDeficit queue'
   where
-    !d = weightToDeficit (weight p)
-    !b = if deficit p == 0 then baseDeficit else deficit p
+    !d = weightToDeficit weight
+    !b = if deficit == 0 then baseDeficit else deficit
     !deficit' = b + d
-    fastPath = PriorityQueue baseDeficit queue'
-      where
-        !p' = p { deficit = deficit' }
-        !queue' = P.insert k p' v queue
-    slowPath = PriorityQueue 0 queue''
-      where
-        adjust (x,y,z) = (x,y',z)
-          where
-            !d' = deficit y - baseDeficit
-            !y' = y { deficit = d' }
-        !queue' = P.fromList $ map adjust $ P.toList queue
-        !deficit'' = deficit' - baseDeficit
-        !p'' = p { deficit = deficit'' }
-        !queue'' = P.insert k p'' v queue'
+    !p' = p { deficit = deficit' }
+    !queue' = P.insert k p' v queue
 
 dequeue :: PriorityQueue a -> Maybe (Key, Precedence, a, PriorityQueue a)
 dequeue PriorityQueue{..} = case P.minView queue of
