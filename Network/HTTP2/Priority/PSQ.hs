@@ -47,8 +47,8 @@ instance Eq Precedence where
 
 instance Ord Precedence where
   -- This is correct even if one of them is overflowed
-  Precedence d1 _ _ <  Precedence d2 _ _ = d2 - d1 <= deficitStepsW
-  Precedence d1 _ _ <= Precedence d2 _ _ = d2 - d1 <= deficitStepsW || d1 == d2
+  Precedence d1 _ _ <  Precedence d2 _ _ = d1 /= d2 && d2 - d1 <= deficitStepsW
+  Precedence d1 _ _ <= Precedence d2 _ _ = d2 - d1 <= deficitStepsW
 
 type Heap a = IntPSQ Precedence a
 
