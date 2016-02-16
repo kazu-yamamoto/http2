@@ -14,7 +14,7 @@ import Data.Bits (setBit)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString, create, memcpy)
 import Data.IORef (readIORef)
-import qualified Data.HashMap.Strict as M
+import qualified Data.HashMap.Strict as H
 import Data.Word (Word8)
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (minusPtr)
@@ -112,7 +112,7 @@ naiveStep huff _dyntbl wbuf (k,v) = newName wbuf huff set0000 k v
 staticStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 staticStep huff DynamicTable{..} wbuf (k,v) = do
     Outer rev <- readIORef revref
-    case M.lookup k rev of
+    case H.lookup k rev of
         Nothing -> newName     wbuf huff   set0000 k v
         Just (Inner ss ds) -> case lookup v ss of
             Just sidx -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
@@ -131,7 +131,7 @@ staticStep huff DynamicTable{..} wbuf (k,v) = do
 linearStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
     Outer rev <- readIORef revref
-    case M.lookup k rev of
+    case H.lookup k rev of
         Nothing
          | notToIndex -> newName     wbuf huff   set0000 k v
          | otherwise  -> do

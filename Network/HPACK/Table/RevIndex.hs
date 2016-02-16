@@ -1,7 +1,7 @@
 module Network.HPACK.Table.RevIndex where
 
 import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as M
+import qualified Data.HashMap.Strict as H
 import Network.HPACK.Types
 import Network.HPACK.Table.Static
 
@@ -14,24 +14,24 @@ data Inner = Inner [(HeaderValue, SIndex)] [(HeaderValue, DIndex)] deriving Show
 newtype Outer = Outer (HashMap HeaderName Inner) deriving Show
 
 defaultRevIndex :: Outer
-defaultRevIndex = Outer $! foldr op M.empty lst
+defaultRevIndex = Outer $! foldr op H.empty lst
   where
     lst = zip staticTableList $ map SIndex [1..]
-    op ((k,v),i) m = M.alter f k m
+    op ((k,v),i) m = H.alter f k m
       where
         f Nothing              = Just $! Inner [(v,i)]    []
         f (Just (Inner ss ds)) = let ss' = (v,i):ss
                                  in Just $! Inner ss' ds
 
 insertDynamic :: Header -> DIndex -> Outer -> Outer
-insertDynamic (k,v) didx (Outer rev) = Outer $! M.alter f k rev
+insertDynamic (k,v) didx (Outer rev) = Outer $! H.alter f k rev
   where
     f Nothing              = Just $! Inner [] [(v,didx)]
     f (Just (Inner ss ds)) = let ds' = (v,didx):ds
                              in Just $! Inner ss ds'
 
 deleteDynamic :: Header -> HashMap HeaderName Inner -> HashMap HeaderName Inner
-deleteDynamic (k,v) rev = M.alter f k rev
+deleteDynamic (k,v) rev = H.alter f k rev
   where
     f Nothing              = Nothing
     f (Just (Inner ss ds)) = case filter (\(a,_) -> a /= v) ds of
