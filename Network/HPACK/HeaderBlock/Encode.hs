@@ -114,15 +114,15 @@ staticStep huff DynamicTable{..} wbuf (k,v) = do
     Outer rev <- readIORef revref
     case H.lookup k rev of
         Nothing -> newName     wbuf huff   set0000 k v
-        Just (Inner ss ds) -> case lookup v ss of
+        Just (Inner ss ds) -> case H.lookup v ss of
             Just sidx -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
-            Nothing   -> case lookup v ds of
+            Nothing   -> case H.lookup v ds of
                 Just _  -> newName     wbuf huff   set0000 k v
-                Nothing -> case ss of
-                    ((_,sidx):_) -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
-                    [] -> case ds of
-                        [] -> error "staticStep"
-                        _  -> newName     wbuf huff   set0000 k v
+                Nothing -> case top ss of
+                    Just sidx -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
+                    Nothing
+                        | H.null ds -> error "staticStep"
+                        | otherwise -> newName     wbuf huff   set0000 k v
   where
     EncodeInfo revref _ = codeInfo
 
@@ -137,12 +137,12 @@ linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
          | otherwise  -> do
                newName     wbuf huff   set01   k v
                insertEntry (toEntry h) dyntbl
-        Just (Inner ss ds) -> case lookup v ss of
+        Just (Inner ss ds) -> case H.lookup v ss of
             Just sidx -> index wbuf (fromSIndexToIndex sidx)
-            Nothing   -> case lookup v ds of
+            Nothing   -> case H.lookup v ds of
                 Just didx -> fromDIndexToIndex dyntbl didx >>= index wbuf
-                Nothing   -> case ss of
-                    ((_,sidx):_)
+                Nothing   -> case top ss of
+                    Just sidx
                       | notToIndex -> do
                           let !i = fromSIndexToIndex sidx
                           indexedName wbuf huff 4 set0000 i v
@@ -150,8 +150,8 @@ linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
                           let !i = fromSIndexToIndex sidx
                           indexedName wbuf huff 6 set01   i v
                           insertEntry (toEntry h) dyntbl
-                    [] -> case ds of
-                        ((_,didx):_)
+                    Nothing -> case top ds of
+                        Just didx
                           | notToIndex -> do
                               !i <- fromDIndexToIndex dyntbl didx
                               indexedName wbuf huff 4 set0000 i v
