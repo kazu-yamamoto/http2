@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, CPP #-}
 
 module BinaryHeapSTM (
     Entry
@@ -15,16 +15,18 @@ module BinaryHeapSTM (
   , delete
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Data.Word (Word)
+#endif
 import Control.Concurrent.STM
 import Control.Monad (when, void)
 import Data.Array (Array, listArray, (!))
 import Data.Array.MArray (newArray_, readArray, writeArray)
-import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
 type Weight = Int
-type Deficit = Word64
+type Deficit = Word
 
 -- | Abstract data type of entries for priority queues.
 data Entry a = Entry {
@@ -59,6 +61,9 @@ magicDeficit = 0
 
 deficitSteps :: Int
 deficitSteps = 65536
+
+deficitStepsW :: Word
+deficitStepsW = fromIntegral deficitSteps
 
 deficitList :: [Deficit]
 deficitList = map calc idxs
@@ -132,7 +137,7 @@ shiftDown arr p n
       xc2 <- readArray arr c2
       d1 <- readTVar $ deficit xc1
       d2 <- readTVar $ deficit xc2
-      let !c = if d1 < d2 then c1 else c2
+      let !c = if d1 /= d2 && d2 - d1 <= deficitStepsW then c1 else c2
       swapped <- swap arr p c
       when swapped $ shiftDown arr c n
   where

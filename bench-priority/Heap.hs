@@ -15,17 +15,17 @@ module Heap (
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
+import Data.Word (Word)
 #endif
 import Data.Array (Array, listArray, (!))
 import Data.Heap (Heap)
 import qualified Data.Heap as H
-import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
 type Key = Int
 type Weight = Int
-type Deficit = Word64
+type Deficit = Word -- Deficit can be overflowed
 
 data Precedence = Precedence {
     deficit    :: {-# UNPACK #-} !Deficit
@@ -42,8 +42,9 @@ instance Eq Precedence where
   Precedence d1 _ _ == Precedence d2 _ _ = d1 == d2
 
 instance Ord Precedence where
-  Precedence d1 _ _ <  Precedence d2 _ _ = d1 <  d2
-  Precedence d1 _ _ <= Precedence d2 _ _ = d1 <= d2
+  -- This is correct even if one of them is overflowed
+  Precedence d1 _ _ <  Precedence d2 _ _ = d1 /= d2 && d2 - d1 <= deficitStepsW
+  Precedence d1 _ _ <= Precedence d2 _ _ = d2 - d1 <= deficitStepsW
 
 data Entry a = Entry Key Precedence a
 
@@ -69,6 +70,9 @@ magicDeficit = 0
 deficitSteps :: Int
 deficitSteps = 65536
 
+deficitStepsW :: Word
+deficitStepsW = fromIntegral deficitSteps
+
 deficitList :: [Deficit]
 deficitList = map calc idxs
   where
@@ -92,8 +96,9 @@ isEmpty (PriorityQueue _ h) = H.null h
 enqueue :: Key -> Precedence -> a -> PriorityQueue a -> PriorityQueue a
 enqueue k p v PriorityQueue{..} = PriorityQueue b queue'
   where
+    !d = weightToDeficit (weight p)
     !b = if deficit p == magicDeficit then baseDeficit else deficit p
-    !deficit' = b + weightToDeficit (weight p)
+    !deficit' = max (b + d) baseDeficit
     !p' = p { deficit = deficit' }
     !queue' = H.insert (Entry k p' v) queue
 

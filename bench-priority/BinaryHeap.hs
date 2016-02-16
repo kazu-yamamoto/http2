@@ -1,7 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, CPP #-}
 
 module BinaryHeap (
     Entry
@@ -15,17 +15,19 @@ module BinaryHeap (
   , delete
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Data.Word (Word)
+#endif
 import Control.Monad (when, void)
 import Data.Array (Array, listArray, (!))
 import Data.Array.IO (IOArray)
 import Data.Array.MArray (newArray_, readArray, writeArray)
 import Data.IORef
-import Data.Word (Word64)
 
 ----------------------------------------------------------------
 
 type Weight = Int
-type Deficit = Word64
+type Deficit = Word
 
 -- | Abstract data type of entries for priority queues.
 --   This does not contain Key because Entry is assumed to be stored
@@ -49,8 +51,6 @@ renewEntry Entry{..} x = writeIORef item x
 type Index = Int
 type MA a = IOArray Index (Entry a)
 
--- FIXME: The base (Word64) would be overflowed.
---        In that case, the heap must be re-constructed.
 data PriorityQueue a = PriorityQueue (IORef Deficit)
                                      (IORef Index)
                                      (MA a)
@@ -62,6 +62,9 @@ magicDeficit = 0
 
 deficitSteps :: Int
 deficitSteps = 65536
+
+deficitStepsW :: Word
+deficitStepsW = fromIntegral deficitSteps
 
 deficitList :: [Deficit]
 deficitList = map calc idxs
@@ -135,7 +138,7 @@ shiftDown arr p n
       xc2 <- readArray arr c2
       d1 <- readIORef $ deficit xc1
       d2 <- readIORef $ deficit xc2
-      let !c = if d1 < d2 then c1 else c2
+      let !c = if d1 /= d2 && d2 - d1 <= deficitStepsW then c1 else c2
       swapped <- swap arr p c
       when swapped $ shiftDown arr c n
   where
