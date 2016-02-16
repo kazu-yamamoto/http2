@@ -27,16 +27,16 @@ defaultRevIndex = Outer $! foldr op H.empty lst
         f (Just (Inner ss ds)) = let !ss' = H.insert v i ss
                                  in Just $! Inner ss' ds
 
-insertDynamic :: Header -> DIndex -> Outer -> Outer
-insertDynamic (k,v) didx (Outer rev) = Outer $! H.alter f k rev
+insertRevIndex :: Header -> DIndex -> Outer -> Outer
+insertRevIndex (k,v) didx (Outer rev) = Outer $! H.alter f k rev
   where
     f Nothing              = let !ds = H.singleton v didx
                              in Just $! Inner H.empty ds
     f (Just (Inner ss ds)) = let !ds' = H.insert v didx ds
                              in Just $! Inner ss ds'
 
-deleteDynamic :: Header -> HashMap HeaderName Inner -> HashMap HeaderName Inner
-deleteDynamic (k,v) rev = H.alter f k rev
+deleteRevIndex :: Header -> HashMap HeaderName Inner -> HashMap HeaderName Inner
+deleteRevIndex (k,v) rev = H.alter f k rev
   where
     f Nothing              = Nothing
     f (Just (Inner ss ds))
@@ -45,8 +45,8 @@ deleteDynamic (k,v) rev = H.alter f k rev
       where
         !ds' = H.delete v ds
 
-deleteDynamicList :: [Header] -> Outer -> Outer
-deleteDynamicList hs (Outer rev) = Outer $! foldr deleteDynamic rev hs
+deleteRevIndexList :: [Header] -> Outer -> Outer
+deleteRevIndexList hs (Outer rev) = Outer $! foldr deleteRevIndex rev hs
 
 --- | Take an arbitrary entry. O(1) thanks to lazy evaluation.
 top :: HashMap k v -> Maybe v

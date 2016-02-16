@@ -303,7 +303,7 @@ insertEntry e dyntbl@DynamicTable{..} = do
     case codeInfo of
         EncodeInfo revref _ -> do
             rev <- readIORef revref
-            writeIORef revref $! deleteDynamicList hs rev
+            writeIORef revref $! deleteRevIndexList hs rev
         _                   -> return ()
 
 insertFront :: Entry -> DynamicTable -> IO ()
@@ -323,7 +323,7 @@ insertFront e DynamicTable{..} = do
     case codeInfo of
         EncodeInfo revref _ -> do
             rev <- readIORef revref
-            writeIORef revref $! insertDynamic (entryHeader e) (DIndex i) rev
+            writeIORef revref $! insertRevIndex (entryHeader e) (DIndex i) rev
         _                   -> return ()
 
 adjustTableSize :: DynamicTable -> IO [Header]
@@ -356,7 +356,7 @@ insertEnd e DynamicTable{..} = do
     case codeInfo of
         EncodeInfo revref _ -> do
             rev <- readIORef revref
-            writeIORef revref $! insertDynamic (entryHeader e) (DIndex i) rev
+            writeIORef revref $! insertRevIndex (entryHeader e) (DIndex i) rev
         _                   -> return ()
 
 ----------------------------------------------------------------
