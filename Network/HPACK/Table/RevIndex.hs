@@ -32,7 +32,7 @@ insertDynamic (k,v) didx (Outer rev) = Outer $! H.alter f k rev
   where
     f Nothing              = let !ds = H.singleton v didx
                              in Just $! Inner H.empty ds
-    f (Just (Inner ss ds)) = let ds' = H.insert v didx ds
+    f (Just (Inner ss ds)) = let !ds' = H.insert v didx ds
                              in Just $! Inner ss ds'
 
 deleteDynamic :: Header -> HashMap HeaderName Inner -> HashMap HeaderName Inner
@@ -43,7 +43,7 @@ deleteDynamic (k,v) rev = H.alter f k rev
       | null ds'  = if H.null ss then Nothing else Just $! Inner ss H.empty
       | otherwise = Just $! Inner ss ds'
       where
-        ds' = H.delete v ds
+        !ds' = H.delete v ds
 
 deleteDynamicList :: [Header] -> Outer -> Outer
 deleteDynamicList hs (Outer rev) = Outer $! foldr deleteDynamic rev hs
