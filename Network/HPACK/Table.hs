@@ -36,12 +36,8 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-{-# INLINE isIn #-}
-isIn :: Int -> DynamicTable -> Bool
-isIn idx DynamicTable{..} = idx > staticTableSize
-
 toIndexedEntry :: DynamicTable -> Index -> IO Entry
 toIndexedEntry dyntbl idx
-  | idx `isIn` dyntbl  = toDynamicEntry dyntbl idx
-  | isSIndexValid idx  = return $! toStaticEntry idx
-  | otherwise          = throwIO $ IndexOverrun idx
+  | idx <= 0               = throwIO $ IndexOverrun idx
+  | idx <= staticTableSize = return $! toStaticEntry idx
+  | otherwise              = toDynamicEntry dyntbl idx

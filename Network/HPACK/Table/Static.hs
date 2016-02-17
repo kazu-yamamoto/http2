@@ -3,7 +3,6 @@
 module Network.HPACK.Table.Static (
     SIndex(..)
   , fromSIndexToIndex
-  , isSIndexValid
   , toStaticEntry
   , staticTableSize
   , staticTableList
@@ -20,12 +19,6 @@ newtype SIndex = SIndex Int deriving (Eq,Ord,Show)
 {-# INLINE fromSIndexToIndex #-}
 fromSIndexToIndex :: SIndex -> Index
 fromSIndexToIndex (SIndex idx) = idx
-
-----------------------------------------------------------------
-
-{-# INLINE isSIndexValid #-}
-isSIndexValid :: Index -> Bool
-isSIndexValid sidx = 1 <= sidx && sidx <= staticTableSize
 
 ----------------------------------------------------------------
 
