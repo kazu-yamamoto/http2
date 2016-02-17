@@ -110,12 +110,10 @@ staticStep huff dyntbl wbuf (k,v) = do
     case lookupOuter k outer of
         Nothing -> newName wbuf huff set0000 k v
         Just inner -> case lookupInner v inner of
-            Just hidx -> fromHIndexToIndex dyntbl hidx
-                         >>= indexedName wbuf huff 4 set0000 v
-            Nothing   -> case topInner inner of
-                Just hidx -> fromHIndexToIndex dyntbl hidx
-                             >>= indexedName wbuf huff 4 set0000 v
-                Nothing   -> newName wbuf huff set0000 k v
+            Right hidx -> fromHIndexToIndex dyntbl hidx
+                          >>= indexedName wbuf huff 4 set0000 v
+            Left  hidx -> fromHIndexToIndex dyntbl hidx
+                          >>= indexedName wbuf huff 4 set0000 v
 
 ----------------------------------------------------------------
 
@@ -124,25 +122,23 @@ linearStep huff dyntbl wbuf h@(k,v) = do
     outer <- getRevIndex dyntbl
     case lookupOuter k outer of
         Just inner -> case lookupInner v inner of
-            Just hidx ->
+            Right hidx ->
                 -- 6.1.  Indexed Header Field Representation
                 -- Indexed Header Field
                 fromHIndexToIndex dyntbl hidx >>= index wbuf
-            Nothing   -> case topInner inner of
-                Just hidx
-                  | notToIndex ->
-                      -- 6.2.2.  Literal Header Field without Indexing
-                      -- Literal Header Field without Indexing -- Indexed Name
-                      fromHIndexToIndex dyntbl hidx
-                      >>= indexedName wbuf huff 4 set0000 v
-                  | otherwise  -> do
-                      -- 6.2.1.  Literal Header Field with Incremental Indexing
-                      -- Literal Header Field with Incremental Indexing
-                      -- -- Indexed Name
-                      fromHIndexToIndex dyntbl hidx
-                        >>= indexedName wbuf huff 6 set01 v
-                      insertEntry (toEntry h) dyntbl
-                _ -> error "linearStep"
+            Left  hidx
+              | notToIndex ->
+                  -- 6.2.2.  Literal Header Field without Indexing
+                  -- Literal Header Field without Indexing -- Indexed Name
+                  fromHIndexToIndex dyntbl hidx
+                  >>= indexedName wbuf huff 4 set0000 v
+              | otherwise  -> do
+                  -- 6.2.1.  Literal Header Field with Incremental Indexing
+                  -- Literal Header Field with Incremental Indexing
+                  -- -- Indexed Name
+                  fromHIndexToIndex dyntbl hidx
+                    >>= indexedName wbuf huff 6 set01 v
+                  insertEntry (toEntry h) dyntbl
         Nothing
          | notToIndex ->
              -- 6.2.2.  Literal Header Field without Indexing

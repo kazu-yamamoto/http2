@@ -8,7 +8,6 @@ module Network.HPACK.Table.RevIndex (
   , deleteRevIndexList
   , lookupOuter
   , lookupInner
-  , topInner
   ) where
 
 import Data.HashMap.Strict (HashMap)
@@ -56,11 +55,10 @@ lookupOuter :: HeaderName -> Outer -> Maybe Inner
 lookupOuter k (Outer rev) = H.lookup k rev
 {-# INLINE lookupOuter #-}
 
-lookupInner :: HeaderValue -> Inner -> Maybe HIndex
-lookupInner v (Inner hh) = H.lookup v hh
+lookupInner :: HeaderValue -> Inner -> Either HIndex HIndex
+lookupInner v (Inner hh) = case H.lookup v hh of
+    Just hidx -> Right hidx
+    Nothing   -> case H.foldr (\x _ -> Just x) Nothing hh of
+        Just hidx -> Left hidx
+        Nothing   -> error "lookupInner"
 {-# INLINE lookupInner #-}
-
---- | Take an arbitrary entry. O(1) thanks to lazy evaluation.
-topInner :: Inner -> Maybe HIndex
-topInner (Inner hh) = H.foldr (\v _ -> Just v) Nothing hh
-{-# INLINE topInner #-}
