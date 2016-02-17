@@ -24,28 +24,11 @@ module Network.HPACK.Table (
   -- * Index to entry
   , CodeInfo(..)
   , toIndexedEntry
-  , fromSIndexToIndex
-  , fromDIndexToIndex
+  , fromHIndexToIndex
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception (throwIO)
 import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.Entry
-import Network.HPACK.Table.Static
-import Network.HPACK.Types
-
-----------------------------------------------------------------
-
-{-# INLINE toIndexedEntry #-}
-toIndexedEntry :: DynamicTable -> Index -> IO Entry
-toIndexedEntry dyntbl idx
-  | idx <= 0               = throwIO $ IndexOverrun idx
-  | idx <= staticTableSize = return $! toStaticEntry idx
-  | otherwise              = toDynamicEntry dyntbl idx
-
-{-# INLINE fromSIndexToIndex #-}
-fromSIndexToIndex :: SIndex -> Index
-fromSIndexToIndex (SIndex idx) = idx

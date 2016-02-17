@@ -20,7 +20,8 @@ module Network.HPACK.Table.Dynamic (
   , clearDynamicTable
   , withDynamicTableForEncoding
   , withDynamicTableForDecoding
-  , fromDIndexToIndex
+  , toIndexedEntry
+  , fromHIndexToIndex
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -38,9 +39,21 @@ import Network.HPACK.Table.RevIndex
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
-{-# INLINE fromDIndexToIndex #-}
-fromDIndexToIndex :: DynamicTable -> DIndex -> IO Index
-fromDIndexToIndex DynamicTable{..} (DIndex didx) = do
+----------------------------------------------------------------
+
+-- For decoder
+{-# INLINE toIndexedEntry #-}
+toIndexedEntry :: DynamicTable -> Index -> IO Entry
+toIndexedEntry dyntbl idx
+  | idx <= 0               = throwIO $ IndexOverrun idx
+  | idx <= staticTableSize = return $! toStaticEntry idx
+  | otherwise              = toDynamicEntry dyntbl idx
+
+-- For encoder
+{-# INLINE fromHIndexToIndex #-}
+fromHIndexToIndex :: DynamicTable -> HIndex -> IO Index
+fromHIndexToIndex _ (SIndex idx) = return idx
+fromHIndexToIndex DynamicTable{..} (DIndex didx) = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     x <- adj maxN (didx - off)

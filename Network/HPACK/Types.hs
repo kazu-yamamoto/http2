@@ -9,8 +9,7 @@ module Network.HPACK.Types (
   , HeaderList
   -- * Misc
   , Index
-  , DIndex(..)
-  , SIndex(..)
+  , HIndex(..)
   -- * Encoding and decoding
   , CompressionAlgo(..)
   , EncodeStrategy(..)
@@ -50,12 +49,7 @@ type HeaderStuff = ByteString
 -- | Index for table.
 type Index = Int
 
--- Physical array index for Dynamic Table.
--- Defining here due to dependency, sigh.
-newtype DIndex = DIndex Int deriving (Eq, Ord, Show)
-
--- Physical array index for Static Table.
-newtype SIndex = SIndex Int deriving (Eq,Ord,Show)
+data HIndex = SIndex Int | DIndex Int deriving (Eq, Ord, Show)
 
 ----------------------------------------------------------------
 

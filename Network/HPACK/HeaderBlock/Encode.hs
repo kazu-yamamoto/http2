@@ -108,19 +108,17 @@ naiveStep huff _dyntbl wbuf (k,v) = newName wbuf huff set0000 k v
 ----------------------------------------------------------------
 
 staticStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
-staticStep huff DynamicTable{..} wbuf (k,v) = do
+staticStep huff dyntbl@DynamicTable{..} wbuf (k,v) = do
     Outer rev <- readIORef revref
     case H.lookup k rev of
         Nothing -> newName wbuf huff set0000 k v
-        Just (Inner ss ds) -> case H.lookup v ss of
-            Just sidx -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
-            Nothing   -> case H.lookup v ds of
-                Just _  -> newName wbuf huff set0000 k v
-                Nothing -> case top ss of
-                    Just sidx -> indexedName wbuf huff 4 set0000 (fromSIndexToIndex sidx) v
-                    Nothing
-                        | H.null ds -> error "staticStep"
-                        | otherwise -> newName wbuf huff set0000 k v
+        Just (Inner hh) -> case H.lookup v hh of
+            Just hidx -> fromHIndexToIndex dyntbl hidx
+                         >>= indexedName wbuf huff 4 set0000 v
+            Nothing   -> case top hh of
+                Just hidx -> fromHIndexToIndex dyntbl hidx
+                             >>= indexedName wbuf huff 4 set0000 v
+                Nothing   -> newName wbuf huff set0000 k v
   where
     EncodeInfo revref _ = codeInfo
 
@@ -130,6 +128,26 @@ linearStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
     Outer rev <- readIORef revref
     case H.lookup k rev of
+        Just (Inner hh) -> case H.lookup v hh of
+            Just hidx ->
+                -- 6.1.  Indexed Header Field Representation
+                -- Indexed Header Field
+                fromHIndexToIndex dyntbl hidx >>= index wbuf
+            Nothing   -> case top hh of
+                Just hidx
+                  | notToIndex ->
+                      -- 6.2.2.  Literal Header Field without Indexing
+                      -- Literal Header Field without Indexing -- Indexed Name
+                      fromHIndexToIndex dyntbl hidx
+                      >>= indexedName wbuf huff 4 set0000 v
+                  | otherwise  -> do
+                      -- 6.2.1.  Literal Header Field with Incremental Indexing
+                      -- Literal Header Field with Incremental Indexing
+                      -- -- Indexed Name
+                      fromHIndexToIndex dyntbl hidx
+                        >>= indexedName wbuf huff 6 set01 v
+                      insertEntry (toEntry h) dyntbl
+                _ -> error "linearStep"
         Nothing
          | notToIndex ->
              -- 6.2.2.  Literal Header Field without Indexing
@@ -140,41 +158,6 @@ linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
              -- Literal Header Field with Incremental Indexing -- New Name
              newName wbuf huff set01 k v
              insertEntry (toEntry h) dyntbl
-        Just (Inner ss ds) -> case H.lookup v ss of
-            Just sidx -> index wbuf (fromSIndexToIndex sidx)
-            Nothing   -> case H.lookup v ds of
-                Just didx ->
-                    -- 6.1.  Indexed Header Field Representation
-                    -- Indexed Header Field
-                    fromDIndexToIndex dyntbl didx >>= index wbuf
-                Nothing   -> case top ss of
-                    Just sidx
-                      | notToIndex -> do
-                          -- 6.2.2.  Literal Header Field without Indexing
-                          -- Literal Header Field without Indexing -- Indexed Name
-                          let !i = fromSIndexToIndex sidx
-                          indexedName wbuf huff 4 set0000 i v
-                      | otherwise  -> do
-                          -- 6.2.1.  Literal Header Field with Incremental Indexing
-                          -- Literal Header Field with Incremental Indexing -- Indexed Name
-                          let !i = fromSIndexToIndex sidx
-                          indexedName wbuf huff 6 set01   i v
-                          insertEntry (toEntry h) dyntbl
-                    Nothing -> case top ds of
-                        Just didx
-                          | notToIndex -> do
-                              -- 6.2.2.  Literal Header Field without Indexing
-                              -- Literal Header Field without Indexing -- Indexed Name
-
-                              !i <- fromDIndexToIndex dyntbl didx
-                              indexedName wbuf huff 4 set0000 i v
-                          | otherwise  -> do
-                              -- 6.2.1.  Literal Header Field with Incremental Indexing
-                              -- Literal Header Field with Incremental Indexing -- Indexed Name
-                              !i <- fromDIndexToIndex dyntbl didx
-                              indexedName wbuf huff 6 set01   i v
-                              insertEntry (toEntry h) dyntbl
-                        _ -> error "linearStep"
   where
     EncodeInfo revref _ = codeInfo
     notToIndex = k `elem` headersNotToIndex
@@ -200,8 +183,8 @@ index wbuf i = I.encode wbuf set1 7 i
 
 -- Using Huffman encoding
 {-# INLINE indexedName #-}
-indexedName :: WorkingBuffer -> Bool -> Int -> Setter -> Int -> HeaderValue -> IO ()
-indexedName wbuf huff n set idx v = do
+indexedName :: WorkingBuffer -> Bool -> Int -> Setter -> HeaderValue -> Index -> IO ()
+indexedName wbuf huff n set v idx = do
     I.encode wbuf set n idx
     encodeString huff v wbuf
 

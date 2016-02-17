@@ -7,8 +7,7 @@ import qualified Data.HashMap.Strict as H
 import Network.HPACK.Types
 import Network.HPACK.Table.Static
 
-data Inner = Inner (HashMap HeaderValue SIndex)
-                   (HashMap HeaderValue DIndex) deriving Show
+data Inner = Inner (HashMap HeaderValue HIndex) deriving Show
 
 newtype Outer = Outer (HashMap HeaderName Inner) deriving Show
 
@@ -18,28 +17,28 @@ defaultRevIndex = Outer $! foldr op H.empty lst
     lst = zip staticTableList $ map SIndex [1..]
     op ((k,v),i) m = H.alter f k m
       where
-        f Nothing              = let !ss = H.singleton v i
-                                 in Just $! Inner ss H.empty
-        f (Just (Inner ss ds)) = let !ss' = H.insert v i ss
-                                 in Just $! Inner ss' ds
+        f Nothing           = let !hh = H.singleton v i
+                              in Just $! Inner hh
+        f (Just (Inner hh)) = let !hh' = H.insert v i hh
+                              in Just $! Inner hh'
 
-insertRevIndex :: Header -> DIndex -> Outer -> Outer
-insertRevIndex (k,v) didx (Outer rev) = Outer $! H.alter f k rev
+insertRevIndex :: Header -> HIndex -> Outer -> Outer
+insertRevIndex (k,v) hidx (Outer rev) = Outer $! H.alter f k rev
   where
-    f Nothing              = let !ds = H.singleton v didx
-                             in Just $! Inner H.empty ds
-    f (Just (Inner ss ds)) = let !ds' = H.insert v didx ds
-                             in Just $! Inner ss ds'
+    f Nothing           = let !hh = H.singleton v hidx
+                          in Just $! Inner hh
+    f (Just (Inner hh)) = let !hh' = H.insert v hidx hh
+                          in Just $! Inner hh'
 
 deleteRevIndex :: Header -> HashMap HeaderName Inner -> HashMap HeaderName Inner
 deleteRevIndex (k,v) rev = H.alter f k rev
   where
     f Nothing              = Nothing
-    f (Just (Inner ss ds))
-      | null ds'  = if H.null ss then Nothing else Just $! Inner ss H.empty
-      | otherwise = Just $! Inner ss ds'
+    f (Just (Inner hh))
+      | null hh'           = Nothing
+      | otherwise          = Just $! Inner hh'
       where
-        !ds' = H.delete v ds
+        !hh' = H.delete v hh
 
 deleteRevIndexList :: [Header] -> Outer -> Outer
 deleteRevIndexList hs (Outer rev) = Outer $! foldr deleteRevIndex rev hs
