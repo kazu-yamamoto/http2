@@ -42,8 +42,6 @@ isIn idx DynamicTable{..} = idx > staticTableSize
 
 toIndexedEntry :: DynamicTable -> Index -> IO Entry
 toIndexedEntry dyntbl idx
-  | idx `isIn` dyntbl  = fromIndexToDIndex dyntbl idx >>= toHeaderEntry dyntbl
-  | isSIndexValid sidx = return $! toStaticEntry sidx
+  | idx `isIn` dyntbl  = toDynamicEntry dyntbl idx
+  | isSIndexValid idx  = return $! toStaticEntry idx
   | otherwise          = throwIO $ IndexOverrun idx
-  where
-    sidx = fromIndexToSIndex idx

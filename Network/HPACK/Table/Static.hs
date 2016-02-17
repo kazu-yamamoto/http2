@@ -3,7 +3,6 @@
 module Network.HPACK.Table.Static (
     SIndex(..)
   , fromSIndexToIndex
-  , fromIndexToSIndex
   , isSIndexValid
   , toStaticEntry
   , staticTableSize
@@ -22,15 +21,11 @@ newtype SIndex = SIndex Int deriving (Eq,Ord,Show)
 fromSIndexToIndex :: SIndex -> Index
 fromSIndexToIndex (SIndex idx) = idx
 
-{-# INLINE fromIndexToSIndex #-}
-fromIndexToSIndex :: Index -> SIndex
-fromIndexToSIndex idx = SIndex idx
-
 ----------------------------------------------------------------
 
 {-# INLINE isSIndexValid #-}
-isSIndexValid :: SIndex -> Bool
-isSIndexValid (SIndex sidx) = 1 <= sidx && sidx <= staticTableSize
+isSIndexValid :: Index -> Bool
+isSIndexValid sidx = 1 <= sidx && sidx <= staticTableSize
 
 ----------------------------------------------------------------
 
@@ -41,14 +36,14 @@ staticTableSize = length staticTableList
 {-# INLINE toStaticEntry #-}
 -- | Get 'Entry' from the static table.
 --
--- >>> toStaticEntry (SIndex 1)
+-- >>> toStaticEntry 1
 -- (42,(":authority",""))
--- >>> toStaticEntry (SIndex 8)
+-- >>> toStaticEntry 8
 -- (42,(":status","200"))
--- >>> toStaticEntry (SIndex 50)
+-- >>> toStaticEntry 50
 -- (37,("range",""))
-toStaticEntry :: SIndex -> Entry
-toStaticEntry (SIndex sidx) = staticTable ! sidx
+toStaticEntry :: Index -> Entry
+toStaticEntry sidx = staticTable ! sidx
 
 -- | Pre-defined static table.
 staticTable :: Array Index Entry

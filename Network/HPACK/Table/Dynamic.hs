@@ -15,9 +15,8 @@ module Network.HPACK.Table.Dynamic (
   , setLimitForEncoding
   , resetLimitForEncoding
   , insertEntry
-  , toHeaderEntry
+  , toDynamicEntry
   , fromDIndexToIndex
-  , fromIndexToDIndex
   , CodeInfo(..)
   , clearDynamicTable
   , withDynamicTableForEncoding
@@ -48,14 +47,6 @@ fromDIndexToIndex DynamicTable{..} (DIndex didx) = do
     off <- readIORef offset
     x <- adj maxN (didx - off)
     return $! x + staticTableSize
-
-{-# INLINE fromIndexToDIndex #-}
-fromIndexToDIndex :: DynamicTable -> Index -> IO DIndex
-fromIndexToDIndex DynamicTable{..} idx = do
-    maxN <- readIORef maxNumOfEntries
-    off <- readIORef offset
-    !didx <- adj maxN (idx + off - staticTableSize)
-    return $! DIndex didx
 
 ----------------------------------------------------------------
 
@@ -379,7 +370,11 @@ removeEnd DynamicTable{..} = do
 
 ----------------------------------------------------------------
 
-toHeaderEntry :: DynamicTable -> DIndex -> IO Entry
-toHeaderEntry DynamicTable{..} (DIndex didx) = do
-    table <- readIORef circularTable
+{-# INLINE toDynamicEntry #-}
+toDynamicEntry :: DynamicTable -> Index -> IO Entry
+toDynamicEntry DynamicTable{..} idx = do
+    !maxN <- readIORef maxNumOfEntries
+    !off <- readIORef offset
+    !didx <- adj maxN (idx + off - staticTableSize)
+    !table <- readIORef circularTable
     readArray table didx
