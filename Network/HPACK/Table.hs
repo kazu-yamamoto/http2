@@ -2,7 +2,7 @@
 
 module Network.HPACK.Table (
   -- * dynamic table
-    DynamicTable
+    DynamicTable(..)
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
   , clearDynamicTable
@@ -22,7 +22,10 @@ module Network.HPACK.Table (
   -- * Entry
   , module Network.HPACK.Table.Entry
   -- * Index to entry
+  , CodeInfo(..)
   , toIndexedEntry
+  , fromSIndexToIndex
+  , fromDIndexToIndex
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -36,8 +39,13 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
+{-# INLINE toIndexedEntry #-}
 toIndexedEntry :: DynamicTable -> Index -> IO Entry
 toIndexedEntry dyntbl idx
   | idx <= 0               = throwIO $ IndexOverrun idx
   | idx <= staticTableSize = return $! toStaticEntry idx
   | otherwise              = toDynamicEntry dyntbl idx
+
+{-# INLINE fromSIndexToIndex #-}
+fromSIndexToIndex :: SIndex -> Index
+fromSIndexToIndex (SIndex idx) = idx

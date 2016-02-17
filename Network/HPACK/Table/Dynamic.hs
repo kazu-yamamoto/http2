@@ -16,11 +16,11 @@ module Network.HPACK.Table.Dynamic (
   , resetLimitForEncoding
   , insertEntry
   , toDynamicEntry
-  , fromDIndexToIndex
   , CodeInfo(..)
   , clearDynamicTable
   , withDynamicTableForEncoding
   , withDynamicTableForDecoding
+  , fromDIndexToIndex
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -37,8 +37,6 @@ import Network.HPACK.Table.Entry
 import Network.HPACK.Table.RevIndex
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
-
-----------------------------------------------------------------
 
 {-# INLINE fromDIndexToIndex #-}
 fromDIndexToIndex :: DynamicTable -> DIndex -> IO Index

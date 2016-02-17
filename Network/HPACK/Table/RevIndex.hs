@@ -7,10 +7,6 @@ import qualified Data.HashMap.Strict as H
 import Network.HPACK.Types
 import Network.HPACK.Table.Static
 
--- Physical array index for Dynamic Table.
--- Defining here due to dependency, sigh.
-newtype DIndex = DIndex Int deriving (Eq, Ord, Show)
-
 data Inner = Inner (HashMap HeaderValue SIndex)
                    (HashMap HeaderValue DIndex) deriving Show
 

@@ -1,24 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Table.Static (
-    SIndex(..)
-  , fromSIndexToIndex
-  , toStaticEntry
+    toStaticEntry
   , staticTableSize
   , staticTableList
   ) where
 
 import Data.Array (Array, listArray, (!))
 import Network.HPACK.Table.Entry
-
-----------------------------------------------------------------
-
--- Physical array index for Static Table.
-newtype SIndex = SIndex Int deriving (Eq,Ord,Show)
-
-{-# INLINE fromSIndexToIndex #-}
-fromSIndexToIndex :: SIndex -> Index
-fromSIndexToIndex (SIndex idx) = idx
 
 ----------------------------------------------------------------
 

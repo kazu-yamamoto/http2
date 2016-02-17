@@ -22,9 +22,7 @@ import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman
 import Network.HPACK.Table
-import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.RevIndex
-import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
