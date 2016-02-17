@@ -22,7 +22,6 @@ module Network.HPACK.Table (
   -- * Entry
   , module Network.HPACK.Table.Entry
   -- * Which tables
-  , WhichTable(..)
   , which
   ) where
 
@@ -38,19 +37,15 @@ import Network.HPACK.Types
 ----------------------------------------------------------------
 
 -- | Which table does `Index` refer to?
-data WhichTable = InDynamicTable | InStaticTable deriving (Eq,Show)
-
 {-# INLINE isIn #-}
 isIn :: Int -> DynamicTable -> Bool
 isIn idx DynamicTable{..} = idx > staticTableSize
 
 -- | Which table does 'Index' belong to?
-which :: DynamicTable -> Index -> IO (WhichTable, Entry)
+which :: DynamicTable -> Index -> IO Entry
 which dyntbl idx
-  | idx `isIn` dyntbl  = do
-        hidx <- fromIndexToDIndex dyntbl idx
-        (InDynamicTable,) <$> toHeaderEntry dyntbl hidx
-  | isSIndexValid sidx = return (InStaticTable, toStaticEntry sidx)
+  | idx `isIn` dyntbl  = fromIndexToDIndex dyntbl idx >>= toHeaderEntry dyntbl
+  | isSIndexValid sidx = return $! toStaticEntry sidx
   | otherwise          = throwIO $ IndexOverrun idx
   where
     sidx = fromIndexToSIndex idx

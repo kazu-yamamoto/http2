@@ -73,7 +73,7 @@ indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
 indexed dyntbl w rbuf = do
     let !w' = clearBit w 7
     !idx <- I.decode 7 w' rbuf
-    fromEntry . snd <$> which dyntbl idx
+    fromEntry <$> which dyntbl idx
 
 incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
 incrementalIndexing dyntbl w rbuf = do
@@ -103,7 +103,7 @@ indexedName :: DynamicTable -> Word8 -> ReadBuffer
 indexedName dyntbl w rbuf n mask = do
     let !p = mask w
     !idx <- I.decode n p rbuf
-    !key <- entryHeaderName . snd <$> which dyntbl idx
+    !key <- entryHeaderName <$> which dyntbl idx
     !val <- headerStuff dyntbl rbuf
     let !kv = (key,val)
     return kv
