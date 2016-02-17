@@ -13,8 +13,6 @@ import Control.Monad (when)
 import Data.Bits (setBit)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString, create, memcpy)
-import Data.IORef (readIORef)
-import qualified Data.HashMap.Strict as H
 import Data.Word (Word8)
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (minusPtr)
@@ -22,7 +20,6 @@ import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman
 import Network.HPACK.Table
-import Network.HPACK.Table.RevIndex
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -108,32 +105,30 @@ naiveStep huff _dyntbl wbuf (k,v) = newName wbuf huff set0000 k v
 ----------------------------------------------------------------
 
 staticStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
-staticStep huff dyntbl@DynamicTable{..} wbuf (k,v) = do
-    Outer rev <- readIORef revref
-    case H.lookup k rev of
+staticStep huff dyntbl wbuf (k,v) = do
+    outer <- getRevIndex dyntbl
+    case lookupOuter k outer of
         Nothing -> newName wbuf huff set0000 k v
-        Just (Inner hh) -> case H.lookup v hh of
+        Just inner -> case lookupInner v inner of
             Just hidx -> fromHIndexToIndex dyntbl hidx
                          >>= indexedName wbuf huff 4 set0000 v
-            Nothing   -> case top hh of
+            Nothing   -> case topInner inner of
                 Just hidx -> fromHIndexToIndex dyntbl hidx
                              >>= indexedName wbuf huff 4 set0000 v
                 Nothing   -> newName wbuf huff set0000 k v
-  where
-    EncodeInfo revref _ = codeInfo
 
 ----------------------------------------------------------------
 
 linearStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
-linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
-    Outer rev <- readIORef revref
-    case H.lookup k rev of
-        Just (Inner hh) -> case H.lookup v hh of
+linearStep huff dyntbl wbuf h@(k,v) = do
+    outer <- getRevIndex dyntbl
+    case lookupOuter k outer of
+        Just inner -> case lookupInner v inner of
             Just hidx ->
                 -- 6.1.  Indexed Header Field Representation
                 -- Indexed Header Field
                 fromHIndexToIndex dyntbl hidx >>= index wbuf
-            Nothing   -> case top hh of
+            Nothing   -> case topInner inner of
                 Just hidx
                   | notToIndex ->
                       -- 6.2.2.  Literal Header Field without Indexing
@@ -159,7 +154,6 @@ linearStep huff dyntbl@DynamicTable{..} wbuf h@(k,v) = do
              newName wbuf huff set01 k v
              insertEntry (toEntry h) dyntbl
   where
-    EncodeInfo revref _ = codeInfo
     notToIndex = k `elem` headersNotToIndex
 
 headersNotToIndex :: [HeaderName]

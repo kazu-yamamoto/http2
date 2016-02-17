@@ -2,7 +2,7 @@
 
 module Network.HPACK.Table (
   -- * dynamic table
-    DynamicTable(..)
+    DynamicTable
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
   , clearDynamicTable
@@ -21,8 +21,10 @@ module Network.HPACK.Table (
   , insertEntry
   -- * Entry
   , module Network.HPACK.Table.Entry
+  -- * Reverse index
+  , getRevIndex
+  , module Network.HPACK.Table.RevIndex
   -- * Index to entry
-  , CodeInfo(..)
   , toIndexedEntry
   , fromHIndexToIndex
   ) where
@@ -32,3 +34,4 @@ import Control.Applicative ((<$>))
 #endif
 import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.Entry
+import Network.HPACK.Table.RevIndex

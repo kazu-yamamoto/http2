@@ -1,6 +1,15 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Network.HPACK.Table.RevIndex where
+module Network.HPACK.Table.RevIndex (
+    Outer
+  , Inner
+  , defaultRevIndex
+  , insertRevIndex
+  , deleteRevIndexList
+  , lookupOuter
+  , lookupInner
+  , topInner
+  ) where
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as H
@@ -43,7 +52,15 @@ deleteRevIndex (k,v) rev = H.alter f k rev
 deleteRevIndexList :: [Header] -> Outer -> Outer
 deleteRevIndexList hs (Outer rev) = Outer $! foldr deleteRevIndex rev hs
 
+lookupOuter :: HeaderName -> Outer -> Maybe Inner
+lookupOuter k (Outer rev) = H.lookup k rev
+{-# INLINE lookupOuter #-}
+
+lookupInner :: HeaderValue -> Inner -> Maybe HIndex
+lookupInner v (Inner hh) = H.lookup v hh
+{-# INLINE lookupInner #-}
+
 --- | Take an arbitrary entry. O(1) thanks to lazy evaluation.
-top :: HashMap k v -> Maybe v
-top = H.foldr (\v _ -> Just v) Nothing
-{-# INLINE top #-}
+topInner :: Inner -> Maybe HIndex
+topInner (Inner hh) = H.foldr (\v _ -> Just v) Nothing hh
+{-# INLINE topInner #-}

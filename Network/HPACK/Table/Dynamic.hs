@@ -22,6 +22,7 @@ module Network.HPACK.Table.Dynamic (
   , withDynamicTableForDecoding
   , toIndexedEntry
   , fromHIndexToIndex
+  , getRevIndex
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -389,3 +390,11 @@ toDynamicEntry DynamicTable{..} idx = do
     !didx <- adj maxN (idx + off - staticTableSize)
     !table <- readIORef circularTable
     readArray table didx
+
+----------------------------------------------------------------
+
+{-# INLINE getRevIndex #-}
+getRevIndex :: DynamicTable-> IO Outer
+getRevIndex DynamicTable{..} = readIORef revref
+  where
+    EncodeInfo revref _ = codeInfo
