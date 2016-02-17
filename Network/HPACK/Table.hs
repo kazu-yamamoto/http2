@@ -21,8 +21,8 @@ module Network.HPACK.Table (
   , insertEntry
   -- * Entry
   , module Network.HPACK.Table.Entry
-  -- * Which tables
-  , which
+  -- * Index to entry
+  , toIndexedEntry
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -36,14 +36,12 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | Which table does `Index` refer to?
 {-# INLINE isIn #-}
 isIn :: Int -> DynamicTable -> Bool
 isIn idx DynamicTable{..} = idx > staticTableSize
 
--- | Which table does 'Index' belong to?
-which :: DynamicTable -> Index -> IO Entry
-which dyntbl idx
+toIndexedEntry :: DynamicTable -> Index -> IO Entry
+toIndexedEntry dyntbl idx
   | idx `isIn` dyntbl  = fromIndexToDIndex dyntbl idx >>= toHeaderEntry dyntbl
   | isSIndexValid sidx = return $! toStaticEntry sidx
   | otherwise          = throwIO $ IndexOverrun idx
