@@ -43,7 +43,7 @@ deleteRevIndex (k,v) rev = H.alter f k rev
   where
     f Nothing              = Nothing
     f (Just (Inner hh))
-      | null hh'           = Nothing
+      | H.null hh          = Nothing
       | otherwise          = Just $! Inner hh'
       where
         !hh' = H.delete v hh
