@@ -83,7 +83,6 @@ Library
                       , containers >= 0.5
                       , psqueues
                       , stm
-                      , unordered-containers
 
 ----------------------------------------------------------------
 
@@ -118,7 +117,6 @@ Test-Suite spec
                       , hspec >= 1.3
                       , psqueues
                       , stm
-                      , unordered-containers
                       , word8
 
 Test-Suite hpack
@@ -231,8 +229,8 @@ Executable hpack-stat
                       , containers
                       , directory
                       , filepath
-                      , text
                       , unordered-containers
+                      , text
                       , vector
                       , word8
 
@@ -293,4 +291,3 @@ Benchmark header-compression
                       , criterion
                       , hashtables
                       , stm
-                      , unordered-containers

@@ -10,14 +10,14 @@ module Network.HPACK.Table.RevIndex (
   , lookupInner
   ) where
 
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as H
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as H
 import Network.HPACK.Types
 import Network.HPACK.Table.Static
 
-data Inner = Inner (HashMap HeaderValue HIndex) deriving Show
+data Inner = Inner (Map HeaderValue HIndex) deriving Show
 
-newtype Outer = Outer (HashMap HeaderName Inner) deriving Show
+newtype Outer = Outer (Map HeaderName Inner) deriving Show
 
 defaultRevIndex :: Outer
 defaultRevIndex = Outer $! foldr op H.empty lst
@@ -38,7 +38,7 @@ insertRevIndex (k,v) hidx (Outer rev) = Outer $! H.alter f k rev
     f (Just (Inner hh)) = let !hh' = H.insert v hidx hh
                           in Just $! Inner hh'
 
-deleteRevIndex :: Header -> HashMap HeaderName Inner -> HashMap HeaderName Inner
+deleteRevIndex :: Header -> Map HeaderName Inner -> Map HeaderName Inner
 deleteRevIndex (k,v) rev = H.alter f k rev
   where
     f Nothing              = Nothing
