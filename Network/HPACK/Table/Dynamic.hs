@@ -83,7 +83,7 @@ After insertion:
 -}
 
 data CodeInfo =
-    EncodeInfo !(IORef Outer) -- Reverse index
+    EncodeInfo !(IORef RevIndex) -- Reverse index
                -- The value informed by SETTINGS_HEADER_TABLE_SIZE.
                -- If 'Nothing', dynamic table size update is not necessary.
                -- Otherwise, dynamic table size update is sent
@@ -394,7 +394,7 @@ toDynamicEntry DynamicTable{..} idx = do
 ----------------------------------------------------------------
 
 {-# INLINE getRevIndex #-}
-getRevIndex :: DynamicTable-> IO Outer
+getRevIndex :: DynamicTable-> IO RevIndex
 getRevIndex DynamicTable{..} = readIORef revref
   where
     EncodeInfo revref _ = codeInfo

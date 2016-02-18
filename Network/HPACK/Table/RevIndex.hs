@@ -1,13 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Network.HPACK.Table.RevIndex (
-    Outer
-  , Inner
+    RevIndex
+  , RevResult(..)
   , defaultRevIndex
   , insertRevIndex
   , deleteRevIndexList
-  , lookupOuter
-  , lookupInner
+  , lookupRevIndex
   ) where
 
 import Data.Map.Strict (Map)
@@ -15,12 +14,14 @@ import qualified Data.Map.Strict as H
 import Network.HPACK.Types
 import Network.HPACK.Table.Static
 
+newtype RevIndex = RevIndex (Map HeaderName Inner) deriving Show
+
 data Inner = Inner (Map HeaderValue HIndex) deriving Show
 
-newtype Outer = Outer (Map HeaderName Inner) deriving Show
+data RevResult = N | K HIndex | KV HIndex
 
-defaultRevIndex :: Outer
-defaultRevIndex = Outer $! foldr op H.empty lst
+defaultRevIndex :: RevIndex
+defaultRevIndex = RevIndex $! foldr op H.empty lst
   where
     lst = zip staticTableList $ map SIndex [1..]
     op ((k,v),i) m = H.alter f k m
@@ -30,8 +31,8 @@ defaultRevIndex = Outer $! foldr op H.empty lst
         f (Just (Inner hh)) = let !hh' = H.insert v i hh
                               in Just $! Inner hh'
 
-insertRevIndex :: Header -> HIndex -> Outer -> Outer
-insertRevIndex (k,v) hidx (Outer rev) = Outer $! H.alter f k rev
+insertRevIndex :: Header -> HIndex -> RevIndex -> RevIndex
+insertRevIndex (k,v) hidx (RevIndex rev) = RevIndex $! H.alter f k rev
   where
     f Nothing           = let !hh = H.singleton v hidx
                           in Just $! Inner hh
@@ -48,17 +49,15 @@ deleteRevIndex (k,v) rev = H.alter f k rev
       where
         !hh' = H.delete v hh
 
-deleteRevIndexList :: [Header] -> Outer -> Outer
-deleteRevIndexList hs (Outer rev) = Outer $! foldr deleteRevIndex rev hs
+deleteRevIndexList :: [Header] -> RevIndex -> RevIndex
+deleteRevIndexList hs (RevIndex rev) = RevIndex $! foldr deleteRevIndex rev hs
 
-lookupOuter :: HeaderName -> Outer -> Maybe Inner
-lookupOuter k (Outer rev) = H.lookup k rev
-{-# INLINE lookupOuter #-}
-
-lookupInner :: HeaderValue -> Inner -> Either HIndex HIndex
-lookupInner v (Inner hh) = case H.lookup v hh of
-    Just hidx -> Right hidx
-    Nothing   -> case H.foldr (\x _ -> Just x) Nothing hh of
-        Just hidx -> Left hidx
-        Nothing   -> error "lookupInner"
-{-# INLINE lookupInner #-}
+{-# INLINE lookupRevIndex #-}
+lookupRevIndex :: HeaderName -> HeaderValue -> RevIndex -> RevResult
+lookupRevIndex k v (RevIndex rev) = case H.lookup k rev of
+    Nothing         -> N
+    Just (Inner hh) -> case H.lookup v hh of
+        Just hidx -> KV hidx
+        Nothing   -> case H.foldr (\x _ -> Just x) Nothing hh of
+            Just hidx -> K hidx
+            Nothing   -> error "lookupRevIndex"
