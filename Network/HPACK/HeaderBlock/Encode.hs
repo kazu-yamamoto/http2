@@ -106,8 +106,9 @@ naiveStep huff _dyntbl wbuf (k,v) = newName wbuf huff set0000 k v
 
 staticStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 staticStep huff dyntbl wbuf (k,v) = do
-    rev <- getRevIndex dyntbl
-    case lookupRevIndex k v rev of
+    let rev = getRevIndex dyntbl
+    res <- lookupRevIndex k v rev
+    case res of
         KV hidx -> fromHIndexToIndex dyntbl hidx >>= index wbuf
         K  hidx -> fromHIndexToIndex dyntbl hidx
                    >>= indexedName wbuf huff 4 set0000 v
@@ -117,8 +118,9 @@ staticStep huff dyntbl wbuf (k,v) = do
 
 linearStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 linearStep huff dyntbl wbuf h@(k,v) = do
-    rev <- getRevIndex dyntbl
-    case lookupRevIndex k v rev of
+    let rev = getRevIndex dyntbl
+    res <- lookupRevIndex k v rev
+    case res of
         KV hidx ->
             -- 6.1.  Indexed Header Field Representation
             -- Indexed Header Field
