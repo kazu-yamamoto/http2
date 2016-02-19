@@ -18,9 +18,9 @@ import qualified Data.Array.Unboxed as U
 import qualified Data.Array.Unsafe as IOA
 import Data.Function (on)
 import Data.IORef
-import Data.List
-import Data.Map (Map)
-import qualified Data.Map as M
+import Data.List (groupBy)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import Network.HPACK.Table.Static
 import Network.HPACK.Table.Token
 import Network.HPACK.Types
@@ -148,6 +148,7 @@ renewRevIndex (RevIndex dyn oth) = do
     renewDynamicRevIndex dyn
     renewOtherRevIndex oth
 
+{-# INLINE lookupRevIndex #-}
 lookupRevIndex :: HeaderName -> HeaderValue -> RevIndex -> IO (RevResult,Bool)
 lookupRevIndex k v (RevIndex dyn oth) = do
     res <- get
@@ -164,6 +165,7 @@ lookupRevIndex k v (RevIndex dyn oth) = do
 
 ----------------------------------------------------------------
 
+{-# INLINE insertRevIndex #-}
 insertRevIndex :: Header -> HIndex -> RevIndex -> IO ()
 insertRevIndex (k,v) i (RevIndex dyn oth)
   | t == TOTHER = insertOtherRevIndex k v i oth
@@ -171,6 +173,7 @@ insertRevIndex (k,v) i (RevIndex dyn oth)
   where
     t = toToken k
 
+{-# INLINE deleteRevIndex #-}
 deleteRevIndex :: RevIndex -> Header -> IO ()
 deleteRevIndex (RevIndex dyn oth) (k,v)
   | t == TOTHER = deleteOtherRevIndex k v oth
@@ -178,6 +181,7 @@ deleteRevIndex (RevIndex dyn oth) (k,v)
   where
     t = toToken k
 
+{-# INLINE deleteRevIndexList #-}
 deleteRevIndexList :: [Header] -> RevIndex -> IO ()
 deleteRevIndexList hs rev = mapM_ (deleteRevIndex rev) hs
 
@@ -203,5 +207,6 @@ indexedOrNot = unsafePerformIO $ do
     toTrue :: IOA.IOUArray Int Bool -> Int -> IO ()
     toTrue arr i = IOA.writeArray arr i False
 
+{-# INLINE shouldBeIndexed #-}
 shouldBeIndexed :: Token -> Bool
 shouldBeIndexed t = indexedOrNot U.! fromEnum t
