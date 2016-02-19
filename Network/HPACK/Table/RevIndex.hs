@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.HPACK.Table.RevIndex (
     RevIndex
@@ -12,6 +12,10 @@ module Network.HPACK.Table.RevIndex (
 
 import Data.Array (Array, (!))
 import qualified Data.Array as A
+import qualified Data.Array.IO as IOA
+import Data.Array.Unboxed (UArray)
+import qualified Data.Array.Unboxed as U
+import qualified Data.Array.Unsafe as IOA
 import Data.Function (on)
 import Data.IORef
 import Data.List
@@ -20,6 +24,8 @@ import qualified Data.Map as M
 import Network.HPACK.Table.Static
 import Network.HPACK.Table.Token
 import Network.HPACK.Types
+
+import System.IO.Unsafe
 
 ----------------------------------------------------------------
 
@@ -142,16 +148,19 @@ renewRevIndex (RevIndex dyn oth) = do
     renewDynamicRevIndex dyn
     renewOtherRevIndex oth
 
-lookupRevIndex :: HeaderName -> HeaderValue -> RevIndex -> IO RevResult
-lookupRevIndex k v (RevIndex dyn oth)
-  | t == TOTHER = lookupOtherRevIndex k v oth
-  | otherwise   = do
-      mx <- lookupDynamicRevIndex t v dyn
-      return $! case mx of
-          N -> lookupStaticRevIndex t v
-          _ -> mx
+lookupRevIndex :: HeaderName -> HeaderValue -> RevIndex -> IO (RevResult,Bool)
+lookupRevIndex k v (RevIndex dyn oth) = do
+    res <- get
+    return (res, shouldBeIndexed t)
   where
     t = toToken k
+    get
+      | t == TOTHER = lookupOtherRevIndex k v oth
+      | otherwise   = do
+          mx <- lookupDynamicRevIndex t v dyn
+          return $! case mx of
+              N -> lookupStaticRevIndex t v
+              _ -> mx
 
 ----------------------------------------------------------------
 
@@ -171,3 +180,28 @@ deleteRevIndex (RevIndex dyn oth) (k,v)
 
 deleteRevIndexList :: [Header] -> RevIndex -> IO ()
 deleteRevIndexList hs rev = mapM_ (deleteRevIndex rev) hs
+
+----------------------------------------------------------------
+
+headersNotToIndex :: [HeaderName]
+headersNotToIndex = [
+    ":path"
+  , "content-length"
+  , "location"
+  , "etag"
+  , "set-cookie"
+  ]
+
+indexedOrNot :: UArray Int Bool
+indexedOrNot = unsafePerformIO $ do
+    arr <- IOA.newArray (ib,ie) True :: IO (IOA.IOUArray Int Bool)
+    mapM_ (toTrue arr) $ map (fromEnum . toToken) headersNotToIndex
+    IOA.unsafeFreeze arr
+  where
+    ib = fromEnum (minBound :: Token)
+    ie = fromEnum (maxBound :: Token)
+    toTrue :: IOA.IOUArray Int Bool -> Int -> IO ()
+    toTrue arr i = IOA.writeArray arr i False
+
+shouldBeIndexed :: Token -> Bool
+shouldBeIndexed t = indexedOrNot U.! fromEnum t

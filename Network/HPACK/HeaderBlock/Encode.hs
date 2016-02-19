@@ -106,57 +106,43 @@ naiveStep huff _dyntbl wbuf (k,v) = newName wbuf huff set0000 k v
 
 staticStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 staticStep huff dyntbl wbuf (k,v) = do
-    let rev = getRevIndex dyntbl
-    res <- lookupRevIndex k v rev
+    res <- lookupRevIndex k v $ getRevIndex dyntbl
     case res of
-        KV hidx -> fromHIndexToIndex dyntbl hidx >>= index wbuf
-        K  hidx -> fromHIndexToIndex dyntbl hidx
-                   >>= indexedName wbuf huff 4 set0000 v
-        N       -> newName wbuf huff set0000 k v
+        (KV hidx,_) -> fromHIndexToIndex dyntbl hidx >>= index wbuf
+        (K  hidx,_) -> fromHIndexToIndex dyntbl hidx
+                       >>= indexedName wbuf huff 4 set0000 v
+        (N,_      ) -> newName wbuf huff set0000 k v
 
 ----------------------------------------------------------------
 
 linearStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
 linearStep huff dyntbl wbuf h@(k,v) = do
-    let rev = getRevIndex dyntbl
-    res <- lookupRevIndex k v rev
+    res <- lookupRevIndex k v $ getRevIndex dyntbl
     case res of
-        KV hidx ->
+        (KV hidx,_) ->
             -- 6.1.  Indexed Header Field Representation
             -- Indexed Header Field
             fromHIndexToIndex dyntbl hidx >>= index wbuf
-        K  hidx | notToIndex ->
-              -- 6.2.2.  Literal Header Field without Indexing
-              -- Literal Header Field without Indexing -- Indexed Name
-              fromHIndexToIndex dyntbl hidx
-              >>= indexedName wbuf huff 4 set0000 v
-                | otherwise  -> do
-              -- 6.2.1.  Literal Header Field with Incremental Indexing
-              -- Literal Header Field with Incremental Indexing
-              -- -- Indexed Name
-              fromHIndexToIndex dyntbl hidx
-                >>= indexedName wbuf huff 6 set01 v
-              insertEntry (toEntry h) dyntbl
-        N | notToIndex ->
-             -- 6.2.2.  Literal Header Field without Indexing
-             -- Literal Header Field without Indexing -- New Name
-             newName wbuf huff set0000 k v
-          | otherwise  -> do
-             -- 6.2.1.  Literal Header Field with Incremental Indexing
-             -- Literal Header Field with Incremental Indexing -- New Name
-             newName wbuf huff set01 k v
-             insertEntry (toEntry h) dyntbl
-  where
-    notToIndex = k `elem` headersNotToIndex
-
-headersNotToIndex :: [HeaderName]
-headersNotToIndex = [
-    ":path"
-  , "content-length"
-  , "location"
-  , "etag"
-  , "set-cookie"
-  ]
+        (K hidx, True) -> do
+            -- 6.2.1.  Literal Header Field with Incremental Indexing
+            -- Literal Header Field with Incremental Indexing
+            -- -- Indexed Name
+            fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 6 set01 v
+            insertEntry (toEntry h) dyntbl
+        (N, True) -> do
+            -- 6.2.1.  Literal Header Field with Incremental Indexing
+            -- Literal Header Field with Incremental Indexing -- New Name
+            newName wbuf huff set01 k v
+            insertEntry (toEntry h) dyntbl
+        (K hidx, False) ->
+            -- 6.2.2.  Literal Header Field without Indexing
+            -- Literal Header Field without Indexing -- Indexed Name
+            fromHIndexToIndex dyntbl hidx
+            >>= indexedName wbuf huff 4 set0000 v
+        (N, False) ->
+            -- 6.2.2.  Literal Header Field without Indexing
+            -- Literal Header Field without Indexing -- New Name
+            newName wbuf huff set0000 k v
 
 ----------------------------------------------------------------
 
