@@ -3,13 +3,14 @@
 module Network.HPACK.Table.Entry (
   -- * Type
     Size
-  , Entry
+  , Entry(..)
   , Header      -- re-exporting
   , HeaderName  -- re-exporting
   , HeaderValue -- re-exporting
   , Index       -- re-exporting
   -- * Header and Entry
   , toEntry
+  , toEntryToken
   , fromEntry
   -- * Getters
   , entrySize
@@ -22,6 +23,7 @@ module Network.HPACK.Table.Entry (
   ) where
 
 import qualified Data.ByteString as BS
+import Network.HPACK.Table.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -30,7 +32,7 @@ import Network.HPACK.Types
 type Size = Int
 
 -- | Type for table entry. Size includes the 32 bytes magic number.
-type Entry = (Size,Header)
+data Entry = Entry Size Token Header deriving Show
 
 ----------------------------------------------------------------
 
@@ -46,37 +48,43 @@ headerSize (k,v) = BS.length k
 
 -- | From 'Header' to 'Entry'.
 toEntry :: Header -> Entry
-toEntry h = (siz,h)
+toEntry kv = Entry siz TOTHER kv
   where
-    !siz = headerSize h
+    !siz = headerSize kv
+
+toEntryToken :: Header -> Entry
+toEntryToken kv@(k,_) = Entry siz t kv
+  where
+    !siz = headerSize kv
+    !t = toToken k
 
 -- | From 'Entry' to 'Header'.
 fromEntry :: Entry -> Header
-fromEntry = snd
+fromEntry (Entry _ _ kv) = kv
 
 ----------------------------------------------------------------
 
 -- | Getting the size of 'Entry'.
 entrySize :: Entry -> Size
-entrySize = fst
+entrySize (Entry siz _ _) = siz
 
 -- | Getting 'Header'.
 entryHeader :: Entry -> Header
-entryHeader (_,h) = h
+entryHeader (Entry _ _ kv) = kv
 
 -- | Getting 'HeaderName'.
 entryHeaderName :: Entry -> HeaderName
-entryHeaderName (_,(k,_)) = k
+entryHeaderName (Entry _ _ (k,_)) = k
 
 -- | Getting 'HeaderValue'.
 entryHeaderValue :: Entry -> HeaderValue
-entryHeaderValue (_,(_,v)) = v
+entryHeaderValue (Entry _ _ (_,v)) = v
 
 ----------------------------------------------------------------
 
 -- | Dummy 'Entry' to initialize a dynamic table.
 dummyEntry :: Entry
-dummyEntry = (0,("dummy","dummy"))
+dummyEntry = Entry 0 TOTHER ("dummy","dummy")
 
 -- | How many entries can be stored in a dynamic table?
 maxNumbers :: Size -> Int

@@ -19,11 +19,11 @@ staticTableSize = length staticTableList
 -- | Get 'Entry' from the static table.
 --
 -- >>> toStaticEntry 1
--- (42,(":authority",""))
+-- Entry 42 TOTHER (":authority","")
 -- >>> toStaticEntry 8
--- (42,(":status","200"))
+-- Entry 42 TOTHER (":status","200")
 -- >>> toStaticEntry 50
--- (37,("range",""))
+-- Entry 37 TOTHER ("range","")
 toStaticEntry :: Index -> Entry
 toStaticEntry sidx = staticTable ! sidx
 

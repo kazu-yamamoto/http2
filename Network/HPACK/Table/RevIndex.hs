@@ -21,6 +21,7 @@ import Data.IORef
 import Data.List (groupBy)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Static
 import Network.HPACK.Table.Token
 import Network.HPACK.Types
@@ -58,9 +59,9 @@ end = toEnum (fromEnum (maxBound :: Token) - 1)
 ----------------------------------------------------------------
 
 staticRevIndex :: StaticRevIndex
-staticRevIndex = A.array (minBound, end) $ map toEntry zs
+staticRevIndex = A.array (minBound, end) $ map toEnt zs
   where
-    toEntry (k,xs) = (toToken k, m)
+    toEnt (k,xs) = (toToken k, m)
       where
         m = case xs of
             []  -> error "staticRevIndex"
@@ -149,12 +150,11 @@ renewRevIndex (RevIndex dyn oth) = do
     renewOtherRevIndex oth
 
 {-# INLINE lookupRevIndex #-}
-lookupRevIndex :: HeaderName -> HeaderValue -> RevIndex -> IO (RevResult,Bool)
-lookupRevIndex k v (RevIndex dyn oth) = do
+lookupRevIndex :: Entry -> RevIndex -> IO (RevResult,Bool)
+lookupRevIndex (Entry _ t (k,v)) (RevIndex dyn oth) = do
     res <- get
     return (res, shouldBeIndexed t)
   where
-    t = toToken k
     get
       | t == TOTHER = lookupOtherRevIndex k v oth
       | otherwise   = do
@@ -166,24 +166,20 @@ lookupRevIndex k v (RevIndex dyn oth) = do
 ----------------------------------------------------------------
 
 {-# INLINE insertRevIndex #-}
-insertRevIndex :: Header -> HIndex -> RevIndex -> IO ()
-insertRevIndex (k,v) i (RevIndex dyn oth)
+insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
+insertRevIndex (Entry _ t (k,v)) i (RevIndex dyn oth)
   | t == TOTHER = insertOtherRevIndex k v i oth
   | otherwise   = insertDynamicRevIndex t v i dyn
-  where
-    t = toToken k
 
 {-# INLINE deleteRevIndex #-}
-deleteRevIndex :: RevIndex -> Header -> IO ()
-deleteRevIndex (RevIndex dyn oth) (k,v)
+deleteRevIndex :: RevIndex -> Entry -> IO ()
+deleteRevIndex (RevIndex dyn oth) (Entry _ t (k,v))
   | t == TOTHER = deleteOtherRevIndex k v oth
   | otherwise   = deleteDynamicRevIndex t v dyn
-  where
-    t = toToken k
 
 {-# INLINE deleteRevIndexList #-}
-deleteRevIndexList :: [Header] -> RevIndex -> IO ()
-deleteRevIndexList hs rev = mapM_ (deleteRevIndex rev) hs
+deleteRevIndexList :: [Entry] -> RevIndex -> IO ()
+deleteRevIndexList es rev = mapM_ (deleteRevIndex rev) es
 
 ----------------------------------------------------------------
 

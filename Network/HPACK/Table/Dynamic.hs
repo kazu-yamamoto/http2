@@ -299,9 +299,9 @@ clearDynamicTable DynamicTable{..} = case codeInfo of
 insertEntry :: Entry -> DynamicTable -> IO ()
 insertEntry e dyntbl@DynamicTable{..} = do
     insertFront e dyntbl
-    hs <- adjustTableSize dyntbl
+    es <- adjustTableSize dyntbl
     case codeInfo of
-        EncodeInfo rev _ -> deleteRevIndexList hs rev
+        EncodeInfo rev _ -> deleteRevIndexList es rev
         _                -> return ()
 
 insertFront :: Entry -> DynamicTable -> IO ()
@@ -319,21 +319,21 @@ insertFront e DynamicTable{..} = do
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
     case codeInfo of
-        EncodeInfo rev _ -> insertRevIndex (entryHeader e) (DIndex i) rev
+        EncodeInfo rev _ -> insertRevIndex e (DIndex i) rev
         _                -> return ()
 
-adjustTableSize :: DynamicTable -> IO [Header]
-adjustTableSize dyntbl = adjust dyntbl []
-
-adjust :: DynamicTable -> [Header] -> IO [Header]
-adjust dyntbl@DynamicTable{..} !hs = do
-    dsize <- readIORef dynamicTableSize
-    maxdsize <- readIORef maxDynamicTableSize
-    if dsize <= maxdsize then
-        return hs
-      else do
-        h <- removeEnd dyntbl
-        adjust dyntbl (h:hs)
+adjustTableSize :: DynamicTable -> IO [Entry]
+adjustTableSize dyntbl@DynamicTable{..} = adjust []
+  where
+    adjust :: [Entry] -> IO [Entry]
+    adjust !es = do
+        dsize <- readIORef dynamicTableSize
+        maxdsize <- readIORef maxDynamicTableSize
+        if dsize <= maxdsize then
+            return es
+          else do
+            e <- removeEnd dyntbl
+            adjust (e:es)
 
 ----------------------------------------------------------------
 
@@ -350,12 +350,12 @@ insertEnd e DynamicTable{..} = do
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
     case codeInfo of
-        EncodeInfo rev _ -> insertRevIndex (entryHeader e) (DIndex i) rev
+        EncodeInfo rev _ -> insertRevIndex e (DIndex i) rev
         _                -> return ()
 
 ----------------------------------------------------------------
 
-removeEnd :: DynamicTable -> IO Header
+removeEnd :: DynamicTable -> IO Entry
 removeEnd DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
@@ -366,10 +366,9 @@ removeEnd DynamicTable{..} = do
     writeArray table i dummyEntry -- let the entry GCed
     dsize <- readIORef dynamicTableSize
     let !dsize' = dsize - entrySize e
-        !h = entryHeader e
     writeIORef numOfEntries (n - 1)
     writeIORef dynamicTableSize dsize'
-    return h
+    return e
 
 ----------------------------------------------------------------
 
