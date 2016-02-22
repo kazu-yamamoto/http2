@@ -1,3 +1,8 @@
+## 1.5.0
+
+* New API for HPACK. HPACK is much faster than 1.4.x (roughly x3.2).
+  The default encoding is now Linear instead of LinearH.
+
 ## 1.4.5
 
 * Removing zero reset from priority queues.
