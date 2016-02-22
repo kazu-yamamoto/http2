@@ -191,7 +191,7 @@ resetLimitForEncoding DynamicTable{..} = do
 
 ----------------------------------------------------------------
 
--- | Creating 'DynamicTable'.
+-- | Creating 'DynamicTable' for encoding.
 newDynamicTableForEncoding :: Size -- ^ The dynamic table size
                            -> IO DynamicTable
 newDynamicTableForEncoding maxsiz = do
@@ -200,7 +200,7 @@ newDynamicTableForEncoding maxsiz = do
     let !info = EncodeInfo rev lim
     newDynamicTable maxsiz info
 
--- | Creating 'DynamicTable'.
+-- | Creating 'DynamicTable' for decoding.
 newDynamicTableForDecoding :: Size -- ^ The dynamic table size
                            -> Size -- ^ The size of temporary buffer for Huffman decoding
                            -> IO DynamicTable
@@ -271,12 +271,18 @@ shouldRenew DynamicTable{..} maxsiz = do
 
 ----------------------------------------------------------------
 
+-- | Creating 'DynamicTable' for encoding,
+--   performing the action and
+--   clearing the 'DynamicTable'.
 withDynamicTableForEncoding :: Size -- ^ The dynamic table size
                             -> (DynamicTable -> IO a)
                             -> IO a
 withDynamicTableForEncoding maxsiz action =
     bracket (newDynamicTableForEncoding maxsiz) clearDynamicTable action
 
+-- | Creating 'DynamicTable' for decoding,
+--   performing the action and
+--   clearing the 'DynamicTable'.
 withDynamicTableForDecoding :: Size -- ^ The dynamic table size
                             -> Size -- ^ The size of temporary buffer for Huffman
                             -> (DynamicTable -> IO a)
@@ -285,6 +291,7 @@ withDynamicTableForDecoding maxsiz huftmpsiz action =
     bracket (newDynamicTableForDecoding maxsiz huftmpsiz) clearDynamicTable action
 
 -- | Clearing 'DynamicTable'.
+--   Currently, this frees the temporary buffer for Huffman decoding.
 clearDynamicTable :: DynamicTable -> IO ()
 clearDynamicTable DynamicTable{..} = case codeInfo of
     EncodeInfo _ _       -> return ()
