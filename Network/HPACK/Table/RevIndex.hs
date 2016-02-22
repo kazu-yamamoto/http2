@@ -41,6 +41,8 @@ data RevIndex = RevIndex DynamicRevIndex OtherRevIdex
 
 type DynamicRevIndex = Array Token (IORef ValueMap)
 
+-- We always create an index for a pair of an unknown header and its value
+-- in Linear{H}.
 type OtherRevIdex = IORef (Map (HeaderName,HeaderValue) HIndex)
 
 ----------------------------------------------------------------
