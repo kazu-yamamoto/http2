@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, CPP #-}
 
 module Network.HPACK.Table.RevIndex (
     RevIndex
@@ -10,6 +10,9 @@ module Network.HPACK.Table.RevIndex (
   , deleteRevIndexList
   ) where
 
+#if __GLASGOW_HASKELL__ < 709
+import Control.Applicative ((<$>), (<*>))
+#endif
 import Data.Array (Array, (!))
 import qualified Data.Array as A
 import qualified Data.Array.IO as IOA
