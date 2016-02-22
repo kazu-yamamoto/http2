@@ -18,7 +18,7 @@ import qualified Data.Array as A
 import qualified Data.Array.IO as IOA
 import Data.Array.Unboxed (UArray)
 import qualified Data.Array.Unboxed as U
-import qualified Data.Array.Unsafe as IOA
+import qualified Data.Array.Unsafe as Unsafe
 import Data.Function (on)
 import Data.IORef
 import Data.List (groupBy)
@@ -199,7 +199,7 @@ indexedOrNot :: UArray Int Bool
 indexedOrNot = unsafePerformIO $ do
     arr <- IOA.newArray (ib,ie) True :: IO (IOA.IOUArray Int Bool)
     mapM_ (toTrue arr) $ map (fromEnum . toToken) headersNotToIndex
-    IOA.unsafeFreeze arr
+    Unsafe.unsafeFreeze arr
   where
     ib = fromEnum (minBound :: Token)
     ie = fromEnum (maxBound :: Token)
