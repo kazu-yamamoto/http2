@@ -32,6 +32,7 @@ Extra-Source-Files:     ChangeLog.md
                         test-frame/http2-frame-test-case/rst_stream/*.json
                         test-frame/http2-frame-test-case/settings/*.json
                         test-frame/http2-frame-test-case/window_update/*.json
+                        bench-hpack/headers.hs
 
 ----------------------------------------------------------------
 
