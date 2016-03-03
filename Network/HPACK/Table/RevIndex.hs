@@ -156,17 +156,20 @@ renewRevIndex (RevIndex dyn oth) = do
 
 {-# INLINE lookupRevIndex #-}
 lookupRevIndex :: Entry -> RevIndex -> IO (RevResult,Bool)
-lookupRevIndex (Entry _ t (k,v)) (RevIndex dyn oth) = do
-    res <- get
-    return (res, shouldBeIndexed t)
-  where
-    get
-      | t == TOTHER = lookupOtherRevIndex k v oth
-      | otherwise   = do
-          mx <- lookupDynamicRevIndex t v dyn
-          return $! case mx of
-              N -> lookupStaticRevIndex t v
-              _ -> mx
+lookupRevIndex (Entry _ t (k,v)) (RevIndex dyn oth)
+  | t == TOTHER = do
+        !r <- lookupOtherRevIndex k v oth
+        return (r, True)
+  | otherwise   = do
+        let !should = shouldBeIndexed t
+        !r <- if should then do
+                  mx <- lookupDynamicRevIndex t v dyn
+                  return $! case mx of
+                      N -> lookupStaticRevIndex t v
+                      _ -> mx
+                else
+                  return $ lookupStaticRevIndex t v
+        return (r, should)
 
 ----------------------------------------------------------------
 
@@ -200,13 +203,13 @@ headersNotToIndex = [
 indexedOrNot :: UArray Int Bool
 indexedOrNot = unsafePerformIO $ do
     arr <- IOA.newArray (ib,ie) True :: IO (IOA.IOUArray Int Bool)
-    mapM_ (toTrue arr) $ map (fromEnum . toToken) headersNotToIndex
+    mapM_ (toFalse arr) $ map (fromEnum . toToken) headersNotToIndex
     Unsafe.unsafeFreeze arr
   where
     ib = fromEnum (minBound :: Token)
     ie = fromEnum (maxBound :: Token)
-    toTrue :: IOA.IOUArray Int Bool -> Int -> IO ()
-    toTrue arr i = IOA.writeArray arr i False
+    toFalse :: IOA.IOUArray Int Bool -> Int -> IO ()
+    toFalse arr i = IOA.writeArray arr i False
 
 {-# INLINE shouldBeIndexed #-}
 shouldBeIndexed :: Token -> Bool
