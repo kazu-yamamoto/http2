@@ -86,6 +86,11 @@ lookupStaticRevIndex t v = case staticRevIndex ! t of
         Nothing -> K i
         Just j  -> KV j
 
+{-# INLINE lookupStaticRevIndex' #-}
+lookupStaticRevIndex' :: Token -> RevResult
+lookupStaticRevIndex' t = case staticRevIndex ! t of
+    StaticEntry i _ -> K i
+
 ----------------------------------------------------------------
 
 newDynamicRevIndex :: IO DynamicRevIndex
@@ -164,11 +169,11 @@ lookupRevIndex (Entry _ t (k,v)) (RevIndex dyn oth)
         let !should = shouldBeIndexed t
         !r <- if should then do
                   mx <- lookupDynamicRevIndex t v dyn
-                  return $! case mx of
+                  return $ case mx of
                       N -> lookupStaticRevIndex t v
                       _ -> mx
                 else
-                  return $ lookupStaticRevIndex t v
+                  return $ lookupStaticRevIndex' t
         return (r, should)
 
 ----------------------------------------------------------------
