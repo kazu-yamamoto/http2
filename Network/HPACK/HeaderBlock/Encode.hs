@@ -78,10 +78,16 @@ encodeHeaderBuffer :: Buffer
 encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
     wbuf <- newWorkingBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
+    let fa = indexedHeaderField dyntbl wbuf useHuffman
+        fb = literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf useHuffman
+        fc = literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf useHuffman
+        fd = literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf useHuffman
+        fe = literalHeaderFieldWithoutIndexingNewName dyntbl wbuf useHuffman
+        fe' = literalHeaderFieldWithoutIndexingNewName' dyntbl wbuf useHuffman
     let step = case compressionAlgo of
-            Naive  -> naiveStep  dyntbl wbuf useHuffman
-            Static -> staticStep dyntbl wbuf useHuffman
-            Linear -> linearStep dyntbl wbuf useHuffman
+            Naive  -> naiveStep  fe'
+            Static -> staticStep dyntbl fa fd fe
+            Linear -> linearStep dyntbl fa fb fc fd
     loop wbuf step hs0
   where
     loop wbuf _    []     = do
@@ -99,77 +105,70 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
 
 ----------------------------------------------------------------
 
-naiveStep :: DynamicTable -> WorkingBuffer -> Bool -> Header -> IO ()
-naiveStep dyntbl wbuf huff (k,v) = literalHeaderFieldWithoutIndexingNewName dyntbl wbuf huff k v
+naiveStep :: FE' -> Header -> IO ()
+naiveStep fe (k,v) = fe k v
 
 ----------------------------------------------------------------
 
-staticStep :: DynamicTable -> WorkingBuffer -> Bool -> Header -> IO ()
-staticStep dyntbl wbuf huff h@(k,v) = do
-    let ent = toEntryToken h
-    res <- lookupRevIndex ent $ getRevIndex dyntbl
-    case res of
-        (KV hidx,_) -> indexedHeaderField dyntbl wbuf huff hidx
-        (K  hidx,_) -> literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx
-        (N,_      ) -> literalHeaderFieldWithoutIndexingNewName dyntbl wbuf huff k v
+staticStep :: DynamicTable -> FA -> FD -> FE -> Header -> IO ()
+staticStep dyntbl fa fd fe h =
+    lookupRevIndex h fa fd fe fd $ getRevIndex dyntbl
 
 ----------------------------------------------------------------
 
-linearStep :: DynamicTable -> WorkingBuffer -> Bool -> Header -> IO ()
-linearStep dyntbl wbuf huff h@(k,v) = do
-    let ent = toEntryToken h
-    res <- lookupRevIndex ent $ getRevIndex dyntbl
-    case res of
-        (KV hidx,_) ->
-            indexedHeaderField dyntbl wbuf huff hidx
-        (K hidx, True) -> do
-            literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf huff ent v hidx
-        (N, True) -> do
-            literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff ent k v
-        (K hidx, False) ->
-            literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx
-        (N, False) ->
-            literalHeaderFieldWithoutIndexingNewName dyntbl wbuf huff k v
+linearStep :: DynamicTable -> FA -> FB -> FC -> FD -> Header -> IO ()
+linearStep dyntbl fa fb fc fd h =
+    lookupRevIndex h fa fb fc fd $ getRevIndex dyntbl
+
+----------------------------------------------------------------
+
+type FA = HIndex -> IO ()
+type FB = HeaderValue -> Entry -> HIndex -> IO ()
+type FC = HeaderName -> HeaderValue -> Entry -> IO ()
+type FD = HeaderValue -> Entry -> HIndex -> IO ()
+type FE = HeaderName -> HeaderValue -> Entry -> IO ()
+type FE' = HeaderName -> HeaderValue -> IO ()
 
 -- 6.1.  Indexed Header Field Representation
 -- Indexed Header Field
-indexedHeaderField :: DynamicTable -> WorkingBuffer -> Bool
-                   -> HIndex -> IO ()
+indexedHeaderField
+    :: DynamicTable -> WorkingBuffer -> Bool -> FA
 indexedHeaderField dyntbl wbuf _ hidx =
     fromHIndexToIndex dyntbl hidx >>= index wbuf
 
 -- 6.2.1.  Literal Header Field with Incremental Indexing
 -- Literal Header Field with Incremental Indexing -- Indexed Name
 literalHeaderFieldWithIncrementalIndexingIndexedName
-    :: DynamicTable -> WorkingBuffer -> Bool
-    -> Entry -> HeaderValue -> HIndex -> IO ()
-literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf huff ent v hidx = do
+    :: DynamicTable -> WorkingBuffer -> Bool -> FB
+literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf huff v ent hidx = do
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 6 set01 v
     insertEntry ent dyntbl
 
 -- 6.2.1.  Literal Header Field with Incremental Indexing
 -- Literal Header Field with Incremental Indexing -- New Name
 literalHeaderFieldWithIncrementalIndexingNewName
-    :: DynamicTable -> WorkingBuffer -> Bool
-    -> Entry -> HeaderName -> HeaderValue -> IO ()
-literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff ent k v = do
+    :: DynamicTable -> WorkingBuffer -> Bool -> FC
+literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff k v ent = do
     newName wbuf huff set01 k v
     insertEntry ent dyntbl
 
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- Indexed Name
 literalHeaderFieldWithoutIndexingIndexedName
-    :: DynamicTable -> WorkingBuffer -> Bool
-    -> HeaderValue -> HIndex -> IO ()
-literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx =
+    :: DynamicTable -> WorkingBuffer -> Bool -> FB
+literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v _ hidx =
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 4 set0000 v
 
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- New Name
 literalHeaderFieldWithoutIndexingNewName
-    :: DynamicTable -> WorkingBuffer -> Bool
-    -> HeaderName -> HeaderValue -> IO ()
-literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v =
+    :: DynamicTable -> WorkingBuffer -> Bool -> FE
+literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v _ =
+    newName wbuf huff set0000 k v
+
+literalHeaderFieldWithoutIndexingNewName'
+    :: DynamicTable -> WorkingBuffer -> Bool -> HeaderName -> HeaderValue -> IO ()
+literalHeaderFieldWithoutIndexingNewName' _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
 ----------------------------------------------------------------

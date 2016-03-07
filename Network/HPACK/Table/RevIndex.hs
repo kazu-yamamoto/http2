@@ -2,7 +2,6 @@
 
 module Network.HPACK.Table.RevIndex (
     RevIndex
-  , RevResult(..)
   , newRevIndex
   , renewRevIndex
   , lookupRevIndex
@@ -30,10 +29,6 @@ import Network.HPACK.Table.Token
 import Network.HPACK.Types
 
 import System.IO.Unsafe
-
-----------------------------------------------------------------
-
-data RevResult = N | K HIndex | KV HIndex
 
 ----------------------------------------------------------------
 
@@ -78,18 +73,10 @@ staticRevIndex = A.array (minBound, end) $ map toEnt zs
         lst = zipWith (\(k,v) i -> (k,(v,i))) staticTableList $ map SIndex [1..]
         extract xs = (fst (head xs), map snd xs)
 
-{-# INLINE lookupStaticRevIndex #-}
-lookupStaticRevIndex :: Token -> HeaderValue -> RevResult
-lookupStaticRevIndex t v = case staticRevIndex ! t of
-    StaticEntry i Nothing  -> K i
-    StaticEntry i (Just m) -> case M.lookup v m of
-        Nothing -> K i
-        Just j  -> KV j
-
 {-# INLINE lookupStaticRevIndex' #-}
-lookupStaticRevIndex' :: Token -> RevResult
-lookupStaticRevIndex' t = case staticRevIndex ! t of
-    StaticEntry i _ -> K i
+lookupStaticRevIndex' :: Token -> (HIndex -> IO ()) -> IO ()
+lookupStaticRevIndex' t fd' = case staticRevIndex ! t of
+    StaticEntry i _ -> fd' i
 
 ----------------------------------------------------------------
 
@@ -103,15 +90,6 @@ renewDynamicRevIndex :: DynamicRevIndex -> IO ()
 renewDynamicRevIndex drev = mapM_ clear [beg..end]
   where
     clear t = writeIORef (drev ! t) M.empty
-
-{-# INLINE lookupDynamicRevIndex #-}
-lookupDynamicRevIndex :: Token -> HeaderValue -> DynamicRevIndex -> IO RevResult
-lookupDynamicRevIndex t v drev = do
-    let ref = drev ! t
-    m <- readIORef ref
-    return $! case M.lookup v m of
-        Nothing -> N
-        Just i  -> KV i
 
 {-# INLINE insertDynamicRevIndex #-}
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
@@ -134,12 +112,12 @@ renewOtherRevIndex :: OtherRevIdex -> IO ()
 renewOtherRevIndex ref = writeIORef ref M.empty
 
 {-# INLINE lookupOtherRevIndex #-}
-lookupOtherRevIndex :: HeaderName -> HeaderValue -> OtherRevIdex -> IO RevResult
-lookupOtherRevIndex k v ref = do
+lookupOtherRevIndex :: Header -> OtherRevIdex -> (HIndex -> IO ()) -> IO () -> IO ()
+lookupOtherRevIndex h ref fa' fc' = do
       oth <- readIORef ref
-      return $! case M.lookup (k,v) oth of
-          Nothing -> N
-          Just i  -> KV i
+      case M.lookup h oth of
+          Just i  -> fa' i
+          Nothing -> fc'
 
 {-# INLINE insertOtherRevIndex #-}
 insertOtherRevIndex :: HeaderName -> HeaderValue -> HIndex -> OtherRevIdex -> IO ()
@@ -159,22 +137,39 @@ renewRevIndex (RevIndex dyn oth) = do
     renewDynamicRevIndex dyn
     renewOtherRevIndex oth
 
+lookupDynamicStaticRevIndex :: Token -> HeaderValue -> DynamicRevIndex
+                            -> (HIndex -> IO ())
+                            -> (HIndex -> IO ())
+                            -> IO ()
+lookupDynamicStaticRevIndex t v drev fa' fbd' = do
+    let ref = drev ! t
+    m <- readIORef ref
+    case M.lookup v m of
+        Just i  -> fa' i
+        Nothing -> case staticRevIndex ! t of
+            StaticEntry i Nothing  -> fbd' i
+            StaticEntry i (Just m') -> case M.lookup v m' of
+                Nothing -> fbd' i
+                Just j  -> fa' j
+
 {-# INLINE lookupRevIndex #-}
-lookupRevIndex :: Entry -> RevIndex -> IO (RevResult,Bool)
-lookupRevIndex (Entry _ t (k,v)) (RevIndex dyn oth)
-  | t == TOTHER = do
-        !r <- lookupOtherRevIndex k v oth
-        return (r, True)
-  | otherwise   = do
-        let !should = shouldBeIndexed t
-        !r <- if should then do
-                  mx <- lookupDynamicRevIndex t v dyn
-                  return $ case mx of
-                      N -> lookupStaticRevIndex t v
-                      _ -> mx
-                else
-                  return $ lookupStaticRevIndex' t
-        return (r, should)
+lookupRevIndex :: Header
+               -> (HIndex -> IO ())
+               -> (HeaderValue -> Entry -> HIndex -> IO ())
+               -> (HeaderName -> HeaderValue -> Entry -> IO ())
+               -> (HeaderValue -> Entry -> HIndex -> IO ())
+               -> RevIndex
+               -> IO ()
+lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
+  | t == TOTHER       = lookupOtherRevIndex h oth fa' fc'
+  | shouldBeIndexed t = lookupDynamicStaticRevIndex t v dyn fa' fb'
+  | otherwise         = lookupStaticRevIndex' t fd'
+  where
+    ent@(Entry _ t _) = toEntryToken h -- fixme
+    fa' = fa
+    fb' = fb v ent
+    fc' = fc k v ent
+    fd' = fd v ent
 
 ----------------------------------------------------------------
 
