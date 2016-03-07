@@ -76,12 +76,12 @@ encodeHeaderBuffer :: Buffer
                    -> HeaderList
                    -> IO (HeaderList, Int) -- ^ Leftover 'HeaderList' and the number of filled bytes.
 encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
-    let step = case compressionAlgo of
-            Naive  -> naiveStep  useHuffman
-            Static -> staticStep useHuffman
-            Linear -> linearStep useHuffman
     wbuf <- newWorkingBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
+    let step = case compressionAlgo of
+            Naive  -> naiveStep  dyntbl wbuf useHuffman
+            Static -> staticStep dyntbl wbuf useHuffman
+            Linear -> linearStep dyntbl wbuf useHuffman
     loop wbuf step hs0
   where
     loop wbuf _    []     = do
@@ -90,7 +90,7 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
         return ([], len)
     loop wbuf step hhs@(h:hs) = do
         end <- currentOffset wbuf
-        ex <- try $ step dyntbl wbuf h
+        ex <- try $ step h
         case ex of
             Right ()           -> loop wbuf step hs
             Left BufferOverrun -> do
@@ -99,68 +99,77 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
 
 ----------------------------------------------------------------
 
-naiveStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
-naiveStep huff _dyntbl wbuf (k,v) = literalHeaderFieldWithoutIndexingNewName wbuf huff k v
+naiveStep :: DynamicTable -> WorkingBuffer -> Bool -> Header -> IO ()
+naiveStep dyntbl wbuf huff (k,v) = literalHeaderFieldWithoutIndexingNewName dyntbl wbuf huff k v
 
 ----------------------------------------------------------------
 
-staticStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
-staticStep huff dyntbl wbuf h@(k,v) = do
+staticStep :: DynamicTable -> WorkingBuffer -> Bool -> Header -> IO ()
+staticStep dyntbl wbuf huff h@(k,v) = do
     let ent = toEntryToken h
     res <- lookupRevIndex ent $ getRevIndex dyntbl
     case res of
-        (KV hidx,_) -> indexedHeaderField wbuf dyntbl hidx
-        (K  hidx,_) -> literalHeaderFieldWithoutIndexingIndexedName wbuf huff dyntbl v hidx
-        (N,_      ) -> literalHeaderFieldWithoutIndexingNewName wbuf huff k v
+        (KV hidx,_) -> indexedHeaderField dyntbl wbuf huff hidx
+        (K  hidx,_) -> literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx
+        (N,_      ) -> literalHeaderFieldWithoutIndexingNewName dyntbl wbuf huff k v
 
 ----------------------------------------------------------------
 
-linearStep :: Bool -> DynamicTable -> WorkingBuffer -> Header -> IO ()
-linearStep huff dyntbl wbuf h@(k,v) = do
+linearStep :: DynamicTable -> WorkingBuffer -> Bool -> Header -> IO ()
+linearStep dyntbl wbuf huff h@(k,v) = do
     let ent = toEntryToken h
     res <- lookupRevIndex ent $ getRevIndex dyntbl
     case res of
         (KV hidx,_) ->
-            -- 6.1.  Indexed Header Field Representation
-            -- Indexed Header Field
-            indexedHeaderField wbuf dyntbl hidx
+            indexedHeaderField dyntbl wbuf huff hidx
         (K hidx, True) -> do
-            -- 6.2.1.  Literal Header Field with Incremental Indexing
-            -- Literal Header Field with Incremental Indexing
-            -- -- Indexed Name
-            literalHeaderFieldWithIncrementalIndexingIndexedName wbuf huff dyntbl ent v hidx
+            literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf huff ent v hidx
         (N, True) -> do
-            -- 6.2.1.  Literal Header Field with Incremental Indexing
-            -- Literal Header Field with Incremental Indexing -- New Name
-            literalHeaderFieldWithIncrementalIndexingNewName wbuf huff dyntbl ent k v
+            literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff ent k v
         (K hidx, False) ->
-            -- 6.2.2.  Literal Header Field without Indexing
-            -- Literal Header Field without Indexing -- Indexed Name
-            literalHeaderFieldWithoutIndexingIndexedName wbuf huff dyntbl v hidx
+            literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx
         (N, False) ->
-            -- 6.2.2.  Literal Header Field without Indexing
-            -- Literal Header Field without Indexing -- New Name
-            literalHeaderFieldWithoutIndexingNewName wbuf huff k v
+            literalHeaderFieldWithoutIndexingNewName dyntbl wbuf huff k v
 
-indexedHeaderField :: WorkingBuffer -> DynamicTable -> HIndex -> IO ()
-indexedHeaderField wbuf dyntbl hidx = fromHIndexToIndex dyntbl hidx >>= index wbuf
+-- 6.1.  Indexed Header Field Representation
+-- Indexed Header Field
+indexedHeaderField :: DynamicTable -> WorkingBuffer -> Bool
+                   -> HIndex -> IO ()
+indexedHeaderField dyntbl wbuf _ hidx =
+    fromHIndexToIndex dyntbl hidx >>= index wbuf
 
-literalHeaderFieldWithIncrementalIndexingIndexedName :: WorkingBuffer -> Bool -> DynamicTable -> Entry -> HeaderValue -> HIndex -> IO ()
-literalHeaderFieldWithIncrementalIndexingIndexedName wbuf huff dyntbl ent v hidx = do
+-- 6.2.1.  Literal Header Field with Incremental Indexing
+-- Literal Header Field with Incremental Indexing -- Indexed Name
+literalHeaderFieldWithIncrementalIndexingIndexedName
+    :: DynamicTable -> WorkingBuffer -> Bool
+    -> Entry -> HeaderValue -> HIndex -> IO ()
+literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf huff ent v hidx = do
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 6 set01 v
     insertEntry ent dyntbl
 
-literalHeaderFieldWithIncrementalIndexingNewName :: WorkingBuffer -> Bool -> DynamicTable -> Entry -> HeaderName -> HeaderValue -> IO ()
-literalHeaderFieldWithIncrementalIndexingNewName wbuf huff dyntbl ent k v = do
+-- 6.2.1.  Literal Header Field with Incremental Indexing
+-- Literal Header Field with Incremental Indexing -- New Name
+literalHeaderFieldWithIncrementalIndexingNewName
+    :: DynamicTable -> WorkingBuffer -> Bool
+    -> Entry -> HeaderName -> HeaderValue -> IO ()
+literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff ent k v = do
     newName wbuf huff set01 k v
     insertEntry ent dyntbl
 
-literalHeaderFieldWithoutIndexingIndexedName :: WorkingBuffer -> Bool -> DynamicTable -> HeaderValue -> HIndex -> IO ()
-literalHeaderFieldWithoutIndexingIndexedName wbuf huff dyntbl v hidx =
+-- 6.2.2.  Literal Header Field without Indexing
+-- Literal Header Field without Indexing -- Indexed Name
+literalHeaderFieldWithoutIndexingIndexedName
+    :: DynamicTable -> WorkingBuffer -> Bool
+    -> HeaderValue -> HIndex -> IO ()
+literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx =
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 4 set0000 v
 
-literalHeaderFieldWithoutIndexingNewName :: WorkingBuffer -> Bool -> HeaderName -> HeaderValue -> IO ()
-literalHeaderFieldWithoutIndexingNewName wbuf huff k v =
+-- 6.2.2.  Literal Header Field without Indexing
+-- Literal Header Field without Indexing -- New Name
+literalHeaderFieldWithoutIndexingNewName
+    :: DynamicTable -> WorkingBuffer -> Bool
+    -> HeaderName -> HeaderValue -> IO ()
+literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
 ----------------------------------------------------------------
