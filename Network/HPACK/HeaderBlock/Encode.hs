@@ -84,10 +84,11 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
         fd = literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf useHuffman
         fe = literalHeaderFieldWithoutIndexingNewName dyntbl wbuf useHuffman
         fe' = literalHeaderFieldWithoutIndexingNewName' dyntbl wbuf useHuffman
-    let step = case compressionAlgo of
+        rev = getRevIndex dyntbl
+        step = case compressionAlgo of
             Naive  -> naiveStep  fe'
-            Static -> staticStep dyntbl fa fd fe
-            Linear -> linearStep dyntbl fa fb fc fd
+            Static -> staticStep rev fa fd fe
+            Linear -> linearStep rev fa fb fc fd
     loop wbuf step hs0
   where
     loop wbuf _    []     = do
@@ -110,15 +111,13 @@ naiveStep fe (k,v) = fe k v
 
 ----------------------------------------------------------------
 
-staticStep :: DynamicTable -> FA -> FD -> FE -> Header -> IO ()
-staticStep dyntbl fa fd fe h =
-    lookupRevIndex h fa fd fe fd $ getRevIndex dyntbl
+staticStep :: RevIndex -> FA -> FD -> FE -> Header -> IO ()
+staticStep rev fa fd fe h = lookupRevIndex h fa fd fe fd rev
 
 ----------------------------------------------------------------
 
-linearStep :: DynamicTable -> FA -> FB -> FC -> FD -> Header -> IO ()
-linearStep dyntbl fa fb fc fd h =
-    lookupRevIndex h fa fb fc fd $ getRevIndex dyntbl
+linearStep :: RevIndex -> FA -> FB -> FC -> FD -> Header -> IO ()
+linearStep rev fa fb fc fd h = lookupRevIndex h fa fb fc fd rev
 
 ----------------------------------------------------------------
 
