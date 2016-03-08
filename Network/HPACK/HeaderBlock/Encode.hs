@@ -8,7 +8,8 @@ module Network.HPACK.HeaderBlock.Encode (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception (bracket, try, throwIO)
+import Control.Exception (bracket, throwIO)
+import qualified Control.Exception as E
 import Control.Monad (when)
 import Data.Bits (setBit)
 import qualified Data.ByteString as BS
@@ -97,12 +98,12 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
         return ([], len)
     loop wbuf step hhs@(h:hs) = do
         end <- currentOffset wbuf
-        ex <- try $ step h
-        case ex of
-            Right ()           -> loop wbuf step hs
-            Left BufferOverrun -> do
-                let !len = end `minusPtr` buf
-                return (hhs,len)
+        cont <- (step h >> return True) `E.catch` \BufferOverrun -> return False
+        if cont then
+            loop wbuf step hs
+          else do
+            let !len = end `minusPtr` buf
+            return (hhs,len)
 
 ----------------------------------------------------------------
 
