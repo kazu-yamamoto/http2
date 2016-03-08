@@ -14,6 +14,7 @@ import Control.Monad (when)
 import Data.Bits (setBit)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString, create, memcpy)
+import Data.IORef
 import Data.Word (Word8)
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (minusPtr)
@@ -86,24 +87,26 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
         fe = literalHeaderFieldWithoutIndexingNewName dyntbl wbuf useHuffman
         fe' = literalHeaderFieldWithoutIndexingNewName' dyntbl wbuf useHuffman
         rev = getRevIndex dyntbl
-        step = case compressionAlgo of
+        step0 = case compressionAlgo of
             Naive  -> naiveStep  fe'
             Static -> staticStep rev fa fd fe
             Linear -> linearStep rev fa fb fc fd
-    loop wbuf step hs0
+    ref1 <- currentOffset wbuf >>= newIORef
+    ref2 <- newIORef hs0
+    loop wbuf ref1 ref2 step0 hs0 `E.catch` \BufferOverrun -> return ()
+    end <- readIORef ref1
+    let !len = end `minusPtr` buf
+    hs <- readIORef ref2
+    return (hs, len)
   where
-    loop wbuf _    []     = do
-        end <- currentOffset wbuf
-        let !len = end `minusPtr` buf
-        return ([], len)
-    loop wbuf step hhs@(h:hs) = do
-        end <- currentOffset wbuf
-        cont <- (step h >> return True) `E.catch` \BufferOverrun -> return False
-        if cont then
-            loop wbuf step hs
-          else do
-            let !len = end `minusPtr` buf
-            return (hhs,len)
+    loop wbuf ref1 ref2 step hsx = go hsx
+      where
+        go [] = return ()
+        go (h:hs) = do
+            _ <- step h
+            currentOffset wbuf >>= writeIORef ref1
+            writeIORef ref2 hs
+            go hs
 
 ----------------------------------------------------------------
 
