@@ -32,7 +32,7 @@ import System.IO.Unsafe
 
 ----------------------------------------------------------------
 
-data RevIndex = RevIndex DynamicRevIndex OtherRevIdex
+data RevIndex = RevIndex !DynamicRevIndex !OtherRevIdex
 
 type DynamicRevIndex = Array Token (IORef ValueMap)
 
