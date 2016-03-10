@@ -1,3 +1,11 @@
+## 1.5.2
+
+* Minor optimization for HPACK.
+
+## 1.5.1
+
+* Adding a missing file for testing.
+
 ## 1.5.0
 
 * New API for HPACK. HPACK is much faster than 1.4.x (roughly x3.2).
