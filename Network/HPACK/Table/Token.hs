@@ -4,7 +4,6 @@ module Network.HPACK.Table.Token where
 
 import qualified Data.ByteString as B
 import Data.ByteString.Internal (ByteString(..), memcmp)
-import Data.Ix
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
@@ -12,260 +11,264 @@ import System.IO.Unsafe (unsafeDupablePerformIO)
 -- $setup
 -- >>> :set -XOverloadedStrings
 
-data Token = TAuthority
-           | TMethod
-           | TPath
-           | TScheme
-           | TStatus
-           | TAcceptCharset
-           | TAcceptEncoding
-           | TAcceptLanguage
-           | TAcceptRanges
-           | TAccept
-           | TAccessControlAllowOrigin
-           | TAge
-           | TAllow
-           | TAuthorization
-           | TCacheControl
-           | TContentDisposition
-           | TContentEncoding
-           | TContentLanguage
-           | TContentLength
-           | TContentLocation
-           | TContentRange
-           | TContentType
-           | TCookie
-           | TDate
-           | TEtag
-           | TExpect
-           | TExpires
-           | TFrom
-           | THost
-           | TIfMatch
-           | TIfModifiedSince
-           | TIfNoneMatch
-           | TIfRange
-           | TIfUnmodifiedSince
-           | TLastModified
-           | TLink
-           | TLocation
-           | TMaxForwards
-           | TProxyAuthenticate
-           | TProxyAuthorization
-           | TRange
-           | TReferer
-           | TRefresh
-           | TRetryAfter
-           | TServer
-           | TSetCookie
-           | TStrictTransportSecurity
-           | TTransferEncoding
-           | TUserAgent
-           | TVary
-           | TVia
-           | TWwwAuthenticate
-           | TOTHER
-           deriving (Eq,Ord,Show,Enum,Bounded,Ix)
+data Token = Token !Int deriving (Eq, Show)
+
+fromToken :: Token -> Int
+fromToken (Token n) = n
+
+tokenAuthority                = Token 0
+tokenMethod                   = Token 1
+tokenPath                     = Token 2
+tokenScheme                   = Token 3
+tokenStatus                   = Token 4
+tokenAcceptCharset            = Token 5
+tokenAcceptEncoding           = Token 6
+tokenAcceptLanguage           = Token 7
+tokenAcceptRanges             = Token 8
+tokenAccept                   = Token 9
+tokenAccessControlAllowOrigin = Token 10
+tokenAge                      = Token 11
+tokenAllow                    = Token 12
+tokenAuthorization            = Token 13
+tokenCacheControl             = Token 14
+tokenContentDisposition       = Token 15
+tokenContentEncoding          = Token 16
+tokenContentLanguage          = Token 17
+tokenContentLength            = Token 18
+tokenContentLocation          = Token 19
+tokenContentRange             = Token 20
+tokenContentType              = Token 21
+tokenCookie                   = Token 22
+tokenDate                     = Token 23
+tokenEtag                     = Token 24
+tokenExpect                   = Token 25
+tokenExpires                  = Token 26
+tokenFrom                     = Token 27
+tokenHost                     = Token 28
+tokenIfMatch                  = Token 29
+tokenIfModifiedSince          = Token 30
+tokenIfNoneMatch              = Token 31
+tokenIfRange                  = Token 32
+tokenIfUnmodifiedSince        = Token 33
+tokenLastModified             = Token 34
+tokenLink                     = Token 35
+tokenLocation                 = Token 36
+tokenMaxForwards              = Token 37
+tokenProxyAuthenticate        = Token 38
+tokenProxyAuthorization       = Token 39
+tokenRange                    = Token 40
+tokenReferer                  = Token 41
+tokenRefresh                  = Token 42
+tokenRetryAfter               = Token 43
+tokenServer                   = Token 44
+tokenSetCookie                = Token 45
+tokenStrictTransportSecurity  = Token 46
+tokenTransferEncoding         = Token 47
+tokenUserAgent                = Token 48
+tokenVary                     = Token 49
+tokenVia                      = Token 50
+tokenWwwAuthenticate          = Token 51
+tokenOther                    = Token 52
 
 -- |
 --
 -- >>> toToken ":authority"
--- TAuthority
+-- Token 0
 -- >>> toToken ":method"
--- TMethod
+-- Token 1
 -- >>> toToken ":path"
--- TPath
+-- Token 2
 -- >>> toToken ":scheme"
--- TScheme
+-- Token 3
 -- >>> toToken ":status"
--- TStatus
+-- Token 4
 -- >>> toToken "accept-charset"
--- TAcceptCharset
+-- Token 5
 -- >>> toToken "accept-encoding"
--- TAcceptEncoding
+-- Token 6
 -- >>> toToken "accept-language"
--- TAcceptLanguage
+-- Token 7
 -- >>> toToken "accept-ranges"
--- TAcceptRanges
+-- Token 8
 -- >>> toToken "accept"
--- TAccept
+-- Token 9
 -- >>> toToken "access-control-allow-origin"
--- TAccessControlAllowOrigin
+-- Token 10
 -- >>> toToken "age"
--- TAge
+-- Token 11
 -- >>> toToken "allow"
--- TAllow
+-- Token 12
 -- >>> toToken "authorization"
--- TAuthorization
+-- Token 13
 -- >>> toToken "cache-control"
--- TCacheControl
+-- Token 14
 -- >>> toToken "content-disposition"
--- TContentDisposition
+-- Token 15
 -- >>> toToken "content-encoding"
--- TContentEncoding
+-- Token 16
 -- >>> toToken "content-language"
--- TContentLanguage
+-- Token 17
 -- >>> toToken "content-length"
--- TContentLength
+-- Token 18
 -- >>> toToken "content-location"
--- TContentLocation
+-- Token 19
 -- >>> toToken "content-range"
--- TContentRange
+-- Token 20
 -- >>> toToken "content-type"
--- TContentType
+-- Token 21
 -- >>> toToken "cookie"
--- TCookie
+-- Token 22
 -- >>> toToken "date"
--- TDate
+-- Token 23
 -- >>> toToken "etag"
--- TEtag
+-- Token 24
 -- >>> toToken "expect"
--- TExpect
+-- Token 25
 -- >>> toToken "expires"
--- TExpires
+-- Token 26
 -- >>> toToken "from"
--- TFrom
+-- Token 27
 -- >>> toToken "host"
--- THost
+-- Token 28
 -- >>> toToken "if-match"
--- TIfMatch
+-- Token 29
 -- >>> toToken "if-modified-since"
--- TIfModifiedSince
+-- Token 30
 -- >>> toToken "if-none-match"
--- TIfNoneMatch
+-- Token 31
 -- >>> toToken "if-range"
--- TIfRange
+-- Token 32
 -- >>> toToken "if-unmodified-since"
--- TIfUnmodifiedSince
+-- Token 33
 -- >>> toToken "last-modified"
--- TLastModified
+-- Token 34
 -- >>> toToken "link"
--- TLink
+-- Token 35
 -- >>> toToken "location"
--- TLocation
+-- Token 36
 -- >>> toToken "max-forwards"
--- TMaxForwards
+-- Token 37
 -- >>> toToken "proxy-authenticate"
--- TProxyAuthenticate
+-- Token 38
 -- >>> toToken "proxy-authorization"
--- TProxyAuthorization
+-- Token 39
 -- >>> toToken "range"
--- TRange
+-- Token 40
 -- >>> toToken "referer"
--- TReferer
+-- Token 41
 -- >>> toToken "refresh"
--- TRefresh
+-- Token 42
 -- >>> toToken "retry-after"
--- TRetryAfter
+-- Token 43
 -- >>> toToken "server"
--- TServer
+-- Token 44
 -- >>> toToken "set-cookie"
--- TSetCookie
+-- Token 45
 -- >>> toToken "strict-transport-security"
--- TStrictTransportSecurity
+-- Token 46
 -- >>> toToken "transfer-encoding"
--- TTransferEncoding
+-- Token 47
 -- >>> toToken "user-agent"
--- TUserAgent
+-- Token 48
 -- >>> toToken "vary"
--- TVary
+-- Token 49
 -- >>> toToken "via"
--- TVia
+-- Token 50
 -- >>> toToken "www-authenticate"
--- TWwwAuthenticate
+-- Token 51
 -- >>> toToken "foo"
--- TOTHER
+-- Token 52
 toToken :: ByteString -> Token
 toToken bs = case len of
     3 -> case lst of
-        97  -> if bs === "via" then TVia else TOTHER
-        101 -> if bs === "age" then TAge else TOTHER
-        _   -> TOTHER
+        97  -> if bs === "via" then tokenVia else tokenOther
+        101 -> if bs === "age" then tokenAge else tokenOther
+        _   -> tokenOther
     4 -> case lst of
-        101 -> if bs === "date" then TDate else TOTHER
-        103 -> if bs === "etag" then TEtag else TOTHER
-        107 -> if bs === "link" then TLink else TOTHER
-        109 -> if bs === "from" then TFrom else TOTHER
-        116 -> if bs === "host" then THost else TOTHER
-        121 -> if bs === "vary" then TVary else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "date" then tokenDate else tokenOther
+        103 -> if bs === "etag" then tokenEtag else tokenOther
+        107 -> if bs === "link" then tokenLink else tokenOther
+        109 -> if bs === "from" then tokenFrom else tokenOther
+        116 -> if bs === "host" then tokenHost else tokenOther
+        121 -> if bs === "vary" then tokenVary else tokenOther
+        _   -> tokenOther
     5 -> case lst of
-        101 -> if bs === "range" then TRange else TOTHER
-        104 -> if bs === ":path" then TPath else TOTHER
-        119 -> if bs === "allow" then TAllow else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "range" then tokenRange else tokenOther
+        104 -> if bs === ":path" then tokenPath else tokenOther
+        119 -> if bs === "allow" then tokenAllow else tokenOther
+        _   -> tokenOther
     6 -> case lst of
-        101 -> if bs === "cookie" then TCookie else TOTHER
-        114 -> if bs === "server" then TServer else TOTHER
-        116 -> if bs === "expect" then TExpect else
-               if bs === "accept" then TAccept else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "cookie" then tokenCookie else tokenOther
+        114 -> if bs === "server" then tokenServer else tokenOther
+        116 -> if bs === "expect" then tokenExpect else
+               if bs === "accept" then tokenAccept else tokenOther
+        _   -> tokenOther
     7 -> case lst of
-        100 -> if bs === ":method" then TMethod else TOTHER
-        101 -> if bs === ":scheme" then TScheme else TOTHER
-        104 -> if bs === "refresh" then TRefresh else TOTHER
-        114 -> if bs === "referer" then TReferer else TOTHER
-        115 -> if bs === "expires" then TExpires else
-               if bs === ":status" then TStatus else TOTHER
-        _   -> TOTHER
+        100 -> if bs === ":method" then tokenMethod else tokenOther
+        101 -> if bs === ":scheme" then tokenScheme else tokenOther
+        104 -> if bs === "refresh" then tokenRefresh else tokenOther
+        114 -> if bs === "referer" then tokenReferer else tokenOther
+        115 -> if bs === "expires" then tokenExpires else
+               if bs === ":status" then tokenStatus else tokenOther
+        _   -> tokenOther
     8 -> case lst of
-        101 -> if bs === "if-range" then TIfRange else TOTHER
-        104 -> if bs === "if-match" then TIfMatch else TOTHER
-        110 -> if bs === "location" then TLocation else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "if-range" then tokenIfRange else tokenOther
+        104 -> if bs === "if-match" then tokenIfMatch else tokenOther
+        110 -> if bs === "location" then tokenLocation else tokenOther
+        _   -> tokenOther
     10 -> case lst of
-        101 -> if bs === "set-cookie" then TSetCookie else TOTHER
-        116 -> if bs === "user-agent" then TUserAgent else TOTHER
-        121 -> if bs === ":authority" then TAuthority else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "set-cookie" then tokenSetCookie else tokenOther
+        116 -> if bs === "user-agent" then tokenUserAgent else tokenOther
+        121 -> if bs === ":authority" then tokenAuthority else tokenOther
+        _   -> tokenOther
     11 -> case lst of
-        114 -> if bs === "retry-after" then TRetryAfter else TOTHER
-        _   -> TOTHER
+        114 -> if bs === "retry-after" then tokenRetryAfter else tokenOther
+        _   -> tokenOther
     12 -> case lst of
-        101 -> if bs === "content-type" then TContentType else TOTHER
-        115 -> if bs === "max-forwards" then TMaxForwards else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "content-type" then tokenContentType else tokenOther
+        115 -> if bs === "max-forwards" then tokenMaxForwards else tokenOther
+        _   -> tokenOther
     13 -> case lst of
-        100 -> if bs === "last-modified" then TLastModified else TOTHER
-        101 -> if bs === "content-range" then TContentRange else TOTHER
-        104 -> if bs === "if-none-match" then TIfNoneMatch else TOTHER
-        108 -> if bs === "cache-control" then TCacheControl else TOTHER
-        110 -> if bs === "authorization" then TAuthorization else TOTHER
-        115 -> if bs === "accept-ranges" then TAcceptRanges else TOTHER
-        _   -> TOTHER
+        100 -> if bs === "last-modified" then tokenLastModified else tokenOther
+        101 -> if bs === "content-range" then tokenContentRange else tokenOther
+        104 -> if bs === "if-none-match" then tokenIfNoneMatch else tokenOther
+        108 -> if bs === "cache-control" then tokenCacheControl else tokenOther
+        110 -> if bs === "authorization" then tokenAuthorization else tokenOther
+        115 -> if bs === "accept-ranges" then tokenAcceptRanges else tokenOther
+        _   -> tokenOther
     14 -> case lst of
-        104 -> if bs === "content-length" then TContentLength else TOTHER
-        116 -> if bs === "accept-charset" then TAcceptCharset else TOTHER
-        _   -> TOTHER
+        104 -> if bs === "content-length" then tokenContentLength else tokenOther
+        116 -> if bs === "accept-charset" then tokenAcceptCharset else tokenOther
+        _   -> tokenOther
     15 -> case lst of
-        101 -> if bs === "accept-language" then TAcceptLanguage else TOTHER
-        103 -> if bs === "accept-encoding" then TAcceptEncoding else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "accept-language" then tokenAcceptLanguage else tokenOther
+        103 -> if bs === "accept-encoding" then tokenAcceptEncoding else tokenOther
+        _   -> tokenOther
     16 -> case lst of
-        101 -> if bs === "content-language" then TContentLanguage else
-               if bs === "www-authenticate" then TWwwAuthenticate else TOTHER
-        103 -> if bs === "content-encoding" then TContentEncoding else TOTHER
-        110 -> if bs === "content-location" then TContentLocation else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "content-language" then tokenContentLanguage else
+               if bs === "www-authenticate" then tokenWwwAuthenticate else tokenOther
+        103 -> if bs === "content-encoding" then tokenContentEncoding else tokenOther
+        110 -> if bs === "content-location" then tokenContentLocation else tokenOther
+        _   -> tokenOther
     17 -> case lst of
-        101 -> if bs === "if-modified-since" then TIfModifiedSince else TOTHER
-        103 -> if bs === "transfer-encoding" then TTransferEncoding else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "if-modified-since" then tokenIfModifiedSince else tokenOther
+        103 -> if bs === "transfer-encoding" then tokenTransferEncoding else tokenOther
+        _   -> tokenOther
     18 -> case lst of
-        101 -> if bs === "proxy-authenticate" then TProxyAuthenticate else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "proxy-authenticate" then tokenProxyAuthenticate else tokenOther
+        _   -> tokenOther
     19 -> case lst of
-        101 -> if bs === "if-unmodified-since" then TIfUnmodifiedSince else TOTHER
-        110 -> if bs === "proxy-authorization" then TProxyAuthorization else
-               if bs === "content-disposition" then TContentDisposition else TOTHER
-        _   -> TOTHER
+        101 -> if bs === "if-unmodified-since" then tokenIfUnmodifiedSince else tokenOther
+        110 -> if bs === "proxy-authorization" then tokenProxyAuthorization else
+               if bs === "content-disposition" then tokenContentDisposition else tokenOther
+        _   -> tokenOther
     25 -> case lst of
-        121 -> if bs === "strict-transport-security" then TStrictTransportSecurity else TOTHER
-        _   -> TOTHER
+        121 -> if bs === "strict-transport-security" then tokenStrictTransportSecurity else tokenOther
+        _   -> tokenOther
     27 -> case lst of
-        110 -> if bs === "access-control-allow-origin" then TAccessControlAllowOrigin else TOTHER
-        _   -> TOTHER
-    _ -> TOTHER
+        110 -> if bs === "access-control-allow-origin" then tokenAccessControlAllowOrigin else tokenOther
+        _   -> tokenOther
+    _ -> tokenOther
   where
     len = B.length bs
     lst = B.last bs

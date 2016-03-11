@@ -34,7 +34,7 @@ import System.IO.Unsafe
 
 data RevIndex = RevIndex !DynamicRevIndex !OtherRevIdex
 
-type DynamicRevIndex = Array Token (IORef ValueMap)
+type DynamicRevIndex = Array Int (IORef ValueMap)
 
 -- We always create an index for a pair of an unknown header and its value
 -- in Linear{H}.
@@ -42,7 +42,7 @@ type OtherRevIdex = IORef (Map (HeaderName,HeaderValue) HIndex)
 
 ----------------------------------------------------------------
 
-type StaticRevIndex = Array Token StaticEntry
+type StaticRevIndex = Array Int StaticEntry
 
 data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap)
 
@@ -50,18 +50,18 @@ type ValueMap = Map HeaderValue HIndex
 
 ----------------------------------------------------------------
 
-beg :: Token
-beg = minBound
+beg :: Int
+beg = 0
 
-end :: Token
-end = toEnum (fromEnum (maxBound :: Token) - 1)
+end :: Int
+end = 51
 
 ----------------------------------------------------------------
 
 staticRevIndex :: StaticRevIndex
-staticRevIndex = A.array (minBound, end) $ map toEnt zs
+staticRevIndex = A.array (beg, end) $ map toEnt zs
   where
-    toEnt (k,xs) = (toToken k, m)
+    toEnt (k,xs) = (fromToken (toToken k), m)
       where
         m = case xs of
             []  -> error "staticRevIndex"
@@ -75,7 +75,7 @@ staticRevIndex = A.array (minBound, end) $ map toEnt zs
 
 {-# INLINE lookupStaticRevIndex #-}
 lookupStaticRevIndex :: Token -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex t fd' = case staticRevIndex ! t of
+lookupStaticRevIndex t fd' = case staticRevIndex ! fromToken t of
     StaticEntry i _ -> fd' i
 
 ----------------------------------------------------------------
@@ -97,11 +97,12 @@ lookupDynamicStaticRevIndex :: Token -> HeaderValue -> DynamicRevIndex
                             -> (HIndex -> IO ())
                             -> IO ()
 lookupDynamicStaticRevIndex t v drev fa' fbd' = do
-    let ref = drev ! t
+    let ix = fromToken t
+        ref = drev ! ix
     m <- readIORef ref
     case M.lookup v m of
         Just i  -> fa' i
-        Nothing -> case staticRevIndex ! t of
+        Nothing -> case staticRevIndex ! ix of
             StaticEntry i Nothing  -> fbd' i
             StaticEntry i (Just m') -> case M.lookup v m' of
                 Nothing -> fbd' i
@@ -111,13 +112,13 @@ lookupDynamicStaticRevIndex t v drev fa' fbd' = do
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
 insertDynamicRevIndex t v i drev = modifyIORef ref $ M.insert v i
   where
-    ref = drev ! t
+    ref = drev ! fromToken t
 
 {-# INLINE deleteDynamicRevIndex#-}
 deleteDynamicRevIndex :: Token -> HeaderValue -> DynamicRevIndex -> IO ()
 deleteDynamicRevIndex t v drev = modifyIORef ref $ M.delete v
   where
-    ref = drev ! t
+    ref = drev ! fromToken t
 
 ----------------------------------------------------------------
 
@@ -162,7 +163,7 @@ lookupRevIndex :: Header
                -> RevIndex
                -> IO ()
 lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
-  | t == TOTHER       = lookupOtherRevIndex h oth fa' fc'
+  | t == tokenOther   = lookupOtherRevIndex h oth fa' fc'
   | shouldBeIndexed t = lookupDynamicStaticRevIndex t v dyn fa' fb'
   | otherwise         = lookupStaticRevIndex t fd'
   where
@@ -177,14 +178,14 @@ lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
 {-# INLINE insertRevIndex #-}
 insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
 insertRevIndex (Entry _ t (k,v)) i (RevIndex dyn oth)
-  | t == TOTHER = insertOtherRevIndex k v i oth
-  | otherwise   = insertDynamicRevIndex t v i dyn
+  | t == tokenOther = insertOtherRevIndex k v i oth
+  | otherwise       = insertDynamicRevIndex t v i dyn
 
 {-# INLINE deleteRevIndex #-}
 deleteRevIndex :: RevIndex -> Entry -> IO ()
 deleteRevIndex (RevIndex dyn oth) (Entry _ t (k,v))
-  | t == TOTHER = deleteOtherRevIndex k v oth
-  | otherwise   = deleteDynamicRevIndex t v dyn
+  | t == tokenOther = deleteOtherRevIndex k v oth
+  | otherwise       = deleteDynamicRevIndex t v dyn
 
 {-# INLINE deleteRevIndexList #-}
 deleteRevIndexList :: [Entry] -> RevIndex -> IO ()
@@ -204,14 +205,14 @@ headersNotToIndex = [
 indexedOrNot :: UArray Int Bool
 indexedOrNot = unsafePerformIO $ do
     arr <- IOA.newArray (ib,ie) True :: IO (IOA.IOUArray Int Bool)
-    mapM_ (toFalse arr) $ map (fromEnum . toToken) headersNotToIndex
+    mapM_ (toFalse arr) $ map (fromToken . toToken) headersNotToIndex
     Unsafe.unsafeFreeze arr
   where
-    ib = fromEnum (minBound :: Token)
-    ie = fromEnum (maxBound :: Token)
+    ib = beg
+    ie = end
     toFalse :: IOA.IOUArray Int Bool -> Int -> IO ()
     toFalse arr i = IOA.writeArray arr i False
 
 {-# INLINE shouldBeIndexed #-}
 shouldBeIndexed :: Token -> Bool
-shouldBeIndexed t = indexedOrNot U.! fromEnum t
+shouldBeIndexed t = indexedOrNot U.! fromToken t

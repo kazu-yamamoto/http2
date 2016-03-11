@@ -48,7 +48,7 @@ headerSize (k,v) = BS.length k
 
 -- | From 'Header' to 'Entry'.
 toEntry :: Header -> Entry
-toEntry kv = Entry siz TOTHER kv
+toEntry kv = Entry siz tokenOther kv
   where
     !siz = headerSize kv
 
@@ -84,7 +84,7 @@ entryHeaderValue (Entry _ _ (_,v)) = v
 
 -- | Dummy 'Entry' to initialize a dynamic table.
 dummyEntry :: Entry
-dummyEntry = Entry 0 TOTHER ("dummy","dummy")
+dummyEntry = Entry 0 tokenOther ("dummy","dummy")
 
 -- | How many entries can be stored in a dynamic table?
 maxNumbers :: Size -> Int
