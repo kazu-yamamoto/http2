@@ -149,11 +149,11 @@ lookupRevIndex :: Header
                -> RevIndex
                -> IO ()
 lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
-  | isTokenOther t    = lookupOtherRevIndex h oth fa' fc'
-  | shouldBeIndexed t = lookupDynamicStaticRevIndex t v dyn fa' fb'
-  | otherwise         = lookupStaticRevIndex t fd'
+  | ix == otherToken = lookupOtherRevIndex h oth fa' fc'
+  | should           = lookupDynamicStaticRevIndex t v dyn fa' fb'
+  | otherwise        = lookupStaticRevIndex t fd'
   where
-    ent@(Entry _ t _) = toEntryToken h
+    ent@(Entry _ t@(Token ix should _) _) = toEntryToken h
     fa' = fa
     fb' = fb v ent
     fc' = fc k v ent
