@@ -11,7 +11,6 @@ module Network.HPACK.Table.Entry (
   -- * Header and Entry
   , toEntry
   , toEntryToken
-  , fromEntry
   -- * Getters
   , entrySize
   , entryHeader
@@ -56,10 +55,6 @@ toEntryToken :: Header -> Token -> Entry
 toEntryToken kv t = Entry siz t kv
   where
     !siz = headerSize kv
-
--- | From 'Entry' to 'Header'.
-fromEntry :: Entry -> Header
-fromEntry (Entry _ _ kv) = kv
 
 ----------------------------------------------------------------
 
