@@ -60,8 +60,8 @@ staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
         extract xs = (fst (head xs), map snd xs)
 
 {-# INLINE lookupStaticRevIndex #-}
-lookupStaticRevIndex :: Token -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex t fd' = case staticRevIndex ! toIx t of
+lookupStaticRevIndex :: Int -> (HIndex -> IO ()) -> IO ()
+lookupStaticRevIndex ix fd' = case staticRevIndex ! ix of
     StaticEntry i _ -> fd' i
 
 ----------------------------------------------------------------
@@ -78,13 +78,12 @@ renewDynamicRevIndex drev = mapM_ clear [minToken..maxToken]
     clear t = writeIORef (drev ! t) M.empty
 
 {-# INLINE lookupDynamicStaticRevIndex #-}
-lookupDynamicStaticRevIndex :: Token -> HeaderValue -> DynamicRevIndex
+lookupDynamicStaticRevIndex :: Int -> HeaderValue -> DynamicRevIndex
                             -> (HIndex -> IO ())
                             -> (HIndex -> IO ())
                             -> IO ()
-lookupDynamicStaticRevIndex t v drev fa' fbd' = do
-    let ix = toIx t
-        ref = drev ! ix
+lookupDynamicStaticRevIndex ix v drev fa' fbd' = do
+    let ref = drev ! ix
     m <- readIORef ref
     case M.lookup v m of
         Just i  -> fa' i
@@ -150,10 +149,10 @@ lookupRevIndex :: Header
                -> IO ()
 lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
   | ix == otherToken = lookupOtherRevIndex h oth fa' fc'
-  | should           = lookupDynamicStaticRevIndex t v dyn fa' fb'
-  | otherwise        = lookupStaticRevIndex t fd'
+  | should           = lookupDynamicStaticRevIndex ix v dyn fa' fb'
+  | otherwise        = lookupStaticRevIndex ix fd'
   where
-    ent@(Entry _ t@(Token ix should _) _) = toEntryToken h
+    ent@(Entry _ (Token ix should _) _) = toEntryToken h
     fa' = fa
     fb' = fb v ent
     fc' = fc k v ent
