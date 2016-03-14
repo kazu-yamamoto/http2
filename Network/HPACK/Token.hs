@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.HPACK.Table.Token where
+module Network.HPACK.Token where
 
 import qualified Data.ByteString as B
 import Data.ByteString.Internal (ByteString(..), memcmp)

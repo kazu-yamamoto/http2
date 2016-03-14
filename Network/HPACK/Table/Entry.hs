@@ -23,7 +23,7 @@ module Network.HPACK.Table.Entry (
   ) where
 
 import qualified Data.ByteString as BS
-import Network.HPACK.Table.Token
+import Network.HPACK.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
