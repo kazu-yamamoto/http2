@@ -52,11 +52,10 @@ toEntry kv = Entry siz tokenDummy kv
   where
     !siz = headerSize kv
 
-toEntryToken :: Header -> Entry
-toEntryToken kv@(k,_) = Entry siz t kv
+toEntryToken :: Header -> Token -> Entry
+toEntryToken kv t = Entry siz t kv
   where
     !siz = headerSize kv
-    !t = toToken k
 
 -- | From 'Entry' to 'Header'.
 fromEntry :: Entry -> Header

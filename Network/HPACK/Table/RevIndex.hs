@@ -152,7 +152,8 @@ lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
   | should           = lookupDynamicStaticRevIndex ix v dyn fa' fb'
   | otherwise        = lookupStaticRevIndex ix fd'
   where
-    ent@(Entry _ (Token ix should _) _) = toEntryToken h
+    t@(Token ix should _) = toToken k
+    ent = toEntryToken h t
     fa' = fa
     fb' = fb v ent
     fc' = fc k v ent
