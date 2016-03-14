@@ -15,6 +15,7 @@ import Control.Applicative ((<$>), (<*>))
 import Data.Array (Array, (!))
 import qualified Data.Array as A
 import Data.Function (on)
+import Data.CaseInsensitive (foldedCase)
 import Data.IORef
 import Data.List (groupBy)
 import Data.Map.Strict (Map)
@@ -144,19 +145,20 @@ renewRevIndex (RevIndex dyn oth) = do
     renewOtherRevIndex oth
 
 {-# INLINE lookupRevIndex #-}
-lookupRevIndex :: Header
+lookupRevIndex :: Token
+               -> HeaderValue
                -> (HIndex -> IO ())
                -> (HeaderValue -> Entry -> HIndex -> IO ())
                -> (HeaderName -> HeaderValue -> Entry -> IO ())
                -> (HeaderValue -> Entry -> HIndex -> IO ())
                -> RevIndex
                -> IO ()
-lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
-  | ix == otherToken = lookupOtherRevIndex h oth fa' fc'
+lookupRevIndex t@(Token ix should ci) v fa fb fc fd (RevIndex dyn oth)
+  | ix == otherToken = lookupOtherRevIndex (k,v) oth fa' fc'
   | should           = lookupDynamicStaticRevIndex ix v dyn fa' fb'
   | otherwise        = lookupStaticRevIndex ix fd'
   where
-    t@(Token ix should _) = toToken k
+    k = foldedCase ci
     ent = toEntryToken t v
     fa' = fa
     fb' = fb v ent

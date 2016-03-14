@@ -22,6 +22,7 @@ import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman
 import Network.HPACK.Table
+import Network.HPACK.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -47,7 +48,19 @@ encodeHeader :: EncodeStrategy
              -> DynamicTable
              -> HeaderList
              -> IO ByteString -- ^ An HPACK format
-encodeHeader stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
+encodeHeader stgy siz dyntbl hs = encodeHeader' stgy siz dyntbl hs'
+  where
+    hs' = map (\(k,v) -> let !t = toToken k in (t,v)) hs
+
+
+-- | Converting 'HeaderList' to the HPACK format.
+--   'BufferOverrun' will be thrown if the temporary buffer is too small.
+encodeHeader' :: EncodeStrategy
+              -> Size -- ^ The size of a temporary buffer.
+              -> DynamicTable
+              -> [(Token,HeaderValue)]
+              -> IO ByteString -- ^ An HPACK format
+encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
   where
     enc buf = do
         (hs',len) <- encodeHeaderBuffer buf siz stgy True dyntbl hs
@@ -75,8 +88,8 @@ encodeHeaderBuffer :: Buffer
                    -> EncodeStrategy
                    -> Bool -- ^ 'True' at the first time, 'False' when continued.
                    -> DynamicTable
-                   -> HeaderList
-                   -> IO (HeaderList, Int) -- ^ Leftover 'HeaderList' and the number of filled bytes.
+                   -> [(Token,HeaderValue)]
+                   -> IO ([(Token,HeaderValue)], Int) -- ^ Leftover
 encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
     wbuf <- newWorkingBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
@@ -102,26 +115,26 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
     loop wbuf ref1 ref2 step hsx = go hsx
       where
         go [] = return ()
-        go (h:hs) = do
-            _ <- step h
+        go ((t,v):hs) = do
+            _ <- step t v
             currentOffset wbuf >>= writeIORef ref1
             writeIORef ref2 hs
             go hs
 
 ----------------------------------------------------------------
 
-naiveStep :: FE' -> Header -> IO ()
-naiveStep fe (k,v) = fe k v
+naiveStep :: (HeaderName -> HeaderValue -> IO ()) -> Token -> HeaderValue -> IO ()
+naiveStep fe t v = fe (tokenFoldedKey t) v
 
 ----------------------------------------------------------------
 
-staticStep :: RevIndex -> FA -> FD -> FE -> Header -> IO ()
-staticStep rev fa fd fe h = lookupRevIndex h fa fd fe fd rev
+staticStep :: RevIndex -> FA -> FD -> FE -> Token -> HeaderValue -> IO ()
+staticStep rev fa fd fe t v = lookupRevIndex t v fa fd fe fd rev
 
 ----------------------------------------------------------------
 
-linearStep :: RevIndex -> FA -> FB -> FC -> FD -> Header -> IO ()
-linearStep rev fa fb fc fd h = lookupRevIndex h fa fb fc fd rev
+linearStep :: RevIndex -> FA -> FB -> FC -> FD -> Token -> HeaderValue -> IO ()
+linearStep rev fa fb fc fd t v = lookupRevIndex t v fa fb fc fd rev
 
 ----------------------------------------------------------------
 
@@ -130,7 +143,6 @@ type FB = HeaderValue -> Entry -> HIndex -> IO ()
 type FC = HeaderName -> HeaderValue -> Entry -> IO ()
 type FD = HeaderValue -> Entry -> HIndex -> IO ()
 type FE = HeaderName -> HeaderValue -> Entry -> IO ()
-type FE' = HeaderName -> HeaderValue -> IO ()
 
 -- 6.1.  Indexed Header Field Representation
 -- Indexed Header Field
