@@ -14,9 +14,11 @@ import Data.CaseInsensitive (mk, CI(..))
 
 data Token = Token !Int !Bool !(CI ByteString) deriving (Eq, Show)
 
+{-# INLINE toIx #-}
 toIx :: Token -> Int
 toIx (Token n _ _) = n
 
+{-# INLINE shouldBeIndexed #-}
 shouldBeIndexed :: Token -> Bool
 shouldBeIndexed (Token _ b _) = b
 
@@ -137,6 +139,7 @@ maxToken = 51
 otherToken :: Int
 otherToken = maxToken + 1
 
+{-# INLINE isTokenOther #-}
 isTokenOther :: Token -> Bool
 isTokenOther t = toIx t == otherToken
 
