@@ -152,94 +152,94 @@ isTokenOther t = toIx t == otherToken
 toToken :: ByteString -> Token
 toToken bs = case len of
     3 -> case lst of
-        97  -> if bs === "via" then tokenVia else mkTokenOther
-        101 -> if bs === "age" then tokenAge else mkTokenOther
-        _   -> mkTokenOther
+        97  -> if bs === "via" then tokenVia else mkTokenOther bs
+        101 -> if bs === "age" then tokenAge else mkTokenOther bs
+        _   -> mkTokenOther bs
     4 -> case lst of
-        101 -> if bs === "date" then tokenDate else mkTokenOther
-        103 -> if bs === "etag" then tokenEtag else mkTokenOther
-        107 -> if bs === "link" then tokenLink else mkTokenOther
-        109 -> if bs === "from" then tokenFrom else mkTokenOther
-        116 -> if bs === "host" then tokenHost else mkTokenOther
-        121 -> if bs === "vary" then tokenVary else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "date" then tokenDate else mkTokenOther bs
+        103 -> if bs === "etag" then tokenEtag else mkTokenOther bs
+        107 -> if bs === "link" then tokenLink else mkTokenOther bs
+        109 -> if bs === "from" then tokenFrom else mkTokenOther bs
+        116 -> if bs === "host" then tokenHost else mkTokenOther bs
+        121 -> if bs === "vary" then tokenVary else mkTokenOther bs
+        _   -> mkTokenOther bs
     5 -> case lst of
-        101 -> if bs === "range" then tokenRange else mkTokenOther
-        104 -> if bs === ":path" then tokenPath else mkTokenOther
-        119 -> if bs === "allow" then tokenAllow else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "range" then tokenRange else mkTokenOther bs
+        104 -> if bs === ":path" then tokenPath else mkTokenOther bs
+        119 -> if bs === "allow" then tokenAllow else mkTokenOther bs
+        _   -> mkTokenOther bs
     6 -> case lst of
-        101 -> if bs === "cookie" then tokenCookie else mkTokenOther
-        114 -> if bs === "server" then tokenServer else mkTokenOther
+        101 -> if bs === "cookie" then tokenCookie else mkTokenOther bs
+        114 -> if bs === "server" then tokenServer else mkTokenOther bs
         116 -> if bs === "expect" then tokenExpect else
-               if bs === "accept" then tokenAccept else mkTokenOther
-        _   -> mkTokenOther
+               if bs === "accept" then tokenAccept else mkTokenOther bs
+        _   -> mkTokenOther bs
     7 -> case lst of
-        100 -> if bs === ":method" then tokenMethod else mkTokenOther
-        101 -> if bs === ":scheme" then tokenScheme else mkTokenOther
-        104 -> if bs === "refresh" then tokenRefresh else mkTokenOther
-        114 -> if bs === "referer" then tokenReferer else mkTokenOther
+        100 -> if bs === ":method" then tokenMethod else mkTokenOther bs
+        101 -> if bs === ":scheme" then tokenScheme else mkTokenOther bs
+        104 -> if bs === "refresh" then tokenRefresh else mkTokenOther bs
+        114 -> if bs === "referer" then tokenReferer else mkTokenOther bs
         115 -> if bs === "expires" then tokenExpires else
-               if bs === ":status" then tokenStatus else mkTokenOther
-        _   -> mkTokenOther
+               if bs === ":status" then tokenStatus else mkTokenOther bs
+        _   -> mkTokenOther bs
     8 -> case lst of
-        101 -> if bs === "if-range" then tokenIfRange else mkTokenOther
-        104 -> if bs === "if-match" then tokenIfMatch else mkTokenOther
-        110 -> if bs === "location" then tokenLocation else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "if-range" then tokenIfRange else mkTokenOther bs
+        104 -> if bs === "if-match" then tokenIfMatch else mkTokenOther bs
+        110 -> if bs === "location" then tokenLocation else mkTokenOther bs
+        _   -> mkTokenOther bs
     10 -> case lst of
-        101 -> if bs === "set-cookie" then tokenSetCookie else mkTokenOther
-        116 -> if bs === "user-agent" then tokenUserAgent else mkTokenOther
-        121 -> if bs === ":authority" then tokenAuthority else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "set-cookie" then tokenSetCookie else mkTokenOther bs
+        116 -> if bs === "user-agent" then tokenUserAgent else mkTokenOther bs
+        121 -> if bs === ":authority" then tokenAuthority else mkTokenOther bs
+        _   -> mkTokenOther bs
     11 -> case lst of
-        114 -> if bs === "retry-after" then tokenRetryAfter else mkTokenOther
-        _   -> mkTokenOther
+        114 -> if bs === "retry-after" then tokenRetryAfter else mkTokenOther bs
+        _   -> mkTokenOther bs
     12 -> case lst of
-        101 -> if bs === "content-type" then tokenContentType else mkTokenOther
-        115 -> if bs === "max-forwards" then tokenMaxForwards else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "content-type" then tokenContentType else mkTokenOther bs
+        115 -> if bs === "max-forwards" then tokenMaxForwards else mkTokenOther bs
+        _   -> mkTokenOther bs
     13 -> case lst of
-        100 -> if bs === "last-modified" then tokenLastModified else mkTokenOther
-        101 -> if bs === "content-range" then tokenContentRange else mkTokenOther
-        104 -> if bs === "if-none-match" then tokenIfNoneMatch else mkTokenOther
-        108 -> if bs === "cache-control" then tokenCacheControl else mkTokenOther
-        110 -> if bs === "authorization" then tokenAuthorization else mkTokenOther
-        115 -> if bs === "accept-ranges" then tokenAcceptRanges else mkTokenOther
-        _   -> mkTokenOther
+        100 -> if bs === "last-modified" then tokenLastModified else mkTokenOther bs
+        101 -> if bs === "content-range" then tokenContentRange else mkTokenOther bs
+        104 -> if bs === "if-none-match" then tokenIfNoneMatch else mkTokenOther bs
+        108 -> if bs === "cache-control" then tokenCacheControl else mkTokenOther bs
+        110 -> if bs === "authorization" then tokenAuthorization else mkTokenOther bs
+        115 -> if bs === "accept-ranges" then tokenAcceptRanges else mkTokenOther bs
+        _   -> mkTokenOther bs
     14 -> case lst of
-        104 -> if bs === "content-length" then tokenContentLength else mkTokenOther
-        116 -> if bs === "accept-charset" then tokenAcceptCharset else mkTokenOther
-        _   -> mkTokenOther
+        104 -> if bs === "content-length" then tokenContentLength else mkTokenOther bs
+        116 -> if bs === "accept-charset" then tokenAcceptCharset else mkTokenOther bs
+        _   -> mkTokenOther bs
     15 -> case lst of
-        101 -> if bs === "accept-language" then tokenAcceptLanguage else mkTokenOther
-        103 -> if bs === "accept-encoding" then tokenAcceptEncoding else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "accept-language" then tokenAcceptLanguage else mkTokenOther bs
+        103 -> if bs === "accept-encoding" then tokenAcceptEncoding else mkTokenOther bs
+        _   -> mkTokenOther bs
     16 -> case lst of
         101 -> if bs === "content-language" then tokenContentLanguage else
-               if bs === "www-authenticate" then tokenWwwAuthenticate else mkTokenOther
-        103 -> if bs === "content-encoding" then tokenContentEncoding else mkTokenOther
-        110 -> if bs === "content-location" then tokenContentLocation else mkTokenOther
-        _   -> mkTokenOther
+               if bs === "www-authenticate" then tokenWwwAuthenticate else mkTokenOther bs
+        103 -> if bs === "content-encoding" then tokenContentEncoding else mkTokenOther bs
+        110 -> if bs === "content-location" then tokenContentLocation else mkTokenOther bs
+        _   -> mkTokenOther bs
     17 -> case lst of
-        101 -> if bs === "if-modified-since" then tokenIfModifiedSince else mkTokenOther
-        103 -> if bs === "transfer-encoding" then tokenTransferEncoding else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "if-modified-since" then tokenIfModifiedSince else mkTokenOther bs
+        103 -> if bs === "transfer-encoding" then tokenTransferEncoding else mkTokenOther bs
+        _   -> mkTokenOther bs
     18 -> case lst of
-        101 -> if bs === "proxy-authenticate" then tokenProxyAuthenticate else mkTokenOther
-        _   -> mkTokenOther
+        101 -> if bs === "proxy-authenticate" then tokenProxyAuthenticate else mkTokenOther bs
+        _   -> mkTokenOther bs
     19 -> case lst of
-        101 -> if bs === "if-unmodified-since" then tokenIfUnmodifiedSince else mkTokenOther
+        101 -> if bs === "if-unmodified-since" then tokenIfUnmodifiedSince else mkTokenOther bs
         110 -> if bs === "proxy-authorization" then tokenProxyAuthorization else
-               if bs === "content-disposition" then tokenContentDisposition else mkTokenOther
-        _   -> mkTokenOther
+               if bs === "content-disposition" then tokenContentDisposition else mkTokenOther bs
+        _   -> mkTokenOther bs
     25 -> case lst of
-        121 -> if bs === "strict-transport-security" then tokenStrictTransportSecurity else mkTokenOther
-        _   -> mkTokenOther
+        121 -> if bs === "strict-transport-security" then tokenStrictTransportSecurity else mkTokenOther bs
+        _   -> mkTokenOther bs
     27 -> case lst of
-        110 -> if bs === "access-control-allow-origin" then tokenAccessControlAllowOrigin else mkTokenOther
-        _   -> mkTokenOther
-    _ -> mkTokenOther
+        110 -> if bs === "access-control-allow-origin" then tokenAccessControlAllowOrigin else mkTokenOther bs
+        _   -> mkTokenOther bs
+    _ -> mkTokenOther bs
   where
     len = B.length bs
     lst = B.last bs
@@ -248,4 +248,6 @@ toToken bs = case len of
       withForeignPtr fp2 $ \p2 -> do
         i <- memcmp (p1 `plusPtr` off1) (p2 `plusPtr` off2) siz
         return $! i == 0
-    mkTokenOther = Token otherToken True (mk bs)
+
+mkTokenOther :: ByteString -> Token
+mkTokenOther bs = Token otherToken True (mk bs)
