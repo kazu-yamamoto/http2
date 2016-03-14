@@ -122,12 +122,16 @@ lookupOtherRevIndex h ref fa' fc' = do
           Nothing -> fc'
 
 {-# INLINE insertOtherRevIndex #-}
-insertOtherRevIndex :: HeaderName -> HeaderValue -> HIndex -> OtherRevIdex -> IO ()
-insertOtherRevIndex k v i ref = modifyIORef' ref $ M.insert (k,v) i
+insertOtherRevIndex :: Token -> HeaderValue -> HIndex -> OtherRevIdex -> IO ()
+insertOtherRevIndex t v i ref = modifyIORef' ref $ M.insert (k,v) i
+  where
+    !k = tokenFoldedKey t
 
 {-# INLINE deleteOtherRevIndex #-}
-deleteOtherRevIndex :: HeaderName -> HeaderValue -> OtherRevIdex -> IO ()
-deleteOtherRevIndex k v ref = modifyIORef' ref $ M.delete (k,v)
+deleteOtherRevIndex :: Token -> HeaderValue -> OtherRevIdex -> IO ()
+deleteOtherRevIndex t v ref = modifyIORef' ref $ M.delete (k,v)
+  where
+    !k = tokenFoldedKey t
 
 ----------------------------------------------------------------
 
@@ -153,7 +157,7 @@ lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
   | otherwise        = lookupStaticRevIndex ix fd'
   where
     t@(Token ix should _) = toToken k
-    ent = toEntryToken h t
+    ent = toEntryToken t v
     fa' = fa
     fb' = fb v ent
     fc' = fc k v ent
@@ -163,14 +167,14 @@ lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
 
 {-# INLINE insertRevIndex #-}
 insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
-insertRevIndex (Entry _ t (k,v)) i (RevIndex dyn oth)
-  | isTokenOther t = insertOtherRevIndex k v i oth
+insertRevIndex (Entry _ t v) i (RevIndex dyn oth)
+  | isTokenOther t = insertOtherRevIndex   t v i oth
   | otherwise      = insertDynamicRevIndex t v i dyn
 
 {-# INLINE deleteRevIndex #-}
 deleteRevIndex :: RevIndex -> Entry -> IO ()
-deleteRevIndex (RevIndex dyn oth) (Entry _ t (k,v))
-  | isTokenOther t = deleteOtherRevIndex k v oth
+deleteRevIndex (RevIndex dyn oth) (Entry _ t v)
+  | isTokenOther t = deleteOtherRevIndex   t v oth
   | otherwise      = deleteDynamicRevIndex t v dyn
 
 {-# INLINE deleteRevIndexList #-}

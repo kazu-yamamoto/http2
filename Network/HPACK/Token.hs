@@ -18,6 +18,12 @@ data Token = Token !Int !Bool !(CI ByteString) deriving (Eq, Show)
 toIx :: Token -> Int
 toIx (Token n _ _) = n
 
+tokenKey :: Token -> CI ByteString
+tokenKey (Token _ _ ci) = ci
+
+tokenFoldedKey :: Token -> ByteString
+tokenFoldedKey (Token _ _ ci) = foldedCase ci
+
 {-# INLINE shouldBeIndexed #-}
 shouldBeIndexed :: Token -> Bool
 shouldBeIndexed (Token _ b _) = b
