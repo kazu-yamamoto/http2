@@ -14,10 +14,6 @@ import Control.Applicative ((<$>), (<*>))
 #endif
 import Data.Array (Array, (!))
 import qualified Data.Array as A
-import qualified Data.Array.IO as IOA
-import Data.Array.Unboxed (UArray)
-import qualified Data.Array.Unboxed as U
-import qualified Data.Array.Unsafe as Unsafe
 import Data.Function (on)
 import Data.IORef
 import Data.List (groupBy)
@@ -27,8 +23,6 @@ import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Static
 import Network.HPACK.Table.Token
 import Network.HPACK.Types
-
-import System.IO.Unsafe
 
 ----------------------------------------------------------------
 
@@ -50,18 +44,10 @@ type ValueMap = Map HeaderValue HIndex
 
 ----------------------------------------------------------------
 
-beg :: Int
-beg = 0
-
-end :: Int
-end = 51
-
-----------------------------------------------------------------
-
 staticRevIndex :: StaticRevIndex
-staticRevIndex = A.array (beg, end) $ map toEnt zs
+staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
   where
-    toEnt (k,xs) = (fromToken (toToken k), m)
+    toEnt (k,xs) = (toIx (toToken k), m)
       where
         m = case xs of
             []  -> error "staticRevIndex"
@@ -75,19 +61,19 @@ staticRevIndex = A.array (beg, end) $ map toEnt zs
 
 {-# INLINE lookupStaticRevIndex #-}
 lookupStaticRevIndex :: Token -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex t fd' = case staticRevIndex ! fromToken t of
+lookupStaticRevIndex t fd' = case staticRevIndex ! toIx t of
     StaticEntry i _ -> fd' i
 
 ----------------------------------------------------------------
 
 newDynamicRevIndex :: IO DynamicRevIndex
-newDynamicRevIndex = A.listArray (beg,end) <$> mapM mk lst
+newDynamicRevIndex = A.listArray (minToken,maxToken) <$> mapM mk lst
   where
     mk _ = newIORef M.empty
-    lst = [beg..end]
+    lst = [minToken..maxToken]
 
 renewDynamicRevIndex :: DynamicRevIndex -> IO ()
-renewDynamicRevIndex drev = mapM_ clear [beg..end]
+renewDynamicRevIndex drev = mapM_ clear [minToken..maxToken]
   where
     clear t = writeIORef (drev ! t) M.empty
 
@@ -97,7 +83,7 @@ lookupDynamicStaticRevIndex :: Token -> HeaderValue -> DynamicRevIndex
                             -> (HIndex -> IO ())
                             -> IO ()
 lookupDynamicStaticRevIndex t v drev fa' fbd' = do
-    let ix = fromToken t
+    let ix = toIx t
         ref = drev ! ix
     m <- readIORef ref
     case M.lookup v m of
@@ -112,13 +98,13 @@ lookupDynamicStaticRevIndex t v drev fa' fbd' = do
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
 insertDynamicRevIndex t v i drev = modifyIORef ref $ M.insert v i
   where
-    ref = drev ! fromToken t
+    ref = drev ! toIx t
 
 {-# INLINE deleteDynamicRevIndex#-}
 deleteDynamicRevIndex :: Token -> HeaderValue -> DynamicRevIndex -> IO ()
 deleteDynamicRevIndex t v drev = modifyIORef ref $ M.delete v
   where
-    ref = drev ! fromToken t
+    ref = drev ! toIx t
 
 ----------------------------------------------------------------
 
@@ -163,7 +149,7 @@ lookupRevIndex :: Header
                -> RevIndex
                -> IO ()
 lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
-  | t == tokenOther   = lookupOtherRevIndex h oth fa' fc'
+  | isTokenOther t    = lookupOtherRevIndex h oth fa' fc'
   | shouldBeIndexed t = lookupDynamicStaticRevIndex t v dyn fa' fb'
   | otherwise         = lookupStaticRevIndex t fd'
   where
@@ -178,41 +164,15 @@ lookupRevIndex h@(k,v) fa fb fc fd (RevIndex dyn oth)
 {-# INLINE insertRevIndex #-}
 insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
 insertRevIndex (Entry _ t (k,v)) i (RevIndex dyn oth)
-  | t == tokenOther = insertOtherRevIndex k v i oth
-  | otherwise       = insertDynamicRevIndex t v i dyn
+  | isTokenOther t = insertOtherRevIndex k v i oth
+  | otherwise      = insertDynamicRevIndex t v i dyn
 
 {-# INLINE deleteRevIndex #-}
 deleteRevIndex :: RevIndex -> Entry -> IO ()
 deleteRevIndex (RevIndex dyn oth) (Entry _ t (k,v))
-  | t == tokenOther = deleteOtherRevIndex k v oth
-  | otherwise       = deleteDynamicRevIndex t v dyn
+  | isTokenOther t = deleteOtherRevIndex k v oth
+  | otherwise      = deleteDynamicRevIndex t v dyn
 
 {-# INLINE deleteRevIndexList #-}
 deleteRevIndexList :: [Entry] -> RevIndex -> IO ()
 deleteRevIndexList es rev = mapM_ (deleteRevIndex rev) es
-
-----------------------------------------------------------------
-
-headersNotToIndex :: [HeaderName]
-headersNotToIndex = [
-    ":path"
-  , "content-length"
-  , "location"
-  , "etag"
-  , "set-cookie"
-  ]
-
-indexedOrNot :: UArray Int Bool
-indexedOrNot = unsafePerformIO $ do
-    arr <- IOA.newArray (ib,ie) True :: IO (IOA.IOUArray Int Bool)
-    mapM_ (toFalse arr) $ map (fromToken . toToken) headersNotToIndex
-    Unsafe.unsafeFreeze arr
-  where
-    ib = beg
-    ie = end
-    toFalse :: IOA.IOUArray Int Bool -> Int -> IO ()
-    toFalse arr i = IOA.writeArray arr i False
-
-{-# INLINE shouldBeIndexed #-}
-shouldBeIndexed :: Token -> Bool
-shouldBeIndexed t = indexedOrNot U.! fromToken t

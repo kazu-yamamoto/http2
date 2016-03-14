@@ -82,6 +82,7 @@ Library
                       , array
                       , bytestring >= 0.10
                       , bytestring-builder
+                      , case-insensitive
                       , containers >= 0.5
                       , psqueues
                       , stm
@@ -114,6 +115,7 @@ Test-Suite spec
                       , array
                       , bytestring
                       , bytestring-builder
+                      , case-insensitive
                       , containers
                       , hex
                       , hspec >= 1.3
@@ -136,6 +138,7 @@ Test-Suite hpack
                       , array
                       , bytestring
                       , bytestring-builder
+                      , case-insensitive
                       , containers
                       , directory
                       , filepath
@@ -185,6 +188,7 @@ Executable hpack-encode
                       , array
                       , bytestring
                       , bytestring-builder
+                      , case-insensitive
                       , containers
                       , hex
                       , text
@@ -206,6 +210,7 @@ Executable hpack-debug
                       , array
                       , bytestring
                       , bytestring-builder
+                      , case-insensitive
                       , containers
                       , hex
                       , text
@@ -271,6 +276,7 @@ Benchmark priority
                         RingOfQueuesSTM
   Build-Depends:        base
                       , array
+                      , case-insensitive
                       , containers
                       , criterion
                       , hashtables
@@ -289,6 +295,7 @@ Benchmark header-compression
   Build-Depends:        base
                       , array
                       , bytestring
+                      , case-insensitive
                       , containers
                       , criterion
                       , hashtables
