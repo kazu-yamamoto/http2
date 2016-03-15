@@ -96,6 +96,7 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | TooLargeTableSize -- ^ A peer tried to change the dynamic table size over the limit
                  | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
                  | HeaderBlockTruncated
+                 | IllegalPseudoHeader
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError

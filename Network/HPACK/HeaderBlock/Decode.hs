@@ -83,21 +83,37 @@ decodeSophisticated :: DynamicTable -> ReadBuffer
 decodeSophisticated dyntbl rbuf = do
     -- using otherToken to reduce condition
     arr <- IOA.newArray (minToken,otherToken) Nothing
-    !tvs <- analyze arr
+    !tvs <- pseudoNormal arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
   where
-    analyze :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
-    analyze arr = go empty
+    pseudoNormal :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
+    pseudoNormal arr = pseudo
       where
-        go builder = do
+        pseudo = do
             more <- hasOneByte rbuf
             if more then do
                 w <- getByte rbuf
                 tv@(!t,!v) <- toTokenHeader dyntbl w rbuf
                 IOA.writeArray arr (toIx t) (Just v)
-                let builder' = builder << tv
-                go builder'
+                if isPseudo t then
+                    pseudo
+                  else do
+                    let builder = empty << tv
+                    normal builder
+              else
+                return []
+        normal builder = do
+            more <- hasOneByte rbuf
+            if more then do
+                w <- getByte rbuf
+                tv@(!t,!v) <- toTokenHeader dyntbl w rbuf
+                IOA.writeArray arr (toIx t) (Just v)
+                if isPseudo t then
+                    throwIO IllegalPseudoHeader
+                  else do -- fixme :: cookie
+                    let builder' = builder << tv
+                    normal builder'
               else do
                 let !tvs = run builder
                 return tvs
