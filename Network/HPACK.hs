@@ -28,6 +28,8 @@ module Network.HPACK (
   , Header
   , HeaderName
   , HeaderValue
+  , TokenHeaderList
+  , TokenHeader
   -- * Basic types
   , Size
   , Index
