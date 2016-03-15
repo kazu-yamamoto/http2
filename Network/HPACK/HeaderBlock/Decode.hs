@@ -4,6 +4,7 @@ module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
   , decodeHeaderTable
   , ValueTable
+  , toHeaderTable
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -219,3 +220,26 @@ decodeString huff hufdec rbuf len = do
             extractByteString rbuf len
       else
         throwIO HeaderBlockTruncated
+
+
+----------------------------------------------------------------
+
+toHeaderTable :: HeaderList -> IO (TokenHeaderList, ValueTable)
+toHeaderTable kvs = do
+    arr <- IOA.newArray (minToken,otherToken) Nothing
+    !tvs <- conv arr
+    tbl <- Unsafe.unsafeFreeze arr
+    return (tvs, tbl)
+  where
+    conv :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
+    conv arr = go kvs empty
+      where
+        go :: HeaderList -> Builder TokenHeader -> IO TokenHeaderList
+        go []         builder = return $ run builder
+        go ((k,v):xs) builder = do
+            let !t = toToken k
+            IOA.writeArray arr (toIx t) (Just v)
+            let !tv = (t,v)
+                !builder' = builder << tv
+            go xs builder'
+
