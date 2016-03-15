@@ -23,7 +23,7 @@ staticTableSize = length staticTableList
 -- >>> toStaticEntry 8
 -- Entry 42 (Token 4 True True ":status") "200"
 -- >>> toStaticEntry 50
--- Entry 37 (Token 40 True False "range") ""
+-- Entry 37 (Token 40 True False "Range") ""
 toStaticEntry :: Index -> Entry
 toStaticEntry sidx = staticTable ! sidx
 
