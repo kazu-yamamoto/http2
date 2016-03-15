@@ -1,5 +1,7 @@
 module Network.HPACK.HeaderBlock (
     decodeHeader
+  , decodeHeaderTable
+  , ValueTable
   , encodeHeader
   , encodeHeaderBuffer
   ) where

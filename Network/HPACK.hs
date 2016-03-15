@@ -5,8 +5,10 @@ module Network.HPACK (
   -- * Encoding and decoding
     encodeHeader
   , decodeHeader
-  -- * Encoding in a buffer
+  -- * Encoding and decoding with token
   , encodeHeaderBuffer
+  , decodeHeaderTable
+  , ValueTable
   -- * DynamicTable
   , DynamicTable
   , defaultDynamicTableSize

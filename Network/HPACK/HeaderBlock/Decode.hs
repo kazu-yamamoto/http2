@@ -2,6 +2,8 @@
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
+  , decodeHeaderTable
+  , ValueTable
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -20,6 +22,12 @@ import Network.HPACK.Table
 import Network.HPACK.Token
 import Network.HPACK.Types
 
+import Data.Array (Array)
+import qualified Data.Array.IO as IOA
+import qualified Data.Array.Unsafe as Unsafe
+
+type ValueTable = Array Int (Maybe HeaderValue)
+
 ----------------------------------------------------------------
 
 -- | Converting the HPACK format to 'HeaderList'.
@@ -28,14 +36,18 @@ import Network.HPACK.Types
 decodeHeader :: DynamicTable
              -> ByteString -- ^ An HPACK format
              -> IO HeaderList
-decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple []
+decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
+
+decodeHeaderTable :: DynamicTable
+                  -> ByteString -- ^ An HPACK format
+                  -> IO (TokenHeaderList, ValueTable)
+decodeHeaderTable dyntbl inp = decodeHPACK dyntbl inp decodeSophisticated
 
 decodeHPACK :: DynamicTable
             -> ByteString
             -> (DynamicTable -> ReadBuffer -> IO a)
-            -> a
             -> IO a
-decodeHPACK dyntbl inp dec ini = withReadBuffer inp chkChange
+decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
   where
     chkChange rbuf = do
         more <- hasOneByte rbuf
@@ -48,25 +60,49 @@ decodeHPACK dyntbl inp dec ini = withReadBuffer inp chkChange
                 rewindOneByte rbuf
                 dec dyntbl rbuf
           else
-            return ini
+            throwIO HeaderBlockTruncated
 
-decodeSimple :: DynamicTable -> ReadBuffer -> IO [Header]
+decodeSimple :: DynamicTable -> ReadBuffer -> IO HeaderList
 decodeSimple dyntbl rbuf = go empty
   where
     go builder = do
         more <- hasOneByte rbuf
         if more then do
             w <- getByte rbuf
-            !kv <- toHeader dyntbl w rbuf
-            let builder' = builder << kv
+            !tv <- toTokenHeader dyntbl w rbuf
+            let builder' = builder << tv
             go builder'
           else do
             let !tvs = run builder
                 !kvs = map (\(t,v) -> let !k = tokenFoldedKey t in (k,v)) tvs
             return kvs
 
-toHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
-toHeader dyntbl w rbuf
+decodeSophisticated :: DynamicTable -> ReadBuffer
+                    -> IO (TokenHeaderList, ValueTable)
+decodeSophisticated dyntbl rbuf = do
+    -- using otherToken to reduce condition
+    arr <- IOA.newArray (minToken,otherToken) Nothing
+    !tvs <- analyze arr
+    tbl <- Unsafe.unsafeFreeze arr
+    return (tvs, tbl)
+  where
+    analyze :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
+    analyze arr = go empty
+      where
+        go builder = do
+            more <- hasOneByte rbuf
+            if more then do
+                w <- getByte rbuf
+                tv@(!t,!v) <- toTokenHeader dyntbl w rbuf
+                IOA.writeArray arr (toIx t) (Just v)
+                let builder' = builder << tv
+                go builder'
+              else do
+                let !tvs = run builder
+                return tvs
+
+toTokenHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
+toTokenHeader dyntbl w rbuf
   | w `testBit` 7 = indexed             dyntbl w rbuf
   | w `testBit` 6 = incrementalIndexing dyntbl w rbuf
   | w `testBit` 5 = throwIO IllegalTableSizeUpdate
