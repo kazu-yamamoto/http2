@@ -5,7 +5,7 @@ module HPACK.EncodeSpec where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception (onException)
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Network.HPACK
 import Test.Hspec
@@ -36,13 +36,19 @@ run stgy lens = do
 go :: DynamicTable -> DynamicTable -> EncodeStrategy -> [HeaderList] -> [Int] -> IO Bool
 go _    _    _    []     _    = return True
 go etbl dtbl stgy (h:hs) lens = do
-    bs <- encodeHeader stgy 4096 etbl h `onException` print h
+    bs <- encodeHeader stgy 4096 etbl h `E.catch` \(E.SomeException e) -> do
+        putStrLn $ "decodeHeader: " ++ show e
+        print h
+        E.throwIO e
     let lens' = case lens of
             l:ls
               | BS.length bs == l -> ls
               | otherwise         -> error $ show h ++ "\nshould be " ++ show l
             []                    -> []
-    h' <- decodeHeader dtbl bs `onException` print h
+    h' <- decodeHeader dtbl bs  `E.catch` \(E.SomeException e) -> do
+        putStrLn $ "encodeHeader: " ++ show e
+        print h
+        E.throwIO e
     if h == h' then
         go etbl dtbl stgy hs lens'
       else do
