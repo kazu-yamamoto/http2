@@ -153,7 +153,7 @@ lookupRevIndex :: Token
                -> (HeaderValue -> Entry -> HIndex -> IO ())
                -> RevIndex
                -> IO ()
-lookupRevIndex t@(Token ix should ci) v fa fb fc fd (RevIndex dyn oth)
+lookupRevIndex t@(Token ix should _ ci) v fa fb fc fd (RevIndex dyn oth)
   | ix == otherToken = lookupOtherRevIndex (k,v) oth fa' fc'
   | should           = lookupDynamicStaticRevIndex ix v dyn fa' fb'
   | otherwise        = lookupStaticRevIndex ix fd'

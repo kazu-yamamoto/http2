@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, BangPatterns #-}
 
 module Network.HPACK.Token where
 
@@ -12,21 +12,27 @@ import Data.CaseInsensitive (mk, CI(..))
 -- $setup
 -- >>> :set -XOverloadedStrings
 
-data Token = Token !Int !Bool !(CI ByteString) deriving (Eq, Show)
+data Token = Token !Int
+                   !Bool -- should be indexed
+                   !Bool -- is this a pseudo header key?
+                   !(CI ByteString) deriving (Eq, Show)
 
 {-# INLINE toIx #-}
 toIx :: Token -> Int
-toIx (Token n _ _) = n
+toIx (Token n _ _ _) = n
 
 tokenKey :: Token -> CI ByteString
-tokenKey (Token _ _ ci) = ci
+tokenKey (Token _ _ _ ci) = ci
 
 tokenFoldedKey :: Token -> ByteString
-tokenFoldedKey (Token _ _ ci) = foldedCase ci
+tokenFoldedKey (Token _ _ _ ci) = foldedCase ci
 
 {-# INLINE shouldBeIndexed #-}
 shouldBeIndexed :: Token -> Bool
-shouldBeIndexed (Token _ b _) = b
+shouldBeIndexed (Token _ b _ _) = b
+
+isPseudo :: Token -> Bool
+isPseudo (Token _ _ b _) = b
 
 tokenAuthority                :: Token
 tokenMethod                   :: Token
@@ -82,59 +88,59 @@ tokenVia                      :: Token
 tokenWwwAuthenticate          :: Token
 tokenDummy                    :: Token
 
-tokenAuthority                = Token  0  True ":authority"
-tokenMethod                   = Token  1  True ":method"
-tokenPath                     = Token  2 False ":path"
-tokenScheme                   = Token  3  True ":scheme"
-tokenStatus                   = Token  4  True ":status"
-tokenAcceptCharset            = Token  5  True "accept-charset"
-tokenAcceptEncoding           = Token  6  True "accept-encoding"
-tokenAcceptLanguage           = Token  7  True "accept-language"
-tokenAcceptRanges             = Token  8  True "accept-ranges"
-tokenAccept                   = Token  9  True "accept"
-tokenAccessControlAllowOrigin = Token 10  True "access-control-allow-origin"
-tokenAge                      = Token 11  True "age"
-tokenAllow                    = Token 12  True "allow"
-tokenAuthorization            = Token 13  True "authorization"
-tokenCacheControl             = Token 14  True "cache-control"
-tokenContentDisposition       = Token 15  True "content-disposition"
-tokenContentEncoding          = Token 16  True "content-encoding"
-tokenContentLanguage          = Token 17  True "content-language"
-tokenContentLength            = Token 18 False "content-length"
-tokenContentLocation          = Token 19 False "content-location"
-tokenContentRange             = Token 20  True "content-range"
-tokenContentType              = Token 21  True "content-type"
-tokenCookie                   = Token 22  True "cookie"
-tokenDate                     = Token 23  True "date"
-tokenEtag                     = Token 24 False "etag"
-tokenExpect                   = Token 25  True "expect"
-tokenExpires                  = Token 26  True "expires"
-tokenFrom                     = Token 27  True "from"
-tokenHost                     = Token 28  True "host"
-tokenIfMatch                  = Token 29  True "if-match"
-tokenIfModifiedSince          = Token 30  True "if-modified-since"
-tokenIfNoneMatch              = Token 31  True "if-none-match"
-tokenIfRange                  = Token 32  True "if-range"
-tokenIfUnmodifiedSince        = Token 33  True "if-unmodified-since"
-tokenLastModified             = Token 34  True "last-modified"
-tokenLink                     = Token 35  True "link"
-tokenLocation                 = Token 36  True "location"
-tokenMaxForwards              = Token 37  True "max-forwards"
-tokenProxyAuthenticate        = Token 38  True "proxy-authenticate"
-tokenProxyAuthorization       = Token 39  True "proxy-authorization"
-tokenRange                    = Token 40  True "range"
-tokenReferer                  = Token 41  True "referer"
-tokenRefresh                  = Token 42  True "refresh"
-tokenRetryAfter               = Token 43  True "retry-after"
-tokenServer                   = Token 44  True "server"
-tokenSetCookie                = Token 45 False "set-cookie"
-tokenStrictTransportSecurity  = Token 46  True "strict-transport-security"
-tokenTransferEncoding         = Token 47  True "transfer-encoding"
-tokenUserAgent                = Token 48  True "user-agent"
-tokenVary                     = Token 49  True "vary"
-tokenVia                      = Token 50  True "via"
-tokenWwwAuthenticate          = Token 51  True "www-authenticate"
-tokenDummy                    = Token 52  True "dummy"
+tokenAuthority                = Token  0  True  True ":authority"
+tokenMethod                   = Token  1  True  True ":method"
+tokenPath                     = Token  2 False  True ":path"
+tokenScheme                   = Token  3  True  True ":scheme"
+tokenStatus                   = Token  4  True  True ":status"
+tokenAcceptCharset            = Token  5  True False "accept-charset"
+tokenAcceptEncoding           = Token  6  True False "accept-encoding"
+tokenAcceptLanguage           = Token  7  True False "accept-language"
+tokenAcceptRanges             = Token  8  True False "accept-ranges"
+tokenAccept                   = Token  9  True False "accept"
+tokenAccessControlAllowOrigin = Token 10  True False "access-control-allow-origin"
+tokenAge                      = Token 11  True False "age"
+tokenAllow                    = Token 12  True False "allow"
+tokenAuthorization            = Token 13  True False "authorization"
+tokenCacheControl             = Token 14  True False "cache-control"
+tokenContentDisposition       = Token 15  True False "content-disposition"
+tokenContentEncoding          = Token 16  True False "content-encoding"
+tokenContentLanguage          = Token 17  True False "content-language"
+tokenContentLength            = Token 18 False False "content-length"
+tokenContentLocation          = Token 19 False False "content-location"
+tokenContentRange             = Token 20  True False "content-range"
+tokenContentType              = Token 21  True False "content-type"
+tokenCookie                   = Token 22  True False "cookie"
+tokenDate                     = Token 23  True False "date"
+tokenEtag                     = Token 24 False False "etag"
+tokenExpect                   = Token 25  True False "expect"
+tokenExpires                  = Token 26  True False "expires"
+tokenFrom                     = Token 27  True False "from"
+tokenHost                     = Token 28  True False "host"
+tokenIfMatch                  = Token 29  True False "if-match"
+tokenIfModifiedSince          = Token 30  True False "if-modified-since"
+tokenIfNoneMatch              = Token 31  True False "if-none-match"
+tokenIfRange                  = Token 32  True False "if-range"
+tokenIfUnmodifiedSince        = Token 33  True False "if-unmodified-since"
+tokenLastModified             = Token 34  True False "last-modified"
+tokenLink                     = Token 35  True False "link"
+tokenLocation                 = Token 36  True False "location"
+tokenMaxForwards              = Token 37  True False "max-forwards"
+tokenProxyAuthenticate        = Token 38  True False "proxy-authenticate"
+tokenProxyAuthorization       = Token 39  True False "proxy-authorization"
+tokenRange                    = Token 40  True False "range"
+tokenReferer                  = Token 41  True False "referer"
+tokenRefresh                  = Token 42  True False "refresh"
+tokenRetryAfter               = Token 43  True False "retry-after"
+tokenServer                   = Token 44  True False "server"
+tokenSetCookie                = Token 45 False False "set-cookie"
+tokenStrictTransportSecurity  = Token 46  True False "strict-transport-security"
+tokenTransferEncoding         = Token 47  True False "transfer-encoding"
+tokenUserAgent                = Token 48  True False "user-agent"
+tokenVary                     = Token 49  True False "vary"
+tokenVia                      = Token 50  True False "via"
+tokenWwwAuthenticate          = Token 51  True False "www-authenticate"
+tokenDummy                    = Token 52  True False "dummy"
 
 minToken :: Int
 minToken = 0
@@ -154,7 +160,9 @@ isTokenOther t = toIx t == otherToken
 -- >>> toToken ":authority" == tokenAuthority
 -- True
 -- >>> toToken "foo"
--- Token 52 True "foo"
+-- Token 52 True False "foo"
+-- >>> toToken ":bar"
+-- Token 52 True True ":bar"
 toToken :: ByteString -> Token
 toToken bs = case len of
     3 -> case lst of
@@ -256,4 +264,9 @@ toToken bs = case len of
         return $! i == 0
 
 mkTokenOther :: ByteString -> Token
-mkTokenOther bs = Token otherToken True (mk bs)
+mkTokenOther bs = Token otherToken True p (mk bs)
+  where
+    !p | B.length bs == 0 = False
+       | B.head bs == 58  = True
+       | otherwise        = False
+

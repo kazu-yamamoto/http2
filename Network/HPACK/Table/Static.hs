@@ -15,16 +15,15 @@ import Network.HPACK.Table.Entry
 staticTableSize :: Size
 staticTableSize = length staticTableList
 
--- fixme
 {-# INLINE toStaticEntry #-}
 -- | Get 'Entry' from the static table.
 --
 -- >>> toStaticEntry 1
--- Entry 42 (Token 0 True ":authority") ""
+-- Entry 42 (Token 0 True True ":authority") ""
 -- >>> toStaticEntry 8
--- Entry 42 (Token 4 True ":status") "200"
+-- Entry 42 (Token 4 True True ":status") "200"
 -- >>> toStaticEntry 50
--- Entry 37 (Token 40 True "range") ""
+-- Entry 37 (Token 40 True False "range") ""
 toStaticEntry :: Index -> Entry
 toStaticEntry sidx = staticTable ! sidx
 
