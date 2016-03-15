@@ -37,7 +37,7 @@ go :: DynamicTable -> DynamicTable -> EncodeStrategy -> [HeaderList] -> [Int] ->
 go _    _    _    []     _    = return True
 go etbl dtbl stgy (h:hs) lens = do
     bs <- encodeHeader stgy 4096 etbl h `E.catch` \(E.SomeException e) -> do
-        putStrLn $ "decodeHeader: " ++ show e
+        putStrLn $ "encodeHeader: " ++ show e
         print h
         E.throwIO e
     let lens' = case lens of
@@ -46,7 +46,7 @@ go etbl dtbl stgy (h:hs) lens = do
               | otherwise         -> error $ show h ++ "\nshould be " ++ show l
             []                    -> []
     h' <- decodeHeader dtbl bs  `E.catch` \(E.SomeException e) -> do
-        putStrLn $ "encodeHeader: " ++ show e
+        putStrLn $ "decodeHeader: " ++ show e
         print h
         E.throwIO e
     if h == h' then
