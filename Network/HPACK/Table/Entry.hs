@@ -13,7 +13,8 @@ module Network.HPACK.Table.Entry (
   , toEntryToken
   -- * Getters
   , entrySize
-  , entryHeader
+  , entryTokenHeader
+  , entryToken
   , entryHeaderName
   , entryHeaderValue
   -- * For initialization
@@ -68,10 +69,13 @@ toEntryToken t v = Entry siz t v
 entrySize :: Entry -> Size
 entrySize (Entry siz _ _) = siz
 
--- | Getting 'Header'.
-entryHeader :: Entry -> Header
-entryHeader (Entry _ t v) = let !k = tokenFoldedKey t
-                            in (k,v)
+-- | Getting 'TokenHeader'.
+entryTokenHeader :: Entry -> TokenHeader
+entryTokenHeader (Entry _ t v) = (t, v)
+
+-- | Getting 'Token'.
+entryToken :: Entry -> Token
+entryToken (Entry _ t _) = t
 
 -- | Getting 'HeaderName'.
 entryHeaderName :: Entry -> HeaderName

@@ -17,6 +17,7 @@ import Network.HPACK.Builder
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import Network.HPACK.Huffman
 import Network.HPACK.Table
+import Network.HPACK.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -59,10 +60,12 @@ decodeSimple dyntbl rbuf = go empty
             !kv <- toHeader dyntbl w rbuf
             let builder' = builder << kv
             go builder'
-          else
-            return $! run builder
+          else do
+            let !tvs = run builder
+                !kvs = map (\(t,v) -> let !k = tokenFoldedKey t in (k,v)) tvs
+            return kvs
 
-toHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+toHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 toHeader dyntbl w rbuf
   | w `testBit` 7 = indexed             dyntbl w rbuf
   | w `testBit` 6 = incrementalIndexing dyntbl w rbuf
@@ -80,28 +83,28 @@ tableSizeUpdate dyntbl w rbuf = do
 
 ----------------------------------------------------------------
 
-indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 indexed dyntbl w rbuf = do
     let !w' = clearBit w 7
     !idx <- I.decode 7 w' rbuf
-    entryHeader <$> toIndexedEntry dyntbl idx
+    entryTokenHeader <$> toIndexedEntry dyntbl idx
 
-incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 incrementalIndexing dyntbl w rbuf = do
-    kv <- if isIndexedName1 w then
-              indexedName dyntbl w rbuf 6 mask6
-            else
-              newName dyntbl rbuf
-    let !e = toEntry kv
+    tv@(t,v) <- if isIndexedName1 w then
+                    indexedName dyntbl w rbuf 6 mask6
+                else
+                    newName dyntbl rbuf
+    let !e = toEntryToken t v
     insertEntry e dyntbl
-    return kv
+    return tv
 
-withoutIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+withoutIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 withoutIndexing dyntbl w rbuf
   | isIndexedName2 w = indexedName dyntbl w rbuf 4 mask4
   | otherwise        = newName dyntbl rbuf
 
-neverIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+neverIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 neverIndexing dyntbl w rbuf
   | isIndexedName2 w = indexedName dyntbl w rbuf 4 mask4
   | otherwise        = newName dyntbl rbuf
@@ -110,21 +113,21 @@ neverIndexing dyntbl w rbuf
 
 indexedName :: DynamicTable -> Word8 -> ReadBuffer
             -> Int -> (Word8 -> Word8)
-            -> IO Header
+            -> IO TokenHeader
 indexedName dyntbl w rbuf n mask = do
     let !p = mask w
     !idx <- I.decode n p rbuf
-    !key <- entryHeaderName <$> toIndexedEntry dyntbl idx
+    !t <- entryToken <$> toIndexedEntry dyntbl idx
     !val <- headerStuff dyntbl rbuf
-    let !kv = (key,val)
-    return kv
+    let !tv = (t,val)
+    return tv
 
-newName :: DynamicTable -> ReadBuffer -> IO Header
+newName :: DynamicTable -> ReadBuffer -> IO TokenHeader
 newName dyntbl rbuf = do
-    !key <- headerStuff dyntbl rbuf
+    !t <- toToken <$> headerStuff dyntbl rbuf
     !val <- headerStuff dyntbl rbuf
-    let !kv = (key,val)
-    return kv
+    let !tv = (t,val)
+    return tv
 
 ----------------------------------------------------------------
 
