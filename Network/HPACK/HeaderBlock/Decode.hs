@@ -27,7 +27,14 @@ import Network.HPACK.Types
 decodeHeader :: DynamicTable
              -> ByteString -- ^ An HPACK format
              -> IO HeaderList
-decodeHeader dyntbl inp = withReadBuffer inp $ \rbuf -> chkChange rbuf
+decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple []
+
+decodeHPACK :: DynamicTable
+            -> ByteString
+            -> (DynamicTable -> ReadBuffer -> IO a)
+            -> a
+            -> IO a
+decodeHPACK dyntbl inp dec ini = withReadBuffer inp chkChange
   where
     chkChange rbuf = do
         more <- hasOneByte rbuf
@@ -38,16 +45,20 @@ decodeHeader dyntbl inp = withReadBuffer inp $ \rbuf -> chkChange rbuf
                 chkChange rbuf
               else do
                 rewindOneByte rbuf
-                go rbuf empty
+                dec dyntbl rbuf
           else
-            return []
-    go rbuf builder = do
+            return ini
+
+decodeSimple :: DynamicTable -> ReadBuffer -> IO [Header]
+decodeSimple dyntbl rbuf = go empty
+  where
+    go builder = do
         more <- hasOneByte rbuf
         if more then do
             w <- getByte rbuf
             !kv <- toHeader dyntbl w rbuf
             let builder' = builder << kv
-            go rbuf builder'
+            go builder'
           else
             return $! run builder
 
