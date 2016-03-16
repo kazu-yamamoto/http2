@@ -71,16 +71,34 @@ writeWord8 WorkingBuffer{..} w = do
 
 {-# INLINE shiftLastN #-}
 shiftLastN :: WorkingBuffer -> Int -> Int -> IO ()
+shiftLastN WorkingBuffer{..} 0 _   = return ()
 shiftLastN WorkingBuffer{..} i len = do
     ptr <- readIORef offset
-    let !src = ptr `plusPtr` negate len
-        !dst = src `plusPtr` i
-        !ptr' = ptr `plusPtr` i
+    let !ptr' = ptr `plusPtr` i
     if ptr' >= limit then
         throwIO BufferOverrun
-      else do
-        memcpy dst src len
+      else if i < 0 then do
+        let !src = ptr `plusPtr` negate len
+            !dst = src `plusPtr` i
+        shiftLeft dst src len
         writeIORef offset ptr'
+      else do
+        let !src = ptr `plusPtr` (-1)
+            !dst = ptr' `plusPtr` (-1)
+        shiftRight dst src len
+        writeIORef offset ptr'
+  where
+    -- memcpy cannot be used for overlapped areas.
+    shiftLeft :: Buffer -> Buffer -> Int -> IO ()
+    shiftLeft _    _    0   = return ()
+    shiftLeft !dst !src n = do
+        peek src >>= poke dst
+        shiftLeft (dst `plusPtr` 1) (src `plusPtr` 1) (n - 1)
+    shiftRight :: Buffer -> Buffer -> Int -> IO ()
+    shiftRight _    _    0   = return ()
+    shiftRight !dst !src n = do
+        peek src >>= poke dst
+        shiftRight (dst `plusPtr` (-1)) (src `plusPtr` (-1)) (n - 1)
 
 {-# INLINE copyByteString #-}
 copyByteString :: WorkingBuffer -> ByteString -> IO ()
