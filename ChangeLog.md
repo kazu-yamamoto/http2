@@ -1,3 +1,11 @@
+## 1.5.4
+
+* Fixing a bug due to misuse of memcpy(). (#8)
+
+## 1.5.3
+
+* Adding debug information.
+
 ## 1.5.2
 
 * Minor optimization for HPACK.
