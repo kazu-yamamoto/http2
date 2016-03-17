@@ -100,7 +100,7 @@ insertDynamicRevIndex t v i drev = modifyIORef ref $ M.insert v i
   where
     ref = drev ! toIx t
 
-{-# INLINE deleteDynamicRevIndex#-}
+{-# INLINE deleteDynamicRevIndex #-}
 deleteDynamicRevIndex :: Token -> HeaderValue -> DynamicRevIndex -> IO ()
 deleteDynamicRevIndex t v drev = modifyIORef ref $ M.delete v
   where

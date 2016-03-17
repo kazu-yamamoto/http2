@@ -182,7 +182,7 @@ needChangeTableSize DynamicTable{..} = do
 setLimitForEncoding :: Size -> DynamicTable -> IO ()
 setLimitForEncoding siz DynamicTable{..} = do
     let EncodeInfo _ limref = codeInfo
-    writeIORef limref $! Just siz
+    writeIORef limref $ Just siz
 
 resetLimitForEncoding :: DynamicTable -> IO ()
 resetLimitForEncoding DynamicTable{..} = do
