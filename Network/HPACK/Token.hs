@@ -86,6 +86,8 @@ tokenUserAgent                :: Token
 tokenVary                     :: Token
 tokenVia                      :: Token
 tokenWwwAuthenticate          :: Token
+tokenConnection               :: Token -- Original
+tokenTE                       :: Token -- Original
 tokenDummy                    :: Token
 
 tokenAuthority                = Token  0  True  True ":authority"
@@ -140,31 +142,37 @@ tokenUserAgent                = Token 48  True False "User-Agent"
 tokenVary                     = Token 49  True False "Vary"
 tokenVia                      = Token 50  True False "Via"
 tokenWwwAuthenticate          = Token 51  True False "Www-Authenticate"
-tokenDummy                    = Token 52  True False "dummy"
+tokenConnection               = Token 52 False False "Connection"
+tokenTE                       = Token 53 False False "TE"
+tokenDummy                    = Token 54  True False "dummy"
 
 minToken :: Int
 minToken = 0
 
 maxToken :: Int
-maxToken = 51
+maxToken = 53
+
+staticToken :: Int
+staticToken = 51
 
 otherToken :: Int
 otherToken = maxToken + 1
 
 {-# INLINE isTokenOther #-}
 isTokenOther :: Token -> Bool
-isTokenOther t = toIx t == otherToken
+isTokenOther t = toIx t > staticToken
 
 -- |
 --
 -- >>> toToken ":authority" == tokenAuthority
 -- True
 -- >>> toToken "foo"
--- Token 52 True False "foo"
+-- Token 54 True False "foo"
 -- >>> toToken ":bar"
--- Token 52 True True ":bar"
+-- Token 54 True True ":bar"
 toToken :: ByteString -> Token
 toToken bs = case len of
+    2 -> if bs == "te" then tokenTE else mkTokenOther bs
     3 -> case lst of
         97  -> if bs === "via" then tokenVia else mkTokenOther bs
         101 -> if bs === "age" then tokenAge else mkTokenOther bs
@@ -203,6 +211,7 @@ toToken bs = case len of
         _   -> mkTokenOther bs
     10 -> case lst of
         101 -> if bs === "set-cookie" then tokenSetCookie else mkTokenOther bs
+        110 -> if bs === "connection" then tokenConnection else mkTokenOther bs
         116 -> if bs === "user-agent" then tokenUserAgent else mkTokenOther bs
         121 -> if bs === ":authority" then tokenAuthority else mkTokenOther bs
         _   -> mkTokenOther bs
