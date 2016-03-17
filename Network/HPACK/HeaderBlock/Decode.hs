@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE BangPatterns, CPP, RecordWildCards #-}
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
@@ -97,16 +97,15 @@ decodeSophisticated dyntbl rbuf = do
             more <- hasOneByte rbuf
             if more then do
                 w <- getByte rbuf
-                tv@(!t,!v) <- toTokenHeader dyntbl w rbuf
-                let ix = toIx t
-                if isPseudo t then do
+                tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
+                if isPseudo then do
                     mx <- IOA.readArray arr ix
                     when (mx /= Nothing) $ throwIO IllegalHeaderName
-                    when (isTokenOther t) $ throwIO IllegalHeaderName
+                    when (isIxOther ix) $ throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
                     pseudo
                   else do
-                    when (isTokenOther t && B8.any isUpper (tokenOriginalKey t)) $
+                    when (isIxOther ix && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
                     let builder = empty << tv
@@ -117,9 +116,9 @@ decodeSophisticated dyntbl rbuf = do
             more <- hasOneByte rbuf
             if more then do
                 w <- getByte rbuf
-                tv@(!t,!v) <- toTokenHeader dyntbl w rbuf
-                when (isPseudo t) $ throwIO IllegalHeaderName
-                when (isTokenOther t && B8.any isUpper (tokenOriginalKey t)) $
+                tv@(!t@Token{..},!v) <- toTokenHeader dyntbl w rbuf
+                when isPseudo $ throwIO IllegalHeaderName
+                when (isIxOther ix && B8.any isUpper (tokenOriginalKey t)) $
                     throwIO IllegalHeaderName
                 IOA.writeArray arr (toIx t) (Just v)
                 -- fixme:: cookie

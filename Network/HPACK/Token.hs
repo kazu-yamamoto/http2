@@ -12,30 +12,24 @@ import Data.CaseInsensitive (original, mk, CI(..))
 -- $setup
 -- >>> :set -XOverloadedStrings
 
-data Token = Token !Int
-                   !Bool -- should be indexed
-                   !Bool -- is this a pseudo header key?
-                   !(CI ByteString) deriving (Eq, Show)
+data Token = Token {
+    ix :: !Int
+  , shouldBeIndexed :: !Bool -- should be indexed
+  , isPseudo :: !Bool -- is this a pseudo header key?
+  , tokenKey :: !(CI ByteString)
+  } deriving (Eq, Show)
 
 {-# INLINE toIx #-}
 toIx :: Token -> Int
 toIx (Token n _ _ _) = n
 
-tokenKey :: Token -> CI ByteString
-tokenKey (Token _ _ _ ci) = ci
-
+{-# INLINE tokenOriginalKey #-}
 tokenOriginalKey :: Token -> ByteString
 tokenOriginalKey (Token _ _ _ ci) = original ci
 
+{-# INLINE tokenFoldedKey #-}
 tokenFoldedKey :: Token -> ByteString
 tokenFoldedKey (Token _ _ _ ci) = foldedCase ci
-
-{-# INLINE shouldBeIndexed #-}
-shouldBeIndexed :: Token -> Bool
-shouldBeIndexed (Token _ b _ _) = b
-
-isPseudo :: Token -> Bool
-isPseudo (Token _ _ b _) = b
 
 tokenAuthority                :: Token
 tokenMethod                   :: Token
@@ -161,18 +155,26 @@ staticToken = 51
 otherToken :: Int
 otherToken = maxToken + 1
 
-{-# INLINE isTokenOther #-}
-isTokenOther :: Token -> Bool
-isTokenOther t = toIx t > staticToken
+{-# INLINE isIxOther #-}
+isIxOther :: Int -> Bool
+isIxOther n = n == otherToken
+
+{-# INLINE isIxNonStatic #-}
+isIxNonStatic :: Int -> Bool
+isIxNonStatic n = n > staticToken
+
+{-# INLINE isTokenNonStatic #-}
+isTokenNonStatic :: Token -> Bool
+isTokenNonStatic n = toIx n > staticToken
 
 -- |
 --
 -- >>> toToken ":authority" == tokenAuthority
 -- True
 -- >>> toToken "foo"
--- Token 54 True False "foo"
+-- Token {ix = 54, shouldBeIndexed = True, isPseudo = False, tokenKey = "foo"}
 -- >>> toToken ":bar"
--- Token 54 True True ":bar"
+-- Token {ix = 54, shouldBeIndexed = True, isPseudo = True, tokenKey = ":bar"}
 toToken :: ByteString -> Token
 toToken bs = case len of
     2 -> if bs == "te" then tokenTE else mkTokenOther bs

@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, CPP #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, CPP, RecordWildCards #-}
 
 module Network.HPACK.Table.RevIndex (
     RevIndex
@@ -48,7 +48,7 @@ type ValueMap = Map HeaderValue HIndex
 staticRevIndex :: StaticRevIndex
 staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
   where
-    toEnt (k,xs) = (toIx (toToken k), m)
+    toEnt (k, xs) = (toIx (toToken k), m)
       where
         m = case xs of
             []  -> error "staticRevIndex"
@@ -153,12 +153,12 @@ lookupRevIndex :: Token
                -> (HeaderValue -> Entry -> HIndex -> IO ())
                -> RevIndex
                -> IO ()
-lookupRevIndex t@(Token ix should _ ci) v fa fb fc fd (RevIndex dyn oth)
-  | ix > staticToken = lookupOtherRevIndex (k,v) oth fa' fc'
-  | should           = lookupDynamicStaticRevIndex ix v dyn fa' fb'
+lookupRevIndex t@Token{..} v fa fb fc fd (RevIndex dyn oth)
+  | isIxNonStatic ix = lookupOtherRevIndex (k,v) oth fa' fc'
+  | shouldBeIndexed  = lookupDynamicStaticRevIndex ix v dyn fa' fb'
   | otherwise        = lookupStaticRevIndex ix fd'
   where
-    k = foldedCase ci
+    k = foldedCase tokenKey
     ent = toEntryToken t v
     fa' = fa
     fb' = fb v ent
@@ -170,14 +170,14 @@ lookupRevIndex t@(Token ix should _ ci) v fa fb fc fd (RevIndex dyn oth)
 {-# INLINE insertRevIndex #-}
 insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
 insertRevIndex (Entry _ t v) i (RevIndex dyn oth)
-  | isTokenOther t = insertOtherRevIndex   t v i oth
-  | otherwise      = insertDynamicRevIndex t v i dyn
+  | isTokenNonStatic t = insertOtherRevIndex   t v i oth
+  | otherwise          = insertDynamicRevIndex t v i dyn
 
 {-# INLINE deleteRevIndex #-}
 deleteRevIndex :: RevIndex -> Entry -> IO ()
 deleteRevIndex (RevIndex dyn oth) (Entry _ t v)
-  | isTokenOther t = deleteOtherRevIndex   t v oth
-  | otherwise      = deleteDynamicRevIndex t v dyn
+  | isTokenNonStatic t = deleteOtherRevIndex   t v oth
+  | otherwise          = deleteDynamicRevIndex t v dyn
 
 {-# INLINE deleteRevIndexList #-}
 deleteRevIndexList :: [Entry] -> RevIndex -> IO ()
