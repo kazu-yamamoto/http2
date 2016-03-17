@@ -198,16 +198,20 @@ toToken bs = case len of
     6 -> case lst of
         101 -> if bs === "cookie" then tokenCookie else mkTokenOther bs
         114 -> if bs === "server" then tokenServer else mkTokenOther bs
-        116 -> if bs === "expect" then tokenExpect else
-               if bs === "accept" then tokenAccept else mkTokenOther bs
+        116
+          | bs === "expect" -> tokenExpect
+          | bs === "accept" -> tokenAccept
+          | otherwise       -> mkTokenOther bs
         _   -> mkTokenOther bs
     7 -> case lst of
         100 -> if bs === ":method" then tokenMethod else mkTokenOther bs
         101 -> if bs === ":scheme" then tokenScheme else mkTokenOther bs
         104 -> if bs === "refresh" then tokenRefresh else mkTokenOther bs
         114 -> if bs === "referer" then tokenReferer else mkTokenOther bs
-        115 -> if bs === "expires" then tokenExpires else
-               if bs === ":status" then tokenStatus else mkTokenOther bs
+        115
+          | bs === "expires" -> tokenExpires
+          | bs === ":status" -> tokenStatus
+          | otherwise        -> mkTokenOther bs
         _   -> mkTokenOther bs
     8 -> case lst of
         101 -> if bs === "if-range" then tokenIfRange else mkTokenOther bs
@@ -244,8 +248,10 @@ toToken bs = case len of
         103 -> if bs === "accept-encoding" then tokenAcceptEncoding else mkTokenOther bs
         _   -> mkTokenOther bs
     16 -> case lst of
-        101 -> if bs === "content-language" then tokenContentLanguage else
-               if bs === "www-authenticate" then tokenWwwAuthenticate else mkTokenOther bs
+        101
+          | bs === "content-language" -> tokenContentLanguage
+          | bs === "www-authenticate" -> tokenWwwAuthenticate
+          | otherwise                 -> mkTokenOther bs
         103 -> if bs === "content-encoding" then tokenContentEncoding else mkTokenOther bs
         110 -> if bs === "content-location" then tokenContentLocation else mkTokenOther bs
         _   -> mkTokenOther bs
@@ -258,8 +264,10 @@ toToken bs = case len of
         _   -> mkTokenOther bs
     19 -> case lst of
         101 -> if bs === "if-unmodified-since" then tokenIfUnmodifiedSince else mkTokenOther bs
-        110 -> if bs === "proxy-authorization" then tokenProxyAuthorization else
-               if bs === "content-disposition" then tokenContentDisposition else mkTokenOther bs
+        110
+          | bs === "proxy-authorization" -> tokenProxyAuthorization
+          | bs === "content-disposition" -> tokenContentDisposition
+          | otherwise                    -> mkTokenOther bs
         _   -> mkTokenOther bs
     25 -> case lst of
         121 -> if bs === "strict-transport-security" then tokenStrictTransportSecurity else mkTokenOther bs

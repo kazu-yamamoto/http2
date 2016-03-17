@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections, RecordWildCards, CPP #-}
+{-# LANGUAGE TupleSections, CPP #-}
 
 module Network.HPACK.Table (
   -- * dynamic table
