@@ -31,9 +31,15 @@ data RevIndex = RevIndex !DynamicRevIndex !OtherRevIdex
 
 type DynamicRevIndex = Array Int (IORef ValueMap)
 
+data KeyValue = KeyValue HeaderName HeaderValue deriving (Eq, Ord)
+
 -- We always create an index for a pair of an unknown header and its value
 -- in Linear{H}.
-type OtherRevIdex = IORef (Map (HeaderName,HeaderValue) HIndex)
+type OtherRevIdex = IORef (Map KeyValue HIndex)
+
+{-# SPECIALIZE M.lookup :: KeyValue -> M.Map KeyValue HIndex -> Maybe HIndex #-}
+{-# SPECIALIZE M.delete :: KeyValue -> M.Map KeyValue HIndex -> M.Map KeyValue HIndex #-}
+{-# SPECIALIZE M.insert :: KeyValue -> HIndex -> M.Map KeyValue HIndex -> M.Map KeyValue HIndex #-}
 
 ----------------------------------------------------------------
 
@@ -42,6 +48,10 @@ type StaticRevIndex = Array Int StaticEntry
 data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap)
 
 type ValueMap = Map HeaderValue HIndex
+
+{-# SPECIALIZE M.lookup :: HeaderValue -> M.Map HeaderValue HIndex -> Maybe HIndex #-}
+{-# SPECIALIZE M.delete :: HeaderValue -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
+{-# SPECIALIZE M.insert :: HeaderValue -> HIndex -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
 
 ----------------------------------------------------------------
 
@@ -116,21 +126,21 @@ renewOtherRevIndex ref = writeIORef ref M.empty
 
 {-# INLINE lookupOtherRevIndex #-}
 lookupOtherRevIndex :: Header -> OtherRevIdex -> (HIndex -> IO ()) -> IO () -> IO ()
-lookupOtherRevIndex h ref fa' fc' = do
+lookupOtherRevIndex (k,v) ref fa' fc' = do
       oth <- readIORef ref
-      case M.lookup h oth of
+      case M.lookup (KeyValue k v) oth of
           Just i  -> fa' i
           Nothing -> fc'
 
 {-# INLINE insertOtherRevIndex #-}
 insertOtherRevIndex :: Token -> HeaderValue -> HIndex -> OtherRevIdex -> IO ()
-insertOtherRevIndex t v i ref = modifyIORef' ref $ M.insert (k,v) i
+insertOtherRevIndex t v i ref = modifyIORef' ref $ M.insert (KeyValue k v) i
   where
     !k = tokenFoldedKey t
 
 {-# INLINE deleteOtherRevIndex #-}
 deleteOtherRevIndex :: Token -> HeaderValue -> OtherRevIdex -> IO ()
-deleteOtherRevIndex t v ref = modifyIORef' ref $ M.delete (k,v)
+deleteOtherRevIndex t v ref = modifyIORef' ref $ M.delete (KeyValue k v)
   where
     !k = tokenFoldedKey t
 
