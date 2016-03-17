@@ -37,9 +37,9 @@ data KeyValue = KeyValue HeaderName HeaderValue deriving (Eq, Ord)
 -- in Linear{H}.
 type OtherRevIdex = IORef (Map KeyValue HIndex)
 
-{-# SPECIALIZE M.lookup :: KeyValue -> M.Map KeyValue HIndex -> Maybe HIndex #-}
-{-# SPECIALIZE M.delete :: KeyValue -> M.Map KeyValue HIndex -> M.Map KeyValue HIndex #-}
-{-# SPECIALIZE M.insert :: KeyValue -> HIndex -> M.Map KeyValue HIndex -> M.Map KeyValue HIndex #-}
+{-# SPECIALIZE INLINE M.lookup :: KeyValue -> M.Map KeyValue HIndex -> Maybe HIndex #-}
+{-# SPECIALIZE INLINE M.delete :: KeyValue -> M.Map KeyValue HIndex -> M.Map KeyValue HIndex #-}
+{-# SPECIALIZE INLINE M.insert :: KeyValue -> HIndex -> M.Map KeyValue HIndex -> M.Map KeyValue HIndex #-}
 
 ----------------------------------------------------------------
 
@@ -49,9 +49,9 @@ data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap)
 
 type ValueMap = Map HeaderValue HIndex
 
-{-# SPECIALIZE M.lookup :: HeaderValue -> M.Map HeaderValue HIndex -> Maybe HIndex #-}
-{-# SPECIALIZE M.delete :: HeaderValue -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
-{-# SPECIALIZE M.insert :: HeaderValue -> HIndex -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
+{-# SPECIALIZE INLINE M.lookup :: HeaderValue -> M.Map HeaderValue HIndex -> Maybe HIndex #-}
+{-# SPECIALIZE INLINE M.delete :: HeaderValue -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
+{-# SPECIALIZE INLINE M.insert :: HeaderValue -> HIndex -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
 
 ----------------------------------------------------------------
 
