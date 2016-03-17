@@ -155,6 +155,13 @@ staticToken = 51
 otherToken :: Int
 otherToken = maxToken + 1
 
+ixCookie :: Int
+ixCookie = 22
+
+{-# INLINE isIxCookie #-}
+isIxCookie :: Int -> Bool
+isIxCookie n = n == ixCookie
+
 {-# INLINE isIxOther #-}
 isIxOther :: Int -> Bool
 isIxOther n = n == otherToken

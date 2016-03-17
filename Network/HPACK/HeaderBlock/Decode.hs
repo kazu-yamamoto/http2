@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, RecordWildCards #-}
+{-# LANGUAGE BangPatterns, CPP, RecordWildCards, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
@@ -13,11 +13,13 @@ import Control.Applicative ((<$>))
 #endif
 import Control.Exception (throwIO)
 import Control.Monad (unless, when)
+import Data.Maybe (isJust)
 import Data.Array (Array, (!))
 import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
 import Data.Bits (testBit, clearBit, (.&.))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.Char (isUpper)
 import Data.CaseInsensitive (CI(..))
@@ -100,7 +102,7 @@ decodeSophisticated dyntbl rbuf = do
                 tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 if isPseudo then do
                     mx <- IOA.readArray arr ix
-                    when (mx /= Nothing) $ throwIO IllegalHeaderName
+                    when (isJust mx) $ throwIO IllegalHeaderName
                     when (isIxOther ix) $ throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
                     pseudo
@@ -108,25 +110,37 @@ decodeSophisticated dyntbl rbuf = do
                     when (isIxOther ix && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
-                    let builder = empty << tv
-                    normal builder
+                    let builder | isIxCookie ix = empty
+                                | otherwise     = empty << tv
+                        cookie  | isIxCookie ix = empty << v
+                                | otherwise     = empty
+                    normal builder cookie
               else
                 return []
-        normal builder = do
+        normal builder cookie = do
             more <- hasOneByte rbuf
             if more then do
                 w <- getByte rbuf
-                tv@(!t@Token{..},!v) <- toTokenHeader dyntbl w rbuf
+                tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
-                when (isIxOther ix && B8.any isUpper (tokenOriginalKey t)) $
+                when (isIxOther ix && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
-                IOA.writeArray arr (toIx t) (Just v)
-                -- fixme:: cookie
-                let builder' = builder << tv
-                normal builder'
+                IOA.writeArray arr ix (Just v)
+                let builder' | isIxCookie ix = builder
+                             | otherwise     = builder << tv
+                    cookie'  | isIxCookie ix = cookie << v
+                             | otherwise     = cookie
+                normal builder' cookie'
               else do
-                let !tvs = run builder
-                return tvs
+                let !tvs0 = run builder
+                    !cook = run cookie
+                if null cook then
+                    return tvs0
+                  else do
+                    let !v = BS.intercalate "; " cook
+                        !tvs = (tokenCookie, v) : tvs0
+                    IOA.writeArray arr ixCookie (Just v)
+                    return tvs
 
 toTokenHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 toTokenHeader dyntbl w rbuf
