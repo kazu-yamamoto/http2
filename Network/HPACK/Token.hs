@@ -7,7 +7,7 @@ import Data.ByteString.Internal (ByteString(..), memcmp)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
-import Data.CaseInsensitive (mk, CI(..))
+import Data.CaseInsensitive (original, mk, CI(..))
 
 -- $setup
 -- >>> :set -XOverloadedStrings
@@ -23,6 +23,9 @@ toIx (Token n _ _ _) = n
 
 tokenKey :: Token -> CI ByteString
 tokenKey (Token _ _ _ ci) = ci
+
+tokenOriginalKey :: Token -> ByteString
+tokenOriginalKey (Token _ _ _ ci) = original ci
 
 tokenFoldedKey :: Token -> ByteString
 tokenFoldedKey (Token _ _ _ ci) = foldedCase ci

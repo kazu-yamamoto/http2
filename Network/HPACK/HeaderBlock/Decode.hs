@@ -12,12 +12,14 @@ module Network.HPACK.HeaderBlock.Decode (
 import Control.Applicative ((<$>))
 #endif
 import Control.Exception (throwIO)
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Data.Array (Array, (!))
 import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
 import Data.Bits (testBit, clearBit, (.&.))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as B8
+import Data.Char (isUpper)
 import Data.CaseInsensitive (CI(..))
 import Data.Word (Word8)
 import Network.HPACK.Buffer
@@ -96,10 +98,17 @@ decodeSophisticated dyntbl rbuf = do
             if more then do
                 w <- getByte rbuf
                 tv@(!t,!v) <- toTokenHeader dyntbl w rbuf
-                IOA.writeArray arr (toIx t) (Just v)
-                if isPseudo t then
+                let ix = toIx t
+                if isPseudo t then do
+                    mx <- IOA.readArray arr ix
+                    when (mx /= Nothing) $ throwIO IllegalHeaderName
+                    when (isTokenOther t) $ throwIO IllegalHeaderName
+                    IOA.writeArray arr ix (Just v)
                     pseudo
                   else do
+                    when (isTokenOther t && B8.any isUpper (tokenOriginalKey t)) $
+                        throwIO IllegalHeaderName
+                    IOA.writeArray arr ix (Just v)
                     let builder = empty << tv
                     normal builder
               else
@@ -109,12 +118,13 @@ decodeSophisticated dyntbl rbuf = do
             if more then do
                 w <- getByte rbuf
                 tv@(!t,!v) <- toTokenHeader dyntbl w rbuf
+                when (isPseudo t) $ throwIO IllegalHeaderName
+                when (isTokenOther t && B8.any isUpper (tokenOriginalKey t)) $
+                    throwIO IllegalHeaderName
                 IOA.writeArray arr (toIx t) (Just v)
-                if isPseudo t then
-                    throwIO IllegalPseudoHeader
-                  else do -- fixme :: cookie
-                    let builder' = builder << tv
-                    normal builder'
+                -- fixme:: cookie
+                let builder' = builder << tv
+                normal builder'
               else do
                 let !tvs = run builder
                 return tvs
