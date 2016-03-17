@@ -5,6 +5,7 @@ module Network.HPACK.HeaderBlock.Decode (
   , decodeHeaderTable
   , ValueTable
   , toHeaderTable
+  , getHeaderValue
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -12,8 +13,12 @@ import Control.Applicative ((<$>))
 #endif
 import Control.Exception (throwIO)
 import Control.Monad (unless)
+import Data.Array (Array, (!))
+import qualified Data.Array.IO as IOA
+import qualified Data.Array.Unsafe as Unsafe
 import Data.Bits (testBit, clearBit, (.&.))
 import Data.ByteString (ByteString)
+import Data.CaseInsensitive (CI(..))
 import Data.Word (Word8)
 import Network.HPACK.Buffer
 import Network.HPACK.Builder
@@ -22,10 +27,6 @@ import Network.HPACK.Huffman
 import Network.HPACK.Table
 import Network.HPACK.Token
 import Network.HPACK.Types
-
-import Data.Array (Array)
-import qualified Data.Array.IO as IOA
-import qualified Data.Array.Unsafe as Unsafe
 
 type ValueTable = Array Int (Maybe HeaderValue)
 
@@ -240,7 +241,7 @@ decodeString huff hufdec rbuf len = do
 
 ----------------------------------------------------------------
 
-toHeaderTable :: HeaderList -> IO (TokenHeaderList, ValueTable)
+toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO (TokenHeaderList, ValueTable)
 toHeaderTable kvs = do
     arr <- IOA.newArray (minToken,otherToken) Nothing
     !tvs <- conv arr
@@ -250,12 +251,15 @@ toHeaderTable kvs = do
     conv :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
     conv arr = go kvs empty
       where
-        go :: HeaderList -> Builder TokenHeader -> IO TokenHeaderList
+        go :: [(CI HeaderName,HeaderValue)] -> Builder TokenHeader -> IO TokenHeaderList
         go []         builder = return $ run builder
         go ((k,v):xs) builder = do
-            let !t = toToken k
+            let !t = toToken (foldedCase k)
             IOA.writeArray arr (toIx t) (Just v)
             let !tv = (t,v)
                 !builder' = builder << tv
             go xs builder'
 
+{-# INLINE getHeaderValue #-}
+getHeaderValue :: Token -> ValueTable -> Maybe HeaderValue
+getHeaderValue t tbl = tbl ! toIx t

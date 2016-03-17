@@ -10,6 +10,7 @@ module Network.HPACK (
   , decodeHeaderTable
   , ValueTable
   , toHeaderTable
+  , getHeaderValue
   -- * DynamicTable
   , DynamicTable
   , defaultDynamicTableSize
