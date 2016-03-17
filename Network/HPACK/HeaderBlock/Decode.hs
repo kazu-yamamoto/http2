@@ -110,14 +110,13 @@ decodeSophisticated dyntbl rbuf = do
                     when (isIxOther ix && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
-                    let builder | isIxCookie ix = empty
-                                | otherwise     = empty << tv
-                        cookie  | isIxCookie ix = empty << v
-                                | otherwise     = empty
-                    normal builder cookie
+                    if isIxCookie ix then
+                        normal empty (empty << v)
+                      else
+                        normal (empty << tv) empty
               else
                 return []
-        normal builder cookie = do
+        normal !builder !cookie = do
             more <- hasOneByte rbuf
             if more then do
                 w <- getByte rbuf
@@ -126,11 +125,10 @@ decodeSophisticated dyntbl rbuf = do
                 when (isIxOther ix && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
                 IOA.writeArray arr ix (Just v)
-                let builder' | isIxCookie ix = builder
-                             | otherwise     = builder << tv
-                    cookie'  | isIxCookie ix = cookie << v
-                             | otherwise     = cookie
-                normal builder' cookie'
+                if isIxCookie ix then
+                    normal builder (cookie << v)
+                  else
+                    normal (builder << tv) cookie
               else do
                 let !tvs0 = run builder
                     !cook = run cookie
