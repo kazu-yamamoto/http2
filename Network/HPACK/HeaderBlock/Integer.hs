@@ -46,16 +46,15 @@ encode wbuf set n i
         writeWord8 wbuf $ set $ fromIntegral p
         encode' (i - p)
   where
-    p = powerArray ! n
+    !p = powerArray ! n
     encode' :: Int -> IO ()
     encode' j
       | j < 128   = writeWord8 wbuf $ fromIntegral j
       | otherwise = do
-            writeWord8 wbuf $ fromIntegral (r + 128)
-            encode' q
-      where
-        q = j `shiftR` 7
-        r = j .&. 0x7f
+          let !q = j `shiftR` 7
+              !r = j .&. 0x7f
+          writeWord8 wbuf $ fromIntegral (r + 128)
+          encode' q
 
 ----------------------------------------------------------------
 
