@@ -233,11 +233,12 @@ Executable hpack-stat
                       , array
                       , bytestring
                       , bytestring-builder
+                      , case-insensitive
                       , containers
                       , directory
                       , filepath
-                      , unordered-containers
                       , text
+                      , unordered-containers
                       , vector
                       , word8
 
