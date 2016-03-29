@@ -102,7 +102,7 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
         rev = getRevIndex dyntbl
         step0 = case compressionAlgo of
             Naive  -> naiveStep  fe'
-            Static -> staticStep rev fa fd fe
+            Static -> staticStep fa fd fe
             Linear -> linearStep rev fa fb fc fd
     ref1 <- currentOffset wbuf >>= newIORef
     ref2 <- newIORef hs0
@@ -128,8 +128,8 @@ naiveStep fe t v = fe (tokenFoldedKey t) v
 
 ----------------------------------------------------------------
 
-staticStep :: RevIndex -> FA -> FD -> FE -> Token -> HeaderValue -> IO ()
-staticStep rev fa fd fe t v = lookupRevIndex t v fa fd fe fd rev
+staticStep :: FA -> FD -> FE -> Token -> HeaderValue -> IO ()
+staticStep fa fd fe t v = lookupRevIndex' t v fa fd fe
 
 ----------------------------------------------------------------
 
@@ -141,8 +141,8 @@ linearStep rev fa fb fc fd t v = lookupRevIndex t v fa fb fc fd rev
 type FA = HIndex -> IO ()
 type FB = HeaderValue -> Entry -> HIndex -> IO ()
 type FC = HeaderName -> HeaderValue -> Entry -> IO ()
-type FD = HeaderValue -> Entry -> HIndex -> IO ()
-type FE = HeaderName -> HeaderValue -> Entry -> IO ()
+type FD = HeaderValue -> HIndex -> IO ()
+type FE = HeaderName -> HeaderValue -> IO ()
 
 -- 6.1.  Indexed Header Field Representation
 -- Indexed Header Field
@@ -170,15 +170,15 @@ literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff k v ent = do
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- Indexed Name
 literalHeaderFieldWithoutIndexingIndexedName
-    :: DynamicTable -> WorkingBuffer -> Bool -> FB
-literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v _ hidx =
+    :: DynamicTable -> WorkingBuffer -> Bool -> FD
+literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx =
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 4 set0000 v
 
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- New Name
 literalHeaderFieldWithoutIndexingNewName
     :: DynamicTable -> WorkingBuffer -> Bool -> FE
-literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v _ =
+literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
 literalHeaderFieldWithoutIndexingNewName'

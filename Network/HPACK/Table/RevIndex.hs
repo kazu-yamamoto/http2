@@ -5,6 +5,7 @@ module Network.HPACK.Table.RevIndex (
   , newRevIndex
   , renewRevIndex
   , lookupRevIndex
+  , lookupRevIndex'
   , insertRevIndex
   , deleteRevIndexList
   ) where
@@ -66,10 +67,19 @@ staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
         lst = zipWith (\(k,v) i -> (k,(v,i))) staticTableList $ map SIndex [1..]
         extract xs = (fst (head xs), map snd xs)
 
-{-# INLINE lookupStaticRevIndex #-}
-lookupStaticRevIndex :: Int -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex ix fd' = case staticRevIndex ! ix of
+{-# INLINE lookupStaticRevIndex1 #-}
+lookupStaticRevIndex1 :: Int -> (HIndex -> IO ()) -> IO ()
+lookupStaticRevIndex1 ix fd' = case staticRevIndex ! ix of
     StaticEntry i _ -> fd' i
+
+{-# INLINE lookupStaticRevIndex2 #-}
+lookupStaticRevIndex2 :: Int -> HeaderValue -> (HIndex -> IO ()) -> (HIndex -> IO ()) -> IO ()
+lookupStaticRevIndex2 ix v fa' fbd' = case staticRevIndex ! ix of
+    StaticEntry i Nothing  -> fbd' i
+    StaticEntry i (Just m) -> case M.lookup v m of
+            Nothing -> fbd' i
+            Just j  -> fa' j
+
 
 ----------------------------------------------------------------
 
@@ -94,11 +104,7 @@ lookupDynamicStaticRevIndex ix v drev fa' fbd' = do
     m <- readIORef ref
     case M.lookup v m of
         Just i  -> fa' i
-        Nothing -> case staticRevIndex ! ix of
-            StaticEntry i Nothing  -> fbd' i
-            StaticEntry i (Just m') -> case M.lookup v m' of
-                Nothing -> fbd' i
-                Just j  -> fa' j
+        Nothing -> lookupStaticRevIndex2 ix v fa' fbd'
 
 {-# INLINE insertDynamicRevIndex #-}
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
@@ -156,20 +162,36 @@ lookupRevIndex :: Token
                -> (HIndex -> IO ())
                -> (HeaderValue -> Entry -> HIndex -> IO ())
                -> (HeaderName -> HeaderValue -> Entry -> IO ())
-               -> (HeaderValue -> Entry -> HIndex -> IO ())
+               -> (HeaderValue -> HIndex -> IO ())
                -> RevIndex
                -> IO ()
 lookupRevIndex t@Token{..} v fa fb fc fd (RevIndex dyn oth)
   | isIxNonStatic ix = lookupOtherRevIndex (k,v) oth fa' fc'
   | shouldBeIndexed  = lookupDynamicStaticRevIndex ix v dyn fa' fb'
-  | otherwise        = lookupStaticRevIndex ix fd'
+  | otherwise        = lookupStaticRevIndex1 ix fd'
   where
     k = foldedCase tokenKey
     ent = toEntryToken t v
     fa' = fa
     fb' = fb v ent
     fc' = fc k v ent
-    fd' = fd v ent
+    fd' = fd v
+
+{-# INLINE lookupRevIndex' #-}
+lookupRevIndex' :: Token
+                -> HeaderValue
+                -> (HIndex -> IO ())
+                -> (HeaderValue -> HIndex -> IO ())
+                -> (HeaderName -> HeaderValue -> IO ())
+                -> IO ()
+lookupRevIndex' Token{..} v fa fd fe
+  | isIxNonStatic ix = fe'
+  | otherwise        = lookupStaticRevIndex2 ix v fa' fd'
+  where
+    k = foldedCase tokenKey
+    fa' = fa
+    fd' = fd v
+    fe' = fe k v
 
 ----------------------------------------------------------------
 
