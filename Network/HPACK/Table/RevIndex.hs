@@ -49,10 +49,6 @@ data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap) deriving Show
 
 type ValueMap = Map HeaderValue HIndex
 
-{-# SPECIALIZE INLINE M.lookup :: HeaderValue -> M.Map HeaderValue HIndex -> Maybe HIndex #-}
-{-# SPECIALIZE INLINE M.delete :: HeaderValue -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
-{-# SPECIALIZE INLINE M.insert :: HeaderValue -> HIndex -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
-
 ----------------------------------------------------------------
 
 staticRevIndex :: StaticRevIndex
