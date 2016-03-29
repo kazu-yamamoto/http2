@@ -67,14 +67,9 @@ staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
         lst = zipWith (\(k,v) i -> (k,(v,i))) staticTableList $ map SIndex [1..]
         extract xs = (fst (head xs), map snd xs)
 
-{-# INLINE lookupStaticRevIndex1 #-}
-lookupStaticRevIndex1 :: Int -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex1 ix fd' = case staticRevIndex ! ix of
-    StaticEntry i _ -> fd' i
-
-{-# INLINE lookupStaticRevIndex2 #-}
-lookupStaticRevIndex2 :: Int -> HeaderValue -> (HIndex -> IO ()) -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex2 ix v fa' fbd' = case staticRevIndex ! ix of
+{-# INLINE lookupStaticRevIndex #-}
+lookupStaticRevIndex :: Int -> HeaderValue -> (HIndex -> IO ()) -> (HIndex -> IO ()) -> IO ()
+lookupStaticRevIndex ix v fa' fbd' = case staticRevIndex ! ix of
     StaticEntry i Nothing  -> fbd' i
     StaticEntry i (Just m) -> case M.lookup v m of
             Nothing -> fbd' i
@@ -104,7 +99,7 @@ lookupDynamicStaticRevIndex ix v drev fa' fbd' = do
     m <- readIORef ref
     case M.lookup v m of
         Just i  -> fa' i
-        Nothing -> lookupStaticRevIndex2 ix v fa' fbd'
+        Nothing -> lookupStaticRevIndex ix v fa' fbd'
 
 {-# INLINE insertDynamicRevIndex #-}
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
@@ -168,7 +163,8 @@ lookupRevIndex :: Token
 lookupRevIndex t@Token{..} v fa fb fc fd (RevIndex dyn oth)
   | isIxNonStatic ix = lookupOtherRevIndex (k,v) oth fa' fc'
   | shouldBeIndexed  = lookupDynamicStaticRevIndex ix v dyn fa' fb'
-  | otherwise        = lookupStaticRevIndex1 ix fd'
+  -- path: is not indexed but ":path /" should be used, sigh.
+  | otherwise        = lookupStaticRevIndex ix v fa' fd'
   where
     k = foldedCase tokenKey
     ent = toEntryToken t v
@@ -186,7 +182,7 @@ lookupRevIndex' :: Token
                 -> IO ()
 lookupRevIndex' Token{..} v fa fd fe
   | isIxNonStatic ix = fe'
-  | otherwise        = lookupStaticRevIndex2 ix v fa' fd'
+  | otherwise        = lookupStaticRevIndex ix v fa' fd'
   where
     k = foldedCase tokenKey
     fa' = fa
