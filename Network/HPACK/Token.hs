@@ -1,6 +1,80 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns #-}
 
-module Network.HPACK.Token where
+module Network.HPACK.Token (
+  -- * Data type
+    Token(..)
+  , toIx
+  , tokenOriginalKey
+  , tokenFoldedKey
+  , toToken
+  -- * Ix
+  , minToken
+  , maxToken
+  , staticToken
+  , otherToken
+  , ixCookie
+  -- * Utilities
+  , isIxCookie
+  , isIxOther
+  , isIxNonStatic
+  , isTokenNonStatic
+  -- * Defined tokens
+  , tokenAuthority
+  , tokenMethod
+  , tokenPath
+  , tokenScheme
+  , tokenStatus
+  , tokenAcceptCharset
+  , tokenAcceptEncoding
+  , tokenAcceptLanguage
+  , tokenAcceptRanges
+  , tokenAccept
+  , tokenAccessControlAllowOrigin
+  , tokenAge
+  , tokenAllow
+  , tokenAuthorization
+  , tokenCacheControl
+  , tokenContentDisposition
+  , tokenContentEncoding
+  , tokenContentLanguage
+  , tokenContentLength
+  , tokenContentLocation
+  , tokenContentRange
+  , tokenContentType
+  , tokenCookie
+  , tokenDate
+  , tokenEtag
+  , tokenExpect
+  , tokenExpires
+  , tokenFrom
+  , tokenHost
+  , tokenIfMatch
+  , tokenIfModifiedSince
+  , tokenIfNoneMatch
+  , tokenIfRange
+  , tokenIfUnmodifiedSince
+  , tokenLastModified
+  , tokenLink
+  , tokenLocation
+  , tokenMaxForwards
+  , tokenProxyAuthenticate
+  , tokenProxyAuthorization
+  , tokenRange
+  , tokenReferer
+  , tokenRefresh
+  , tokenRetryAfter
+  , tokenServer
+  , tokenSetCookie
+  , tokenStrictTransportSecurity
+  , tokenTransferEncoding
+  , tokenUserAgent
+  , tokenVary
+  , tokenVia
+  , tokenWwwAuthenticate
+  , tokenConnection
+  , tokenTE
+  , tokenDummy
+  ) where
 
 import qualified Data.ByteString as B
 import Data.ByteString.Internal (ByteString(..), memcmp)
@@ -290,4 +364,3 @@ mkTokenOther bs = Token otherToken True p (mk bs)
     !p | B.length bs == 0 = False
        | B.head bs == 58  = True
        | otherwise        = False
-
