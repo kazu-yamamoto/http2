@@ -45,7 +45,7 @@ type OtherRevIdex = IORef (Map KeyValue HIndex)
 
 type StaticRevIndex = Array Int StaticEntry
 
-data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap)
+data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap) deriving Show
 
 type ValueMap = Map HeaderValue HIndex
 
@@ -62,9 +62,9 @@ staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
       where
         m = case xs of
             []  -> error "staticRevIndex"
-            [(_,i)] -> StaticEntry i Nothing
-            (_,i):_ -> let !vs = M.fromList xs
-                       in StaticEntry i (Just vs)
+            [("",i)] -> StaticEntry i Nothing
+            (_,i):_  -> let !vs = M.fromList xs
+                        in StaticEntry i (Just vs)
     zs = map extract $ groupBy ((==) `on` fst) lst
       where
         lst = zipWith (\(k,v) i -> (k,(v,i))) staticTableList $ map SIndex [1..]
