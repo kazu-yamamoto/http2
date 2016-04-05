@@ -6,11 +6,8 @@ module Network.HPACK (
     encodeHeader
   , decodeHeader
   -- * Encoding and decoding with token
-  , encodeHeaderBuffer
-  , decodeHeaderTable
-  , ValueTable
-  , toHeaderTable
-  , getHeaderValue
+  , encodeTokenHeader
+  , decodeTokenHeader
   -- * DynamicTable
   , DynamicTable
   , defaultDynamicTableSize
@@ -34,6 +31,10 @@ module Network.HPACK (
   , HeaderValue
   , TokenHeaderList
   , TokenHeader
+  -- * Value table
+  , ValueTable
+  , getHeaderValue
+  , toHeaderTable
   -- * Basic types
   , Size
   , Index

@@ -2,7 +2,7 @@
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
-  , decodeHeaderTable
+  , decodeTokenHeader
   , ValueTable
   , toHeaderTable
   , getHeaderValue
@@ -44,10 +44,10 @@ decodeHeader :: DynamicTable
              -> IO HeaderList
 decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
 
-decodeHeaderTable :: DynamicTable
+decodeTokenHeader :: DynamicTable
                   -> ByteString -- ^ An HPACK format
                   -> IO (TokenHeaderList, ValueTable)
-decodeHeaderTable dyntbl inp = decodeHPACK dyntbl inp decodeSophisticated
+decodeTokenHeader dyntbl inp = decodeHPACK dyntbl inp decodeSophisticated
 
 decodeHPACK :: DynamicTable
             -> ByteString

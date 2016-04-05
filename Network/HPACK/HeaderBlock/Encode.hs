@@ -2,7 +2,7 @@
 
 module Network.HPACK.HeaderBlock.Encode (
     encodeHeader
-  , encodeHeaderBuffer
+  , encodeTokenHeader
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -63,7 +63,7 @@ encodeHeader' :: EncodeStrategy
 encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
   where
     enc buf = do
-        (hs',len) <- encodeHeaderBuffer buf siz stgy True dyntbl hs
+        (hs',len) <- encodeTokenHeader buf siz stgy True dyntbl hs
         case hs' of
             [] -> create len $ \p -> memcpy p buf len
             _  -> throwIO BufferOverrun
@@ -83,14 +83,14 @@ encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
 --   be returned. In this case, this function should be called with it
 --   again. 4th argument must be 'False'.
 --
-encodeHeaderBuffer :: Buffer
-                   -> BufferSize
-                   -> EncodeStrategy
-                   -> Bool -- ^ 'True' at the first time, 'False' when continued.
-                   -> DynamicTable
-                   -> TokenHeaderList
-                   -> IO (TokenHeaderList, Int) -- ^ Leftover
-encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
+encodeTokenHeader :: Buffer
+                  -> BufferSize
+                  -> EncodeStrategy
+                  -> Bool -- ^ 'True' at the first time, 'False' when continued.
+                  -> DynamicTable
+                  -> TokenHeaderList
+                  -> IO (TokenHeaderList, Int) -- ^ Leftover
+encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
     wbuf <- newWorkingBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
     let fa = indexedHeaderField dyntbl wbuf useHuffman
