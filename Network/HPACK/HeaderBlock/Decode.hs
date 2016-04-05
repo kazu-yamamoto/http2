@@ -32,7 +32,13 @@ import Network.HPACK.Table
 import Network.HPACK.Token
 import Network.HPACK.Types
 
+-- | An array for 'HeaderValue'.
 type ValueTable = Array Int (Maybe HeaderValue)
+
+-- | Accessing 'HeaderValue' with 'Token'.
+{-# INLINE getHeaderValue #-}
+getHeaderValue :: Token -> ValueTable -> Maybe HeaderValue
+getHeaderValue t tbl = tbl ! toIx t
 
 ----------------------------------------------------------------
 
@@ -44,6 +50,8 @@ decodeHeader :: DynamicTable
              -> IO HeaderList
 decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
 
+-- | Converting the HPACK format to 'TokenHeaderList'
+--   and 'ValueTable'.
 decodeTokenHeader :: DynamicTable
                   -> ByteString -- ^ An HPACK format
                   -> IO (TokenHeaderList, ValueTable)
@@ -262,6 +270,8 @@ decodeString huff hufdec rbuf len = do
 
 ----------------------------------------------------------------
 
+-- | Converting a header list of WAI's style to
+--   'TokenHeaderList' and 'ValueTable'.
 toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO (TokenHeaderList, ValueTable)
 toHeaderTable kvs = do
     arr <- IOA.newArray (minToken,otherToken) Nothing
@@ -280,7 +290,3 @@ toHeaderTable kvs = do
             let !tv = (t,v)
                 !builder' = builder << tv
             go xs builder'
-
-{-# INLINE getHeaderValue #-}
-getHeaderValue :: Token -> ValueTable -> Maybe HeaderValue
-getHeaderValue t tbl = tbl ! toIx t

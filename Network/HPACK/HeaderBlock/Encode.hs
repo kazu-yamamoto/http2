@@ -42,6 +42,7 @@ changeTableSize dyntbl wbuf = do
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderList' to the HPACK format.
+--   This function has overhead of allocating/freeing a temporary buffer.
 --   'BufferOverrun' will be thrown if the temporary buffer is too small.
 encodeHeader :: EncodeStrategy
              -> Size -- ^ The size of a temporary buffer.
@@ -79,9 +80,11 @@ encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
 --   dynamic table size update is generated at the beginning of
 --   the HPACK format.
 --
---   If the buffer for encoding is small, leftover 'TokenHeaderList' will
---   be returned. In this case, this function should be called with it
---   again. 4th argument must be 'False'.
+--   The return value is a pair of leftover 'TokenHeaderList' and
+--   how many bytes are filled in the buffer.
+--   If the leftover is empty, the encoding is finished.
+--   Otherwise, this function should be called with it again.
+--   4th argument must be 'False'.
 --
 encodeTokenHeader :: Buffer
                   -> BufferSize
@@ -89,7 +92,7 @@ encodeTokenHeader :: Buffer
                   -> Bool -- ^ 'True' at the first time, 'False' when continued.
                   -> DynamicTable
                   -> TokenHeaderList
-                  -> IO (TokenHeaderList, Int) -- ^ Leftover
+                  -> IO (TokenHeaderList, Int) -- ^ Leftover, filled length
 encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
     wbuf <- newWorkingBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
