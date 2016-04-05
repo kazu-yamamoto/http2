@@ -3,20 +3,19 @@
 module Network.HPACK.Token (
   -- * Data type
     Token(..)
-  , toIx
-  , tokenOriginalKey
+  , tokenIx
+  , tokenCIKey
   , tokenFoldedKey
   , toToken
   -- * Ix
-  , minToken
-  , maxToken
-  , staticToken
-  , otherToken
-  , ixCookie
+  , minTokenIx
+  , maxTokenIx
+  , extraTokenIx
+  , tokenCookieIx
   -- * Utilities
-  , isIxCookie
-  , isIxOther
-  , isIxNonStatic
+  , isTokenIxCookie
+  , isTokenIxExtra
+  , isTokenIxNonStatic
   , isTokenNonStatic
   -- * Defined tokens
   , tokenAuthority
@@ -71,9 +70,9 @@ module Network.HPACK.Token (
   , tokenVary
   , tokenVia
   , tokenWwwAuthenticate
+  , tokenExtra
   , tokenConnection
   , tokenTE
-  , tokenDummy
   ) where
 
 import qualified Data.ByteString as B
@@ -86,21 +85,25 @@ import Data.CaseInsensitive (original, mk, CI(..))
 -- $setup
 -- >>> :set -XOverloadedStrings
 
+-- | Internal representation for header keys.
 data Token = Token {
-    ix :: !Int
-  , shouldBeIndexed :: !Bool -- should be indexed
-  , isPseudo :: !Bool -- is this a pseudo header key?
-  , tokenKey :: !(CI ByteString)
+    ix :: !Int               -- ^ Index for value table
+  , shouldBeIndexed :: !Bool -- ^ should be indexed in HPACK
+  , isPseudo :: !Bool        -- ^ is this a pseudo header key?
+  , tokenKey :: !(CI ByteString) -- ^ Case insensitive header key
   } deriving (Eq, Show)
 
-{-# INLINE toIx #-}
-toIx :: Token -> Int
-toIx (Token n _ _ _) = n
+-- | Extracting an index from a token.
+{-# INLINE tokenIx #-}
+tokenIx :: Token -> Int
+tokenIx (Token n _ _ _) = n
 
-{-# INLINE tokenOriginalKey #-}
-tokenOriginalKey :: Token -> ByteString
-tokenOriginalKey (Token _ _ _ ci) = original ci
+-- | Extracting a case insensitive header key from a token.
+{-# INLINE tokenCIKey #-}
+tokenCIKey :: Token -> ByteString
+tokenCIKey (Token _ _ _ ci) = original ci
 
+-- | Extracting a folded header key from a token.
 {-# INLINE tokenFoldedKey #-}
 tokenFoldedKey :: Token -> ByteString
 tokenFoldedKey (Token _ _ _ ci) = foldedCase ci
@@ -157,9 +160,9 @@ tokenUserAgent                :: Token
 tokenVary                     :: Token
 tokenVia                      :: Token
 tokenWwwAuthenticate          :: Token
+tokenExtra                    :: Token -- Other tokens
 tokenConnection               :: Token -- Original
 tokenTE                       :: Token -- Original
-tokenDummy                    :: Token
 
 tokenAuthority                = Token  0  True  True ":authority"
 tokenMethod                   = Token  1  True  True ":method"
@@ -213,42 +216,54 @@ tokenUserAgent                = Token 48  True False "User-Agent"
 tokenVary                     = Token 49  True False "Vary"
 tokenVia                      = Token 50  True False "Via"
 tokenWwwAuthenticate          = Token 51  True False "Www-Authenticate"
-tokenConnection               = Token 52 False False "Connection"
-tokenTE                       = Token 53 False False "TE"
-tokenDummy                    = Token 54  True False "dummy"
+-- | A place holder to hold header keys not defined in the static table.
+tokenExtra                    = Token 52  True False "extra"
+-- | Not defined in the static table.
+tokenConnection               = Token 53 False False "Connection"
+-- | Not defined in the static table.
+tokenTE                       = Token 54 False False "TE"
 
-minToken :: Int
-minToken = 0
+-- | Minimum token index.
+minTokenIx :: Int
+minTokenIx = 0
 
-maxToken :: Int
-maxToken = 53
+-- | Maximum token index.
+maxTokenIx :: Int
+maxTokenIx = 53
 
-staticToken :: Int
-staticToken = 51
+-- | Maximun token index defined in the static table.
+staticTokenIx :: Int
+staticTokenIx = 51
 
-otherToken :: Int
-otherToken = maxToken + 1
+-- | Token index for headers not defined in the static table.
+extraTokenIx :: Int
+extraTokenIx = maxTokenIx + 1
 
-ixCookie :: Int
-ixCookie = 22
+-- | Token index for 'tokenCookie'.
+tokenCookieIx :: Int
+tokenCookieIx = 22
 
-{-# INLINE isIxCookie #-}
-isIxCookie :: Int -> Bool
-isIxCookie n = n == ixCookie
+-- | Is this token ix for Cookie?
+{-# INLINE isTokenIxCookie #-}
+isTokenIxCookie :: Int -> Bool
+isTokenIxCookie n = n == tokenCookieIx
 
-{-# INLINE isIxOther #-}
-isIxOther :: Int -> Bool
-isIxOther n = n == otherToken
+-- | Is this token ix to be held in the place holder?
+{-# INLINE isTokenIxExtra #-}
+isTokenIxExtra :: Int -> Bool
+isTokenIxExtra n = n == extraTokenIx
 
-{-# INLINE isIxNonStatic #-}
-isIxNonStatic :: Int -> Bool
-isIxNonStatic n = n > staticToken
+-- | Is this token ix for a header not defined in the static table?
+{-# INLINE isTokenIxNonStatic #-}
+isTokenIxNonStatic :: Int -> Bool
+isTokenIxNonStatic n = n > staticTokenIx
 
+-- | Is this token for a header not defined in the static table?
 {-# INLINE isTokenNonStatic #-}
 isTokenNonStatic :: Token -> Bool
-isTokenNonStatic n = toIx n > staticToken
+isTokenNonStatic n = tokenIx n > staticTokenIx
 
--- |
+-- | Making a token from a header key.
 --
 -- >>> toToken ":authority" == tokenAuthority
 -- True
@@ -258,11 +273,11 @@ isTokenNonStatic n = toIx n > staticToken
 -- Token {ix = 54, shouldBeIndexed = True, isPseudo = True, tokenKey = ":bar"}
 toToken :: ByteString -> Token
 toToken bs = case len of
-    2 -> if bs === "te" then tokenTE else mkTokenOther bs
+    2 -> if bs === "te" then tokenTE else mkTokenExtra bs
     3 -> case lst of
         97  | bs === "via" -> tokenVia
         101 | bs === "age" -> tokenAge
-        _                  -> mkTokenOther bs
+        _                  -> mkTokenExtra bs
     4 -> case lst of
         101 | bs === "date" -> tokenDate
         103 | bs === "etag" -> tokenEtag
@@ -270,18 +285,18 @@ toToken bs = case len of
         109 | bs === "from" -> tokenFrom
         116 | bs === "host" -> tokenHost
         121 | bs === "vary" -> tokenVary
-        _                   -> mkTokenOther bs
+        _                   -> mkTokenExtra bs
     5 -> case lst of
         101 | bs === "range" -> tokenRange
         104 | bs === ":path" -> tokenPath
         119 | bs === "allow" -> tokenAllow
-        _                    -> mkTokenOther bs
+        _                    -> mkTokenExtra bs
     6 -> case lst of
         101 | bs === "cookie" -> tokenCookie
         114 | bs === "server" -> tokenServer
         116 | bs === "expect" -> tokenExpect
             | bs === "accept" -> tokenAccept
-        _                     -> mkTokenOther bs
+        _                     -> mkTokenExtra bs
     7 -> case lst of
         100 | bs === ":method" -> tokenMethod
         101 | bs === ":scheme" -> tokenScheme
@@ -289,25 +304,25 @@ toToken bs = case len of
         114 | bs === "referer" -> tokenReferer
         115 | bs === "expires" -> tokenExpires
             | bs === ":status" -> tokenStatus
-        _                      -> mkTokenOther bs
+        _                      -> mkTokenExtra bs
     8 -> case lst of
         101 | bs === "if-range" -> tokenIfRange
         104 | bs === "if-match" -> tokenIfMatch
         110 | bs === "location" -> tokenLocation
-        _                       -> mkTokenOther bs
+        _                       -> mkTokenExtra bs
     10 -> case lst of
         101 | bs === "set-cookie" -> tokenSetCookie
         110 | bs === "connection" -> tokenConnection
         116 | bs === "user-agent" -> tokenUserAgent
         121 | bs === ":authority" -> tokenAuthority
-        _                         -> mkTokenOther bs
+        _                         -> mkTokenExtra bs
     11 -> case lst of
         114 | bs === "retry-after" -> tokenRetryAfter
-        _                          -> mkTokenOther bs
+        _                          -> mkTokenExtra bs
     12 -> case lst of
         101 | bs === "content-type" -> tokenContentType
         115 | bs === "max-forwards" -> tokenMaxForwards
-        _                           -> mkTokenOther bs
+        _                           -> mkTokenExtra bs
     13 -> case lst of
         100 | bs === "last-modified" -> tokenLastModified
         101 | bs === "content-range" -> tokenContentRange
@@ -315,40 +330,40 @@ toToken bs = case len of
         108 | bs === "cache-control" -> tokenCacheControl
         110 | bs === "authorization" -> tokenAuthorization
         115 | bs === "accept-ranges" -> tokenAcceptRanges
-        _                            -> mkTokenOther bs
+        _                            -> mkTokenExtra bs
     14 -> case lst of
         104 | bs === "content-length" -> tokenContentLength
         116 | bs === "accept-charset" -> tokenAcceptCharset
-        _                             -> mkTokenOther bs
+        _                             -> mkTokenExtra bs
     15 -> case lst of
         101 | bs === "accept-language" -> tokenAcceptLanguage
         103 | bs === "accept-encoding" -> tokenAcceptEncoding
-        _                              -> mkTokenOther bs
+        _                              -> mkTokenExtra bs
     16 -> case lst of
         101 | bs === "content-language" -> tokenContentLanguage
             | bs === "www-authenticate" -> tokenWwwAuthenticate
         103 | bs === "content-encoding" -> tokenContentEncoding
         110 | bs === "content-location" -> tokenContentLocation
-        _                               -> mkTokenOther bs
+        _                               -> mkTokenExtra bs
     17 -> case lst of
         101 | bs === "if-modified-since" -> tokenIfModifiedSince
         103 | bs === "transfer-encoding" -> tokenTransferEncoding
-        _                                -> mkTokenOther bs
+        _                                -> mkTokenExtra bs
     18 -> case lst of
         101 | bs === "proxy-authenticate" -> tokenProxyAuthenticate
-        _                                 -> mkTokenOther bs
+        _                                 -> mkTokenExtra bs
     19 -> case lst of
         101 | bs === "if-unmodified-since" -> tokenIfUnmodifiedSince
         110 | bs === "proxy-authorization" -> tokenProxyAuthorization
             | bs === "content-disposition" -> tokenContentDisposition
-        _                                  -> mkTokenOther bs
+        _                                  -> mkTokenExtra bs
     25 -> case lst of
         121 | bs === "strict-transport-security" -> tokenStrictTransportSecurity
-        _                                        -> mkTokenOther bs
+        _                                        -> mkTokenExtra bs
     27 -> case lst of
         110 | bs === "access-control-allow-origin" -> tokenAccessControlAllowOrigin
-        _                                          -> mkTokenOther bs
-    _  -> mkTokenOther bs
+        _                                          -> mkTokenExtra bs
+    _  -> mkTokenExtra bs
   where
     len = B.length bs
     lst = B.last bs
@@ -358,8 +373,8 @@ toToken bs = case len of
         i <- memcmp (p1 `plusPtr` off1) (p2 `plusPtr` off2) siz
         return $! i == 0
 
-mkTokenOther :: ByteString -> Token
-mkTokenOther bs = Token otherToken True p (mk bs)
+mkTokenExtra :: ByteString -> Token
+mkTokenExtra bs = Token extraTokenIx True p (mk bs)
   where
     !p | B.length bs == 0 = False
        | B.head bs == 58  = True

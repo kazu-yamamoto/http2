@@ -38,7 +38,7 @@ type ValueTable = Array Int (Maybe HeaderValue)
 -- | Accessing 'HeaderValue' with 'Token'.
 {-# INLINE getHeaderValue #-}
 getHeaderValue :: Token -> ValueTable -> Maybe HeaderValue
-getHeaderValue t tbl = tbl ! toIx t
+getHeaderValue t tbl = tbl ! tokenIx t
 
 ----------------------------------------------------------------
 
@@ -94,8 +94,8 @@ decodeSimple dyntbl rbuf = go empty
 decodeSophisticated :: DynamicTable -> ReadBuffer
                     -> IO (TokenHeaderList, ValueTable)
 decodeSophisticated dyntbl rbuf = do
-    -- using otherToken to reduce condition
-    arr <- IOA.newArray (minToken,otherToken) Nothing
+    -- using extraTokenIx to reduce condition
+    arr <- IOA.newArray (minTokenIx,extraTokenIx) Nothing
     !tvs <- pseudoNormal arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
@@ -111,14 +111,14 @@ decodeSophisticated dyntbl rbuf = do
                 if isPseudo then do
                     mx <- IOA.readArray arr ix
                     when (isJust mx) $ throwIO IllegalHeaderName
-                    when (isIxOther ix) $ throwIO IllegalHeaderName
+                    when (isTokenIxExtra ix) $ throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
                     pseudo
                   else do
-                    when (isIxOther ix && B8.any isUpper (original tokenKey)) $
+                    when (isTokenIxExtra ix && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
-                    if isIxCookie ix then
+                    if isTokenIxCookie ix then
                         normal empty (empty << v)
                       else
                         normal (empty << tv) empty
@@ -130,10 +130,10 @@ decodeSophisticated dyntbl rbuf = do
                 w <- getByte rbuf
                 tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
-                when (isIxOther ix && B8.any isUpper (original tokenKey)) $
+                when (isTokenIxExtra ix && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
                 IOA.writeArray arr ix (Just v)
-                if isIxCookie ix then
+                if isTokenIxCookie ix then
                     normal builder (cookie << v)
                   else
                     normal (builder << tv) cookie
@@ -145,7 +145,7 @@ decodeSophisticated dyntbl rbuf = do
                   else do
                     let !v = BS.intercalate "; " cook
                         !tvs = (tokenCookie, v) : tvs0
-                    IOA.writeArray arr ixCookie (Just v)
+                    IOA.writeArray arr tokenCookieIx (Just v)
                     return tvs
 
 toTokenHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
@@ -274,7 +274,7 @@ decodeString huff hufdec rbuf len = do
 --   'TokenHeaderList' and 'ValueTable'.
 toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO (TokenHeaderList, ValueTable)
 toHeaderTable kvs = do
-    arr <- IOA.newArray (minToken,otherToken) Nothing
+    arr <- IOA.newArray (minTokenIx,extraTokenIx) Nothing
     !tvs <- conv arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
@@ -286,7 +286,7 @@ toHeaderTable kvs = do
         go []         builder = return $ run builder
         go ((k,v):xs) builder = do
             let !t = toToken (foldedCase k)
-            IOA.writeArray arr (toIx t) (Just v)
+            IOA.writeArray arr (tokenIx t) (Just v)
             let !tv = (t,v)
                 !builder' = builder << tv
             go xs builder'

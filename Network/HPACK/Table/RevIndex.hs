@@ -53,9 +53,9 @@ type ValueMap = Map HeaderValue HIndex
 ----------------------------------------------------------------
 
 staticRevIndex :: StaticRevIndex
-staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
+staticRevIndex = A.array (minTokenIx,maxTokenIx) $ map toEnt zs
   where
-    toEnt (k, xs) = (toIx (toToken k), m)
+    toEnt (k, xs) = (tokenIx (toToken k), m)
       where
         m = case xs of
             []  -> error "staticRevIndex"
@@ -79,13 +79,13 @@ lookupStaticRevIndex ix v fa' fbd' = case staticRevIndex ! ix of
 ----------------------------------------------------------------
 
 newDynamicRevIndex :: IO DynamicRevIndex
-newDynamicRevIndex = A.listArray (minToken,maxToken) <$> mapM mk lst
+newDynamicRevIndex = A.listArray (minTokenIx,maxTokenIx) <$> mapM mk lst
   where
     mk _ = newIORef M.empty
-    lst = [minToken..maxToken]
+    lst = [minTokenIx..maxTokenIx]
 
 renewDynamicRevIndex :: DynamicRevIndex -> IO ()
-renewDynamicRevIndex drev = mapM_ clear [minToken..maxToken]
+renewDynamicRevIndex drev = mapM_ clear [minTokenIx..maxTokenIx]
   where
     clear t = writeIORef (drev ! t) M.empty
 
@@ -105,13 +105,13 @@ lookupDynamicStaticRevIndex ix v drev fa' fbd' = do
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
 insertDynamicRevIndex t v i drev = modifyIORef ref $ M.insert v i
   where
-    ref = drev ! toIx t
+    ref = drev ! tokenIx t
 
 {-# INLINE deleteDynamicRevIndex #-}
 deleteDynamicRevIndex :: Token -> HeaderValue -> DynamicRevIndex -> IO ()
 deleteDynamicRevIndex t v drev = modifyIORef ref $ M.delete v
   where
-    ref = drev ! toIx t
+    ref = drev ! tokenIx t
 
 ----------------------------------------------------------------
 
@@ -161,10 +161,10 @@ lookupRevIndex :: Token
                -> RevIndex
                -> IO ()
 lookupRevIndex t@Token{..} v fa fb fc fd (RevIndex dyn oth)
-  | isIxNonStatic ix = lookupOtherRevIndex (k,v) oth fa' fc'
-  | shouldBeIndexed  = lookupDynamicStaticRevIndex ix v dyn fa' fb'
+  | isTokenIxNonStatic ix = lookupOtherRevIndex (k,v) oth fa' fc'
+  | shouldBeIndexed       = lookupDynamicStaticRevIndex ix v dyn fa' fb'
   -- path: is not indexed but ":path /" should be used, sigh.
-  | otherwise        = lookupStaticRevIndex ix v fa' fd'
+  | otherwise             = lookupStaticRevIndex ix v fa' fd'
   where
     k = foldedCase tokenKey
     ent = toEntryToken t v
@@ -181,8 +181,8 @@ lookupRevIndex' :: Token
                 -> (HeaderName -> HeaderValue -> IO ())
                 -> IO ()
 lookupRevIndex' Token{..} v fa fd fe
-  | isIxNonStatic ix = fe'
-  | otherwise        = lookupStaticRevIndex ix v fa' fd'
+  | isTokenIxNonStatic ix = fe'
+  | otherwise             = lookupStaticRevIndex ix v fa' fd'
   where
     k = foldedCase tokenKey
     fa' = fa
