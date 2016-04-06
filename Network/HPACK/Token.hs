@@ -15,8 +15,8 @@ module Network.HPACK.Token (
   -- * Utilities
   , isExtraTokenIx
   , isCookieTokenIx
-  , isNonStaticTokenIx
-  , isNonStaticToken
+  , isStaticTokenIx
+  , isStaticToken
   -- * Defined tokens
   , tokenAuthority
   , tokenMethod
@@ -254,14 +254,14 @@ isExtraTokenIx :: Int -> Bool
 isExtraTokenIx n = n == extraTokenIx
 
 -- | Is this token ix for a header not defined in the static table?
-{-# INLINE isNonStaticTokenIx #-}
-isNonStaticTokenIx :: Int -> Bool
-isNonStaticTokenIx n = n > staticTokenIx
+{-# INLINE isStaticTokenIx #-}
+isStaticTokenIx :: Int -> Bool
+isStaticTokenIx n = n <= staticTokenIx
 
 -- | Is this token for a header not defined in the static table?
-{-# INLINE isNonStaticToken #-}
-isNonStaticToken :: Token -> Bool
-isNonStaticToken n = tokenIx n > staticTokenIx
+{-# INLINE isStaticToken #-}
+isStaticToken :: Token -> Bool
+isStaticToken n = tokenIx n <= staticTokenIx
 
 -- | Making a token from a header key.
 --

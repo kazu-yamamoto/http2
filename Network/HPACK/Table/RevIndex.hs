@@ -161,10 +161,10 @@ lookupRevIndex :: Token
                -> RevIndex
                -> IO ()
 lookupRevIndex t@Token{..} v fa fb fc fd (RevIndex dyn oth)
-  | isNonStaticTokenIx ix = lookupOtherRevIndex (k,v) oth fa' fc'
-  | shouldBeIndexed       = lookupDynamicStaticRevIndex ix v dyn fa' fb'
+  | not (isStaticTokenIx ix) = lookupOtherRevIndex (k,v) oth fa' fc'
+  | shouldBeIndexed          = lookupDynamicStaticRevIndex ix v dyn fa' fb'
   -- path: is not indexed but ":path /" should be used, sigh.
-  | otherwise             = lookupStaticRevIndex ix v fa' fd'
+  | otherwise                = lookupStaticRevIndex ix v fa' fd'
   where
     k = foldedCase tokenKey
     ent = toEntryToken t v
@@ -181,8 +181,8 @@ lookupRevIndex' :: Token
                 -> (HeaderName -> HeaderValue -> IO ())
                 -> IO ()
 lookupRevIndex' Token{..} v fa fd fe
-  | isNonStaticTokenIx ix = fe'
-  | otherwise             = lookupStaticRevIndex ix v fa' fd'
+  | isStaticTokenIx ix = lookupStaticRevIndex ix v fa' fd'
+  | otherwise          = fe'
   where
     k = foldedCase tokenKey
     fa' = fa
@@ -194,14 +194,14 @@ lookupRevIndex' Token{..} v fa fd fe
 {-# INLINE insertRevIndex #-}
 insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
 insertRevIndex (Entry _ t v) i (RevIndex dyn oth)
-  | isNonStaticToken t = insertOtherRevIndex   t v i oth
-  | otherwise          = insertDynamicRevIndex t v i dyn
+  | isStaticToken t = insertDynamicRevIndex t v i dyn
+  | otherwise       = insertOtherRevIndex   t v i oth
 
 {-# INLINE deleteRevIndex #-}
 deleteRevIndex :: RevIndex -> Entry -> IO ()
 deleteRevIndex (RevIndex dyn oth) (Entry _ t v)
-  | isNonStaticToken t = deleteOtherRevIndex   t v oth
-  | otherwise          = deleteDynamicRevIndex t v dyn
+  | isStaticToken t = deleteDynamicRevIndex t v dyn
+  | otherwise       = deleteOtherRevIndex   t v oth
 
 {-# INLINE deleteRevIndexList #-}
 deleteRevIndexList :: [Entry] -> RevIndex -> IO ()
