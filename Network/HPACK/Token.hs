@@ -9,6 +9,7 @@ module Network.HPACK.Token (
   , toToken
   -- * Ix
   , minTokenIx
+  , staticTokenIx
   , maxTokenIx
   , extraTokenIx
   , cookieTokenIx
@@ -235,7 +236,7 @@ maxTokenIx = 54
 staticTokenIx :: Int
 staticTokenIx = 51
 
--- | Token index for headers not defined in the static table.
+-- | Equal to `maxTokenIx`.
 extraTokenIx :: Int
 extraTokenIx = 54
 
