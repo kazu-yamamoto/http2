@@ -94,8 +94,8 @@ decodeSimple dyntbl rbuf = go empty
 decodeSophisticated :: DynamicTable -> ReadBuffer
                     -> IO (TokenHeaderList, ValueTable)
 decodeSophisticated dyntbl rbuf = do
-    -- using extraTokenIx to reduce condition
-    arr <- IOA.newArray (minTokenIx,extraTokenIx) Nothing
+    -- using maxTokenIx to reduce condition
+    arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
     !tvs <- pseudoNormal arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
@@ -111,11 +111,11 @@ decodeSophisticated dyntbl rbuf = do
                 if isPseudo then do
                     mx <- IOA.readArray arr ix
                     when (isJust mx) $ throwIO IllegalHeaderName
-                    when (isExtraTokenIx ix) $ throwIO IllegalHeaderName
+                    when (isMaxTokenIx ix) $ throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
                     pseudo
                   else do
-                    when (isExtraTokenIx ix && B8.any isUpper (original tokenKey)) $
+                    when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
                     if isCookieTokenIx ix then
@@ -130,7 +130,7 @@ decodeSophisticated dyntbl rbuf = do
                 w <- getByte rbuf
                 tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
-                when (isExtraTokenIx ix && B8.any isUpper (original tokenKey)) $
+                when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
                 IOA.writeArray arr ix (Just v)
                 if isCookieTokenIx ix then
@@ -274,7 +274,7 @@ decodeString huff hufdec rbuf len = do
 --   'TokenHeaderList' and 'ValueTable'.
 toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO (TokenHeaderList, ValueTable)
 toHeaderTable kvs = do
-    arr <- IOA.newArray (minTokenIx,extraTokenIx) Nothing
+    arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
     !tvs <- conv arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)

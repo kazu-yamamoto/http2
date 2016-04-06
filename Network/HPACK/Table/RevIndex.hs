@@ -53,7 +53,7 @@ type ValueMap = Map HeaderValue HIndex
 ----------------------------------------------------------------
 
 staticRevIndex :: StaticRevIndex
-staticRevIndex = A.array (minTokenIx,staticTokenIx) $ map toEnt zs
+staticRevIndex = A.array (minTokenIx,maxStaticTokenIx) $ map toEnt zs
   where
     toEnt (k, xs) = (tokenIx (toToken k), m)
       where
@@ -79,13 +79,13 @@ lookupStaticRevIndex ix v fa' fbd' = case staticRevIndex ! ix of
 ----------------------------------------------------------------
 
 newDynamicRevIndex :: IO DynamicRevIndex
-newDynamicRevIndex = A.listArray (minTokenIx,staticTokenIx) <$> mapM mk lst
+newDynamicRevIndex = A.listArray (minTokenIx,maxStaticTokenIx) <$> mapM mk lst
   where
     mk _ = newIORef M.empty
-    lst = [minTokenIx..staticTokenIx]
+    lst = [minTokenIx..maxStaticTokenIx]
 
 renewDynamicRevIndex :: DynamicRevIndex -> IO ()
-renewDynamicRevIndex drev = mapM_ clear [minTokenIx..staticTokenIx]
+renewDynamicRevIndex drev = mapM_ clear [minTokenIx..maxStaticTokenIx]
   where
     clear t = writeIORef (drev ! t) M.empty
 

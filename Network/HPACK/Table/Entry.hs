@@ -89,7 +89,7 @@ entryHeaderValue (Entry _ _ v) = v
 
 -- | Dummy 'Entry' to initialize a dynamic table.
 dummyEntry :: Entry
-dummyEntry = Entry 0 tokenExtra "dummyValue"
+dummyEntry = Entry 0 tokenMax "dummyValue"
 
 -- | How many entries can be stored in a dynamic table?
 maxNumbers :: Size -> Int
