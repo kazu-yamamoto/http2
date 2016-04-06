@@ -111,14 +111,14 @@ decodeSophisticated dyntbl rbuf = do
                 if isPseudo then do
                     mx <- IOA.readArray arr ix
                     when (isJust mx) $ throwIO IllegalHeaderName
-                    when (isTokenIxExtra ix) $ throwIO IllegalHeaderName
+                    when (isExtraTokenIx ix) $ throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
                     pseudo
                   else do
-                    when (isTokenIxExtra ix && B8.any isUpper (original tokenKey)) $
+                    when (isExtraTokenIx ix && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
                     IOA.writeArray arr ix (Just v)
-                    if isTokenIxCookie ix then
+                    if isCookieTokenIx ix then
                         normal empty (empty << v)
                       else
                         normal (empty << tv) empty
@@ -130,10 +130,10 @@ decodeSophisticated dyntbl rbuf = do
                 w <- getByte rbuf
                 tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
-                when (isTokenIxExtra ix && B8.any isUpper (original tokenKey)) $
+                when (isExtraTokenIx ix && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
                 IOA.writeArray arr ix (Just v)
-                if isTokenIxCookie ix then
+                if isCookieTokenIx ix then
                     normal builder (cookie << v)
                   else
                     normal (builder << tv) cookie
@@ -145,7 +145,7 @@ decodeSophisticated dyntbl rbuf = do
                   else do
                     let !v = BS.intercalate "; " cook
                         !tvs = (tokenCookie, v) : tvs0
-                    IOA.writeArray arr tokenCookieIx (Just v)
+                    IOA.writeArray arr cookieTokenIx (Just v)
                     return tvs
 
 toTokenHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader

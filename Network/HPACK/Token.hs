@@ -11,12 +11,12 @@ module Network.HPACK.Token (
   , minTokenIx
   , maxTokenIx
   , extraTokenIx
-  , tokenCookieIx
+  , cookieTokenIx
   -- * Utilities
-  , isTokenIxCookie
-  , isTokenIxExtra
-  , isTokenIxNonStatic
-  , isTokenNonStatic
+  , isExtraTokenIx
+  , isCookieTokenIx
+  , isNonStaticTokenIx
+  , isNonStaticToken
   -- * Defined tokens
   , tokenAuthority
   , tokenMethod
@@ -70,9 +70,9 @@ module Network.HPACK.Token (
   , tokenVary
   , tokenVia
   , tokenWwwAuthenticate
-  , tokenExtra
   , tokenConnection
   , tokenTE
+  , tokenExtra
   ) where
 
 import qualified Data.ByteString as B
@@ -160,9 +160,9 @@ tokenUserAgent                :: Token
 tokenVary                     :: Token
 tokenVia                      :: Token
 tokenWwwAuthenticate          :: Token
-tokenExtra                    :: Token -- Other tokens
 tokenConnection               :: Token -- Original
 tokenTE                       :: Token -- Original
+tokenExtra                    :: Token -- Other tokens
 
 tokenAuthority                = Token  0  True  True ":authority"
 tokenMethod                   = Token  1  True  True ":method"
@@ -216,12 +216,12 @@ tokenUserAgent                = Token 48  True False "User-Agent"
 tokenVary                     = Token 49  True False "Vary"
 tokenVia                      = Token 50  True False "Via"
 tokenWwwAuthenticate          = Token 51  True False "Www-Authenticate"
+-- | Not defined in the static table.
+tokenConnection               = Token 52 False False "Connection"
+-- | Not defined in the static table.
+tokenTE                       = Token 53 False False "TE"
 -- | A place holder to hold header keys not defined in the static table.
-tokenExtra                    = Token 52  True False "extra"
--- | Not defined in the static table.
-tokenConnection               = Token 53 False False "Connection"
--- | Not defined in the static table.
-tokenTE                       = Token 54 False False "TE"
+tokenExtra                    = Token 54  True False "extra"
 
 -- | Minimum token index.
 minTokenIx :: Int
@@ -229,7 +229,7 @@ minTokenIx = 0
 
 -- | Maximum token index.
 maxTokenIx :: Int
-maxTokenIx = 53
+maxTokenIx = 54
 
 -- | Maximun token index defined in the static table.
 staticTokenIx :: Int
@@ -237,31 +237,31 @@ staticTokenIx = 51
 
 -- | Token index for headers not defined in the static table.
 extraTokenIx :: Int
-extraTokenIx = maxTokenIx + 1
+extraTokenIx = 54
 
 -- | Token index for 'tokenCookie'.
-tokenCookieIx :: Int
-tokenCookieIx = 22
+cookieTokenIx :: Int
+cookieTokenIx = 22
 
 -- | Is this token ix for Cookie?
-{-# INLINE isTokenIxCookie #-}
-isTokenIxCookie :: Int -> Bool
-isTokenIxCookie n = n == tokenCookieIx
+{-# INLINE isCookieTokenIx #-}
+isCookieTokenIx :: Int -> Bool
+isCookieTokenIx n = n == cookieTokenIx
 
 -- | Is this token ix to be held in the place holder?
-{-# INLINE isTokenIxExtra #-}
-isTokenIxExtra :: Int -> Bool
-isTokenIxExtra n = n == extraTokenIx
+{-# INLINE isExtraTokenIx #-}
+isExtraTokenIx :: Int -> Bool
+isExtraTokenIx n = n == extraTokenIx
 
 -- | Is this token ix for a header not defined in the static table?
-{-# INLINE isTokenIxNonStatic #-}
-isTokenIxNonStatic :: Int -> Bool
-isTokenIxNonStatic n = n > staticTokenIx
+{-# INLINE isNonStaticTokenIx #-}
+isNonStaticTokenIx :: Int -> Bool
+isNonStaticTokenIx n = n > staticTokenIx
 
 -- | Is this token for a header not defined in the static table?
-{-# INLINE isTokenNonStatic #-}
-isTokenNonStatic :: Token -> Bool
-isTokenNonStatic n = tokenIx n > staticTokenIx
+{-# INLINE isNonStaticToken #-}
+isNonStaticToken :: Token -> Bool
+isNonStaticToken n = tokenIx n > staticTokenIx
 
 -- | Making a token from a header key.
 --
