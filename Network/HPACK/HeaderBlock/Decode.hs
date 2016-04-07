@@ -43,8 +43,10 @@ getHeaderValue t tbl = tbl ! tokenIx t
 ----------------------------------------------------------------
 
 -- | Converting the HPACK format to 'HeaderList'.
---   'DecodeError' would be thrown if the HPACK format is broken.
---   'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
+--
+--   * Headers are decoded as is.
+--   * 'DecodeError' would be thrown if the HPACK format is broken.
+--   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeHeader :: DynamicTable
              -> ByteString -- ^ An HPACK format
              -> IO HeaderList
@@ -52,6 +54,18 @@ decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
 
 -- | Converting the HPACK format to 'TokenHeaderList'
 --   and 'ValueTable'.
+--
+--   * Multiple values of Cookie: are concatenated.
+--   * If a pseudo header appears multiple times,
+--     'IllegalHeaderName' is thrown.
+--   * If unknown pseudo headers appear,
+--     'IllegalHeaderName' is thrown.
+--   * If pseudo headers are found after normal headers,
+--     'IllegalHeaderName' is thrown.
+--   * If a header key contains capital letters,
+--     'IllegalHeaderName' is thrown.
+--   * 'DecodeError' would be thrown if the HPACK format is broken.
+--   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeTokenHeader :: DynamicTable
                   -> ByteString -- ^ An HPACK format
                   -> IO (TokenHeaderList, ValueTable)
