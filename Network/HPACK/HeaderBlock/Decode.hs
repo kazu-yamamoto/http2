@@ -284,7 +284,7 @@ decodeString huff hufdec rbuf len = do
 
 ----------------------------------------------------------------
 
--- | Converting a header list of WAI's style to
+-- | Converting a header list of the http-types style to
 --   'TokenHeaderList' and 'ValueTable'.
 toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO (TokenHeaderList, ValueTable)
 toHeaderTable kvs = do
