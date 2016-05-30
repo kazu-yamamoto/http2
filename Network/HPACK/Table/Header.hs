@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Network.HPACK.Table.Header (
   -- * Type
     HeaderTable(..)
