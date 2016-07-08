@@ -3,7 +3,7 @@
 module Network.HPACK.Buffer (
     Buffer
   , BufferSize
-  , WorkingBuffer
+  , WorkingBuffer(..)
   , newWorkingBuffer
   , wind
   , readWord8
