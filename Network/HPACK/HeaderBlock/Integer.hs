@@ -1,20 +1,27 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, CPP #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, CPP, RecordWildCards #-}
 
 module Network.HPACK.HeaderBlock.Integer (
     encode
   , encodeInteger
   , decode
   , decodeInteger
+  , calLen
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
+import Control.Exception (throwIO)
+import Control.Monad (when)
 import Data.Array (Array, listArray, (!))
 import Data.Bits ((.&.), shiftR, testBit)
 import Data.ByteString (ByteString)
+import Data.IORef
 import Data.Word (Word8)
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Storable (poke)
 import Network.HPACK.Buffer
+import Network.HPACK.Types (BufferOverrun(..))
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
@@ -23,6 +30,16 @@ powerArray :: Array Int Int
 powerArray = listArray (1,8) [1,3,7,15,31,63,127,255]
 
 ----------------------------------------------------------------
+
+calLen :: Int -> Int -> Int
+calLen n i
+  | i < p     = 1
+  | otherwise = let !r = go (i - p) 1 in r
+  where
+    !p = powerArray ! n
+    go !j !m
+      | j < 127   = m + 1
+      | otherwise = go (j `shiftR` 7) (m + 1)
 
 {-
 if I < 2^N - 1, encode I on N bits
@@ -40,21 +57,27 @@ encodeInteger n i = withTemporaryBuffer 4096 $ \wbuf -> encode wbuf id n i
 
 {-# INLINABLE encode #-}
 encode :: WorkingBuffer -> (Word8 -> Word8) -> Int -> Int -> IO ()
-encode wbuf set n i
-  | i < p     = writeWord8 wbuf $ set $ fromIntegral i
-  | otherwise = do
-        writeWord8 wbuf $ set $ fromIntegral p
-        encode' (i - p)
+encode WorkingBuffer{..} set n i = do
+      beg <- readIORef offset
+      let !end = beg `plusPtr` len
+      when (end >= limit) $ throwIO BufferOverrun
+      if i < p then
+          poke beg $ set $ fromIntegral i
+        else do
+          poke beg $ set $ fromIntegral p
+          go (i - p) (beg `plusPtr` 1)
+      writeIORef offset end
   where
     !p = powerArray ! n
-    encode' :: Int -> IO ()
-    encode' j
-      | j < 128   = writeWord8 wbuf $ fromIntegral j
+    !len = calLen n i
+    go :: Int -> Ptr Word8 -> IO ()
+    go !j !ptr
+      | j < 128   = poke ptr $ fromIntegral j
       | otherwise = do
           let !q = j `shiftR` 7
               !r = j .&. 0x7f
-          writeWord8 wbuf $ fromIntegral (r + 128)
-          encode' q
+          poke ptr $ fromIntegral (r + 128)
+          go q (ptr `plusPtr` 1)
 
 ----------------------------------------------------------------
 
