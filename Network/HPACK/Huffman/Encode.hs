@@ -10,10 +10,12 @@ module Network.HPACK.Huffman.Encode (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Monad (void)
+import Control.Exception (throwIO)
+import Control.Monad (when, void)
 import Data.Array
 import Data.Bits ((.|.))
 import Data.ByteString (ByteString)
+import Data.IORef
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, minusPtr, Ptr)
 import Foreign.Storable (peek, poke)
@@ -21,7 +23,7 @@ import Network.HPACK.Buffer
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
 import Network.HPACK.Huffman.Table
-import Data.IORef
+import Network.HPACK.Types (BufferOverrun(..))
 
 ----------------------------------------------------------------
 
@@ -104,14 +106,15 @@ enc WorkingBuffer{..} rbuf = do
         if more then do
             !i <- fromIntegral <$> getByte rbuf
             let Shifted n' len b bs = (aosa ! i) ! n
+                !ptr' | n' == 0   = ptr `plusPtr` len
+                      | otherwise = ptr `plusPtr` (len - 1)
+            when (ptr' >= limit) $ throwIO BufferOverrun
             if n == 0 then
                 poke ptr b
               else do
                 b0 <- peek ptr
                 poke ptr (b0 .|. b)
             copy (ptr `plusPtr` 1) bs
-            let !ptr' | n' == 0   = ptr `plusPtr` len
-                      | otherwise = ptr `plusPtr` (len - 1)
             go n' ptr'
           else
             if (n == 0) then
