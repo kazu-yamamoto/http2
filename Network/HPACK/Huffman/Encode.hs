@@ -102,9 +102,8 @@ enc WorkingBuffer{..} rbuf = do
     return len
   where
     go n ptr = do
-        more <- hasOneByte rbuf
-        if more then do
-            !i <- fromIntegral <$> getByte rbuf
+        !i <- getByte' rbuf
+        if i >= 0 then do
             let Shifted n' len b bs = (aosa ! i) ! n
                 !ptr' | n' == 0   = ptr `plusPtr` len
                       | otherwise = ptr `plusPtr` (len - 1)
