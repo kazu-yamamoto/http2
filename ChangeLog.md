@@ -1,3 +1,10 @@
+## 1.6.0
+
+* Reverse indices of HPACK are now based on tokens.
+* New APIs: encodeTokenHeader and decodeTokenHeader.
+* Deleted API: encodeHeaderBuffer -- use encodeTokenHeader instead.
+* New module: Network.HPACK.Token
+
 ## 1.5.4
 
 * Fixing a bug due to misuse of memcpy(). (#8)

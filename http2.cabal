@@ -1,5 +1,5 @@
 Name:                   http2
-Version:                1.5.4
+Version:                1.6.1
 Author:                 Kazu Yamamoto <kazu@iij.ad.jp>
 Maintainer:             Kazu Yamamoto <kazu@iij.ad.jp>
 License:                BSD3
@@ -233,11 +233,12 @@ Executable hpack-stat
                       , array
                       , bytestring
                       , bytestring-builder
+                      , case-insensitive
                       , containers
                       , directory
                       , filepath
-                      , unordered-containers
                       , text
+                      , unordered-containers
                       , vector
                       , word8
 

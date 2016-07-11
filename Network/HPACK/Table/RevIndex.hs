@@ -5,6 +5,7 @@ module Network.HPACK.Table.RevIndex (
   , newRevIndex
   , renewRevIndex
   , lookupRevIndex
+  , lookupRevIndex'
   , insertRevIndex
   , deleteRevIndexList
   ) where
@@ -45,46 +46,46 @@ type OtherRevIdex = IORef (Map KeyValue HIndex)
 
 type StaticRevIndex = Array Int StaticEntry
 
-data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap)
+data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap) deriving Show
 
 type ValueMap = Map HeaderValue HIndex
-
-{-# SPECIALIZE INLINE M.lookup :: HeaderValue -> M.Map HeaderValue HIndex -> Maybe HIndex #-}
-{-# SPECIALIZE INLINE M.delete :: HeaderValue -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
-{-# SPECIALIZE INLINE M.insert :: HeaderValue -> HIndex -> M.Map HeaderValue HIndex -> M.Map HeaderValue HIndex #-}
 
 ----------------------------------------------------------------
 
 staticRevIndex :: StaticRevIndex
-staticRevIndex = A.array (minToken,maxToken) $ map toEnt zs
+staticRevIndex = A.array (minTokenIx,maxStaticTokenIx) $ map toEnt zs
   where
-    toEnt (k, xs) = (toIx (toToken k), m)
+    toEnt (k, xs) = (tokenIx (toToken k), m)
       where
         m = case xs of
             []  -> error "staticRevIndex"
-            [(_,i)] -> StaticEntry i Nothing
-            (_,i):_ -> let !vs = M.fromList xs
-                       in StaticEntry i (Just vs)
+            [("",i)] -> StaticEntry i Nothing
+            (_,i):_  -> let !vs = M.fromList xs
+                        in StaticEntry i (Just vs)
     zs = map extract $ groupBy ((==) `on` fst) lst
       where
         lst = zipWith (\(k,v) i -> (k,(v,i))) staticTableList $ map SIndex [1..]
         extract xs = (fst (head xs), map snd xs)
 
 {-# INLINE lookupStaticRevIndex #-}
-lookupStaticRevIndex :: Int -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex ix fd' = case staticRevIndex ! ix of
-    StaticEntry i _ -> fd' i
+lookupStaticRevIndex :: Int -> HeaderValue -> (HIndex -> IO ()) -> (HIndex -> IO ()) -> IO ()
+lookupStaticRevIndex ix v fa' fbd' = case staticRevIndex ! ix of
+    StaticEntry i Nothing  -> fbd' i
+    StaticEntry i (Just m) -> case M.lookup v m of
+            Nothing -> fbd' i
+            Just j  -> fa' j
+
 
 ----------------------------------------------------------------
 
 newDynamicRevIndex :: IO DynamicRevIndex
-newDynamicRevIndex = A.listArray (minToken,maxToken) <$> mapM mk lst
+newDynamicRevIndex = A.listArray (minTokenIx,maxStaticTokenIx) <$> mapM mk lst
   where
     mk _ = newIORef M.empty
-    lst = [minToken..maxToken]
+    lst = [minTokenIx..maxStaticTokenIx]
 
 renewDynamicRevIndex :: DynamicRevIndex -> IO ()
-renewDynamicRevIndex drev = mapM_ clear [minToken..maxToken]
+renewDynamicRevIndex drev = mapM_ clear [minTokenIx..maxStaticTokenIx]
   where
     clear t = writeIORef (drev ! t) M.empty
 
@@ -98,23 +99,19 @@ lookupDynamicStaticRevIndex ix v drev fa' fbd' = do
     m <- readIORef ref
     case M.lookup v m of
         Just i  -> fa' i
-        Nothing -> case staticRevIndex ! ix of
-            StaticEntry i Nothing  -> fbd' i
-            StaticEntry i (Just m') -> case M.lookup v m' of
-                Nothing -> fbd' i
-                Just j  -> fa' j
+        Nothing -> lookupStaticRevIndex ix v fa' fbd'
 
 {-# INLINE insertDynamicRevIndex #-}
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
 insertDynamicRevIndex t v i drev = modifyIORef ref $ M.insert v i
   where
-    ref = drev ! toIx t
+    ref = drev ! tokenIx t
 
 {-# INLINE deleteDynamicRevIndex #-}
 deleteDynamicRevIndex :: Token -> HeaderValue -> DynamicRevIndex -> IO ()
 deleteDynamicRevIndex t v drev = modifyIORef ref $ M.delete v
   where
-    ref = drev ! toIx t
+    ref = drev ! tokenIx t
 
 ----------------------------------------------------------------
 
@@ -160,34 +157,51 @@ lookupRevIndex :: Token
                -> (HIndex -> IO ())
                -> (HeaderValue -> Entry -> HIndex -> IO ())
                -> (HeaderName -> HeaderValue -> Entry -> IO ())
-               -> (HeaderValue -> Entry -> HIndex -> IO ())
+               -> (HeaderValue -> HIndex -> IO ())
                -> RevIndex
                -> IO ()
 lookupRevIndex t@Token{..} v fa fb fc fd (RevIndex dyn oth)
-  | isIxNonStatic ix = lookupOtherRevIndex (k,v) oth fa' fc'
-  | shouldBeIndexed  = lookupDynamicStaticRevIndex ix v dyn fa' fb'
-  | otherwise        = lookupStaticRevIndex ix fd'
+  | not (isStaticTokenIx ix) = lookupOtherRevIndex (k,v) oth fa' fc'
+  | shouldBeIndexed          = lookupDynamicStaticRevIndex ix v dyn fa' fb'
+  -- path: is not indexed but ":path /" should be used, sigh.
+  | otherwise                = lookupStaticRevIndex ix v fa' fd'
   where
     k = foldedCase tokenKey
     ent = toEntryToken t v
     fa' = fa
     fb' = fb v ent
     fc' = fc k v ent
-    fd' = fd v ent
+    fd' = fd v
+
+{-# INLINE lookupRevIndex' #-}
+lookupRevIndex' :: Token
+                -> HeaderValue
+                -> (HIndex -> IO ())
+                -> (HeaderValue -> HIndex -> IO ())
+                -> (HeaderName -> HeaderValue -> IO ())
+                -> IO ()
+lookupRevIndex' Token{..} v fa fd fe
+  | isStaticTokenIx ix = lookupStaticRevIndex ix v fa' fd'
+  | otherwise          = fe'
+  where
+    k = foldedCase tokenKey
+    fa' = fa
+    fd' = fd v
+    fe' = fe k v
 
 ----------------------------------------------------------------
 
 {-# INLINE insertRevIndex #-}
 insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
 insertRevIndex (Entry _ t v) i (RevIndex dyn oth)
-  | isTokenNonStatic t = insertOtherRevIndex   t v i oth
-  | otherwise          = insertDynamicRevIndex t v i dyn
+  | isStaticToken t = insertDynamicRevIndex t v i dyn
+  | otherwise       = insertOtherRevIndex   t v i oth
 
 {-# INLINE deleteRevIndex #-}
 deleteRevIndex :: RevIndex -> Entry -> IO ()
 deleteRevIndex (RevIndex dyn oth) (Entry _ t v)
-  | isTokenNonStatic t = deleteOtherRevIndex   t v oth
-  | otherwise          = deleteDynamicRevIndex t v dyn
+  | isStaticToken t = deleteDynamicRevIndex t v dyn
+  | otherwise       = deleteOtherRevIndex   t v oth
 
 {-# INLINE deleteRevIndexList #-}
 deleteRevIndexList :: [Entry] -> RevIndex -> IO ()

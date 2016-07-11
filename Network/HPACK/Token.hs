@@ -1,6 +1,79 @@
 {-# LANGUAGE OverloadedStrings, BangPatterns #-}
 
-module Network.HPACK.Token where
+module Network.HPACK.Token (
+  -- * Data type
+    Token(..)
+  , tokenIx
+  , tokenCIKey
+  , tokenFoldedKey
+  , toToken
+  -- * Ix
+  , minTokenIx
+  , maxStaticTokenIx
+  , maxTokenIx
+  , cookieTokenIx
+  -- * Utilities
+  , isMaxTokenIx
+  , isCookieTokenIx
+  , isStaticTokenIx
+  , isStaticToken
+  -- * Defined tokens
+  , tokenAuthority
+  , tokenMethod
+  , tokenPath
+  , tokenScheme
+  , tokenStatus
+  , tokenAcceptCharset
+  , tokenAcceptEncoding
+  , tokenAcceptLanguage
+  , tokenAcceptRanges
+  , tokenAccept
+  , tokenAccessControlAllowOrigin
+  , tokenAge
+  , tokenAllow
+  , tokenAuthorization
+  , tokenCacheControl
+  , tokenContentDisposition
+  , tokenContentEncoding
+  , tokenContentLanguage
+  , tokenContentLength
+  , tokenContentLocation
+  , tokenContentRange
+  , tokenContentType
+  , tokenCookie
+  , tokenDate
+  , tokenEtag
+  , tokenExpect
+  , tokenExpires
+  , tokenFrom
+  , tokenHost
+  , tokenIfMatch
+  , tokenIfModifiedSince
+  , tokenIfNoneMatch
+  , tokenIfRange
+  , tokenIfUnmodifiedSince
+  , tokenLastModified
+  , tokenLink
+  , tokenLocation
+  , tokenMaxForwards
+  , tokenProxyAuthenticate
+  , tokenProxyAuthorization
+  , tokenRange
+  , tokenReferer
+  , tokenRefresh
+  , tokenRetryAfter
+  , tokenServer
+  , tokenSetCookie
+  , tokenStrictTransportSecurity
+  , tokenTransferEncoding
+  , tokenUserAgent
+  , tokenVary
+  , tokenVia
+  , tokenWwwAuthenticate
+  , tokenConnection
+  , tokenTE
+  , tokenMax
+  ) where
 
 import qualified Data.ByteString as B
 import Data.ByteString.Internal (ByteString(..), memcmp)
@@ -12,21 +85,25 @@ import Data.CaseInsensitive (original, mk, CI(..))
 -- $setup
 -- >>> :set -XOverloadedStrings
 
+-- | Internal representation for header keys.
 data Token = Token {
-    ix :: !Int
-  , shouldBeIndexed :: !Bool -- should be indexed
-  , isPseudo :: !Bool -- is this a pseudo header key?
-  , tokenKey :: !(CI ByteString)
+    ix :: !Int               -- ^ Index for value table
+  , shouldBeIndexed :: !Bool -- ^ should be indexed in HPACK
+  , isPseudo :: !Bool        -- ^ is this a pseudo header key?
+  , tokenKey :: !(CI ByteString) -- ^ Case insensitive header key
   } deriving (Eq, Show)
 
-{-# INLINE toIx #-}
-toIx :: Token -> Int
-toIx (Token n _ _ _) = n
+-- | Extracting an index from a token.
+{-# INLINE tokenIx #-}
+tokenIx :: Token -> Int
+tokenIx (Token n _ _ _) = n
 
-{-# INLINE tokenOriginalKey #-}
-tokenOriginalKey :: Token -> ByteString
-tokenOriginalKey (Token _ _ _ ci) = original ci
+-- | Extracting a case insensitive header key from a token.
+{-# INLINE tokenCIKey #-}
+tokenCIKey :: Token -> ByteString
+tokenCIKey (Token _ _ _ ci) = original ci
 
+-- | Extracting a folded header key from a token.
 {-# INLINE tokenFoldedKey #-}
 tokenFoldedKey :: Token -> ByteString
 tokenFoldedKey (Token _ _ _ ci) = foldedCase ci
@@ -85,7 +162,7 @@ tokenVia                      :: Token
 tokenWwwAuthenticate          :: Token
 tokenConnection               :: Token -- Original
 tokenTE                       :: Token -- Original
-tokenDummy                    :: Token
+tokenMax                      :: Token -- Other tokens
 
 tokenAuthority                = Token  0  True  True ":authority"
 tokenMethod                   = Token  1  True  True ":method"
@@ -139,42 +216,50 @@ tokenUserAgent                = Token 48  True False "User-Agent"
 tokenVary                     = Token 49  True False "Vary"
 tokenVia                      = Token 50  True False "Via"
 tokenWwwAuthenticate          = Token 51  True False "Www-Authenticate"
+-- | Not defined in the static table.
 tokenConnection               = Token 52 False False "Connection"
+-- | Not defined in the static table.
 tokenTE                       = Token 53 False False "TE"
-tokenDummy                    = Token 54  True False "dummy"
+-- | A place holder to hold header keys not defined in the static table.
+tokenMax                      = Token 54  True False "for other tokens"
 
-minToken :: Int
-minToken = 0
+-- | Minimum token index.
+minTokenIx :: Int
+minTokenIx = 0
 
-maxToken :: Int
-maxToken = 53
+-- | Maximun token index defined in the static table.
+maxStaticTokenIx :: Int
+maxStaticTokenIx = 51
 
-staticToken :: Int
-staticToken = 51
+-- | Maximum token index.
+maxTokenIx :: Int
+maxTokenIx = 54
 
-otherToken :: Int
-otherToken = maxToken + 1
+-- | Token index for 'tokenCookie'.
+cookieTokenIx :: Int
+cookieTokenIx = 22
 
-ixCookie :: Int
-ixCookie = 22
+-- | Is this token ix for Cookie?
+{-# INLINE isCookieTokenIx #-}
+isCookieTokenIx :: Int -> Bool
+isCookieTokenIx n = n == cookieTokenIx
 
-{-# INLINE isIxCookie #-}
-isIxCookie :: Int -> Bool
-isIxCookie n = n == ixCookie
+-- | Is this token ix to be held in the place holder?
+{-# INLINE isMaxTokenIx #-}
+isMaxTokenIx :: Int -> Bool
+isMaxTokenIx n = n == maxTokenIx
 
-{-# INLINE isIxOther #-}
-isIxOther :: Int -> Bool
-isIxOther n = n == otherToken
+-- | Is this token ix for a header not defined in the static table?
+{-# INLINE isStaticTokenIx #-}
+isStaticTokenIx :: Int -> Bool
+isStaticTokenIx n = n <= maxStaticTokenIx
 
-{-# INLINE isIxNonStatic #-}
-isIxNonStatic :: Int -> Bool
-isIxNonStatic n = n > staticToken
+-- | Is this token for a header not defined in the static table?
+{-# INLINE isStaticToken #-}
+isStaticToken :: Token -> Bool
+isStaticToken n = tokenIx n <= maxStaticTokenIx
 
-{-# INLINE isTokenNonStatic #-}
-isTokenNonStatic :: Token -> Bool
-isTokenNonStatic n = toIx n > staticToken
-
--- |
+-- | Making a token from a header key.
 --
 -- >>> toToken ":authority" == tokenAuthority
 -- True
@@ -184,105 +269,97 @@ isTokenNonStatic n = toIx n > staticToken
 -- Token {ix = 54, shouldBeIndexed = True, isPseudo = True, tokenKey = ":bar"}
 toToken :: ByteString -> Token
 toToken bs = case len of
-    2 -> if bs == "te" then tokenTE else mkTokenOther bs
+    2 -> if bs === "te" then tokenTE else mkTokenMax bs
     3 -> case lst of
-        97  -> if bs === "via" then tokenVia else mkTokenOther bs
-        101 -> if bs === "age" then tokenAge else mkTokenOther bs
-        _   -> mkTokenOther bs
+        97  | bs === "via" -> tokenVia
+        101 | bs === "age" -> tokenAge
+        _                  -> mkTokenMax bs
     4 -> case lst of
-        101 -> if bs === "date" then tokenDate else mkTokenOther bs
-        103 -> if bs === "etag" then tokenEtag else mkTokenOther bs
-        107 -> if bs === "link" then tokenLink else mkTokenOther bs
-        109 -> if bs === "from" then tokenFrom else mkTokenOther bs
-        116 -> if bs === "host" then tokenHost else mkTokenOther bs
-        121 -> if bs === "vary" then tokenVary else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "date" -> tokenDate
+        103 | bs === "etag" -> tokenEtag
+        107 | bs === "link" -> tokenLink
+        109 | bs === "from" -> tokenFrom
+        116 | bs === "host" -> tokenHost
+        121 | bs === "vary" -> tokenVary
+        _                   -> mkTokenMax bs
     5 -> case lst of
-        101 -> if bs === "range" then tokenRange else mkTokenOther bs
-        104 -> if bs === ":path" then tokenPath else mkTokenOther bs
-        119 -> if bs === "allow" then tokenAllow else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "range" -> tokenRange
+        104 | bs === ":path" -> tokenPath
+        119 | bs === "allow" -> tokenAllow
+        _                    -> mkTokenMax bs
     6 -> case lst of
-        101 -> if bs === "cookie" then tokenCookie else mkTokenOther bs
-        114 -> if bs === "server" then tokenServer else mkTokenOther bs
-        116
-          | bs === "expect" -> tokenExpect
-          | bs === "accept" -> tokenAccept
-          | otherwise       -> mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "cookie" -> tokenCookie
+        114 | bs === "server" -> tokenServer
+        116 | bs === "expect" -> tokenExpect
+            | bs === "accept" -> tokenAccept
+        _                     -> mkTokenMax bs
     7 -> case lst of
-        100 -> if bs === ":method" then tokenMethod else mkTokenOther bs
-        101 -> if bs === ":scheme" then tokenScheme else mkTokenOther bs
-        104 -> if bs === "refresh" then tokenRefresh else mkTokenOther bs
-        114 -> if bs === "referer" then tokenReferer else mkTokenOther bs
-        115
-          | bs === "expires" -> tokenExpires
-          | bs === ":status" -> tokenStatus
-          | otherwise        -> mkTokenOther bs
-        _   -> mkTokenOther bs
+        100 | bs === ":method" -> tokenMethod
+        101 | bs === ":scheme" -> tokenScheme
+        104 | bs === "refresh" -> tokenRefresh
+        114 | bs === "referer" -> tokenReferer
+        115 | bs === "expires" -> tokenExpires
+            | bs === ":status" -> tokenStatus
+        _                      -> mkTokenMax bs
     8 -> case lst of
-        101 -> if bs === "if-range" then tokenIfRange else mkTokenOther bs
-        104 -> if bs === "if-match" then tokenIfMatch else mkTokenOther bs
-        110 -> if bs === "location" then tokenLocation else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "if-range" -> tokenIfRange
+        104 | bs === "if-match" -> tokenIfMatch
+        110 | bs === "location" -> tokenLocation
+        _                       -> mkTokenMax bs
     10 -> case lst of
-        101 -> if bs === "set-cookie" then tokenSetCookie else mkTokenOther bs
-        110 -> if bs === "connection" then tokenConnection else mkTokenOther bs
-        116 -> if bs === "user-agent" then tokenUserAgent else mkTokenOther bs
-        121 -> if bs === ":authority" then tokenAuthority else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "set-cookie" -> tokenSetCookie
+        110 | bs === "connection" -> tokenConnection
+        116 | bs === "user-agent" -> tokenUserAgent
+        121 | bs === ":authority" -> tokenAuthority
+        _                         -> mkTokenMax bs
     11 -> case lst of
-        114 -> if bs === "retry-after" then tokenRetryAfter else mkTokenOther bs
-        _   -> mkTokenOther bs
+        114 | bs === "retry-after" -> tokenRetryAfter
+        _                          -> mkTokenMax bs
     12 -> case lst of
-        101 -> if bs === "content-type" then tokenContentType else mkTokenOther bs
-        115 -> if bs === "max-forwards" then tokenMaxForwards else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "content-type" -> tokenContentType
+        115 | bs === "max-forwards" -> tokenMaxForwards
+        _                           -> mkTokenMax bs
     13 -> case lst of
-        100 -> if bs === "last-modified" then tokenLastModified else mkTokenOther bs
-        101 -> if bs === "content-range" then tokenContentRange else mkTokenOther bs
-        104 -> if bs === "if-none-match" then tokenIfNoneMatch else mkTokenOther bs
-        108 -> if bs === "cache-control" then tokenCacheControl else mkTokenOther bs
-        110 -> if bs === "authorization" then tokenAuthorization else mkTokenOther bs
-        115 -> if bs === "accept-ranges" then tokenAcceptRanges else mkTokenOther bs
-        _   -> mkTokenOther bs
+        100 | bs === "last-modified" -> tokenLastModified
+        101 | bs === "content-range" -> tokenContentRange
+        104 | bs === "if-none-match" -> tokenIfNoneMatch
+        108 | bs === "cache-control" -> tokenCacheControl
+        110 | bs === "authorization" -> tokenAuthorization
+        115 | bs === "accept-ranges" -> tokenAcceptRanges
+        _                            -> mkTokenMax bs
     14 -> case lst of
-        104 -> if bs === "content-length" then tokenContentLength else mkTokenOther bs
-        116 -> if bs === "accept-charset" then tokenAcceptCharset else mkTokenOther bs
-        _   -> mkTokenOther bs
+        104 | bs === "content-length" -> tokenContentLength
+        116 | bs === "accept-charset" -> tokenAcceptCharset
+        _                             -> mkTokenMax bs
     15 -> case lst of
-        101 -> if bs === "accept-language" then tokenAcceptLanguage else mkTokenOther bs
-        103 -> if bs === "accept-encoding" then tokenAcceptEncoding else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "accept-language" -> tokenAcceptLanguage
+        103 | bs === "accept-encoding" -> tokenAcceptEncoding
+        _                              -> mkTokenMax bs
     16 -> case lst of
-        101
-          | bs === "content-language" -> tokenContentLanguage
-          | bs === "www-authenticate" -> tokenWwwAuthenticate
-          | otherwise                 -> mkTokenOther bs
-        103 -> if bs === "content-encoding" then tokenContentEncoding else mkTokenOther bs
-        110 -> if bs === "content-location" then tokenContentLocation else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "content-language" -> tokenContentLanguage
+            | bs === "www-authenticate" -> tokenWwwAuthenticate
+        103 | bs === "content-encoding" -> tokenContentEncoding
+        110 | bs === "content-location" -> tokenContentLocation
+        _                               -> mkTokenMax bs
     17 -> case lst of
-        101 -> if bs === "if-modified-since" then tokenIfModifiedSince else mkTokenOther bs
-        103 -> if bs === "transfer-encoding" then tokenTransferEncoding else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "if-modified-since" -> tokenIfModifiedSince
+        103 | bs === "transfer-encoding" -> tokenTransferEncoding
+        _                                -> mkTokenMax bs
     18 -> case lst of
-        101 -> if bs === "proxy-authenticate" then tokenProxyAuthenticate else mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "proxy-authenticate" -> tokenProxyAuthenticate
+        _                                 -> mkTokenMax bs
     19 -> case lst of
-        101 -> if bs === "if-unmodified-since" then tokenIfUnmodifiedSince else mkTokenOther bs
-        110
-          | bs === "proxy-authorization" -> tokenProxyAuthorization
-          | bs === "content-disposition" -> tokenContentDisposition
-          | otherwise                    -> mkTokenOther bs
-        _   -> mkTokenOther bs
+        101 | bs === "if-unmodified-since" -> tokenIfUnmodifiedSince
+        110 | bs === "proxy-authorization" -> tokenProxyAuthorization
+            | bs === "content-disposition" -> tokenContentDisposition
+        _                                  -> mkTokenMax bs
     25 -> case lst of
-        121 -> if bs === "strict-transport-security" then tokenStrictTransportSecurity else mkTokenOther bs
-        _   -> mkTokenOther bs
+        121 | bs === "strict-transport-security" -> tokenStrictTransportSecurity
+        _                                        -> mkTokenMax bs
     27 -> case lst of
-        110 -> if bs === "access-control-allow-origin" then tokenAccessControlAllowOrigin else mkTokenOther bs
-        _   -> mkTokenOther bs
-    _ -> mkTokenOther bs
+        110 | bs === "access-control-allow-origin" -> tokenAccessControlAllowOrigin
+        _                                          -> mkTokenMax bs
+    _  -> mkTokenMax bs
   where
     len = B.length bs
     lst = B.last bs
@@ -292,10 +369,9 @@ toToken bs = case len of
         i <- memcmp (p1 `plusPtr` off1) (p2 `plusPtr` off2) siz
         return $! i == 0
 
-mkTokenOther :: ByteString -> Token
-mkTokenOther bs = Token otherToken True p (mk bs)
+mkTokenMax :: ByteString -> Token
+mkTokenMax bs = Token maxTokenIx True p (mk bs)
   where
     !p | B.length bs == 0 = False
        | B.head bs == 58  = True
        | otherwise        = False
-

@@ -2,7 +2,7 @@
 
 module Network.HPACK.HeaderBlock.Encode (
     encodeHeader
-  , encodeHeaderBuffer
+  , encodeTokenHeader
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -42,6 +42,7 @@ changeTableSize dyntbl wbuf = do
 ----------------------------------------------------------------
 
 -- | Converting 'HeaderList' to the HPACK format.
+--   This function has overhead of allocating/freeing a temporary buffer.
 --   'BufferOverrun' will be thrown if the temporary buffer is too small.
 encodeHeader :: EncodeStrategy
              -> Size -- ^ The size of a temporary buffer.
@@ -63,7 +64,7 @@ encodeHeader' :: EncodeStrategy
 encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
   where
     enc buf = do
-        (hs',len) <- encodeHeaderBuffer buf siz stgy True dyntbl hs
+        (hs',len) <- encodeTokenHeader buf siz stgy True dyntbl hs
         case hs' of
             [] -> create len $ \p -> memcpy p buf len
             _  -> throwIO BufferOverrun
@@ -79,18 +80,20 @@ encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
 --   dynamic table size update is generated at the beginning of
 --   the HPACK format.
 --
---   If the buffer for encoding is small, leftover 'TokenHeaderList' will
---   be returned. In this case, this function should be called with it
---   again. 4th argument must be 'False'.
+--   The return value is a pair of leftover 'TokenHeaderList' and
+--   how many bytes are filled in the buffer.
+--   If the leftover is empty, the encoding is finished.
+--   Otherwise, this function should be called with it again.
+--   4th argument must be 'False'.
 --
-encodeHeaderBuffer :: Buffer
-                   -> BufferSize
-                   -> EncodeStrategy
-                   -> Bool -- ^ 'True' at the first time, 'False' when continued.
-                   -> DynamicTable
-                   -> TokenHeaderList
-                   -> IO (TokenHeaderList, Int) -- ^ Leftover
-encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
+encodeTokenHeader :: Buffer
+                  -> BufferSize
+                  -> EncodeStrategy
+                  -> Bool -- ^ 'True' at the first time, 'False' when continued.
+                  -> DynamicTable
+                  -> TokenHeaderList
+                  -> IO (TokenHeaderList, Int) -- ^ Leftover, filled length
+encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
     wbuf <- newWorkingBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
     let fa = indexedHeaderField dyntbl wbuf useHuffman
@@ -102,7 +105,7 @@ encodeHeaderBuffer buf siz EncodeStrategy{..} first dyntbl hs0 = do
         rev = getRevIndex dyntbl
         step0 = case compressionAlgo of
             Naive  -> naiveStep  fe'
-            Static -> staticStep rev fa fd fe
+            Static -> staticStep fa fd fe
             Linear -> linearStep rev fa fb fc fd
     ref1 <- currentOffset wbuf >>= newIORef
     ref2 <- newIORef hs0
@@ -128,8 +131,8 @@ naiveStep fe t v = fe (tokenFoldedKey t) v
 
 ----------------------------------------------------------------
 
-staticStep :: RevIndex -> FA -> FD -> FE -> Token -> HeaderValue -> IO ()
-staticStep rev fa fd fe t v = lookupRevIndex t v fa fd fe fd rev
+staticStep :: FA -> FD -> FE -> Token -> HeaderValue -> IO ()
+staticStep fa fd fe t v = lookupRevIndex' t v fa fd fe
 
 ----------------------------------------------------------------
 
@@ -141,8 +144,8 @@ linearStep rev fa fb fc fd t v = lookupRevIndex t v fa fb fc fd rev
 type FA = HIndex -> IO ()
 type FB = HeaderValue -> Entry -> HIndex -> IO ()
 type FC = HeaderName -> HeaderValue -> Entry -> IO ()
-type FD = HeaderValue -> Entry -> HIndex -> IO ()
-type FE = HeaderName -> HeaderValue -> Entry -> IO ()
+type FD = HeaderValue -> HIndex -> IO ()
+type FE = HeaderName -> HeaderValue -> IO ()
 
 -- 6.1.  Indexed Header Field Representation
 -- Indexed Header Field
@@ -170,15 +173,15 @@ literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff k v ent = do
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- Indexed Name
 literalHeaderFieldWithoutIndexingIndexedName
-    :: DynamicTable -> WorkingBuffer -> Bool -> FB
-literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v _ hidx =
+    :: DynamicTable -> WorkingBuffer -> Bool -> FD
+literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx =
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 4 set0000 v
 
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- New Name
 literalHeaderFieldWithoutIndexingNewName
     :: DynamicTable -> WorkingBuffer -> Bool -> FE
-literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v _ =
+literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
 literalHeaderFieldWithoutIndexingNewName'

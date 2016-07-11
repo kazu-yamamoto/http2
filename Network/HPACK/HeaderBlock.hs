@@ -1,11 +1,11 @@
 module Network.HPACK.HeaderBlock (
     decodeHeader
-  , decodeHeaderTable
+  , decodeTokenHeader
   , ValueTable
   , toHeaderTable
   , getHeaderValue
   , encodeHeader
-  , encodeHeaderBuffer
+  , encodeTokenHeader
   ) where
 
 import Network.HPACK.HeaderBlock.Decode

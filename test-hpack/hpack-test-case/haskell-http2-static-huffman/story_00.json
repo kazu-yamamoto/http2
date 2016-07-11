@@ -2,7 +2,7 @@
     "cases": [
         {
             "seqno": 0,
-            "wire": "0283c5837f06839d29af0188f439ce75c875fa57048163",
+            "wire": "82860188f439ce75c875fa5784",
             "headers": [
                 {
                     ":method": "GET"
@@ -20,7 +20,7 @@
         },
         {
             "seqno": 1,
-            "wire": "0283c5837f06839d29af018cf1e3c2fe8739ceb90ebf4aff048163",
+            "wire": "8286018cf1e3c2fe8739ceb90ebf4aff84",
             "headers": [
                 {
                     ":method": "GET"
@@ -38,7 +38,7 @@
         },
         {
             "seqno": 2,
-            "wire": "0283c5837f06839d29af0187eabfa35332fd2b049b60d48e62a1849eb611589825353141e63ad52160b206c4f2f5d537",
+            "wire": "82860187eabfa35332fd2b049b60d48e62a1849eb611589825353141e63ad52160b206c4f2f5d537",
             "headers": [
                 {
                     ":method": "GET"

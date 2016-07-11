@@ -3,7 +3,7 @@
 module Network.HPACK.Buffer (
     Buffer
   , BufferSize
-  , WorkingBuffer
+  , WorkingBuffer(..)
   , newWorkingBuffer
   , wind
   , readWord8
@@ -20,6 +20,7 @@ module Network.HPACK.Buffer (
   , hasMoreBytes
   , rewindOneByte
   , getByte
+  , getByte'
   , extractByteString
   ) where
 
@@ -173,6 +174,18 @@ getByte ReadBuffer{..} = do
     w <- peek ptr
     writeIORef cur $! ptr `plusPtr` 1
     return w
+
+{-# INLINE getByte' #-}
+getByte' :: ReadBuffer -> IO Int
+getByte' ReadBuffer{..} = do
+    ptr <- readIORef cur
+    if ptr < end then do
+        w <- peek ptr
+        writeIORef cur $! ptr `plusPtr` 1
+        let !i = fromIntegral w
+        return i
+      else
+        return (-1)
 
 extractByteString :: ReadBuffer -> Int -> IO ByteString
 extractByteString ReadBuffer{..} len = do
