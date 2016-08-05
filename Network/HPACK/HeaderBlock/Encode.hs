@@ -242,7 +242,11 @@ encodeString True  bs wbuf = do
     wind wbuf expectedIntLen
     len <- Huffman.encode wbuf bs
     let !intLen = integerLength len
-    if intLen == expectedIntLen then do
+    if origLen < len then do
+        wind wbuf (negate (expectedIntLen + len))
+        I.encode wbuf id 7 origLen
+        copyByteString wbuf bs
+      else if intLen == expectedIntLen then do
         wind wbuf (negate (expectedIntLen + len))
         I.encode wbuf setH 7 len
         wind wbuf len
