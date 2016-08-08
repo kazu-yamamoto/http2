@@ -63,15 +63,23 @@ dec wbuf rbuf len = go len (way256 `unsafeAt` 0)
           | otherwise      -> throwIO TooLongEos
     go !n !way0 = do
         w <- getByte rbuf
-        let w0 = w `shiftR` 6
-            w1 = (w `shiftR` 4) .&. 0x03
-            w2 = (w `shiftR` 2) .&. 0x03
-            w3 = w .&. 0x03
+        let w0 = w `shiftR` 7
+            w1 = (w `shiftR` 6) .&. 0x01
+            w2 = (w `shiftR` 5) .&. 0x01
+            w3 = (w `shiftR` 4) .&. 0x01
+            w4 = (w `shiftR` 3) .&. 0x01
+            w5 = (w `shiftR` 2) .&. 0x01
+            w6 = (w `shiftR` 1) .&. 0x01
+            w7 = w .&. 0x01
         way1 <- doit way0 w0
         way2 <- doit way1 w1
         way3 <- doit way2 w2
         way4 <- doit way3 w3
-        go (n - 1) way4
+        way5 <- doit way4 w4
+        way6 <- doit way5 w5
+        way7 <- doit way6 w6
+        way8 <- doit way7 w7
+        go (n - 1) way8
     doit !way !w = case next way w of
         EndOfString -> throwIO EosInTheMiddle
         Forward n   -> return $ way256 `unsafeAt` fromIntegral n
@@ -123,8 +131,6 @@ step root (Bin _ _ _ r) mx    (T:bs) = step root r mx bs
 
 bits8s :: [[B]]
 bits8s = [
-    [F,F]
-  , [F,T]
-  , [T,F]
-  , [T,T]
+    [F]
+  , [T]
   ]
