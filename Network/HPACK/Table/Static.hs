@@ -20,11 +20,11 @@ staticTableSize = length staticTableList
 -- | Get 'Entry' from the static table.
 --
 -- >>> toStaticEntry 1
--- Entry 42 (Token {ix = 0, shouldBeIndexed = True, isPseudo = True, tokenKey = ":authority"}) ""
+-- Entry 42 (":authority","")
 -- >>> toStaticEntry 8
--- Entry 42 (Token {ix = 4, shouldBeIndexed = True, isPseudo = True, tokenKey = ":status"}) "200"
+-- Entry 42 (":status","200")
 -- >>> toStaticEntry 50
--- Entry 37 (Token {ix = 40, shouldBeIndexed = True, isPseudo = False, tokenKey = "Range"}) ""
+-- Entry 37 ("range","")
 toStaticEntry :: Index -> Entry
 toStaticEntry sidx = staticTable `unsafeAt` (sidx - 1)
 

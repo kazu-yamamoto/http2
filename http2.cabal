@@ -50,7 +50,6 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
-                        Network.HPACK.Token
                         Network.HTTP2
                         Network.HTTP2.Priority
   Other-Modules:        Network.HPACK.Buffer

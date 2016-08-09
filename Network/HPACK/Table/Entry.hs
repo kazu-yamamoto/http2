@@ -9,12 +9,10 @@ module Network.HPACK.Table.Entry (
   , HeaderValue -- re-exporting
   , Index       -- re-exporting
   -- * Header and Entry
+  , entryHeader
   , toEntry
-  , toEntryToken
   -- * Getters
   , entrySize
-  , entryTokenHeader
-  , entryToken
   , entryHeaderName
   , entryHeaderValue
   -- * For initialization
@@ -23,7 +21,6 @@ module Network.HPACK.Table.Entry (
   ) where
 
 import qualified Data.ByteString as BS
-import Network.HPACK.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -32,7 +29,7 @@ import Network.HPACK.Types
 type Size = Int
 
 -- | Type for table entry. Size includes the 32 bytes magic number.
-data Entry = Entry Size Token HeaderValue deriving Show
+data Entry = Entry Size Header deriving Show
 
 ----------------------------------------------------------------
 
@@ -44,52 +41,36 @@ headerSize (k,v) = BS.length k
                  + BS.length v
                  + headerSizeMagicNumber
 
-headerSize' :: Token -> HeaderValue -> Size
-headerSize' t v = BS.length (tokenFoldedKey t)
-                + BS.length v
-                + headerSizeMagicNumber
+entryHeader :: Entry -> Header
+entryHeader (Entry _ kv) = kv
 
 ----------------------------------------------------------------
 
 -- | From 'Header' to 'Entry'.
 toEntry :: Header -> Entry
-toEntry kv@(k,v) = Entry siz t v
+toEntry kv = Entry siz kv
   where
-    !t = toToken k
     !siz = headerSize kv
-
-toEntryToken :: Token -> HeaderValue -> Entry
-toEntryToken t v = Entry siz t v
-  where
-    !siz = headerSize' t v
 
 ----------------------------------------------------------------
 
 -- | Getting the size of 'Entry'.
 entrySize :: Entry -> Size
-entrySize (Entry siz _ _) = siz
-
--- | Getting 'TokenHeader'.
-entryTokenHeader :: Entry -> TokenHeader
-entryTokenHeader (Entry _ t v) = (t, v)
-
--- | Getting 'Token'.
-entryToken :: Entry -> Token
-entryToken (Entry _ t _) = t
+entrySize (Entry siz _) = siz
 
 -- | Getting 'HeaderName'.
 entryHeaderName :: Entry -> HeaderName
-entryHeaderName (Entry _ t _) = tokenFoldedKey t
+entryHeaderName (Entry _ (k,_)) = k
 
 -- | Getting 'HeaderValue'.
 entryHeaderValue :: Entry -> HeaderValue
-entryHeaderValue (Entry _ _ v) = v
+entryHeaderValue (Entry _ (_,v)) = v
 
 ----------------------------------------------------------------
 
 -- | Dummy 'Entry' to initialize a dynamic table.
 dummyEntry :: Entry
-dummyEntry = Entry 0 tokenMax "dummyValue"
+dummyEntry = Entry 0 ("dummyName","dummyValue")
 
 -- | How many entries can be stored in a dynamic table?
 maxNumbers :: Size -> Int

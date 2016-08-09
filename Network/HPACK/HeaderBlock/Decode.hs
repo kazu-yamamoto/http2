@@ -2,44 +2,22 @@
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
-  , decodeTokenHeader
-  , ValueTable
-  , toHeaderTable
-  , getHeaderValue
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
 import Control.Exception (throwIO)
-import Control.Monad (unless, when)
-import Data.Maybe (isJust)
-import Data.Array (Array)
-import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
-import qualified Data.Array.IO as IOA
-import qualified Data.Array.Unsafe as Unsafe
+import Control.Monad (unless)
 import Data.Bits (testBit, clearBit, (.&.))
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as B8
-import Data.Char (isUpper)
-import Data.CaseInsensitive (CI(..))
 import Data.Word (Word8)
 import Network.HPACK.Buffer
 import Network.HPACK.Builder
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import Network.HPACK.Huffman
 import Network.HPACK.Table
-import Network.HPACK.Token
 import Network.HPACK.Types
-
--- | An array for 'HeaderValue'.
-type ValueTable = Array Int (Maybe HeaderValue)
-
--- | Accessing 'HeaderValue' with 'Token'.
-{-# INLINE getHeaderValue #-}
-getHeaderValue :: Token -> ValueTable -> Maybe HeaderValue
-getHeaderValue t tbl = tbl `unsafeAt` tokenIx t
 
 ----------------------------------------------------------------
 
@@ -52,25 +30,6 @@ decodeHeader :: DynamicTable
              -> ByteString -- ^ An HPACK format
              -> IO HeaderList
 decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
-
--- | Converting the HPACK format to 'TokenHeaderList'
---   and 'ValueTable'.
---
---   * Multiple values of Cookie: are concatenated.
---   * If a pseudo header appears multiple times,
---     'IllegalHeaderName' is thrown.
---   * If unknown pseudo headers appear,
---     'IllegalHeaderName' is thrown.
---   * If pseudo headers are found after normal headers,
---     'IllegalHeaderName' is thrown.
---   * If a header key contains capital letters,
---     'IllegalHeaderName' is thrown.
---   * 'DecodeError' would be thrown if the HPACK format is broken.
---   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
-decodeTokenHeader :: DynamicTable
-                  -> ByteString -- ^ An HPACK format
-                  -> IO (TokenHeaderList, ValueTable)
-decodeTokenHeader dyntbl inp = decodeHPACK dyntbl inp decodeSophisticated
 
 decodeHPACK :: DynamicTable
             -> ByteString
@@ -98,73 +57,14 @@ decodeSimple dyntbl rbuf = go empty
         more <- hasOneByte rbuf
         if more then do
             w <- getByte rbuf
-            !tv <- toTokenHeader dyntbl w rbuf
-            let builder' = builder << tv
+            !kv <- toHeader dyntbl w rbuf
+            let builder' = builder << kv
             go builder'
           else do
-            let !tvs = run builder
-                !kvs = map (\(t,v) -> let !k = tokenFoldedKey t in (k,v)) tvs
-            return kvs
+            return $! run builder
 
-decodeSophisticated :: DynamicTable -> ReadBuffer
-                    -> IO (TokenHeaderList, ValueTable)
-decodeSophisticated dyntbl rbuf = do
-    -- using maxTokenIx to reduce condition
-    arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
-    !tvs <- pseudoNormal arr
-    tbl <- Unsafe.unsafeFreeze arr
-    return (tvs, tbl)
-  where
-    pseudoNormal :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
-    pseudoNormal arr = pseudo
-      where
-        pseudo = do
-            more <- hasOneByte rbuf
-            if more then do
-                w <- getByte rbuf
-                tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
-                if isPseudo then do
-                    mx <- unsafeRead arr ix
-                    when (isJust mx) $ throwIO IllegalHeaderName
-                    when (isMaxTokenIx ix) $ throwIO IllegalHeaderName
-                    unsafeWrite arr ix (Just v)
-                    pseudo
-                  else do
-                    when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
-                        throwIO IllegalHeaderName
-                    unsafeWrite arr ix (Just v)
-                    if isCookieTokenIx ix then
-                        normal empty (empty << v)
-                      else
-                        normal (empty << tv) empty
-              else
-                return []
-        normal !builder !cookie = do
-            more <- hasOneByte rbuf
-            if more then do
-                w <- getByte rbuf
-                tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
-                when isPseudo $ throwIO IllegalHeaderName
-                when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
-                    throwIO IllegalHeaderName
-                unsafeWrite arr ix (Just v)
-                if isCookieTokenIx ix then
-                    normal builder (cookie << v)
-                  else
-                    normal (builder << tv) cookie
-              else do
-                let !tvs0 = run builder
-                    !cook = run cookie
-                if null cook then
-                    return tvs0
-                  else do
-                    let !v = BS.intercalate "; " cook
-                        !tvs = (tokenCookie, v) : tvs0
-                    unsafeWrite arr cookieTokenIx (Just v)
-                    return tvs
-
-toTokenHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
-toTokenHeader dyntbl w rbuf
+toHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
+toHeader dyntbl w rbuf
   | w `testBit` 7 = indexed             dyntbl w rbuf
   | w `testBit` 6 = incrementalIndexing dyntbl w rbuf
   | w `testBit` 5 = throwIO IllegalTableSizeUpdate
@@ -181,28 +81,28 @@ tableSizeUpdate dyntbl w rbuf = do
 
 ----------------------------------------------------------------
 
-indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
+indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
 indexed dyntbl w rbuf = do
     let !w' = clearBit w 7
     !idx <- I.decode 7 w' rbuf
-    entryTokenHeader <$> toIndexedEntry dyntbl idx
+    entryHeader <$> toIndexedEntry dyntbl idx
 
-incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
+incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
 incrementalIndexing dyntbl w rbuf = do
-    tv@(t,v) <- if isIndexedName1 w then
-                    indexedName dyntbl w rbuf 6 mask6
-                else
-                    newName dyntbl rbuf
-    let !e = toEntryToken t v
+    kv <- if isIndexedName1 w then
+              indexedName dyntbl w rbuf 6 mask6
+            else
+              newName dyntbl rbuf
+    let !e = toEntry kv
     insertEntry e dyntbl
-    return tv
+    return kv
 
-withoutIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
+withoutIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
 withoutIndexing dyntbl w rbuf
   | isIndexedName2 w = indexedName dyntbl w rbuf 4 mask4
   | otherwise        = newName dyntbl rbuf
 
-neverIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
+neverIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO Header
 neverIndexing dyntbl w rbuf
   | isIndexedName2 w = indexedName dyntbl w rbuf 4 mask4
   | otherwise        = newName dyntbl rbuf
@@ -211,21 +111,19 @@ neverIndexing dyntbl w rbuf
 
 indexedName :: DynamicTable -> Word8 -> ReadBuffer
             -> Int -> (Word8 -> Word8)
-            -> IO TokenHeader
+            -> IO Header
 indexedName dyntbl w rbuf n mask = do
     let !p = mask w
     !idx <- I.decode n p rbuf
-    !t <- entryToken <$> toIndexedEntry dyntbl idx
+    !key <- entryHeaderName <$> toIndexedEntry dyntbl idx
     !val <- headerStuff dyntbl rbuf
-    let !tv = (t,val)
-    return tv
+    return (key,val)
 
-newName :: DynamicTable -> ReadBuffer -> IO TokenHeader
+newName :: DynamicTable -> ReadBuffer -> IO Header
 newName dyntbl rbuf = do
-    !t <- toToken <$> headerStuff dyntbl rbuf
+    !key <- headerStuff dyntbl rbuf
     !val <- headerStuff dyntbl rbuf
-    let !tv = (t,val)
-    return tv
+    return (key,val)
 
 ----------------------------------------------------------------
 
@@ -281,27 +179,3 @@ decodeString huff hufdec rbuf len = do
             extractByteString rbuf len
       else
         throwIO HeaderBlockTruncated
-
-
-----------------------------------------------------------------
-
--- | Converting a header list of the http-types style to
---   'TokenHeaderList' and 'ValueTable'.
-toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO (TokenHeaderList, ValueTable)
-toHeaderTable kvs = do
-    arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
-    !tvs <- conv arr
-    tbl <- Unsafe.unsafeFreeze arr
-    return (tvs, tbl)
-  where
-    conv :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
-    conv arr = go kvs empty
-      where
-        go :: [(CI HeaderName,HeaderValue)] -> Builder TokenHeader -> IO TokenHeaderList
-        go []         builder = return $ run builder
-        go ((k,v):xs) builder = do
-            let !t = toToken (foldedCase k)
-            unsafeWrite arr (tokenIx t) (Just v)
-            let !tv = (t,v)
-                !builder' = builder << tv
-            go xs builder'

@@ -7,8 +7,6 @@ module Network.HPACK.Types (
   , HeaderStuff
   , Header
   , HeaderList
-  , TokenHeader
-  , TokenHeaderList
   -- * Misc
   , Index
   , HIndex(..)
@@ -28,7 +26,6 @@ import Data.ByteString (ByteString)
 import Data.Typeable
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr)
-import Network.HPACK.Token (Token)
 
 ----------------------------------------------------------------
 
@@ -46,10 +43,6 @@ type HeaderList = [Header]
 
 -- | To be a 'HeaderName' or 'HeaderValue'.
 type HeaderStuff = ByteString
-
-type TokenHeader = (Token, HeaderValue)
-
-type TokenHeaderList = [TokenHeader]
 
 ----------------------------------------------------------------
 

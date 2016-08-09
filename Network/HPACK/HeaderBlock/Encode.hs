@@ -2,7 +2,6 @@
 
 module Network.HPACK.HeaderBlock.Encode (
     encodeHeader
-  , encodeTokenHeader
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -22,7 +21,6 @@ import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman
 import Network.HPACK.Table
-import Network.HPACK.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -49,51 +47,22 @@ encodeHeader :: EncodeStrategy
              -> DynamicTable
              -> HeaderList
              -> IO ByteString -- ^ An HPACK format
-encodeHeader stgy siz dyntbl hs = encodeHeader' stgy siz dyntbl hs'
-  where
-    hs' = map (\(k,v) -> let !t = toToken k in (t,v)) hs
-
-
--- | Converting 'HeaderList' to the HPACK format.
---   'BufferOverrun' will be thrown if the temporary buffer is too small.
-encodeHeader' :: EncodeStrategy
-              -> Size -- ^ The size of a temporary buffer.
-              -> DynamicTable
-              -> TokenHeaderList
-              -> IO ByteString -- ^ An HPACK format
-encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
+encodeHeader stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
   where
     enc buf = do
-        (hs',len) <- encodeTokenHeader buf siz stgy True dyntbl hs
+        (hs',len) <- encodeHeader' buf siz stgy True dyntbl hs
         case hs' of
             [] -> create len $ \p -> memcpy p buf len
             _  -> throwIO BufferOverrun
 
-----------------------------------------------------------------
-
--- | Converting 'TokenHeaderList' to the HPACK format directly in the buffer.
---
---   4th argument is relating to dynamic table size update.
---   When calling this function for a new 'TokenHeaderList',
---   it must be 'True'.
---   If 'True' and set by 'setLimitForEncoding',
---   dynamic table size update is generated at the beginning of
---   the HPACK format.
---
---   The return value is a pair of leftover 'TokenHeaderList' and
---   how many bytes are filled in the buffer.
---   If the leftover is empty, the encoding is finished.
---   Otherwise, this function should be called with it again.
---   4th argument must be 'False'.
---
-encodeTokenHeader :: Buffer
-                  -> BufferSize
-                  -> EncodeStrategy
-                  -> Bool -- ^ 'True' at the first time, 'False' when continued.
-                  -> DynamicTable
-                  -> TokenHeaderList
-                  -> IO (TokenHeaderList, Int) -- ^ Leftover, filled length
-encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
+encodeHeader' :: Buffer
+              -> BufferSize
+              -> EncodeStrategy
+              -> Bool -- ^ 'True' at the first time, 'False' when continued.
+              -> DynamicTable
+              -> HeaderList
+              -> IO (HeaderList, Int) -- ^ Leftover, filled length
+encodeHeader' buf siz EncodeStrategy{..} first dyntbl hs0 = do
     wbuf <- newWorkingBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
     let fa = indexedHeaderField dyntbl wbuf useHuffman
@@ -105,7 +74,7 @@ encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
         rev = getRevIndex dyntbl
         step0 = case compressionAlgo of
             Naive  -> naiveStep  fe'
-            Static -> staticStep fa fd fe
+            Static -> staticStep rev fa fd fe
             Linear -> linearStep rev fa fb fc fd
     ref1 <- currentOffset wbuf >>= newIORef
     ref2 <- newIORef hs0
@@ -126,18 +95,21 @@ encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
 
 ----------------------------------------------------------------
 
-naiveStep :: (HeaderName -> HeaderValue -> IO ()) -> Token -> HeaderValue -> IO ()
-naiveStep fe t v = fe (tokenFoldedKey t) v
+naiveStep :: (HeaderName -> HeaderValue -> IO ()) -> HeaderName -> HeaderValue -> IO ()
+naiveStep fe k v = fe k v
 
 ----------------------------------------------------------------
 
-staticStep :: FA -> FD -> FE -> Token -> HeaderValue -> IO ()
-staticStep fa fd fe t v = lookupRevIndex' t v fa fd fe
+staticStep :: RevIndex -> FA -> FD -> FE -> HeaderName -> HeaderValue -> IO ()
+staticStep rev fa fd fe k v = lookupRevIndex k v fa fd' fe' fd rev
+  where
+    fe' k' v' _ = fe k' v'
+    fd' v' _ i' = fd v' i'
 
 ----------------------------------------------------------------
 
-linearStep :: RevIndex -> FA -> FB -> FC -> FD -> Token -> HeaderValue -> IO ()
-linearStep rev fa fb fc fd t v = lookupRevIndex t v fa fb fc fd rev
+linearStep :: RevIndex -> FA -> FB -> FC -> FD -> HeaderName -> HeaderValue -> IO ()
+linearStep rev fa fb fc fd k v = lookupRevIndex k v fa fb fc fd rev
 
 ----------------------------------------------------------------
 
