@@ -72,10 +72,10 @@ instance ToJSON ErrorCodeId where
 instance FromJSON ErrorCodeId where
     parseJSON e = toErrorCodeId <$> parseJSON e
 
-instance ToJSON SettingsList where
+instance {-# OVERLAPPING #-} ToJSON SettingsList where
     toJSON settings = toJSON $ map (first fromSettingsKeyId) settings
 
-instance FromJSON SettingsList where
+instance {-# OVERLAPPING #-} FromJSON SettingsList where
     parseJSON x = map (first (fromJust . toSettingsKeyId)) <$> parseJSON x
 
 instance ToJSON ByteString where

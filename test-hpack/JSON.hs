@@ -72,11 +72,11 @@ instance ToJSON Case where
                                               ,"seqno" .= no
                                               ]
 
-instance FromJSON HeaderList where
+instance {-# OVERLAPPING #-} FromJSON HeaderList where
     parseJSON (Array a) = mapM parseJSON $ V.toList a
     parseJSON _         = mzero
 
-instance ToJSON HeaderList where
+instance {-# OVERLAPPING #-} ToJSON HeaderList where
     toJSON hs = toJSON $ map toJSON hs
 
 instance {-# OVERLAPPING #-} FromJSON Header where

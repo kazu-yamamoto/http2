@@ -13,8 +13,9 @@ module Network.HPACK.Table.RevIndex (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
 #endif
-import Data.Array (Array, (!))
+import Data.Array (Array)
 import qualified Data.Array as A
+import Data.Array.Base (unsafeAt)
 import Data.Function (on)
 import Data.CaseInsensitive (foldedCase)
 import Data.IORef
@@ -69,7 +70,7 @@ staticRevIndex = A.array (minTokenIx,maxStaticTokenIx) $ map toEnt zs
 
 {-# INLINE lookupStaticRevIndex #-}
 lookupStaticRevIndex :: Int -> HeaderValue -> (HIndex -> IO ()) -> (HIndex -> IO ()) -> IO ()
-lookupStaticRevIndex ix v fa' fbd' = case staticRevIndex ! ix of
+lookupStaticRevIndex ix v fa' fbd' = case staticRevIndex `unsafeAt` ix of
     StaticEntry i Nothing  -> fbd' i
     StaticEntry i (Just m) -> case M.lookup v m of
             Nothing -> fbd' i
@@ -87,7 +88,7 @@ newDynamicRevIndex = A.listArray (minTokenIx,maxStaticTokenIx) <$> mapM mk lst
 renewDynamicRevIndex :: DynamicRevIndex -> IO ()
 renewDynamicRevIndex drev = mapM_ clear [minTokenIx..maxStaticTokenIx]
   where
-    clear t = writeIORef (drev ! t) M.empty
+    clear t = writeIORef (drev `unsafeAt` t) M.empty
 
 {-# INLINE lookupDynamicStaticRevIndex #-}
 lookupDynamicStaticRevIndex :: Int -> HeaderValue -> DynamicRevIndex
@@ -95,7 +96,7 @@ lookupDynamicStaticRevIndex :: Int -> HeaderValue -> DynamicRevIndex
                             -> (HIndex -> IO ())
                             -> IO ()
 lookupDynamicStaticRevIndex ix v drev fa' fbd' = do
-    let ref = drev ! ix
+    let ref = drev `unsafeAt` ix
     m <- readIORef ref
     case M.lookup v m of
         Just i  -> fa' i
@@ -105,13 +106,13 @@ lookupDynamicStaticRevIndex ix v drev fa' fbd' = do
 insertDynamicRevIndex :: Token -> HeaderValue -> HIndex -> DynamicRevIndex -> IO ()
 insertDynamicRevIndex t v i drev = modifyIORef ref $ M.insert v i
   where
-    ref = drev ! tokenIx t
+    ref = drev `unsafeAt` tokenIx t
 
 {-# INLINE deleteDynamicRevIndex #-}
 deleteDynamicRevIndex :: Token -> HeaderValue -> DynamicRevIndex -> IO ()
 deleteDynamicRevIndex t v drev = modifyIORef ref $ M.delete v
   where
-    ref = drev ! tokenIx t
+    ref = drev `unsafeAt` tokenIx t
 
 ----------------------------------------------------------------
 

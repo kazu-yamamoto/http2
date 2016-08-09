@@ -14,7 +14,8 @@ import Control.Applicative ((<$>))
 import Control.Exception (throwIO)
 import Control.Monad (unless, when)
 import Data.Maybe (isJust)
-import Data.Array (Array, (!))
+import Data.Array (Array)
+import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
 import Data.Bits (testBit, clearBit, (.&.))
@@ -38,7 +39,7 @@ type ValueTable = Array Int (Maybe HeaderValue)
 -- | Accessing 'HeaderValue' with 'Token'.
 {-# INLINE getHeaderValue #-}
 getHeaderValue :: Token -> ValueTable -> Maybe HeaderValue
-getHeaderValue t tbl = tbl ! tokenIx t
+getHeaderValue t tbl = tbl `unsafeAt` tokenIx t
 
 ----------------------------------------------------------------
 
@@ -123,15 +124,15 @@ decodeSophisticated dyntbl rbuf = do
                 w <- getByte rbuf
                 tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 if isPseudo then do
-                    mx <- IOA.readArray arr ix
+                    mx <- unsafeRead arr ix
                     when (isJust mx) $ throwIO IllegalHeaderName
                     when (isMaxTokenIx ix) $ throwIO IllegalHeaderName
-                    IOA.writeArray arr ix (Just v)
+                    unsafeWrite arr ix (Just v)
                     pseudo
                   else do
                     when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
-                    IOA.writeArray arr ix (Just v)
+                    unsafeWrite arr ix (Just v)
                     if isCookieTokenIx ix then
                         normal empty (empty << v)
                       else
@@ -146,7 +147,7 @@ decodeSophisticated dyntbl rbuf = do
                 when isPseudo $ throwIO IllegalHeaderName
                 when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
-                IOA.writeArray arr ix (Just v)
+                unsafeWrite arr ix (Just v)
                 if isCookieTokenIx ix then
                     normal builder (cookie << v)
                   else
@@ -159,7 +160,7 @@ decodeSophisticated dyntbl rbuf = do
                   else do
                     let !v = BS.intercalate "; " cook
                         !tvs = (tokenCookie, v) : tvs0
-                    IOA.writeArray arr cookieTokenIx (Just v)
+                    unsafeWrite arr cookieTokenIx (Just v)
                     return tvs
 
 toTokenHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
@@ -300,7 +301,7 @@ toHeaderTable kvs = do
         go []         builder = return $ run builder
         go ((k,v):xs) builder = do
             let !t = toToken (foldedCase k)
-            IOA.writeArray arr (tokenIx t) (Just v)
+            unsafeWrite arr (tokenIx t) (Just v)
             let !tv = (t,v)
                 !builder' = builder << tv
             go xs builder'

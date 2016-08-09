@@ -10,7 +10,8 @@ module Network.HPACK.HeaderBlock.Integer (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Data.Array (Array, listArray, (!))
+import Data.Array (Array, listArray)
+import Data.Array.Base (unsafeAt)
 import Data.Bits ((.&.), shiftR, testBit)
 import Data.ByteString (ByteString)
 import Data.Word (Word8)
@@ -47,7 +48,7 @@ encode wbuf set n i
         writeWord8 wbuf $ set $ fromIntegral p
         encode' (i - p)
   where
-    !p = powerArray ! n
+    !p = powerArray `unsafeAt` (n - 1)
     encode' :: Int -> IO ()
     encode' j
       | j < 128   = writeWord8 wbuf $ fromIntegral j
@@ -90,8 +91,8 @@ decode n w rbuf
   | i < p     = return i
   | otherwise = decode' 0 i
   where
-    p = powerArray ! n
-    i = fromIntegral w
+    !p = powerArray `unsafeAt` (n - 1)
+    !i = fromIntegral w
     decode' :: Int -> Int -> IO Int
     decode' m j = do
         !b <- fromIntegral <$> getByte rbuf

@@ -12,7 +12,8 @@ import Control.Applicative ((<$>))
 #endif
 import Control.Exception (throwIO)
 import Control.Monad (when, void)
-import Data.Array
+import Data.Array (Array, listArray)
+import Data.Array.Base (unsafeAt)
 import Data.Bits ((.|.))
 import Data.ByteString (ByteString)
 import Data.IORef
@@ -104,7 +105,7 @@ enc WorkingBuffer{..} rbuf = do
     go n ptr = do
         !i <- getByte' rbuf
         if i >= 0 then do
-            let Shifted n' len b bs = (aosa ! i) ! n
+            let Shifted n' len b bs = (aosa `unsafeAt` i) `unsafeAt` n
                 !ptr' | n' == 0   = ptr `plusPtr` len
                       | otherwise = ptr `plusPtr` (len - 1)
             when (ptr' >= limit) $ throwIO BufferOverrun
@@ -119,7 +120,7 @@ enc WorkingBuffer{..} rbuf = do
             if (n == 0) then
                 return ptr
               else do
-                let Shifted _ _ b _ = (aosa ! idxEos) ! n
+                let Shifted _ _ b _ = (aosa `unsafeAt` idxEos) `unsafeAt` n
                 b0 <- peek ptr
                 poke ptr (b0 .|. b)
                 let !ptr' = ptr `plusPtr` 1
