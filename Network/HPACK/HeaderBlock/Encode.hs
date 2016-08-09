@@ -10,7 +10,7 @@ import Control.Applicative ((<$>))
 #endif
 import Control.Exception (bracket, throwIO)
 import qualified Control.Exception as E
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Data.Bits (setBit)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString, create, memcpy)
@@ -236,34 +236,6 @@ encodeString False bs wbuf = do
     I.encode wbuf id 7 len
     copyByteString wbuf bs
 encodeString True  bs wbuf = do
-    let !origLen = BS.length bs
-        !expectedLen = (origLen `div` 10) * 8 -- 80%: decided by examples
-        !expectedIntLen = integerLength expectedLen
-    wind wbuf expectedIntLen
-    len <- Huffman.encode wbuf bs
-    let !intLen = integerLength len
-    if origLen < len then do
-        wind wbuf (negate (expectedIntLen + len))
-        I.encode wbuf id 7 origLen
-        copyByteString wbuf bs
-      else if intLen == expectedIntLen then do
-        wind wbuf (negate (expectedIntLen + len))
-        I.encode wbuf setH 7 len
-        wind wbuf len
-      else do
-        let !gap = intLen - expectedIntLen
-        shiftLastN wbuf gap len
-        wind wbuf (negate (intLen + len))
-        I.encode wbuf setH 7 len
-        wind wbuf len
-
--- For 7+:
--- 1 byte:    0 -   126
--- 2 bytes: 127 -   254
--- 3 bytes: 255 - 16510
-{-# INLINE integerLength #-}
-integerLength :: Int -> Int
-integerLength n
-    | n <= 126  = 1
-    | n <= 254  = 2
-    | otherwise = 3
+    len <- Huffman.getSize bs
+    I.encode wbuf setH 7 len
+    void $ Huffman.encode wbuf bs

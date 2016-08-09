@@ -5,6 +5,7 @@ module Network.HPACK.Huffman.Encode (
     HuffmanEncoding
   , encode
   , encodeHuffman
+  , getSize
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -15,10 +16,11 @@ import Control.Monad (when, void)
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
 import Data.Bits ((.|.))
-import Data.ByteString (ByteString)
+import Data.ByteString.Internal (ByteString(..))
 import Data.IORef
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr, minusPtr, Ptr)
+import Foreign.ForeignPtr
 import Foreign.Storable (peek, poke)
 import Network.HPACK.Buffer
 import Network.HPACK.Huffman.Bit
@@ -43,6 +45,7 @@ data Shifted = Shifted !Int   -- How many bits in the last byte
                        !Int   -- Total bytes (3rd + 4th)
                        !Word8 -- First word. If Int is 0, this is dummy
                        !WS    -- Following words, up to 4 bytes
+                       !Int   -- Total bytes
                        deriving Show
 
 ----------------------------------------------------------------
@@ -53,18 +56,21 @@ aosa = listArray (0,idxEos) $ map toShiftedArray huffmanTable
 -- |
 --
 -- >>> toShifted [T,T,T,T] 0
--- Shifted 4 1 240 W0
+-- Shifted 4 1 240 W0 1
 -- >>> toShifted [T,T,T,T] 4
--- Shifted 0 1 15 W0
+-- Shifted 0 1 15 W0 1
 -- >>> toShifted [T,T,T,T] 5
--- Shifted 1 2 7 (W1 128)
+-- Shifted 1 2 7 (W1 128) 2
 
 toShifted :: Bits -> Int -> Shifted
-toShifted bits n = Shifted r siz w ws
+toShifted bits n = Shifted r siz w ws total
   where
     shifted = replicate n F ++ bits
     len = length shifted
-    !r = len `mod` 8
+    (!q,!r) = len `divMod` 8
+    total
+      | r == 0    = q
+      | otherwise = q + 1
     ws0 = map fromBits $ group8 shifted
     !siz = length ws0
     !w = head ws0
@@ -105,7 +111,7 @@ enc WorkingBuffer{..} rbuf = do
     go n ptr = do
         !i <- getByte' rbuf
         if i >= 0 then do
-            let Shifted n' len b bs = (aosa `unsafeAt` i) `unsafeAt` n
+            let Shifted n' len b bs _ = (aosa `unsafeAt` i) `unsafeAt` n
                 !ptr' | n' == 0   = ptr `plusPtr` len
                       | otherwise = ptr `plusPtr` (len - 1)
             when (ptr' >= limit) $ throwIO BufferOverrun
@@ -120,7 +126,7 @@ enc WorkingBuffer{..} rbuf = do
             if (n == 0) then
                 return ptr
               else do
-                let Shifted _ _ b _ = (aosa `unsafeAt` idxEos) `unsafeAt` n
+                let Shifted _ _ b _ _ = (aosa `unsafeAt` idxEos) `unsafeAt` n
                 b0 <- peek ptr
                 poke ptr (b0 .|. b)
                 let !ptr' = ptr `plusPtr` 1
@@ -146,3 +152,21 @@ copy ptr (W4 w1 w2 w3 w4) = do
 encodeHuffman :: ByteString -> IO ByteString
 encodeHuffman bs = withTemporaryBuffer 4096 $ \wbuf ->
     void $ encode wbuf bs
+
+
+getSize :: ByteString -> IO Int
+getSize (PS fptr off len) = withForeignPtr fptr $ \ptr -> do
+    let beg = ptr `plusPtr` off
+        end = beg `plusPtr` len
+    accumSize beg end 0 0
+  where
+    accumSize :: Ptr Word8 -> Ptr Word8 -> Int -> Int -> IO Int
+    accumSize src lim n acc
+      | src == lim = return acc
+      | otherwise  = do
+          i <- fromIntegral <$> peek src
+          let Shifted n' _ _ _ l = (aosa `unsafeAt` i) `unsafeAt` n
+          let !acc'
+               | n == 0    = acc + l
+               | otherwise = acc + l - 1
+          accumSize (src `plusPtr` 1) lim n' acc'

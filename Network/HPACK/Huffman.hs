@@ -7,6 +7,7 @@ module Network.HPACK.Huffman (
   , encodeHuffman
   , decode
   , decodeHuffman
+  , getSize
   ) where
 
 import Network.HPACK.Huffman.Decode
