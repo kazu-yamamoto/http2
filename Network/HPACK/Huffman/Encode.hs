@@ -40,8 +40,8 @@ data WS = W0
         deriving Show
 
 data Shifted = Shifted !Int   -- How many bits in the last byte
-                       !Int   -- Total bytes (3rd + 4th)
-                       !Word8 -- First word. If Int is 0, this is dummy
+                       !Int   -- Total bytes (3rd Word8 + 4th WS)
+                       !Word8 -- First word.
                        !WS    -- Following words, up to 4 bytes
                        deriving Show
 
@@ -105,24 +105,24 @@ enc WorkingBuffer{..} rbuf = do
     go n ptr = do
         !i <- getByte' rbuf
         if i >= 0 then do
-            let Shifted n' len b bs = (aosa `unsafeAt` i) `unsafeAt` n
+            let Shifted n' len w ws = (aosa `unsafeAt` i) `unsafeAt` n
                 !ptr' | n' == 0   = ptr `plusPtr` len
                       | otherwise = ptr `plusPtr` (len - 1)
             when (ptr' >= limit) $ throwIO BufferOverrun
             if n == 0 then
-                poke ptr b
+                poke ptr w
               else do
-                b0 <- peek ptr
-                poke ptr (b0 .|. b)
-            copy (ptr `plusPtr` 1) bs
+                w0 <- peek ptr
+                poke ptr (w0 .|. w)
+            copy (ptr `plusPtr` 1) ws
             go n' ptr'
           else
             if (n == 0) then
                 return ptr
               else do
-                let Shifted _ _ b _ = (aosa `unsafeAt` idxEos) `unsafeAt` n
-                b0 <- peek ptr
-                poke ptr (b0 .|. b)
+                let Shifted _ _ w _ = (aosa `unsafeAt` idxEos) `unsafeAt` n
+                w0 <- peek ptr
+                poke ptr (w0 .|. w)
                 let !ptr' = ptr `plusPtr` 1
                 return ptr'
 
