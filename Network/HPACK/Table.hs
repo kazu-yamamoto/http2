@@ -21,8 +21,6 @@ module Network.HPACK.Table (
   , insertEntry
   -- * Entry
   , module Network.HPACK.Table.Entry
-  -- * Reverse index
-  , getRevIndex
   , module Network.HPACK.Table.RevIndex
   -- * Index to entry
   , toIndexedEntry

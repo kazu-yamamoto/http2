@@ -22,14 +22,13 @@ module Network.HPACK.Table.Dynamic (
   , withDynamicTableForDecoding
   , toIndexedEntry
   , fromHIndexToIndex
-  , getRevIndex
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
 #endif
 import Control.Exception (bracket, throwIO)
-import Control.Monad (forM, when, (>=>))
+import Control.Monad (forM, when, (>=>), void)
 import Data.Array.Base (unsafeRead, unsafeWrite)
 import Data.Array.IO (IOArray, newArray)
 import qualified Data.ByteString.Char8 as BS
@@ -37,7 +36,6 @@ import Data.IORef
 import Foreign.Marshal.Alloc
 import Network.HPACK.Huffman
 import Network.HPACK.Table.Entry
-import Network.HPACK.Table.RevIndex
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
@@ -84,12 +82,7 @@ After insertion:
 -}
 
 data CodeInfo =
-    EncodeInfo !RevIndex -- Reverse index
-               -- The value informed by SETTINGS_HEADER_TABLE_SIZE.
-               -- If 'Nothing', dynamic table size update is not necessary.
-               -- Otherwise, dynamic table size update is sent
-               -- and this value should be set to 'Nothing'.
-               !(IORef (Maybe Size))
+    EncodeInfo !(IORef (Maybe Size))
   | DecodeInfo !HuffmanDecoding
                !(IORef Size)  -- The limit size
                !(IO ())       -- Action to free the buffer
@@ -169,7 +162,7 @@ data TableSizeAction = Keep | Change !Size | Ignore !Size
 
 needChangeTableSize :: DynamicTable -> IO TableSizeAction
 needChangeTableSize DynamicTable{..} = do
-    let EncodeInfo _ limref = codeInfo
+    let EncodeInfo limref = codeInfo
     mlim <- readIORef limref
     maxsiz <- readIORef maxDynamicTableSize
     return $ case mlim of
@@ -182,12 +175,12 @@ needChangeTableSize DynamicTable{..} = do
 --   its value should be set by this function.
 setLimitForEncoding :: Size -> DynamicTable -> IO ()
 setLimitForEncoding siz DynamicTable{..} = do
-    let EncodeInfo _ limref = codeInfo
+    let EncodeInfo limref = codeInfo
     writeIORef limref $ Just siz
 
 resetLimitForEncoding :: DynamicTable -> IO ()
 resetLimitForEncoding DynamicTable{..} = do
-    let EncodeInfo _ limref = codeInfo
+    let EncodeInfo limref = codeInfo
     writeIORef limref Nothing
 
 ----------------------------------------------------------------
@@ -196,9 +189,8 @@ resetLimitForEncoding DynamicTable{..} = do
 newDynamicTableForEncoding :: Size -- ^ The dynamic table size
                            -> IO DynamicTable
 newDynamicTableForEncoding maxsiz = do
-    rev <- newRevIndex
     lim <- newIORef Nothing
-    let !info = EncodeInfo rev lim
+    let !info = EncodeInfo lim
     newDynamicTable maxsiz info
 
 -- | Creating 'DynamicTable' for decoding.
@@ -241,9 +233,6 @@ renewDynamicTable maxsiz dyntbl@DynamicTable{..} = do
         writeIORef maxNumOfEntries maxN
         writeIORef dynamicTableSize 0
         writeIORef maxDynamicTableSize maxsiz
-        case codeInfo of
-            EncodeInfo rev _ -> renewRevIndex rev
-            _                -> return ()
         copyEntries dyntbl entries
 
 getEntries :: DynamicTable -> IO [Entry]
@@ -295,7 +284,7 @@ withDynamicTableForDecoding maxsiz huftmpsiz action =
 --   Currently, this frees the temporary buffer for Huffman decoding.
 clearDynamicTable :: DynamicTable -> IO ()
 clearDynamicTable DynamicTable{..} = case codeInfo of
-    EncodeInfo _ _       -> return ()
+    EncodeInfo _       -> return ()
     DecodeInfo _ _ clear -> clear
 
 ----------------------------------------------------------------
@@ -307,10 +296,7 @@ clearDynamicTable DynamicTable{..} = case codeInfo of
 insertEntry :: Entry -> DynamicTable -> IO ()
 insertEntry e dyntbl@DynamicTable{..} = do
     insertFront e dyntbl
-    es <- adjustTableSize dyntbl
-    case codeInfo of
-        EncodeInfo rev _ -> deleteRevIndexList es rev
-        _                -> return ()
+    void $ adjustTableSize dyntbl
 
 insertFront :: Entry -> DynamicTable -> IO ()
 insertFront e DynamicTable{..} = do
@@ -326,9 +312,6 @@ insertFront e DynamicTable{..} = do
     writeIORef offset off'
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
-    case codeInfo of
-        EncodeInfo rev _ -> insertRevIndex e (DIndex i) rev
-        _                -> return ()
 
 adjustTableSize :: DynamicTable -> IO [Entry]
 adjustTableSize dyntbl@DynamicTable{..} = adjust []
@@ -357,9 +340,6 @@ insertEnd e DynamicTable{..} = do
     unsafeWrite table i e
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
-    case codeInfo of
-        EncodeInfo rev _ -> insertRevIndex e (DIndex i) rev
-        _                -> return ()
 
 ----------------------------------------------------------------
 
@@ -388,11 +368,3 @@ toDynamicEntry DynamicTable{..} idx = do
     !didx <- adj maxN (idx + off - staticTableSize)
     !table <- readIORef circularTable
     unsafeRead table didx
-
-----------------------------------------------------------------
-
-{-# INLINE getRevIndex #-}
-getRevIndex :: DynamicTable-> RevIndex
-getRevIndex DynamicTable{..} = rev
-  where
-    EncodeInfo rev _ = codeInfo

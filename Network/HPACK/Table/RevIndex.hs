@@ -1,57 +1,59 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings, CPP, RecordWildCards #-}
 
 module Network.HPACK.Table.RevIndex (
-    RevIndex
-  , newRevIndex
-  , renewRevIndex
-  , lookupRevIndex
-  , insertRevIndex
-  , deleteRevIndexList
+    lookupRevIndex
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>), (<*>))
 #endif
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Function (on)
+import Data.Array.Base (unsafeRead, unsafeAt)
+import Data.Array.IO (IOArray)
 import Data.IORef
-import Data.List (groupBy)
+import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Static
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-type ValueMap = Map HeaderValue HIndex
-type KeyMap = Map HeaderName ValueMap
+data Rev = N | K HIndex | KV HIndex deriving Eq
 
-data RevIndex = RevIndex (IORef KeyMap)
-
-----------------------------------------------------------------
-
-staticRevIndex :: KeyMap
-staticRevIndex = M.fromList $ map toEnt zs
+lookupStatic :: HeaderName -> HeaderValue -> DynamicTable -> IO Rev
+lookupStatic k v DynamicTable{..} = do
+    maxN <- readIORef maxNumOfEntries
+    off <- readIORef offset
+    n <- readIORef numOfEntries
+    let !beg = off + 1
+        !end = off + n
+    tbl <- readIORef circularTable
+    goD beg end maxN tbl N
   where
-    toEnt (k, xs) = (k, M.fromList xs)
-    zs = map extract $ groupBy ((==) `on` fst) lst
-      where
-        lst = zipWith (\(k,v) i -> (k,(v,i))) staticTableList $ map SIndex [1..]
-        extract xs = (fst (head xs), map snd xs)
-
-anyValue :: ValueMap -> HIndex
-anyValue inner = idx
-  where
-    [_,root,_] = M.splitRoot inner
-    [(_,idx)] = M.toList root
-
-----------------------------------------------------------------
-
-newRevIndex :: IO RevIndex
-newRevIndex = RevIndex <$> newIORef staticRevIndex
-
-renewRevIndex :: RevIndex -> IO ()
-renewRevIndex (RevIndex ref) = writeIORef ref staticRevIndex
+    goD :: Int -> Int -> Int -> IOArray Index Entry -> Rev -> IO Rev
+    goD i end maxN tbl r
+      | i > end   = goS 1 r
+      | otherwise = do
+            Entry _ (k',v') <- unsafeRead tbl ((i + maxN) `mod` maxN)
+            let !i' = i + 1
+            if k == k' then
+                if v == v' then
+                    return $ KV (DIndex i)
+                  else
+                    goD i' end maxN tbl (K (DIndex i))
+              else
+                goD i' end maxN tbl r
+    goS i r
+      | i > staticTableSize = return r
+      | otherwise           = do
+            let (k',v') = staticTable' `unsafeAt` (i - 1)
+                !i' = i + 1
+            if k == k' then
+                if v == v' then
+                    return $ KV (SIndex i)
+                  else
+                    goS i' (K (SIndex i))
+              else
+                goS i' r
 
 lookupRevIndex :: HeaderName
                -> HeaderValue
@@ -59,49 +61,19 @@ lookupRevIndex :: HeaderName
                -> (HeaderValue -> Entry -> HIndex -> IO ())
                -> (HeaderName -> HeaderValue -> Entry -> IO ())
                -> (HeaderValue -> HIndex -> IO ())
-               -> RevIndex
+               -> DynamicTable
                -> IO ()
-lookupRevIndex k v fa fb fc fd (RevIndex ref) = do
-    outer <- readIORef ref
-    case M.lookup k outer of
-      Nothing
-        | shouldBeIndexed -> fc k v ent
-        | otherwise       -> error "lookupRevIndex"
-      Just inner
-        | shouldBeIndexed -> case M.lookup v inner of
-            Nothing       -> fb v ent (anyValue inner)
-            Just i        -> fa i
-        | otherwise       -> fd v (anyValue inner)
-
+lookupRevIndex k v fa fb fc fd dyntbl = do
+    r <- lookupStatic k v dyntbl
+    case r of
+      N                   -> fc k v ent
+      K i
+        | shouldBeIndexed -> fb v ent i
+        | otherwise       -> fd v i
+      KV i                -> fa i
   where
     shouldBeIndexed = k `notElem` headersNotToIndex
     ent = toEntry (k,v)
-
-----------------------------------------------------------------
-
-{-# INLINE insertRevIndex #-}
-insertRevIndex :: Entry -> HIndex -> RevIndex -> IO ()
-insertRevIndex (Entry _ (k,v)) i (RevIndex ref) =
-    atomicModifyIORef' ref $ \outer -> (M.alter f k outer, ())
-  where
-    f Nothing      = Just $ M.singleton v i
-    f (Just inner) = Just $ M.insert v i inner
-
-{-# INLINE deleteRevIndex #-}
-deleteRevIndex :: RevIndex -> Entry -> IO ()
-deleteRevIndex (RevIndex ref) (Entry _ (k,v)) =
-    atomicModifyIORef' ref $ \outer -> (M.alter f k outer, ())
-  where
-    f Nothing         = Nothing
-    f (Just inner)
-      | M.null inner' = Nothing
-      | otherwise     = Just inner'
-      where
-         inner' = M.delete v inner
-
-{-# INLINE deleteRevIndexList #-}
-deleteRevIndexList :: [Entry] -> RevIndex -> IO ()
-deleteRevIndexList es rev = mapM_ (deleteRevIndex rev) es
 
 ----------------------------------------------------------------
 

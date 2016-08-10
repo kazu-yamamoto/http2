@@ -4,6 +4,7 @@ module Network.HPACK.Table.Static (
     toStaticEntry
   , staticTableSize
   , staticTableList
+  , staticTable'
   ) where
 
 import Data.Array (Array, listArray)
@@ -31,6 +32,9 @@ toStaticEntry sidx = staticTable `unsafeAt` (sidx - 1)
 -- | Pre-defined static table.
 staticTable :: Array Index Entry
 staticTable = listArray (1,staticTableSize) $ map toEntry staticTableList
+
+staticTable' :: Array Index Header
+staticTable' = listArray (1,staticTableSize) staticTableList
 
 ----------------------------------------------------------------
 
