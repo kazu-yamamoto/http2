@@ -285,7 +285,6 @@ Benchmark priority
                       , heaps
                       , mwc-random
                       , psqueues
-                      , random
                       , stm
 
 Benchmark header-compression
