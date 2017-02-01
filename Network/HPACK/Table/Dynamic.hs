@@ -385,6 +385,8 @@ toDynamicEntry :: DynamicTable -> Index -> IO Entry
 toDynamicEntry DynamicTable{..} idx = do
     !maxN <- readIORef maxNumOfEntries
     !off <- readIORef offset
+    !n <- readIORef numOfEntries
+    when (idx > n + staticTableSize) $ throwIO $ IndexOverrun idx
     !didx <- adj maxN (idx + off - staticTableSize)
     !table <- readIORef circularTable
     unsafeRead table didx
