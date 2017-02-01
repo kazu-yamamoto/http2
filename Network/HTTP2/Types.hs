@@ -77,6 +77,7 @@ module Network.HTTP2.Types (
 import qualified Control.Exception as E
 import Data.Bits (setBit, testBit, clearBit)
 import Data.ByteString (ByteString)
+import Data.List (foldl')
 import Data.Maybe (mapMaybe)
 import Data.Typeable
 import Data.Word (Word8, Word16, Word32)
@@ -276,15 +277,15 @@ defaultSettings = Settings {
 -- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
 -- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Just 200}
 updateSettings :: Settings -> SettingsList -> Settings
-updateSettings settings kvs = foldr update settings kvs
+updateSettings settings kvs = foldl' update settings kvs
   where
-    update (SettingsHeaderTableSize,x)      def = def { headerTableSize = x }
+    update def (SettingsHeaderTableSize,x)      = def { headerTableSize = x }
     -- fixme: x should be 0 or 1
-    update (SettingsEnablePush,x)           def = def { enablePush = x > 0 }
-    update (SettingsMaxConcurrentStreams,x) def = def { maxConcurrentStreams = Just x }
-    update (SettingsInitialWindowSize,x)    def = def { initialWindowSize = x }
-    update (SettingsMaxFrameSize,x)         def = def { maxFrameSize = x }
-    update (SettingsMaxHeaderBlockSize,x)   def = def { maxHeaderBlockSize = Just x }
+    update def (SettingsEnablePush,x)           = def { enablePush = x > 0 }
+    update def (SettingsMaxConcurrentStreams,x) = def { maxConcurrentStreams = Just x }
+    update def (SettingsInitialWindowSize,x)    = def { initialWindowSize = x }
+    update def (SettingsMaxFrameSize,x)         = def { maxFrameSize = x }
+    update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderBlockSize = Just x }
 
 -- | The type for window size.
 type WindowSize = Int
