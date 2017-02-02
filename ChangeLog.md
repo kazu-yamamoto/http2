@@ -1,3 +1,16 @@
+## 1.6.3
+
+* Fixing two bugs of HPACK pointed out by h2spec v2.
+
+## 1.6.2
+
+* Improving the performance of HPACK.
+* Huffman encoding is now based on H2O's one.
+
+## 1.6.1
+
+* Improving the performance of HPACK.
+
 ## 1.6.0
 
 * Reverse indices of HPACK are now based on tokens.
