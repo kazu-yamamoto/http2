@@ -284,6 +284,7 @@ Benchmark priority
                       , hashtables
                       , heaps
                       , mwc-random
+                      , random
                       , psqueues
                       , stm
 
