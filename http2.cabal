@@ -283,6 +283,7 @@ Benchmark priority
                       , criterion
                       , heaps
                       , mwc-random
+                      , random
                       , psqueues
                       , stm
 
