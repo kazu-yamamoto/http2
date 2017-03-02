@@ -281,7 +281,6 @@ Benchmark priority
                       , case-insensitive
                       , containers
                       , criterion
-                      , hashtables
                       , heaps
                       , mwc-random
                       , psqueues
@@ -299,5 +298,4 @@ Benchmark header-compression
                       , case-insensitive
                       , containers
                       , criterion
-                      , hashtables
                       , stm
