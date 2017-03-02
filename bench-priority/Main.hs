@@ -5,7 +5,7 @@ module Main where
 import Control.Concurrent.STM
 import Criterion.Main
 import Data.List (foldl')
-import System.Random
+import System.Random.MWC
 
 import qualified RingOfQueuesSTM as A
 import qualified RingOfQueues as AIO
@@ -26,9 +26,9 @@ numOfTrials = 10000
 
 main :: IO ()
 main = do
-    gen <- getStdGen
+    gen <- create
+    ws <- uniformRs (1,256) gen numOfStreams
     let ks = [1,3..]
-        ws = take numOfStreams $ randomRs (1,256) gen
         xs = zip ks ws
     defaultMain [
         bgroup "enqueue & dequeue" [
@@ -49,6 +49,13 @@ main = do
             , bench "Ring of Queues IO"     $ nfIO (deleteAIO xs)
             ]
       ]
+  where
+    uniformRs range gen n = loop n []
+      where
+        loop 0 rs = return rs
+        loop i rs = do
+            r <- uniformR range gen
+            loop (i-1) (r:rs)
 
 ----------------------------------------------------------------
 
