@@ -84,6 +84,7 @@ Library
                       , bytestring >= 0.10
                       , case-insensitive
                       , containers >= 0.5
+                      , network-byte-order
                       , psqueues
                       , stm
 
@@ -118,6 +119,7 @@ Test-Suite spec
                       , containers
                       , hex
                       , hspec >= 1.3
+                      , network-byte-order
                       , psqueues
                       , stm
                       , word8
@@ -142,6 +144,7 @@ Test-Suite hpack
                       , filepath
                       , hex
                       , hspec >= 1.3
+                      , network-byte-order
                       , text
                       , unordered-containers
                       , vector
@@ -165,6 +168,7 @@ Test-Suite frame
                       , hex
                       , hspec >= 1.3
                       , http2
+                      , network-byte-order
                       , text
                       , unordered-containers
 
@@ -188,6 +192,7 @@ Executable hpack-encode
                       , case-insensitive
                       , containers
                       , hex
+                      , network-byte-order
                       , text
                       , unordered-containers
                       , vector
@@ -209,6 +214,7 @@ Executable hpack-debug
                       , case-insensitive
                       , containers
                       , hex
+                      , network-byte-order
                       , text
                       , unordered-containers
                       , vector
@@ -232,6 +238,7 @@ Executable hpack-stat
                       , containers
                       , directory
                       , filepath
+                      , network-byte-order
                       , text
                       , unordered-containers
                       , vector
@@ -277,6 +284,7 @@ Benchmark priority
                       , criterion
                       , heaps
                       , mwc-random
+                      , network-byte-order
                       , psqueues
                       , stm
 
@@ -292,4 +300,5 @@ Benchmark header-compression
                       , case-insensitive
                       , containers
                       , criterion
+                      , network-byte-order
                       , stm

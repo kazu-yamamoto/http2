@@ -25,14 +25,14 @@ module Network.HTTP2.Decode (
 import Control.Applicative ((<$>))
 #endif
 import Data.Array (Array, listArray, (!))
-import Data.Bits (clearBit, shiftL, (.|.))
+import Data.Bits (clearBit)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
 import Data.Word
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
-import Foreign.Storable (peek)
+import qualified Network.ByteOrder as N
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
 import Network.HTTP2.Types
@@ -59,14 +59,11 @@ decodeFrame settings bs = checkFrameHeader settings (decodeFrameHeader bs0)
 decodeFrameHeader :: ByteString -> (FrameTypeId, FrameHeader)
 decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
-    l0 <- fromIntegral <$> peek p
-    l1 <- fromIntegral <$> peek (p +. 1)
-    l2 <- fromIntegral <$> peek (p +. 2)
-    typ <- toFrameTypeId <$> peek (p +. 3)
-    flg <-                 peek (p +. 4)
-    w32 <- word32' (p +. 5)
-    let !len = (l0 `shiftL` 16) .|. (l1 `shiftL` 8) .|. l2
-        !sid = streamIdentifier w32
+    len <- fromIntegral  <$> N.peek24 p 0
+    typ <- toFrameTypeId <$> N.peek8  p 3
+    flg <-                   N.peek8  p 4
+    w32 <-                   N.peek32 p 5
+    let !sid = streamIdentifier w32
     return (typ, FrameHeader len flg sid)
 
 (+.) :: Ptr Word8 -> Int -> Ptr Word8
@@ -189,7 +186,7 @@ decodePriorityFrame _ bs = Right $ PriorityFrame $ priority bs
 
 -- | Frame payload decoder for RST_STREAM frame.
 decoderstStreamFrame :: FramePayloadDecoder
-decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCodeId (word32 bs)
+decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCodeId (N.word32 bs)
 
 -- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
@@ -201,13 +198,13 @@ decodeSettingsFrame FrameHeader{..} (PS fptr off _) = Right $ SettingsFrame alis
         settings num p id
     settings 0 _ builder = return $ builder []
     settings n p builder = do
-        rawSetting <- word16' p
+        rawSetting <- N.peek16 p 0
         let msettings = toSettingsKeyId rawSetting
             n' = n - 1
         case msettings of
             Nothing -> settings n' (p +. 6) builder -- ignoring unknown one (Section 6.5.2)
             Just k  -> do
-                w32 <- word32' (p +. 2)
+                w32 <- N.peek32 p 2
                 let v = fromIntegral w32
                 settings n' (p +. 6) (builder. ((k,v):))
 
@@ -215,7 +212,7 @@ decodeSettingsFrame FrameHeader{..} (PS fptr off _) = Right $ SettingsFrame alis
 decodePushPromiseFrame :: FramePayloadDecoder
 decodePushPromiseFrame header bs = decodeWithPadding header bs $ \bs' ->
     let (bs0,bs1) = BS.splitAt 4 bs'
-        sid = streamIdentifier (word32 bs0)
+        sid = streamIdentifier (N.word32 bs0)
     in PushPromiseFrame sid bs1
 
 -- | Frame payload decoder for PING frame.
@@ -228,8 +225,8 @@ decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
   where
     (bs0,bs1') = BS.splitAt 4 bs
     (bs1,bs2)  = BS.splitAt 4 bs1'
-    sid = streamIdentifier (word32 bs0)
-    ecid = toErrorCodeId (word32 bs1)
+    sid = streamIdentifier (N.word32 bs0)
+    ecid = toErrorCodeId (N.word32 bs1)
 
 -- | Frame payload decoder for WINDOW_UPDATE frame.
 decodeWindowUpdateFrame :: FramePayloadDecoder
@@ -237,7 +234,7 @@ decodeWindowUpdateFrame _ bs
   | wsi == 0  = Left $ ConnectionError ProtocolError "window update must not be 0"
   | otherwise = Right $ WindowUpdateFrame wsi
   where
-    !wsi = fromIntegral (word32 bs `clearBit` 31)
+    !wsi = fromIntegral (N.word32 bs `clearBit` 31)
 
 -- | Frame payload decoder for CONTINUATION frame.
 decodeContinuationFrame :: FramePayloadDecoder
@@ -277,36 +274,12 @@ streamIdentifier w32 = clearExclusive $ fromIntegral w32
 priority :: ByteString -> Priority
 priority (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
-    w32 <- word32' p
+    w32 <- N.peek32 p 0
     let !streamdId = streamIdentifier w32
         !exclusive = testExclusive (fromIntegral w32) -- fixme
-    w8 <- peek (p +. 4)
+    w8 <- N.peek8 p 4
     let weight = intFromWord8 w8 + 1
     return $ Priority exclusive streamdId weight
 
 intFromWord8 :: Word8 -> Int
 intFromWord8 = fromIntegral
-
-word32 :: ByteString -> Word32
-word32 (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
-    let p = ptr +. off
-    word32' p
-{-# INLINE word32 #-}
-
-word32' :: Ptr Word8 -> IO Word32
-word32' p = do
-    w0 <- fromIntegral <$> peek p
-    w1 <- fromIntegral <$> peek (p +. 1)
-    w2 <- fromIntegral <$> peek (p +. 2)
-    w3 <- fromIntegral <$> peek (p +. 3)
-    let !w32 = (w0 `shiftL` 24) .|. (w1 `shiftL` 16) .|. (w2 `shiftL` 8) .|. w3
-    return w32
-{-# INLINE word32' #-}
-
-word16' :: Ptr Word8 -> IO Word16
-word16' p = do
-    w0 <- fromIntegral <$> peek p
-    w1 <- fromIntegral <$> peek (p +. 1)
-    let !w16 = (w0 `shiftL` 8) .|. w1
-    return w16
-{-# INLINE word16' #-}

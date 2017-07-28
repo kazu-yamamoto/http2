@@ -10,12 +10,11 @@ module Network.HTTP2.Encode (
   , encodeInfo
   ) where
 
-import Data.Bits (shiftR, (.&.))
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString, unsafeCreate)
-import Data.Word (Word8, Word16, Word32)
+import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
-import Foreign.Storable (poke)
+import qualified Network.ByteOrder as N
 
 import Network.HTTP2.Types
 
@@ -73,11 +72,12 @@ encodeFrameHeader ftid fhdr = unsafeCreate frameHeaderLength $ encodeFrameHeader
 --   The length of the buffer must be larger than or equal to 9 bytes.
 encodeFrameHeaderBuf :: FrameTypeId -> FrameHeader -> Ptr Word8 -> IO ()
 encodeFrameHeaderBuf ftid FrameHeader{..} ptr = do
-    poke24 ptr payloadLength
-    poke8 ptr 3 typ
-    poke8 ptr 4 flags
-    poke32 (ptr `plusPtr` 5) sid
+    N.poke24 plen  ptr 0
+    N.poke8  typ   ptr 3
+    N.poke8  flags ptr 4
+    N.poke32 sid   ptr 5
   where
+    plen = fromIntegral payloadLength
     typ = fromFrameTypeId ftid
     sid = fromIntegral streamId
 
@@ -142,8 +142,10 @@ buildPriority Priority{..} = builder
       | exclusive = setExclusive streamDependency
       | otherwise = streamDependency
     priority = unsafeCreate 5 $ \ptr -> do
-        poke32 ptr $ fromIntegral estream
-        poke8 ptr 4 $ fromIntegral $ weight - 1
+        let esid = fromIntegral estream
+            w    = fromIntegral $ weight - 1
+        N.poke32 esid ptr 0
+        N.poke8  w    ptr 4
 
 ----------------------------------------------------------------
 
@@ -177,7 +179,7 @@ buildFramePayloadRSTStream :: EncodeInfo -> ErrorCodeId -> (FrameHeader, Builder
 buildFramePayloadRSTStream EncodeInfo{..} e = (header, builder)
   where
     builder = (b4 :)
-    b4 = bytestring4 $ fromErrorCodeId e
+    b4 = N.bytestring32 $ fromErrorCodeId e
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadSettings :: EncodeInfo -> SettingsList -> (FrameHeader, Builder)
@@ -187,8 +189,8 @@ buildFramePayloadSettings EncodeInfo{..} alist = (header, builder)
     settings = unsafeCreate len $ \ptr -> go ptr alist
     go _ []          = return ()
     go p ((k,v):kvs) = do
-        poke16 p $ fromSettingsKeyId k
-        poke32 (p `plusPtr` 2) $ fromIntegral v
+        N.poke16 (fromSettingsKeyId k) p 0
+        N.poke32 (fromIntegral v)      p 2
         go (p `plusPtr` 6) kvs
     len = length alist * 6
     header = FrameHeader len encodeFlags encodeStreamId
@@ -197,7 +199,7 @@ buildFramePayloadPushPromise :: EncodeInfo -> StreamId -> HeaderBlockFragment ->
 buildFramePayloadPushPromise einfo sid hdr = buildPadding einfo builder len
   where
     builder = (b4 :) . (hdr :)
-    b4 = bytestring4 $ fromIntegral sid
+    b4 = N.bytestring32 $ fromIntegral sid
     len = 4 + BS.length hdr
 
 buildFramePayloadPing :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
@@ -212,8 +214,8 @@ buildFramePayloadGoAway EncodeInfo{..} sid e debug = (header, builder)
     builder = (b8 :) . (debug :)
     len0 = 8
     b8 = unsafeCreate len0 $ \ptr -> do
-        poke32 ptr $ fromIntegral sid
-        poke32 (ptr `plusPtr` 4) $ fromErrorCodeId e
+        N.poke32 (fromIntegral sid)  ptr 0
+        N.poke32 (fromErrorCodeId e) ptr 4
     len = len0 + BS.length debug
     header = FrameHeader len encodeFlags encodeStreamId
 
@@ -222,7 +224,7 @@ buildFramePayloadWindowUpdate EncodeInfo{..} size = (header, builder)
   where
     -- fixme: reserve bit
     builder = (b4 :)
-    b4 = bytestring4 $ fromIntegral size
+    b4 = N.bytestring32 $ fromIntegral size
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadContinuation :: EncodeInfo -> HeaderBlockFragment -> (FrameHeader, Builder)
@@ -234,41 +236,3 @@ buildFramePayloadContinuation EncodeInfo{..} hdr = (header, builder)
 
 buildFramePayloadUnknown :: EncodeInfo -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadUnknown = buildFramePayloadData
-
-----------------------------------------------------------------
-
-poke8 :: Ptr Word8 -> Int -> Word8 -> IO ()
-poke8 ptr n w = poke (ptr `plusPtr` n) w
-
-poke16 :: Ptr Word8 -> Word16 -> IO ()
-poke16 ptr i = do
-    poke ptr w0
-    poke8 ptr 1 w1
-  where
-    w0 = fromIntegral ((i `shiftR`  8) .&. 0xff)
-    w1 = fromIntegral  (i              .&. 0xff)
-
-poke24 :: Ptr Word8 -> Int -> IO ()
-poke24 ptr i = do
-    poke ptr w0
-    poke8 ptr 1 w1
-    poke8 ptr 2 w2
-  where
-    w0 = fromIntegral ((i `shiftR` 16) .&. 0xff)
-    w1 = fromIntegral ((i `shiftR`  8) .&. 0xff)
-    w2 = fromIntegral  (i              .&. 0xff)
-
-poke32 :: Ptr Word8 -> Word32 -> IO ()
-poke32 ptr i = do
-    poke ptr w0
-    poke8 ptr 1 w1
-    poke8 ptr 2 w2
-    poke8 ptr 3 w3
-  where
-    w0 = fromIntegral ((i `shiftR` 24) .&. 0xff)
-    w1 = fromIntegral ((i `shiftR` 16) .&. 0xff)
-    w2 = fromIntegral ((i `shiftR`  8) .&. 0xff)
-    w3 = fromIntegral  (i              .&. 0xff)
-
-bytestring4 :: Word32 -> ByteString
-bytestring4 i = unsafeCreate 4 $ \ptr -> poke32 ptr i
