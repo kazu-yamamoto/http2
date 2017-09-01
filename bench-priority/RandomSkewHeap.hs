@@ -5,7 +5,7 @@
 -- If we take weight as priority, a typical heap (priority queue)
 -- is not fair enough. Consider two weight 201 for A and 101 for B.
 -- A typical heap would generate A(201), A(200), A(199), A(198), ....,
--- and finaly A(101), B(101), A(100), B(100).
+-- and finally A(101), B(101), A(100), B(100).
 -- What we want is A, A, B, A, A, B...
 --
 -- So, we introduce randomness to Skew Heap.
