@@ -90,6 +90,13 @@ checkFrameHeader Settings {..} typfrm@(typ,FrameHeader {..})
       Left $ ConnectionError ProtocolError "cannot used in non-zero stream"
   | otherwise = checkType typ
   where
+    checkType FrameHeaders
+      | testPadded flags && payloadLength < 1 =
+        Left $ ConnectionError FrameSizeError "insufficient payload for Pad Length"
+      | testPriority flags && payloadLength < 5 =
+        Left $ ConnectionError FrameSizeError "insufficient payload for priority fields"
+      | testPadded flags && testPriority flags && payloadLength < 6 =
+        Left $ ConnectionError FrameSizeError "insufficient payload for Pad Length and priority fields"
     checkType FramePriority | payloadLength /= 5 =
         Left $ StreamError FrameSizeError streamId
     checkType FrameRSTStream | payloadLength /= 4 =
