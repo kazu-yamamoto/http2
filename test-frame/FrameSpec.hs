@@ -19,7 +19,7 @@ testDir :: FilePath
 testDir = "test-frame/http2-frame-test-case"
 
 getTestFiles :: FilePath -> IO [FilePath]
-getTestFiles dir =  head . fst <$> globDir [compile "*/*.json"] dir
+getTestFiles dir =  head <$> globDir [compile "*/*.json"] dir
 
 check :: FilePath -> IO ()
 check file = do
