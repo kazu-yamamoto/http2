@@ -6,8 +6,7 @@ module Case where
 import Control.Applicative ((<$>))
 #endif
 import Data.ByteString (ByteString)
-import Data.Hex
-import Data.Maybe (fromJust)
+import qualified Data.ByteString.Base16 as B16
 
 import JSON
 import Network.HTTP2
@@ -34,7 +33,7 @@ sourceToWire CaseSource{..} = CaseWire {
   }
   where
     frame = encodeFrame cs_encodeinfo cs_payload
-    wire = hex frame
+    wire = B16.encode frame
 
 wireToCase :: CaseWire -> Case
 wireToCase CaseWire { wire_error = Nothing, ..} = Case {
@@ -45,7 +44,7 @@ wireToCase CaseWire { wire_error = Nothing, ..} = Case {
   }
   where
     -- fromJust is unsafe
-    frm = case decodeFrame defaultSettings $ fromJust $ unhex wire_hex of
+    frm = case decodeFrame defaultSettings $ fst $ B16.decode wire_hex of
         Left  e -> error $ show e
         Right r -> r
 wireToCase CaseWire { wire_error = Just e, ..} = Case {

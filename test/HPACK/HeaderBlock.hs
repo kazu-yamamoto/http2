@@ -3,12 +3,11 @@
 module HPACK.HeaderBlock where
 
 import Data.ByteString (ByteString)
-import Data.Hex
-import Data.Maybe (fromJust)
+import Data.ByteString.Base16
 import Network.HPACK.Types
 
 fromHexString :: ByteString -> ByteString
-fromHexString = fromJust . unhex
+fromHexString = fst . decode
 
 ----------------------------------------------------------------
 

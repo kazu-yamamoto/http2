@@ -7,8 +7,8 @@ import Control.Applicative ((<$>))
 #endif
 import Control.Monad (forM_)
 import Data.Aeson (eitherDecode)
+import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Lazy as BL
-import Data.Hex
 import Network.HTTP2
 import System.FilePath.Glob (compile, globDir)
 import Test.Hspec
@@ -28,7 +28,7 @@ check file = do
     case etc of
         Left _ -> putStrLn $ "JSON error: " ++ file
         Right tc -> do
-            let Just bin = unhex $ wire tc
+            let bin = fst $ B16.decode $ wire tc
                 erc = decodeFrame defaultSettings bin
             case erc of
                 Left h2err -> case err tc of

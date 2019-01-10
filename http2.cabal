@@ -141,10 +141,10 @@ Test-Suite spec
                         Network.HTTP2.Types
   Build-Depends:        base >= 4 && < 5
                       , array
+                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
-                      , hex
                       , hspec >= 1.3
                       , network-byte-order
                       , psqueues
@@ -185,12 +185,12 @@ Test-Suite hpack
                       , aeson
                       , aeson-pretty
                       , array
+                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
                       , directory
                       , filepath
-                      , hex
                       , hspec >= 1.3
                       , network-byte-order
                       , text
@@ -211,10 +211,10 @@ Test-Suite frame
                       , Glob >= 0.9
                       , aeson
                       , aeson-pretty
+                      , base16-bytestring
                       , bytestring
                       , directory
                       , filepath
-                      , hex
                       , hspec >= 1.3
                       , http2
                       , network-byte-order
@@ -238,10 +238,10 @@ Executable hpack-encode
                       , aeson
                       , aeson-pretty
                       , array
+                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
-                      , hex
                       , http2
                       , network-byte-order
                       , text
@@ -263,10 +263,10 @@ Executable hpack-debug
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , array
+                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
-                      , hex
                       , http2
                       , network-byte-order
                       , text
@@ -314,8 +314,8 @@ Executable frame-encode
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , aeson-pretty
+                      , base16-bytestring
                       , bytestring
-                      , hex
                       , http2
                       , text
                       , unordered-containers

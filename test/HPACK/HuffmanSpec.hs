@@ -6,10 +6,9 @@ module HPACK.HuffmanSpec where
 import Control.Applicative ((<$>))
 #endif
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8 as BS
 import Data.Char (toLower)
-import Data.Hex
-import Data.Maybe (fromJust)
 import Network.HPACK
 import Network.HPACK.Huffman
 import Test.Hspec
@@ -32,16 +31,16 @@ testData = [
 
 shouldBeEncoded :: ByteString -> ByteString -> Expectation
 shouldBeEncoded inp out = do
-    out' <- BS.map toLower . hex <$> encodeHuffman inp
+    out' <- BS.map toLower . B16.encode <$> encodeHuffman inp
     out' `shouldBe` out
 
 shouldBeDecoded :: ByteString -> ByteString -> Expectation
 shouldBeDecoded inp out = do
-    out' <- decodeHuffman $ fromJust $ unhex inp
+    out' <- decodeHuffman $ fst $ B16.decode inp
     out' `shouldBe` out
 
 tryDecode :: ByteString -> IO ByteString
-tryDecode inp = decodeHuffman $ fromJust $ unhex inp
+tryDecode inp = decodeHuffman $ fst $ B16.decode inp
 
 spec :: Spec
 spec = do

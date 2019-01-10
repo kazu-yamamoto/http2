@@ -13,8 +13,8 @@ import Control.Applicative ((<$>))
 #endif
 import Control.Exception
 import Control.Monad (when)
+import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8 as B8
-import Data.Hex
 import Data.List (sort)
 import Network.HPACK
 import Network.HPACK.Table
@@ -74,7 +74,7 @@ test conf c dyntbl = do
                 return $ Just $ "Headers are different in " ++ B8.unpack wirehex ++ ":\n" ++ show hs ++ "\n" ++ show hs'
   where
     wirehex = wire c
-    Just inp = unhex wirehex
+    inp = fst $ B16.decode wirehex
     hs = headers c
 
 -- | Printing 'HeaderList'.
