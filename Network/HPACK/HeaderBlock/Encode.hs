@@ -12,9 +12,9 @@ import Data.ByteString.Internal (create, memcpy)
 import Data.IORef
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (minusPtr)
+import Network.ByteOrder
 
 import Imports
-import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman
 import Network.HPACK.Table

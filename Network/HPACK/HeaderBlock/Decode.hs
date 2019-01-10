@@ -17,9 +17,9 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.Char (isUpper)
 import Data.CaseInsensitive (CI(..))
+import Network.ByteOrder
 
 import Imports hiding (empty)
-import Network.HPACK.Buffer
 import Network.HPACK.Builder
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import Network.HPACK.Huffman

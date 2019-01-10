@@ -14,9 +14,9 @@ import Data.Array.Unboxed (UArray)
 import Data.IORef
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (poke)
+import Network.ByteOrder
 
 import Imports
-import Network.HPACK.Buffer
 import Network.HPACK.Huffman.Params (idxEos)
 import Network.HPACK.Huffman.Table
 import Network.HPACK.Types (BufferOverrun(..))

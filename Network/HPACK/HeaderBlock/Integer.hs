@@ -9,9 +9,9 @@ module Network.HPACK.HeaderBlock.Integer (
 
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
+import Network.ByteOrder
 
 import Imports
-import Network.HPACK.Buffer
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
