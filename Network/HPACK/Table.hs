@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections, CPP #-}
+{-# OPTIONS_HADDOCK hide #-}
 
 module Network.HPACK.Table (
   -- * dynamic table
