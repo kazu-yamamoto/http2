@@ -112,6 +112,33 @@ Test-Suite spec
                         HPACK.IntegerSpec
                         HTTP2.FrameSpec
                         HTTP2.PrioritySpec
+                        Network.HPACK
+                        Network.HPACK.Buffer
+                        Network.HPACK.Builder
+                        Network.HPACK.HeaderBlock
+                        Network.HPACK.HeaderBlock.Decode
+                        Network.HPACK.HeaderBlock.Encode
+                        Network.HPACK.HeaderBlock.Integer
+                        Network.HPACK.Huffman
+                        Network.HPACK.Huffman.Bit
+                        Network.HPACK.Huffman.Decode
+                        Network.HPACK.Huffman.Encode
+                        Network.HPACK.Huffman.Params
+                        Network.HPACK.Huffman.Table
+                        Network.HPACK.Huffman.Tree
+                        Network.HPACK.Table
+                        Network.HPACK.Table.Dynamic
+                        Network.HPACK.Table.Entry
+                        Network.HPACK.Table.RevIndex
+                        Network.HPACK.Table.Static
+                        Network.HPACK.Token
+                        Network.HPACK.Types
+                        Network.HTTP2.Decode
+                        Network.HTTP2.Encode
+                        Network.HTTP2.Priority
+                        Network.HTTP2.Priority.PSQ
+                        Network.HTTP2.Priority.Queue
+                        Network.HTTP2.Types
   Build-Depends:        base >= 4 && < 5
                       , array
                       , bytestring
@@ -133,6 +160,27 @@ Test-Suite hpack
   Other-Modules:        HPACKDecode
                         HPACKSpec
                         JSON
+                        Network.HPACK
+                        Network.HPACK.Buffer
+                        Network.HPACK.Builder
+                        Network.HPACK.HeaderBlock
+                        Network.HPACK.HeaderBlock.Decode
+                        Network.HPACK.HeaderBlock.Encode
+                        Network.HPACK.HeaderBlock.Integer
+                        Network.HPACK.Huffman
+                        Network.HPACK.Huffman.Bit
+                        Network.HPACK.Huffman.Decode
+                        Network.HPACK.Huffman.Encode
+                        Network.HPACK.Huffman.Params
+                        Network.HPACK.Huffman.Table
+                        Network.HPACK.Huffman.Tree
+                        Network.HPACK.Table
+                        Network.HPACK.Table.Dynamic
+                        Network.HPACK.Table.Entry
+                        Network.HPACK.Table.RevIndex
+                        Network.HPACK.Table.Static
+                        Network.HPACK.Token
+                        Network.HPACK.Types
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , aeson-pretty
@@ -157,6 +205,7 @@ Test-Suite frame
   GHC-Options:          -Wall
   Main-Is:              Spec.hs
   Other-Modules:        Case
+                        FrameSpec
                         JSON
   Build-Depends:        base >= 4 && < 5
                       , Glob >= 0.9
