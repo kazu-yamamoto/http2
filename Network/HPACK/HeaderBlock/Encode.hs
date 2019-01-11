@@ -235,23 +235,23 @@ encodeString True  bs wbuf = do
     let !origLen = BS.length bs
         !expectedLen = (origLen `div` 10) * 8 -- 80%: decided by examples
         !expectedIntLen = integerLength expectedLen
-    wind wbuf expectedIntLen
+    ff wbuf expectedIntLen
     len <- Huffman.encode wbuf bs
     let !intLen = integerLength len
     if origLen < len then do
-        wind wbuf (negate (expectedIntLen + len))
+        ff wbuf (negate (expectedIntLen + len))
         I.encode wbuf id 7 origLen
         copyByteString wbuf bs
       else if intLen == expectedIntLen then do
-        wind wbuf (negate (expectedIntLen + len))
+        ff wbuf (negate (expectedIntLen + len))
         I.encode wbuf setH 7 len
-        wind wbuf len
+        ff wbuf len
       else do
         let !gap = intLen - expectedIntLen
         shiftLastN wbuf gap len
-        wind wbuf (negate (intLen + len))
+        ff wbuf (negate (intLen + len))
         I.encode wbuf setH 7 len
-        wind wbuf len
+        ff wbuf len
 
 -- For 7+:
 -- 1 byte:    0 -   126
