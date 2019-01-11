@@ -9,9 +9,9 @@ module HPACKEncode (
 
 import Control.Monad (when)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8 as C8
 import Data.Char
-import Data.Hex
 import Network.HPACK
 import Network.HPACK.Table
 
@@ -46,7 +46,7 @@ test :: Conf
      -> IO ByteString
 test conf c dyntbl = do
     out <- enc conf dyntbl hs
-    let hex' = hex out
+    let hex' = B16.encode out
     when (debug conf) $ do
         putStrLn "---- Output context"
         printDynamicTable dyntbl
