@@ -37,7 +37,7 @@ encodeInteger n i = withTemporaryBuffer 4096 $ \wbuf -> encode wbuf id n i
 
 -- Using writeWord8 is faster than using internals directly.
 {-# INLINABLE encode #-}
-encode :: WorkingBuffer -> (Word8 -> Word8) -> Int -> Int -> IO ()
+encode :: WriteBuffer -> (Word8 -> Word8) -> Int -> Int -> IO ()
 encode wbuf set n i
   | i < p     = writeWord8 wbuf $ set $ fromIntegral i
   | otherwise = do

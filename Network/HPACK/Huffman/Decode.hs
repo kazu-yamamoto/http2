@@ -48,11 +48,11 @@ next (WayStep _ a16) w = a16 `unsafeAt` fromIntegral w
 -- | Huffman decoding.
 decode :: Buffer -> BufferSize -> HuffmanDecoding
 decode buf siz rbuf len = do
-    wbuf <- newWorkingBuffer buf siz
+    wbuf <- newWriteBuffer buf siz
     dec wbuf rbuf len
     toByteString wbuf
 
-dec :: WorkingBuffer -> ReadBuffer -> Int -> IO ()
+dec :: WriteBuffer -> ReadBuffer -> Int -> IO ()
 dec wbuf rbuf len = go len (way256 `unsafeAt` 0)
   where
     go 0 way0 = case way0 of

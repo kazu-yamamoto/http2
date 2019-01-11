@@ -32,7 +32,7 @@ huffmanCode = listArray (0,idxEos) huffmanTable'
 ----------------------------------------------------------------
 
 -- | Huffman encoding.
-type HuffmanEncoding = WorkingBuffer -> ByteString -> IO Int
+type HuffmanEncoding = WriteBuffer -> ByteString -> IO Int
 
 -- | Huffman encoding.
 encode :: HuffmanEncoding
@@ -46,8 +46,8 @@ initialOffset = 40
 shiftForWrite :: Int
 shiftForWrite = 32
 
-enc :: WorkingBuffer -> ReadBuffer -> IO Int
-enc WorkingBuffer{..} rbuf = do
+enc :: WriteBuffer -> ReadBuffer -> IO Int
+enc WriteBuffer{..} rbuf = do
     beg <- readIORef offset
     end <- go (beg,0,initialOffset)
     writeIORef offset end
