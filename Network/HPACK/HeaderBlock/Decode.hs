@@ -75,7 +75,7 @@ decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
     chkChange rbuf = do
         more <- hasOneByte rbuf
         if more then do
-            w <- getByte rbuf
+            w <- read8 rbuf
             if isTableSizeUpdate w then do
                 tableSizeUpdate dyntbl w rbuf
                 chkChange rbuf
@@ -91,7 +91,7 @@ decodeSimple dyntbl rbuf = go empty
     go builder = do
         more <- hasOneByte rbuf
         if more then do
-            w <- getByte rbuf
+            w <- read8 rbuf
             !tv <- toTokenHeader dyntbl w rbuf
             let builder' = builder << tv
             go builder'
@@ -115,7 +115,7 @@ decodeSophisticated dyntbl rbuf = do
         pseudo = do
             more <- hasOneByte rbuf
             if more then do
-                w <- getByte rbuf
+                w <- read8 rbuf
                 tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 if isPseudo then do
                     mx <- unsafeRead arr ix
@@ -136,7 +136,7 @@ decodeSophisticated dyntbl rbuf = do
         normal !builder !cookie = do
             more <- hasOneByte rbuf
             if more then do
-                w <- getByte rbuf
+                w <- read8 rbuf
                 tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
                 when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
@@ -227,7 +227,7 @@ headerStuff :: DynamicTable -> ReadBuffer -> IO HeaderStuff
 headerStuff dyntbl rbuf = do
     more <- hasOneByte rbuf
     if more then do
-        w <- getByte rbuf
+        w <- read8 rbuf
         let !p = dropHuffman w
             !huff = isHuffman w
         !len <- I.decode 7 p rbuf

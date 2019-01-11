@@ -61,7 +61,7 @@ dec wbuf rbuf len = go len (way256 `unsafeAt` 0)
           | i <= 8         -> return ()
           | otherwise      -> throwIO TooLongEos
     go !n !way0 = do
-        w <- getByte rbuf
+        w <- read8 rbuf
         way <- doit way0 w
         go (n - 1) way
     doit !way !w = case next way w of
