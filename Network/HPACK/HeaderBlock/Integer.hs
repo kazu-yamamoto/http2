@@ -35,23 +35,23 @@ if I < 2^N - 1, encode I on N bits
 encodeInteger :: Int -> Int -> IO ByteString
 encodeInteger n i = withWriteBuffer 4096 $ \wbuf -> encode wbuf id n i
 
--- Using writeWord8 is faster than using internals directly.
+-- Using write8 is faster than using internals directly.
 {-# INLINABLE encode #-}
 encode :: WriteBuffer -> (Word8 -> Word8) -> Int -> Int -> IO ()
 encode wbuf set n i
-  | i < p     = writeWord8 wbuf $ set $ fromIntegral i
+  | i < p     = write8 wbuf $ set $ fromIntegral i
   | otherwise = do
-        writeWord8 wbuf $ set $ fromIntegral p
+        write8 wbuf $ set $ fromIntegral p
         encode' (i - p)
   where
     !p = powerArray `unsafeAt` (n - 1)
     encode' :: Int -> IO ()
     encode' j
-      | j < 128   = writeWord8 wbuf $ fromIntegral j
+      | j < 128   = write8 wbuf $ fromIntegral j
       | otherwise = do
           let !q = j `shiftR` 7
               !r = j .&. 0x7f
-          writeWord8 wbuf $ fromIntegral (r + 128)
+          write8 wbuf $ fromIntegral (r + 128)
           encode' q
 
 ----------------------------------------------------------------

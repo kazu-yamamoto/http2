@@ -68,11 +68,11 @@ dec wbuf rbuf len = go len (way256 `unsafeAt` 0)
         EndOfString -> throwIO EosInTheMiddle
         Forward n   -> return $ way256 `unsafeAt` fromIntegral n
         GoBack  n v -> do
-            writeWord8 wbuf v
+            write8 wbuf v
             return $ way256 `unsafeAt` fromIntegral n
         GoBack2 n v1 v2 -> do
-            writeWord8 wbuf v1
-            writeWord8 wbuf v2
+            write8 wbuf v1
+            write8 wbuf v2
             return $ way256 `unsafeAt` fromIntegral n
 
 decodeHuffman :: ByteString -> IO ByteString

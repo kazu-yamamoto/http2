@@ -206,7 +206,7 @@ indexedName wbuf huff n set v idx = do
 {-# INLINE newName #-}
 newName :: WriteBuffer -> Bool -> Setter -> HeaderName -> HeaderValue -> IO ()
 newName wbuf huff set k v = do
-    writeWord8 wbuf $ set 0
+    write8 wbuf $ set 0
     encodeString huff k wbuf
     encodeString huff v wbuf
 
