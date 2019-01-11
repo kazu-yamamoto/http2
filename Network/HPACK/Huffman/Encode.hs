@@ -89,5 +89,5 @@ enc WriteBuffer{..} rbuf = do
               copy p' (w',o')
 
 encodeHuffman :: ByteString -> IO ByteString
-encodeHuffman bs = withTemporaryBuffer 4096 $ \wbuf ->
+encodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
     void $ encode wbuf bs

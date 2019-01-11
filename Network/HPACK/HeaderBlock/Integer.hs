@@ -33,7 +33,7 @@ if I < 2^N - 1, encode I on N bits
 -}
 
 encodeInteger :: Int -> Int -> IO ByteString
-encodeInteger n i = withTemporaryBuffer 4096 $ \wbuf -> encode wbuf id n i
+encodeInteger n i = withWriteBuffer 4096 $ \wbuf -> encode wbuf id n i
 
 -- Using writeWord8 is faster than using internals directly.
 {-# INLINABLE encode #-}

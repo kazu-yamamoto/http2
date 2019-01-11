@@ -76,7 +76,7 @@ dec wbuf rbuf len = go len (way256 `unsafeAt` 0)
             return $ way256 `unsafeAt` fromIntegral n
 
 decodeHuffman :: ByteString -> IO ByteString
-decodeHuffman bs = withTemporaryBuffer 4096 $ \wbuf ->
+decodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
     withReadBuffer bs $ \rbuf -> dec wbuf rbuf (BS.length bs)
 
 ----------------------------------------------------------------
