@@ -73,7 +73,7 @@ decodeHPACK :: DynamicTable
 decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
   where
     chkChange rbuf = do
-        more <- hasOneByte rbuf
+        more <- checkSpace rbuf 1
         if more then do
             w <- read8 rbuf
             if isTableSizeUpdate w then do
@@ -89,7 +89,7 @@ decodeSimple :: DynamicTable -> ReadBuffer -> IO HeaderList
 decodeSimple dyntbl rbuf = go empty
   where
     go builder = do
-        more <- hasOneByte rbuf
+        more <- checkSpace rbuf 1
         if more then do
             w <- read8 rbuf
             !tv <- toTokenHeader dyntbl w rbuf
@@ -113,7 +113,7 @@ decodeSophisticated dyntbl rbuf = do
     pseudoNormal arr = pseudo
       where
         pseudo = do
-            more <- hasOneByte rbuf
+            more <- checkSpace rbuf 1
             if more then do
                 w <- read8 rbuf
                 tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
@@ -134,7 +134,7 @@ decodeSophisticated dyntbl rbuf = do
               else
                 return []
         normal !builder !cookie = do
-            more <- hasOneByte rbuf
+            more <- checkSpace rbuf 1
             if more then do
                 w <- read8 rbuf
                 tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
@@ -225,7 +225,7 @@ newName dyntbl rbuf = do
 
 headerStuff :: DynamicTable -> ReadBuffer -> IO HeaderStuff
 headerStuff dyntbl rbuf = do
-    more <- hasOneByte rbuf
+    more <- checkSpace rbuf 1
     if more then do
         w <- read8 rbuf
         let !p = dropHuffman w
@@ -267,7 +267,7 @@ dropHuffman w = w `clearBit` 7
 
 decodeString :: Bool -> HuffmanDecoding -> ReadBuffer -> Int -> IO HeaderStuff
 decodeString huff hufdec rbuf len = do
-    more <- hasMoreBytes rbuf len
+    more <- checkSpace rbuf len
     if more then
         if huff then
             hufdec rbuf len
