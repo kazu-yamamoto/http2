@@ -80,7 +80,7 @@ decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
                 tableSizeUpdate dyntbl w rbuf
                 chkChange rbuf
               else do
-                rewindOneByte rbuf
+                ff rbuf (-1)
                 dec dyntbl rbuf
           else
             throwIO HeaderBlockTruncated
