@@ -4,3 +4,5 @@ cabal.sandbox.config
 .gitignore
 test-misc/hpack-test-case/
 test-misc/http2-frame-test-case/
+dist-newstyle
+.ghc*
