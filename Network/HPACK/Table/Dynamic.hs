@@ -228,7 +228,7 @@ newDynamicTable maxsiz info = do
 
 -- | Renewing 'DynamicTable' with necessary entries copied.
 renewDynamicTable :: Size -> DynamicTable -> IO ()
-renewDynamicTable 0 _ = return ()
+renewDynamicTable 0 _ = return () -- FIXME: handle case 'Max table size = 0'.
 renewDynamicTable maxsiz dyntbl@DynamicTable{..} = do
     renew <- shouldRenew dyntbl maxsiz
     when renew $ do
