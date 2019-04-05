@@ -74,3 +74,17 @@ d63h = [(":status","200")
 
 d63b :: ByteString
 d63b = fromHexString "88c16196d07abe941054d444a8200595040b8166e084a62d1bffc05a839bd9ab77ad94e7821dd7f2e6c7b335dfdfcd5b3960d5af27087f3672c1ab270fb5291f9587316065c003ed4ee5b1063d5007"
+
+----------------------------------------------------------------
+
+d81h :: HeaderList
+d81h = [(":status","403")
+       ,("server","nginx/1.14.0")
+       ,("date","Wed, 13 Feb 2019 14:57:11 GMT")
+       ,("content-type","text/html")
+       ,("content-length","169")
+       ]
+
+d81b :: ByteString
+d81b = fromHexString "2048033430337689aa6355e580ae1697076196e4593e940b2a612c6a08017d40b571b76e042a62d1bf5f87497ca589d34d1f5c03313639"
+

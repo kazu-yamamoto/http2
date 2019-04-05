@@ -27,6 +27,10 @@ spec = do
                 h2 `shouldBe` d62h
                 h3 <- decodeHeader dyntabl d63b
                 h3 `shouldBe` d63h
+        it "decodes HeaderList in response (deny max table size update to 0)" $
+            withDynamicTableForDecoding 256 4096 $ \dyntabl -> do
+                h1 <- decodeHeader dyntabl d81b
+                h1 `shouldBe` d81h
         it "decodes HeaderList even if an entry is larger than DynamicTable" $
             withDynamicTableForEncoding 64 $ \etbl ->
                 withDynamicTableForDecoding 64 4096 $ \dtbl -> do
