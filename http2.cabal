@@ -51,7 +51,6 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
-                        Network.HPACK.Table
                         Network.HPACK.Token
                         Network.HTTP2
                         Network.HTTP2.Priority
@@ -69,6 +68,7 @@ Library
                         Network.HPACK.HeaderBlock.Decode
                         Network.HPACK.HeaderBlock.Encode
                         Network.HPACK.HeaderBlock.Integer
+                        Network.HPACK.Table
                         Network.HPACK.Table.Dynamic
                         Network.HPACK.Table.Entry
                         Network.HPACK.Table.RevIndex
@@ -112,39 +112,12 @@ Test-Suite spec
                         HPACK.IntegerSpec
                         HTTP2.FrameSpec
                         HTTP2.PrioritySpec
-                        Network.HPACK
-                        Network.HPACK.Buffer
-                        Network.HPACK.Builder
-                        Network.HPACK.HeaderBlock
-                        Network.HPACK.HeaderBlock.Decode
-                        Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.Integer
-                        Network.HPACK.Huffman
-                        Network.HPACK.Huffman.Bit
-                        Network.HPACK.Huffman.Decode
-                        Network.HPACK.Huffman.Encode
-                        Network.HPACK.Huffman.Params
-                        Network.HPACK.Huffman.Table
-                        Network.HPACK.Huffman.Tree
-                        Network.HPACK.Table
-                        Network.HPACK.Table.Dynamic
-                        Network.HPACK.Table.Entry
-                        Network.HPACK.Table.RevIndex
-                        Network.HPACK.Table.Static
-                        Network.HPACK.Token
-                        Network.HPACK.Types
-                        Network.HTTP2.Decode
-                        Network.HTTP2.Encode
-                        Network.HTTP2.Priority
-                        Network.HTTP2.Priority.PSQ
-                        Network.HTTP2.Priority.Queue
-                        Network.HTTP2.Types
   Build-Depends:        base >= 4 && < 5
                       , array
-                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
+                      , hex
                       , hspec >= 1.3
                       , network-byte-order
                       , psqueues
@@ -160,37 +133,16 @@ Test-Suite hpack
   Other-Modules:        HPACKDecode
                         HPACKSpec
                         JSON
-                        Network.HPACK
-                        Network.HPACK.Buffer
-                        Network.HPACK.Builder
-                        Network.HPACK.HeaderBlock
-                        Network.HPACK.HeaderBlock.Decode
-                        Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.Integer
-                        Network.HPACK.Huffman
-                        Network.HPACK.Huffman.Bit
-                        Network.HPACK.Huffman.Decode
-                        Network.HPACK.Huffman.Encode
-                        Network.HPACK.Huffman.Params
-                        Network.HPACK.Huffman.Table
-                        Network.HPACK.Huffman.Tree
-                        Network.HPACK.Table
-                        Network.HPACK.Table.Dynamic
-                        Network.HPACK.Table.Entry
-                        Network.HPACK.Table.RevIndex
-                        Network.HPACK.Table.Static
-                        Network.HPACK.Token
-                        Network.HPACK.Types
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , aeson-pretty
                       , array
-                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
                       , directory
                       , filepath
+                      , hex
                       , hspec >= 1.3
                       , network-byte-order
                       , text
@@ -205,16 +157,15 @@ Test-Suite frame
   GHC-Options:          -Wall
   Main-Is:              Spec.hs
   Other-Modules:        Case
-                        FrameSpec
                         JSON
   Build-Depends:        base >= 4 && < 5
                       , Glob >= 0.9
                       , aeson
                       , aeson-pretty
-                      , base16-bytestring
                       , bytestring
                       , directory
                       , filepath
+                      , hex
                       , hspec >= 1.3
                       , http2
                       , network-byte-order
@@ -225,7 +176,7 @@ Test-Suite frame
 
 Executable hpack-encode
   Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
+  HS-Source-Dirs:       test-hpack, .
   GHC-Options:          -Wall
   if flag(devel)
     Buildable:          True
@@ -233,16 +184,14 @@ Executable hpack-encode
     Buildable:          False
   Main-Is:              hpack-encode.hs
   Other-Modules:        HPACKEncode
-                        JSON
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , aeson-pretty
                       , array
-                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
-                      , http2
+                      , hex
                       , network-byte-order
                       , text
                       , unordered-containers
@@ -251,23 +200,20 @@ Executable hpack-encode
 
 Executable hpack-debug
   Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
+  HS-Source-Dirs:       test-hpack, .
   GHC-Options:          -Wall
   if flag(devel)
     Buildable:          True
   else
     Buildable:          False
   Main-Is:              hpack-debug.hs
-  Other-Modules:        HPACKDecode
-                        JSON
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , array
-                      , base16-bytestring
                       , bytestring
                       , case-insensitive
                       , containers
-                      , http2
+                      , hex
                       , network-byte-order
                       , text
                       , unordered-containers
@@ -276,14 +222,13 @@ Executable hpack-debug
 
 Executable hpack-stat
   Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
+  HS-Source-Dirs:       test-hpack, .
   GHC-Options:          -Wall
   if flag(devel)
     Buildable:          True
   else
     Buildable:          False
   Main-Is:              hpack-stat.hs
-  Other-Modules:        JSON
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , aeson-pretty
@@ -293,7 +238,6 @@ Executable hpack-stat
                       , containers
                       , directory
                       , filepath
-                      , http2
                       , network-byte-order
                       , text
                       , unordered-containers
@@ -314,8 +258,8 @@ Executable frame-encode
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , aeson-pretty
-                      , base16-bytestring
                       , bytestring
+                      , hex
                       , http2
                       , text
                       , unordered-containers
@@ -323,7 +267,7 @@ Executable frame-encode
 Benchmark priority
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
-  Hs-Source-Dirs:       bench-priority
+  Hs-Source-Dirs:       bench-priority, .
   Ghc-Options:          -Wall
   Main-Is:              Main.hs
   Other-Modules:        BinaryHeap
@@ -347,7 +291,7 @@ Benchmark priority
 Benchmark header-compression
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
-  Hs-Source-Dirs:       bench-hpack
+  Hs-Source-Dirs:       bench-hpack, .
   Ghc-Options:          -Wall
   Main-Is:              Main.hs
   Build-Depends:        base
