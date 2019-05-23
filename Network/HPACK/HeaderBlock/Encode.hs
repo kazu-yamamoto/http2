@@ -1,23 +1,19 @@
-{-# LANGUAGE CPP, BangPatterns, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Encode (
     encodeHeader
   , encodeTokenHeader
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Control.Exception (bracket, throwIO)
 import qualified Control.Exception as E
-import Control.Monad (when)
-import Data.Bits (setBit)
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString, create, memcpy)
+import Data.ByteString.Internal (create, memcpy)
 import Data.IORef
-import Data.Word (Word8)
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (minusPtr)
+
+import Imports
 import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman

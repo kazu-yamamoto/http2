@@ -10,18 +10,16 @@ module Network.HPACK.Table.RevIndex (
   , deleteRevIndexList
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>), (<*>))
-#endif
 import Data.Array (Array)
 import qualified Data.Array as A
 import Data.Array.Base (unsafeAt)
-import Data.Function (on)
 import Data.CaseInsensitive (foldedCase)
+import Data.Function (on)
 import Data.IORef
-import Data.List (groupBy)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+
+import Imports
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Static
 import Network.HPACK.Token

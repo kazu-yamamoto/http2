@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, RecordWildCards #-}
+{-# LANGUAGE BangPatterns, RecordWildCards #-}
 
 module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
@@ -7,20 +7,15 @@ module Network.HPACK.Huffman.Encode (
   , encodeHuffman
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Control.Exception (throwIO)
-import Control.Monad (when, void)
 import Data.Array.Base (unsafeAt)
 import Data.Array.IArray (listArray)
 import Data.Array.Unboxed (UArray)
-import Data.Bits ((.|.), shiftR, shiftL)
-import Data.ByteString (ByteString)
 import Data.IORef
-import Data.Word (Word8, Word64)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (poke)
+
+import Imports
 import Network.HPACK.Buffer
 import Network.HPACK.Huffman.Params (idxEos)
 import Network.HPACK.Huffman.Table

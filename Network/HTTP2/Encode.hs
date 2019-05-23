@@ -11,11 +11,11 @@ module Network.HTTP2.Encode (
   ) where
 
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString, unsafeCreate)
-import Data.Word (Word8)
+import Data.ByteString.Internal (unsafeCreate)
 import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N
 
+import Imports
 import Network.HTTP2.Types
 
 ----------------------------------------------------------------

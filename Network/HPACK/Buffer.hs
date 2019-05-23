@@ -24,17 +24,15 @@ module Network.HPACK.Buffer (
   , extractByteString
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Control.Exception (bracket, throwIO)
 import Data.ByteString.Internal (ByteString(..), create, memcpy)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
-import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (peek, poke)
+
+import Imports
 import Network.HPACK.Types (Buffer, BufferSize, BufferOverrun(..))
 
 ----------------------------------------------------------------

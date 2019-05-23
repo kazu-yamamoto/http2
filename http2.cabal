@@ -55,7 +55,8 @@ Library
                         Network.HPACK.Token
                         Network.HTTP2
                         Network.HTTP2.Priority
-  Other-Modules:        Network.HPACK.Buffer
+  Other-Modules:        Imports
+                        Network.HPACK.Buffer
                         Network.HPACK.Builder
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit
@@ -112,6 +113,7 @@ Test-Suite spec
                         HPACK.IntegerSpec
                         HTTP2.FrameSpec
                         HTTP2.PrioritySpec
+                        Imports
                         Network.HPACK
                         Network.HPACK.Buffer
                         Network.HPACK.Builder
@@ -160,6 +162,7 @@ Test-Suite hpack
   Other-Modules:        HPACKDecode
                         HPACKSpec
                         JSON
+                        Imports
                         Network.HPACK
                         Network.HPACK.Buffer
                         Network.HPACK.Builder

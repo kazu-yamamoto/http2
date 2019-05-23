@@ -1,6 +1,6 @@
 module Network.HPACK.Huffman.Table where
 
-import Data.Word (Word64)
+import Imports
 import Network.HPACK.Huffman.Bit
 
 huffmanTable :: [Bits]
