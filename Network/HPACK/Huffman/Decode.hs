@@ -11,10 +11,8 @@ import Control.Exception (throwIO)
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..))
 import Network.ByteOrder
 
-import Imports
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
 import Network.HPACK.Huffman.Table
