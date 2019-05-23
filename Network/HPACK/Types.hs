@@ -25,7 +25,7 @@ module Network.HPACK.Types (
 
 import Control.Exception as E
 import Data.Typeable
-import Foreign.Ptr (Ptr)
+import Network.ByteOrder (Buffer, BufferSize, BufferOverrun(..))
 
 import Imports
 import Network.HPACK.Token (Token)
@@ -100,16 +100,3 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
-
-----------------------------------------------------------------
-
--- | Buffer type.
-type Buffer = Ptr Word8
-
--- | The size of buffer.
-type BufferSize = Int
-
-data BufferOverrun = BufferOverrun -- ^ The buffer size is not enough
-                     deriving (Eq,Show,Typeable)
-
-instance Exception BufferOverrun

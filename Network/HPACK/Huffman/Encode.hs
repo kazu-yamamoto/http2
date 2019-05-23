@@ -14,9 +14,9 @@ import Data.Array.Unboxed (UArray)
 import Data.IORef
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (poke)
+import Network.ByteOrder
 
 import Imports
-import Network.HPACK.Buffer
 import Network.HPACK.Huffman.Params (idxEos)
 import Network.HPACK.Huffman.Table
 import Network.HPACK.Types (BufferOverrun(..))
@@ -32,7 +32,7 @@ huffmanCode = listArray (0,idxEos) huffmanTable'
 ----------------------------------------------------------------
 
 -- | Huffman encoding.
-type HuffmanEncoding = WorkingBuffer -> ByteString -> IO Int
+type HuffmanEncoding = WriteBuffer -> ByteString -> IO Int
 
 -- | Huffman encoding.
 encode :: HuffmanEncoding
@@ -46,8 +46,8 @@ initialOffset = 40
 shiftForWrite :: Int
 shiftForWrite = 32
 
-enc :: WorkingBuffer -> ReadBuffer -> IO Int
-enc WorkingBuffer{..} rbuf = do
+enc :: WriteBuffer -> ReadBuffer -> IO Int
+enc WriteBuffer{..} rbuf = do
     beg <- readIORef offset
     end <- go (beg,0,initialOffset)
     writeIORef offset end
@@ -55,7 +55,7 @@ enc WorkingBuffer{..} rbuf = do
     return len
   where
     go (dst,encoded,off) = do
-        !i <- getByte' rbuf
+        !i <- readInt rbuf
         if i >= 0 then
             copy dst (bond i) >>= go
           else if off == initialOffset then
@@ -89,5 +89,5 @@ enc WorkingBuffer{..} rbuf = do
               copy p' (w',o')
 
 encodeHuffman :: ByteString -> IO ByteString
-encodeHuffman bs = withTemporaryBuffer 4096 $ \wbuf ->
+encodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
     void $ encode wbuf bs

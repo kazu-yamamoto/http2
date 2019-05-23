@@ -12,9 +12,9 @@ import Data.ByteString.Internal (create, memcpy)
 import Data.IORef
 import Foreign.Marshal.Alloc
 import Foreign.Ptr (minusPtr)
+import Network.ByteOrder
 
 import Imports
-import Network.HPACK.Buffer
 import qualified Network.HPACK.HeaderBlock.Integer as I
 import qualified Network.HPACK.Huffman as Huffman
 import Network.HPACK.Table
@@ -23,7 +23,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-changeTableSize :: DynamicTable -> WorkingBuffer -> IO ()
+changeTableSize :: DynamicTable -> WriteBuffer -> IO ()
 changeTableSize dyntbl wbuf = do
     msiz <- needChangeTableSize dyntbl
     case msiz of
@@ -90,7 +90,7 @@ encodeTokenHeader :: Buffer
                   -> TokenHeaderList
                   -> IO (TokenHeaderList, Int) -- ^ Leftover, filled length
 encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
-    wbuf <- newWorkingBuffer buf siz
+    wbuf <- newWriteBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
     let fa = indexedHeaderField dyntbl wbuf useHuffman
         fb = literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf useHuffman
@@ -146,14 +146,14 @@ type FE = HeaderName -> HeaderValue -> IO ()
 -- 6.1.  Indexed Header Field Representation
 -- Indexed Header Field
 indexedHeaderField
-    :: DynamicTable -> WorkingBuffer -> Bool -> FA
+    :: DynamicTable -> WriteBuffer -> Bool -> FA
 indexedHeaderField dyntbl wbuf _ hidx =
     fromHIndexToIndex dyntbl hidx >>= index wbuf
 
 -- 6.2.1.  Literal Header Field with Incremental Indexing
 -- Literal Header Field with Incremental Indexing -- Indexed Name
 literalHeaderFieldWithIncrementalIndexingIndexedName
-    :: DynamicTable -> WorkingBuffer -> Bool -> FB
+    :: DynamicTable -> WriteBuffer -> Bool -> FB
 literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf huff v ent hidx = do
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 6 set01 v
     insertEntry ent dyntbl
@@ -161,7 +161,7 @@ literalHeaderFieldWithIncrementalIndexingIndexedName dyntbl wbuf huff v ent hidx
 -- 6.2.1.  Literal Header Field with Incremental Indexing
 -- Literal Header Field with Incremental Indexing -- New Name
 literalHeaderFieldWithIncrementalIndexingNewName
-    :: DynamicTable -> WorkingBuffer -> Bool -> FC
+    :: DynamicTable -> WriteBuffer -> Bool -> FC
 literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff k v ent = do
     newName wbuf huff set01 k v
     insertEntry ent dyntbl
@@ -169,44 +169,44 @@ literalHeaderFieldWithIncrementalIndexingNewName dyntbl wbuf huff k v ent = do
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- Indexed Name
 literalHeaderFieldWithoutIndexingIndexedName
-    :: DynamicTable -> WorkingBuffer -> Bool -> FD
+    :: DynamicTable -> WriteBuffer -> Bool -> FD
 literalHeaderFieldWithoutIndexingIndexedName dyntbl wbuf huff v hidx =
     fromHIndexToIndex dyntbl hidx >>= indexedName wbuf huff 4 set0000 v
 
 -- 6.2.2.  Literal Header Field without Indexing
 -- Literal Header Field without Indexing -- New Name
 literalHeaderFieldWithoutIndexingNewName
-    :: DynamicTable -> WorkingBuffer -> Bool -> FE
+    :: DynamicTable -> WriteBuffer -> Bool -> FE
 literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
 literalHeaderFieldWithoutIndexingNewName'
-    :: DynamicTable -> WorkingBuffer -> Bool -> HeaderName -> HeaderValue -> IO ()
+    :: DynamicTable -> WriteBuffer -> Bool -> HeaderName -> HeaderValue -> IO ()
 literalHeaderFieldWithoutIndexingNewName' _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
 ----------------------------------------------------------------
 
 {-# INLINE change #-}
-change :: WorkingBuffer -> Int -> IO ()
+change :: WriteBuffer -> Int -> IO ()
 change wbuf i = I.encode wbuf set001 5 i
 
 {-# INLINE index #-}
-index :: WorkingBuffer -> Int -> IO ()
+index :: WriteBuffer -> Int -> IO ()
 index wbuf i = I.encode wbuf set1 7 i
 
 -- Using Huffman encoding
 {-# INLINE indexedName #-}
-indexedName :: WorkingBuffer -> Bool -> Int -> Setter -> HeaderValue -> Index -> IO ()
+indexedName :: WriteBuffer -> Bool -> Int -> Setter -> HeaderValue -> Index -> IO ()
 indexedName wbuf huff n set v idx = do
     I.encode wbuf set n idx
     encodeString huff v wbuf
 
 -- Using Huffman encoding
 {-# INLINE newName #-}
-newName :: WorkingBuffer -> Bool -> Setter -> HeaderName -> HeaderValue -> IO ()
+newName :: WriteBuffer -> Bool -> Setter -> HeaderName -> HeaderValue -> IO ()
 newName wbuf huff set k v = do
-    writeWord8 wbuf $ set 0
+    write8 wbuf $ set 0
     encodeString huff k wbuf
     encodeString huff v wbuf
 
@@ -226,7 +226,7 @@ setH = set1
 ----------------------------------------------------------------
 
 {-# INLINE encodeString #-}
-encodeString :: Bool -> ByteString -> WorkingBuffer -> IO ()
+encodeString :: Bool -> ByteString -> WriteBuffer -> IO ()
 encodeString False bs wbuf = do
     let !len = BS.length bs
     I.encode wbuf id 7 len
@@ -235,23 +235,23 @@ encodeString True  bs wbuf = do
     let !origLen = BS.length bs
         !expectedLen = (origLen `div` 10) * 8 -- 80%: decided by examples
         !expectedIntLen = integerLength expectedLen
-    wind wbuf expectedIntLen
+    ff wbuf expectedIntLen
     len <- Huffman.encode wbuf bs
     let !intLen = integerLength len
     if origLen < len then do
-        wind wbuf (negate (expectedIntLen + len))
+        ff wbuf (negate (expectedIntLen + len))
         I.encode wbuf id 7 origLen
         copyByteString wbuf bs
       else if intLen == expectedIntLen then do
-        wind wbuf (negate (expectedIntLen + len))
+        ff wbuf (negate (expectedIntLen + len))
         I.encode wbuf setH 7 len
-        wind wbuf len
+        ff wbuf len
       else do
         let !gap = intLen - expectedIntLen
         shiftLastN wbuf gap len
-        wind wbuf (negate (intLen + len))
+        ff wbuf (negate (intLen + len))
         I.encode wbuf setH 7 len
-        wind wbuf len
+        ff wbuf len
 
 -- For 7+:
 -- 1 byte:    0 -   126
