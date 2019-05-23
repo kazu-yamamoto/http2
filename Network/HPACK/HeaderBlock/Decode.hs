@@ -73,8 +73,8 @@ decodeHPACK :: DynamicTable
 decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
   where
     chkChange rbuf = do
-        more <- checkSpace rbuf 1
-        if more then do
+        leftover <- remainingSize rbuf
+        if leftover >= 1 then do
             w <- read8 rbuf
             if isTableSizeUpdate w then do
                 tableSizeUpdate dyntbl w rbuf
@@ -89,8 +89,8 @@ decodeSimple :: DynamicTable -> ReadBuffer -> IO HeaderList
 decodeSimple dyntbl rbuf = go empty
   where
     go builder = do
-        more <- checkSpace rbuf 1
-        if more then do
+        leftover <- remainingSize rbuf
+        if leftover >= 1 then do
             w <- read8 rbuf
             !tv <- toTokenHeader dyntbl w rbuf
             let builder' = builder << tv
@@ -113,8 +113,8 @@ decodeSophisticated dyntbl rbuf = do
     pseudoNormal arr = pseudo
       where
         pseudo = do
-            more <- checkSpace rbuf 1
-            if more then do
+            leftover <- remainingSize rbuf
+            if leftover >= 1 then do
                 w <- read8 rbuf
                 tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 if isPseudo then do
@@ -134,8 +134,8 @@ decodeSophisticated dyntbl rbuf = do
               else
                 return []
         normal !builder !cookie = do
-            more <- checkSpace rbuf 1
-            if more then do
+            leftover <- remainingSize rbuf
+            if leftover >= 1 then do
                 w <- read8 rbuf
                 tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
@@ -225,8 +225,8 @@ newName dyntbl rbuf = do
 
 headerStuff :: DynamicTable -> ReadBuffer -> IO HeaderStuff
 headerStuff dyntbl rbuf = do
-    more <- checkSpace rbuf 1
-    if more then do
+    leftover <- remainingSize rbuf
+    if leftover >= 1 then do
         w <- read8 rbuf
         let !p = dropHuffman w
             !huff = isHuffman w
@@ -267,8 +267,8 @@ dropHuffman w = w `clearBit` 7
 
 decodeString :: Bool -> HuffmanDecoding -> ReadBuffer -> Int -> IO HeaderStuff
 decodeString huff hufdec rbuf len = do
-    more <- checkSpace rbuf len
-    if more then
+    leftover <- remainingSize rbuf
+    if leftover >= len then
         if huff then
             hufdec rbuf len
           else
