@@ -24,4 +24,4 @@ import Data.Maybe
 import Data.Monoid
 import Data.Ord
 import Data.Word
-import Numeric hiding (readInt)
+import Numeric

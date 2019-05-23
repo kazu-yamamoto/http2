@@ -55,7 +55,7 @@ enc WriteBuffer{..} rbuf = do
     return len
   where
     go (dst,encoded,off) = do
-        !i <- readInt rbuf
+        !i <- readInt8 rbuf
         if i >= 0 then
             copy dst (bond i) >>= go
           else if off == initialOffset then

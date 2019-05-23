@@ -91,7 +91,7 @@ decode n w rbuf
     !i = fromIntegral w
     decode' :: Int -> Int -> IO Int
     decode' m j = do
-        !b <- readInt rbuf
+        !b <- readInt8 rbuf
         let !j' = j + (b .&. 0x7f) * 2 ^ m
             !m' = m + 7
             !cont = b `testBit` 7
