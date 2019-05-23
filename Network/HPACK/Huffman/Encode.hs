@@ -14,7 +14,7 @@ import Data.Array.Unboxed (UArray)
 import Data.IORef
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (poke)
-import Network.ByteOrder
+import Network.ByteOrder hiding (copy)
 
 import Imports
 import Network.HPACK.Huffman.Params (idxEos)
