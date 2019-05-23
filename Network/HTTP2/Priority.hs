@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
 
 -- | This is partial implementation of the priority of HTTP/2.
@@ -32,13 +31,11 @@ module Network.HTTP2.Priority (
   , delete
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative
-#endif
 import Control.Concurrent.STM
-import Control.Monad (when, unless)
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as Map
+
+import Imports hiding (delete, empty)
 import Network.HTTP2.Priority.Queue (TPriorityQueue, Precedence)
 import qualified Network.HTTP2.Priority.Queue as Q
 import Network.HTTP2.Types

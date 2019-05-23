@@ -75,12 +75,9 @@ module Network.HTTP2.Types (
   ) where
 
 import qualified Control.Exception as E
-import Data.Bits (setBit, testBit, clearBit)
-import Data.ByteString (ByteString)
-import Data.List (foldl')
-import Data.Maybe (mapMaybe)
 import Data.Typeable
-import Data.Word (Word8, Word16, Word32)
+
+import Imports
 
 ----------------------------------------------------------------
 

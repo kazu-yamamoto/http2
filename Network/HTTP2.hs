@@ -84,8 +84,9 @@ module Network.HTTP2 (
   , recommendedConcurrency
   ) where
 
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+
+import Imports
 import Network.HTTP2.Decode
 import Network.HTTP2.Encode
 import Network.HTTP2.Types

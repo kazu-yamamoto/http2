@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Priority.PSQ (
@@ -14,10 +13,6 @@ module Network.HTTP2.Priority.PSQ (
   , delete
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-import Data.Word (Word)
-#endif
 import Data.Array (Array, listArray, (!))
 import Data.IntPSQ (IntPSQ)
 import qualified Data.IntPSQ as P

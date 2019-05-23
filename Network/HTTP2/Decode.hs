@@ -1,5 +1,4 @@
 {-# LANGUAGE TupleSections, BangPatterns, RecordWildCards, OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 
 module Network.HTTP2.Decode (
   -- * Decoding
@@ -21,20 +20,15 @@ module Network.HTTP2.Decode (
   , decodeContinuationFrame
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Data.Array (Array, listArray, (!))
-import Data.Bits (clearBit)
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
-import Data.Word
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
+import Imports
 import Network.HTTP2.Types
 
 ----------------------------------------------------------------
