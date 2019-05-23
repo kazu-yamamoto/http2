@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
@@ -8,23 +8,17 @@ module Network.HPACK.HeaderBlock.Decode (
   , getHeaderValue
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Control.Exception (throwIO)
-import Control.Monad (unless, when)
-import Data.Maybe (isJust)
 import Data.Array (Array)
 import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
-import Data.Bits (testBit, clearBit, (.&.))
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.Char (isUpper)
 import Data.CaseInsensitive (CI(..))
-import Data.Word (Word8)
+
+import Imports hiding (empty)
 import Network.HPACK.Buffer
 import Network.HPACK.Builder
 import qualified Network.HPACK.HeaderBlock.Integer as I

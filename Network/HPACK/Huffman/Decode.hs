@@ -12,7 +12,8 @@ import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (ByteString(..))
-import Data.Word (Word8)
+
+import Imports
 import Network.HPACK.Buffer
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params

@@ -5,8 +5,7 @@ module Network.HPACK.Huffman.Bit (
   , fromBits
   ) where
 
-import Data.Word (Word8)
-import Data.List (foldl')
+import Imports
 
 -- | Data type for Bit.
 data B = F -- ^ Zero

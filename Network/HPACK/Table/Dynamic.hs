@@ -1,5 +1,5 @@
 {-# LANGUAGE TupleSections, RecordWildCards, FlexibleContexts #-}
-{-# LANGUAGE BangPatterns, CPP #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.HPACK.Table.Dynamic (
     DynamicTable(..)
@@ -25,16 +25,14 @@ module Network.HPACK.Table.Dynamic (
   , getRevIndex
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>), (<*>))
-#endif
 import Control.Exception (bracket, throwIO)
-import Control.Monad (forM, when, (>=>))
 import Data.Array.Base (unsafeRead, unsafeWrite)
 import Data.Array.IO (IOArray, newArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
 import Foreign.Marshal.Alloc
+
+import Imports
 import Network.HPACK.Huffman
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.RevIndex

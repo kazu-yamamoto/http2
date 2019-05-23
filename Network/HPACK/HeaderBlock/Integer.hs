@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, CPP #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Integer (
     encode
@@ -7,14 +7,10 @@ module Network.HPACK.HeaderBlock.Integer (
   , decodeInteger
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
-import Data.Bits ((.&.), shiftR, testBit)
-import Data.ByteString (ByteString)
-import Data.Word (Word8)
+
+import Imports
 import Network.HPACK.Buffer
 
 -- $setup

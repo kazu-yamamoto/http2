@@ -55,7 +55,8 @@ Library
                         Network.HPACK.Token
                         Network.HTTP2
                         Network.HTTP2.Priority
-  Other-Modules:        Network.HPACK.Buffer
+  Other-Modules:        Imports
+			Network.HPACK.Buffer
                         Network.HPACK.Builder
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit

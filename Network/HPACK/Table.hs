@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections, CPP #-}
+{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_HADDOCK hide #-}
 
 module Network.HPACK.Table (
@@ -30,9 +30,6 @@ module Network.HPACK.Table (
   , fromHIndexToIndex
   ) where
 
-#if __GLASGOW_HASKELL__ < 709
-import Control.Applicative ((<$>))
-#endif
 import Network.HPACK.Table.Dynamic
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.RevIndex

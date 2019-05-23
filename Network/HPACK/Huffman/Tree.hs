@@ -11,7 +11,8 @@ module Network.HPACK.Huffman.Tree (
   ) where
 
 import Control.Arrow (second)
-import Data.List (partition)
+
+import Imports
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
 

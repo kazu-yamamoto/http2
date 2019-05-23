@@ -24,10 +24,10 @@ module Network.HPACK.Types (
   ) where
 
 import Control.Exception as E
-import Data.ByteString (ByteString)
 import Data.Typeable
-import Data.Word (Word8)
 import Foreign.Ptr (Ptr)
+
+import Imports
 import Network.HPACK.Token (Token)
 
 ----------------------------------------------------------------

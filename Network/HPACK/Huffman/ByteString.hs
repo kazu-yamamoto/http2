@@ -5,15 +5,14 @@ module Network.HPACK.Huffman.ByteString (
   , copy
   ) where
 
-import Control.Monad (void)
-import Data.Bits ((.&.), shiftR)
 import Data.ByteString.Internal (ByteString(..))
-import Data.Word (Word8)
 import Foreign.C.Types (CSize(..))
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
 import System.IO.Unsafe (unsafeDupablePerformIO)
+
+import Imports
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
