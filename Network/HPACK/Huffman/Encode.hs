@@ -57,7 +57,7 @@ enc WriteBuffer{..} rbuf = do
     go (dst,encoded,off) = do
         !i <- readInt8 rbuf
         if i >= 0 then
-            copy dst (bond i) >>= go
+            cpy dst (bond i) >>= go
           else if off == initialOffset then
             return dst
           else do
@@ -79,14 +79,14 @@ enc WriteBuffer{..} rbuf = do
             poke p w8
             let !p' = p `plusPtr` 1
             return p'
-        {-# INLINE copy #-}
-        copy p (w,o)
+        {-# INLINE cpy #-}
+        cpy p (w,o)
           | o > shiftForWrite = return (p,w,o)
           | otherwise = do
               p' <- write p w
               let !w' = w `shiftL` 8
                   !o' = o + 8
-              copy p' (w',o')
+              cpy p' (w',o')
 
 encodeHuffman :: ByteString -> IO ByteString
 encodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
