@@ -2,6 +2,7 @@ module Network.HPACK.HeaderBlock (
     decodeHeader
   , decodeTokenHeader
   , ValueTable
+  , HeaderTable
   , toHeaderTable
   , getHeaderValue
   , encodeHeader

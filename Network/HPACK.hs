@@ -33,6 +33,7 @@ module Network.HPACK (
   , TokenHeader
   -- * Value table
   , ValueTable
+  , HeaderTable
   , getHeaderValue
   , toHeaderTable
   -- * Basic types

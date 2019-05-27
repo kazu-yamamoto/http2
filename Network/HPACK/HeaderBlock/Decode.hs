@@ -4,6 +4,7 @@ module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
   , decodeTokenHeader
   , ValueTable
+  , HeaderTable
   , toHeaderTable
   , getHeaderValue
   ) where
@@ -27,7 +28,9 @@ import Network.HPACK.Table
 import Network.HPACK.Token
 import Network.HPACK.Types
 
--- | An array for 'HeaderValue'.
+-- | An array to get 'HeaderValue' quickly.
+--   'getHeaderValue' should be used.
+--   Internally, the key is 'Token' 'ix'.
 type ValueTable = Array Int (Maybe HeaderValue)
 
 -- | Accessing 'HeaderValue' with 'Token'.
@@ -63,7 +66,7 @@ decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
 --   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeTokenHeader :: DynamicTable
                   -> ByteString -- ^ An HPACK format
-                  -> IO (TokenHeaderList, ValueTable)
+                  -> IO HeaderTable
 decodeTokenHeader dyntbl inp = decodeHPACK dyntbl inp decodeSophisticated
 
 decodeHPACK :: DynamicTable
@@ -101,7 +104,7 @@ decodeSimple dyntbl rbuf = go empty
             return kvs
 
 decodeSophisticated :: DynamicTable -> ReadBuffer
-                    -> IO (TokenHeaderList, ValueTable)
+                    -> IO HeaderTable
 decodeSophisticated dyntbl rbuf = do
     -- using maxTokenIx to reduce condition
     arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
@@ -279,9 +282,12 @@ decodeString huff hufdec rbuf len = do
 
 ----------------------------------------------------------------
 
+-- | A pair of token list and value table.
+type HeaderTable = (TokenHeaderList, ValueTable)
+
 -- | Converting a header list of the http-types style to
 --   'TokenHeaderList' and 'ValueTable'.
-toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO (TokenHeaderList, ValueTable)
+toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO HeaderTable
 toHeaderTable kvs = do
     arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
     !tvs <- conv arr

@@ -47,8 +47,10 @@ type HeaderList = [Header]
 -- | To be a 'HeaderName' or 'HeaderValue'.
 type HeaderStuff = ByteString
 
+-- | TokenBased header.
 type TokenHeader = (Token, HeaderValue)
 
+-- | TokenBased header list.
 type TokenHeaderList = [TokenHeader]
 
 ----------------------------------------------------------------
