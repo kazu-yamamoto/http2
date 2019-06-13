@@ -87,6 +87,8 @@ Library
                       , network-byte-order
                       , psqueues
                       , stm
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 ----------------------------------------------------------------
 
@@ -98,6 +100,8 @@ Test-Suite doctest
   Main-Is:              doctests.hs
   Build-Depends:        base >= 4 && < 5
                       , doctest >= 0.9.3
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Test-Suite spec
   Type:                 exitcode-stdio-1.0
@@ -150,6 +154,8 @@ Test-Suite spec
                       , psqueues
                       , stm
                       , word8
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Test-Suite hpack
   Type:                 exitcode-stdio-1.0
@@ -197,6 +203,8 @@ Test-Suite hpack
                       , unordered-containers
                       , vector
                       , word8
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Test-Suite frame
   Type:                 exitcode-stdio-1.0
@@ -220,6 +228,8 @@ Test-Suite frame
                       , network-byte-order
                       , text
                       , unordered-containers
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 ----------------------------------------------------------------
 
@@ -273,6 +283,8 @@ Executable hpack-debug
                       , unordered-containers
                       , vector
                       , word8
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Executable hpack-stat
   Default-Language:     Haskell2010
@@ -299,6 +311,8 @@ Executable hpack-stat
                       , unordered-containers
                       , vector
                       , word8
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Executable frame-encode
   Default-Language:     Haskell2010
@@ -319,6 +333,8 @@ Executable frame-encode
                       , http2
                       , text
                       , unordered-containers
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Benchmark priority
   Type:                 exitcode-stdio-1.0
@@ -343,6 +359,7 @@ Benchmark priority
                       , network-byte-order
                       , psqueues
                       , stm
+                      , http2
 
 Benchmark header-compression
   Type:                 exitcode-stdio-1.0
@@ -358,3 +375,6 @@ Benchmark header-compression
                       , criterion
                       , network-byte-order
                       , stm
+                      , http2
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
