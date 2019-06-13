@@ -79,6 +79,7 @@ decodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
 
 ----------------------------------------------------------------
 
+{-# NOINLINE way256 #-}
 way256 :: Way256
 way256 = construct $ toHTree huffmanTable
 
