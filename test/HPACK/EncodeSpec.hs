@@ -43,7 +43,7 @@ go etbl dtbl stgy (h:hs) lens = do
     let lens' = case lens of
             l:ls
               | BS.length bs == l -> ls
-              | otherwise         -> error $ show h ++ "\nshould be " ++ show l
+              | otherwise         -> error $ "The length of encoded headers should be " ++ show l ++ " but " ++ show (BS.length bs)
             []                    -> []
     h' <- decodeHeader dtbl bs  `E.catch` \(E.SomeException e) -> do
         putStrLn $ "decodeHeader: " ++ show e
