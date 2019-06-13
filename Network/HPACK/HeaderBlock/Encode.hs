@@ -10,7 +10,7 @@ import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (create, memcpy)
 import Data.IORef
-import Foreign.Marshal.Alloc
+import Foreign.Marshal.Alloc (mallocBytes, free)
 import Foreign.Ptr (minusPtr)
 import Network.ByteOrder
 

@@ -30,7 +30,7 @@ import Data.Array.Base (unsafeRead, unsafeWrite)
 import Data.Array.IO (IOArray, newArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
-import Foreign.Marshal.Alloc
+import Foreign.Marshal.Alloc (mallocBytes, free)
 
 import Imports
 import Network.HPACK.Huffman

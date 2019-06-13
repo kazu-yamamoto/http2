@@ -28,7 +28,7 @@ import Control.Exception (bracket, throwIO)
 import Data.ByteString.Internal (ByteString(..), create, memcpy)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef, modifyIORef')
 import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Marshal.Alloc
+import Foreign.Marshal.Alloc (mallocBytes, free)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (peek, poke)
 
