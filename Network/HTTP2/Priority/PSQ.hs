@@ -25,7 +25,7 @@ type Deficit = Word -- Deficit can be overflowed
 
 -- | Internal representation of priority in priority queues.
 --   The precedence of a dequeued entry should be specified
---   to 'enqueue' when the entry is enqueued again.
+--   to enqueue when the entry is enqueued again.
 data Precedence = Precedence {
     deficit    :: {-# UNPACK #-} !Deficit
   , weight     :: {-# UNPACK #-} !Weight
