@@ -402,7 +402,7 @@ Executable frame-encode
 Benchmark priority
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
-  Hs-Source-Dirs:       bench-priority
+  Hs-Source-Dirs:       bench-priority, .
   Ghc-Options:          -Wall
   Main-Is:              Main.hs
   Other-Modules:        BinaryHeap
@@ -412,17 +412,17 @@ Benchmark priority
                         RandomSkewHeap
                         RingOfQueues
                         RingOfQueuesSTM
+                        Network.HTTP2.Priority.PSQ
   Build-Depends:        base
                       , array
                       , case-insensitive
                       , containers
-                      , criterion
+                      , gauge
                       , heaps
                       , mwc-random
                       , network-byte-order
                       , psqueues
                       , stm
-                      , http2
 
 Benchmark header-compression
   Type:                 exitcode-stdio-1.0
@@ -435,7 +435,7 @@ Benchmark header-compression
                       , bytestring
                       , case-insensitive
                       , containers
-                      , criterion
+                      , gauge
                       , network-byte-order
                       , stm
                       , http2

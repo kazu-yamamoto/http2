@@ -3,7 +3,7 @@
 module Main where
 
 import Control.Concurrent.STM
-import Criterion.Main
+import Gauge.Main
 import Data.List (foldl')
 import System.Random.MWC
 

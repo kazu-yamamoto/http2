@@ -3,7 +3,7 @@
 module Main where
 
 import Control.Exception
-import Criterion.Main
+import Gauge.Main
 import Network.HPACK
 import Data.ByteString (ByteString)
 
