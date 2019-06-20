@@ -141,7 +141,7 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
             server req aux $ response ctx mgr th tcont strm req'
         cont1 <- case ex of
             Right () -> return True
-            Left e@(SomeException se)
+            Left e@(SomeException _)
               -- killed by the local worker manager
               | Just ThreadKilled    <- E.fromException e -> return False
               -- killed by the local timeout manager
@@ -149,7 +149,6 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
                   cleanup sinfo
                   return True
               | otherwise -> do
-                  putStrLn $ "worker: " ++ show se
                   cleanup sinfo
                   return True
         cont2 <- getThreadContinue tcont

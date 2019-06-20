@@ -305,8 +305,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     {-# INLINE ignore #-}
     ignore :: E.SomeException -> IO ()
-    -- ignore _ = return ()
-    ignore e = putStrLn $ "frameSender: " ++ show e
+    ignore _ = return ()
 
 ----------------------------------------------------------------
 
