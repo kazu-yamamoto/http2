@@ -3,7 +3,7 @@ module Network.HTTP2.Server.ReadN where
 import qualified Data.ByteString as B
 import Data.IORef
 import Network.Socket
-import Network.Socket.ByteString (recv)
+import qualified Network.Socket.ByteString as N
 
 -- | Naive implementation for readN.
 defaultReadN :: Socket -> IORef (Maybe B.ByteString) -> Int -> IO B.ByteString
@@ -12,7 +12,7 @@ defaultReadN s ref n = do
     writeIORef ref Nothing
     case mbs of
       Nothing -> do
-          bs <- recv s n
+          bs <- N.recv s n
           if B.length bs == n then
               return bs
             else
@@ -27,7 +27,7 @@ defaultReadN s ref n = do
   where
     loop bs = do
         let n' = n - B.length bs
-        bs1 <- recv s n'
+        bs1 <- N.recv s n'
         let bs2 = bs `B.append` bs1
         if B.length bs2 == n then
             return bs2
