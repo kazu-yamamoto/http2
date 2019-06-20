@@ -186,10 +186,10 @@ Test-Suite spec
                       , containers
                       , hspec >= 1.3
                       , http-types
+                      , network
                       , network-byte-order
                       , psqueues
                       , stm
-                      , word8
                       , time-manager
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
@@ -258,6 +258,7 @@ Test-Suite hpack
                       , filepath
                       , hspec >= 1.3
                       , http-types
+                      , network
                       , network-byte-order
                       , psqueues
                       , stm
@@ -265,7 +266,6 @@ Test-Suite hpack
                       , time-manager
                       , unordered-containers
                       , vector
-                      , word8
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
 
