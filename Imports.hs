@@ -1,6 +1,5 @@
 module Imports (
     ByteString(..)
-  , NonEmpty(..)
   , module Control.Applicative
   , module Control.Monad
   , module Data.Bits
@@ -21,7 +20,6 @@ import Data.ByteString.Internal (ByteString(..))
 import Data.Foldable
 import Data.Int
 import Data.List
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe
 import Data.Monoid
 import Data.Ord
