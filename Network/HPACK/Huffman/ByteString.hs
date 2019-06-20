@@ -5,7 +5,6 @@ module Network.HPACK.Huffman.ByteString (
   , copy
   ) where
 
-import Data.ByteString.Internal (ByteString(..))
 import Foreign.C.Types (CSize(..))
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)

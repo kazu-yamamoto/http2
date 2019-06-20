@@ -22,7 +22,6 @@ module Network.HTTP2.Decode (
 
 import Data.Array (Array, listArray, (!))
 import qualified Data.ByteString as BS
-import Data.ByteString.Internal (ByteString(..))
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N

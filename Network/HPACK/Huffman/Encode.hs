@@ -19,7 +19,6 @@ import Network.ByteOrder hiding (copy)
 import Imports
 import Network.HPACK.Huffman.Params (idxEos)
 import Network.HPACK.Huffman.Table
-import Network.HPACK.Types (BufferOverrun(..))
 
 ----------------------------------------------------------------
 
