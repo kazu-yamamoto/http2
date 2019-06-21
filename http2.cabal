@@ -1,11 +1,11 @@
 Name:                   http2
-Version:                1.6.5
+Version:                2.0.0
 Author:                 Kazu Yamamoto <kazu@iij.ad.jp>
 Maintainer:             Kazu Yamamoto <kazu@iij.ad.jp>
 License:                BSD3
 License-File:           LICENSE
-Synopsis:               HTTP/2 library including frames, priority queues and HPACK
-Description:            HTTP/2 library including frames, priority queues and HPACK.
+Synopsis:               HTTP/2 library
+Description:            HTTP/2 library including frames, priority queues, HPACK and server.
 Homepage:               https://github.com/kazu-yamamoto/http2
 Category:               Network
 Cabal-Version:          >= 1.10
