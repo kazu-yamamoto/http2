@@ -1,3 +1,17 @@
+## 2.0.0
+
+* Providing Network.HTTP.Server.
+
+## 1.6.5
+
+* Deny shrink of dynamic table to zero size
+  [#17](https://github.com/kazu-yamamoto/http2/pull/17)
+
+## 1.6.4
+
+* checkFrameHeader for FrameHeaders.
+  [#15](https://github.com/kazu-yamamoto/http2/pull/15)
+
 ## 1.6.3
 
 * Fixing two bugs of HPACK pointed out by h2spec v2.
