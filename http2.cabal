@@ -54,6 +54,7 @@ Library
                         Network.HPACK.Table
                         Network.HPACK.Token
                         Network.HTTP2
+                        Network.HTTP2.Client
                         Network.HTTP2.Priority
                         Network.HTTP2.Server
   Other-Modules:        Imports
