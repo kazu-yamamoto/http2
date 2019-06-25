@@ -21,13 +21,15 @@
 -- >     addr <- resolve "80"
 -- >     E.bracket (open addr) close loop
 -- >   where
--- >     server _req _ctl sendResponse = sendResponse response []
+-- >     server _req _aux sendResponse = sendResponse response []
 -- >       where
 -- >         response = responseBuilder ok200 [("Content-Type", "text/plain")] (byteString "Hello, world!\n")
+-- >     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
+-- >                                  (\config -> run config server)
+-- >                                  freeSimpleConfig
 -- >     loop sock = forever $ do
 -- >         (s, _peer) <- accept sock
--- >         (config, cleanup) <- makeSimpleConfig s 4096
--- >         void $ forkFinally (run config server) (\_ -> close s >> cleanup)
+-- >         void $ forkFinally (runHTTP2Server s) (\_ -> close s)
 -- >     resolve port = do
 -- >         let hints = defaultHints {
 -- >                 addrFlags = [AI_PASSIVE]
@@ -48,6 +50,8 @@ module Network.HTTP2.Server (
     run
   -- * Runner arguments
   , Config(..)
+  , allocSimpleConfig
+  , freeSimpleConfig
   , makeSimpleConfig
   -- * HTTP/2 server
   , Server
@@ -101,7 +105,7 @@ import qualified Network.HTTP.Types as H
 import Imports
 import Network.HPACK
 import Network.HTTP2.Server.API
-import Network.HTTP2.Server.Config (makeSimpleConfig)
+import Network.HTTP2.Server.Config
 import Network.HTTP2.Server.File (defaultPositionReadMaker)
 import Network.HTTP2.Server.ReadN (defaultReadN)
 import Network.HTTP2.Server.Run (run)

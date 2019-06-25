@@ -14,13 +14,15 @@ main = withSocketsDo $ do
     addr <- resolve "80"
     E.bracket (open addr) close loop
   where
-    server _req sendResponse = sendResponse response []
+    server _req _aux sendResponse = sendResponse response []
       where
         response = responseBuilder ok200 [("Content-Type", "text/plain")] (byteString "Hello, world!\n")
+    runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
+                                 (\config -> run config server)
+                                 freeSimpleConfig
     loop sock = forever $ do
         (s, _peer) <- accept sock
-        (config, cleanup) <- makeSimpleConfig s 4096
-        void $ forkFinally (run config server) (\_ -> close s >> cleanup)
+        void $ forkFinally (runHTTP2Server s) (\_ -> close s)
     resolve port = do
         let hints = defaultHints {
                 addrFlags = [AI_PASSIVE]
