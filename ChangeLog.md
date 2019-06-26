@@ -1,3 +1,9 @@
+## 2.0.1
+
+* Bug fix for defaultReadN.
+* Providing allocSimpleConfig and freeSimpleConfig.
+* Deprecating makeSimpleConfig.
+
 ## 2.0.0
 
 * Providing Network.HTTP.Server.
