@@ -7,13 +7,16 @@ import qualified Network.Socket.ByteString as N
 
 -- | Naive implementation for readN.
 defaultReadN :: Socket -> IORef (Maybe B.ByteString) -> Int -> IO B.ByteString
+defaultReadN _ _   0 = return B.empty
 defaultReadN s ref n = do
     mbs <- readIORef ref
     writeIORef ref Nothing
     case mbs of
       Nothing -> do
           bs <- N.recv s n
-          if B.length bs == n then
+          if B.null bs then
+              return B.empty
+          else if B.length bs == n then
               return bs
             else
               loop bs
@@ -28,8 +31,11 @@ defaultReadN s ref n = do
     loop bs = do
         let n' = n - B.length bs
         bs1 <- N.recv s n'
-        let bs2 = bs `B.append` bs1
-        if B.length bs2 == n then
-            return bs2
-          else
-            loop bs2
+        if B.null bs1 then
+            return B.empty
+          else do
+            let bs2 = bs `B.append` bs1
+            if B.length bs2 == n then
+                return bs2
+              else
+                loop bs2
