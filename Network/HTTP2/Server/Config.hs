@@ -19,9 +19,8 @@ makeSimpleConfig s bufsiz = do
     config <- allocSimpleConfig s bufsiz
     return (config, freeSimpleConfig config)
 
--- | Making configuration whose IO is not efficient.
+-- | Making simple configuration whose IO is not efficient.
 --   A write buffer is allocated internally.
---   That should be deallocated by the returned action.
 allocSimpleConfig :: Socket -> BufferSize -> IO Config
 allocSimpleConfig s bufsiz = do
     buf <- mallocBytes bufsiz
@@ -35,5 +34,6 @@ allocSimpleConfig s bufsiz = do
           }
     return config
 
+-- | Deallocating the resource of the simple configuration.
 freeSimpleConfig :: Config -> IO ()
 freeSimpleConfig conf = free $ confWriteBuffer conf
