@@ -1,3 +1,7 @@
+## 2.0.2
+
+* Bug fix of flush limit.
+
 ## 2.0.1
 
 * Bug fix for defaultReadN.
