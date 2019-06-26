@@ -73,6 +73,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
           else
             C <$> readTQueue controlQ
 
+    hardLimit = confBufferSize - 512
+
     loop off = do
         x <- atomically $ dequeue off
         case x of
@@ -85,9 +87,9 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 writeIORef (streamPrecedence strm) pre
                 off' <- outputOrEnqueueAgain out off
                 case off' of
-                    0                -> loop 0
-                    _ | off' > 15872 -> flushN off' >> loop 0 -- fixme: hard-coding
-                      | otherwise    -> loop off'
+                    0                    -> loop 0
+                    _ | off' > hardLimit -> flushN off' >> loop 0
+                      | otherwise        -> loop off'
             Flush -> flushN off >> loop 0
 
     control CFinish         _ = return (-1)
