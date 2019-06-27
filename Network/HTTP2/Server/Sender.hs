@@ -68,7 +68,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             emp <- isEmptySTM outputQ
             if emp then
                 if off /= 0 then return Flush else retry
-               else
+              else
                 O <$> dequeueSTM outputQ
           else
             C <$> readTQueue controlQ
