@@ -50,7 +50,7 @@
 -- >     loop sock = forever $ do
 -- >         (conn, peer) <- accept sock
 -- >         void $ forkFinally (server conn peer) (clear conn)
--- >     clear conn _ = shutdown conn ShutdownBoth `E.catch` ignore
+-- >     clear conn _ = shutdown conn ShutdownSend `E.catch` ignore
 -- >       where
 -- >         ignore (SomeException _) = return ()
 
