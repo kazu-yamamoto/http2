@@ -1,3 +1,8 @@
+## 2.0.3
+
+* Using shutdown instead of close in the example. This is important to
+  send GOAWAY properly.
+
 ## 2.0.2
 
 * Bug fix of flush limit.
