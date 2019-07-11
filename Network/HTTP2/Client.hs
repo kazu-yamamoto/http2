@@ -30,6 +30,7 @@ import Network.HTTP2
 
 ----------------------------------------------------------------
 
+-- | HTTP\/2 request for clients.
 data Request = Request {
       requestMethod    :: Method
     , requestAuthority :: ByteString
@@ -39,6 +40,7 @@ data Request = Request {
     , requestBody      :: ByteString
     }
 
+-- | Default request.
 defaultRequest :: Request
 defaultRequest = Request {
       requestMethod    = methodGet
@@ -51,6 +53,7 @@ defaultRequest = Request {
 
 ----------------------------------------------------------------
 
+-- | HTTP\/2 response for clients.
 data Response = Response {
     responseStatus :: Status
   , responseHeader :: HeaderTable
@@ -63,6 +66,7 @@ instance Show Response where
 
 ----------------------------------------------------------------
 
+-- | HTTP\/2 connection.
 data Connection = Connection {
     streamNumber   :: TVar Int
   , requestQ       :: RequestQ
@@ -96,6 +100,8 @@ newStream Connection{..} req = atomically $ do
     writeTQueue requestQ (n,req)
     return rspQ
 
+-- | Sending an HTTP\/2 request and passing its response
+--   to an action.
 withResponse :: Connection -> Request -> (Response -> IO a) -> IO a
 withResponse conn req f = do
     q <- newStream conn req
@@ -123,6 +129,8 @@ withResponse conn req f = do
 
 ----------------------------------------------------------------
 
+-- | Creating an HTTP\/2 connection with a socket and
+--   running an action.
 withConnection :: Socket -> (Connection -> IO a) -> IO a
 withConnection sock body = E.bracket (openHTTP2Connection sock)
                                      teardown
