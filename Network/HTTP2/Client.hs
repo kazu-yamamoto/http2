@@ -90,7 +90,7 @@ type DecodeHeader = ByteString -> IO HeaderTable
 
 ----------------------------------------------------------------
 
-newStream :: Connection -> Request -> IO ResponseQ
+newStream :: Connection -> Request -> IO (StreamId, ResponseQ)
 newStream Connection{..} req = atomically $ do
     n <- readTVar streamNumber
     let n' = n + 2
@@ -98,15 +98,21 @@ newStream Connection{..} req = atomically $ do
     rspQ <- newTQueue
     modifyTVar' responseQTable $ \q -> I.insert n rspQ q
     writeTQueue requestQ (n,req)
-    return rspQ
+    return (n, rspQ)
+
+deleteStream :: Connection -> StreamId -> IO ()
+deleteStream Connection{..} n = atomically $
+    modifyTVar' responseQTable $ \q -> I.delete n q
 
 -- | Sending an HTTP\/2 request and passing its response
 --   to an action.
 withResponse :: Connection -> Request -> (Response -> IO a) -> IO a
 withResponse conn req f = do
-    q <- newStream conn req
+    (sid, q) <- newStream conn req
     response <- recvResponse q
-    f response
+    ret <- f response
+    deleteStream conn sid
+    return ret
   where
     recvResponse q = do
         Header end ht@(_,vt) <- atomically $ readTQueue q
