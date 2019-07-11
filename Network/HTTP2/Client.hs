@@ -2,7 +2,7 @@
 
 module Network.HTTP2.Client (
     openHTTP2Connection
-  , Context(..)
+  , Connection(..)
   , Request(..)
   , defaultRequest
   , Response(..)
@@ -23,7 +23,7 @@ import Network.HTTP.Types
 import Network.HTTP2
 import Network.Socket
 
-data Context = Context {
+data Connection = Connection {
     sendFrame    :: (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
   , recvFrame    :: IO Frame
   , encodeHeader :: HeaderList -> IO ByteString
@@ -32,7 +32,7 @@ data Context = Context {
 
 ----------------------------------------------------------------
 
-openHTTP2Connection :: Socket -> IO Context
+openHTTP2Connection :: Socket -> IO Connection
 openHTTP2Connection sock = do
     etbl <- HPACK.newDynamicTableForEncoding HPACK.defaultDynamicTableSize
     dtbl <- HPACK.newDynamicTableForDecoding HPACK.defaultDynamicTableSize 4096
@@ -45,7 +45,7 @@ openHTTP2Connection sock = do
         dec = HPACK.decodeTokenHeader dtbl
         send = sendFrame' sock
         recv = recvFrame' sock
-    return $ Context send recv enc dec
+    return $ Connection send recv enc dec
 
 initialSettingFrame :: FramePayload
 initialSettingFrame = SettingsFrame [
@@ -92,7 +92,7 @@ defaultRequest = Request {
     , requestBody      = ""
     }
 
-sendRequest :: Context -> Request -> IO ()
+sendRequest :: Connection -> Request -> IO ()
 sendRequest ctx (Request m a p s h _b) = do
     hdrblk <- encodeHeader ctx hdr'
     sendFrame ctx (setEndHeader.setEndStream) 1 $ HeadersFrame Nothing hdrblk
@@ -116,7 +116,7 @@ instance Show Response where
     show (Response st (thl,_) body) =
         "Response " ++ show (statusCode st) ++ " " ++ show thl ++ " " ++ show body
 
-recvResponse :: Context -> IO Response
+recvResponse :: Connection -> IO Response
 recvResponse ctx = do
     (ht@(_,vt), endStream) <- recvResponseHeader ctx
     let Just status = HPACK.getHeaderValue tokenStatus vt
@@ -127,7 +127,7 @@ recvResponse ctx = do
         body <- recvResponseBody ctx
         return $ Response st ht body
 
-recvResponseHeader :: Context -> IO (HeaderTable, Bool)
+recvResponseHeader :: Connection -> IO (HeaderTable, Bool)
 recvResponseHeader ctx = do
     Frame fhdr (HeadersFrame _ hbf) <- recvFrame ctx
     header <- decodeHeader ctx hbf
@@ -135,7 +135,7 @@ recvResponseHeader ctx = do
     return (header, endStream)
 
 -- fixme: assuming no trailers
-recvResponseBody :: Context -> IO [ByteString]
+recvResponseBody :: Connection -> IO [ByteString]
 recvResponseBody ctx = go id
   where
     go builder = do
