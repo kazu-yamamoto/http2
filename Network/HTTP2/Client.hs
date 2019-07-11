@@ -27,57 +27,65 @@ import Network.HPACK.Token
 import Network.HTTP.Types
 import Network.HTTP2
 
+----------------------------------------------------------------
 data Connection = Connection {
-    sendFrame    :: (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
-  , recvFrame    :: IO Frame
-  , encodeHeader :: HeaderList -> IO ByteString
-  , decodeHeader :: ByteString -> IO HeaderTable
-  , streamTable  :: TVar (IntMap Stream)
-  , streamNumber :: TVar Int
-  , requestQ     :: TQueue (StreamId, Request)
+    streamNumber   :: TVar Int
+  , requestQ       :: RequestQ
+  , responseQTable :: ResponseQTable
   }
 
-data Stream = Stream {
-    responseQ :: TQueue Rsp
-  }
-
-type EndOfStream = Bool
+type RequestQ  = TQueue (StreamId, Request)
+type ResponseQ = TQueue Rsp
+type ResponseQTable = TVar (IntMap ResponseQ)
 
 data Rsp = Header  EndOfStream HeaderTable
          | Body    EndOfStream ByteString
 --         | Trailer EndOfStream HeaderTable
+type EndOfStream = Bool
+
+type SendFrame = (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
+type RecvFrame = IO Frame
+
+type EncodeHeader = HeaderList -> IO ByteString
+type DecodeHeader = ByteString -> IO HeaderTable
 
 ----------------------------------------------------------------
+
+newConnection :: IO Connection
+newConnection = Connection <$> newTVarIO 1
+                           <*> newTQueueIO
+                           <*> newTVarIO I.empty
+
+exchangeSettings :: Socket -> IO ()
+exchangeSettings sock = do
+    NSB.sendAll sock connectionPreface
+    sendFrame sock id 0 initialSettingFrame
+    void $ recvFrame sock
+    void $ recvFrame sock
+    sendFrame sock setAck 0 ackSettingsFrame
 
 openHTTP2Connection :: Socket -> IO Connection
 openHTTP2Connection sock = do
     etbl <- HPACK.newDynamicTableForEncoding HPACK.defaultDynamicTableSize
     dtbl <- HPACK.newDynamicTableForDecoding HPACK.defaultDynamicTableSize 4096
-    NSB.sendAll sock connectionPreface
-    sendFrame' sock id 0 initialSettingFrame
-    void $ recvFrame' sock
-    void $ recvFrame' sock
-    sendFrame' sock setAck 0 ackSettingsFrame
+    exchangeSettings sock
     let enc = HPACK.encodeHeader HPACK.defaultEncodeStrategy 4096 etbl
         dec = HPACK.decodeTokenHeader dtbl
-        send = sendFrame' sock
-        recv = recvFrame' sock
-    tbl <- newTVarIO I.empty
-    num <- newTVarIO 1
-    reqQ <- newTQueueIO
-    let conn = Connection send recv enc dec tbl num reqQ
-    _ <- forkIO $ receiver conn
-    _ <- forkIO $ sender conn
+        send = sendFrame sock
+        recv = recvFrame sock
+    conn@Connection{..} <- newConnection
+    _ <- forkIO $ receiver dec recv responseQTable
+    _ <- forkIO $ sender   enc send requestQ
     return conn
 
-sendFrame' :: Socket -> (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
-sendFrame' sock func sid payload = do
+sendFrame :: Socket -> (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
+sendFrame sock func sid payload = do
     let einfo = encodeInfo func sid
         frame = encodeFrame einfo payload
     NSB.sendAll sock frame
 
-recvFrame' :: Socket -> IO Frame
-recvFrame' sock = do
+recvFrame :: Socket -> IO Frame
+recvFrame sock = do
     (frameId, header) <- decodeFrameHeader <$> NSB.recv sock frameHeaderLength
     let len = payloadLength header
     body <- if len == 0 then return "" else NSB.recv sock len
@@ -86,38 +94,33 @@ recvFrame' sock = do
 
 ----------------------------------------------------------------
 
-sender :: Connection -> IO ()
-sender conn@Connection{..} = forever $ do
-    (sid, req) <- atomically $ readTQueue requestQ
-    sendRequest conn sid req
-
-sendRequest :: Connection -> StreamId -> Request -> IO ()
-sendRequest conn sid (Request m a p s h _b) = do
-    hdrblk <- encodeHeader conn hdr'
-    sendFrame conn (setEndHeader.setEndStream) sid $ HeadersFrame Nothing hdrblk
-  where
-    hdr = (":method", m)
-        : (":authority", a)
-        : (":path", p)
-        : (":scheme", s)
-        : h
-    hdr' = map (\(k,v) -> (CI.foldedCase k,v)) hdr
+sender :: EncodeHeader -> SendFrame -> RequestQ -> IO ()
+sender enc send requestQ = forever $ do
+    (sid, Request m a p s h _b) <- atomically $ readTQueue requestQ
+    let hdr = (":method", m)
+            : (":authority", a)
+            : (":path", p)
+            : (":scheme", s)
+            : h
+        hdr' = map (\(k,v) -> (CI.foldedCase k,v)) hdr
+    hdrblk <- enc hdr'
+    send (setEndHeader.setEndStream) sid $ HeadersFrame Nothing hdrblk
 
 ----------------------------------------------------------------
 
-receiver :: Connection -> IO ()
-receiver Connection{..} = forever $ do
-    Frame{..} <- recvFrame
+receiver :: DecodeHeader -> RecvFrame -> ResponseQTable -> IO ()
+receiver dec recv qtbl = forever $ do
+    Frame{..} <- recv
     let FrameHeader{..} = frameHeader
-    tbl <- atomically $ readTVar streamTable
+    tbl <- atomically $ readTVar qtbl
     case I.lookup streamId tbl of
       Nothing -> return ()
-      Just Stream{..} -> case framePayload of
+      Just responseQ -> case framePayload of
           DataFrame bs -> do
               let endStream = testEndStream flags
               atomically $ writeTQueue responseQ $ Body endStream bs
           HeadersFrame _ hdrblk -> do
-              header <- decodeHeader hdrblk
+              header <- dec hdrblk
               let endStream = testEndStream flags
               atomically $ writeTQueue responseQ $ Header endStream header
           PriorityFrame _ -> return ()
@@ -182,8 +185,7 @@ withResponse Connection{..} req f = do
         let n' = n + 2
         writeTVar streamNumber n'
         rspQ <- newTQueue
-        let strm = Stream rspQ
-        modifyTVar' streamTable $ \q -> I.insert n strm q
+        modifyTVar' responseQTable $ \q -> I.insert n rspQ q
         writeTQueue requestQ (n,req)
         return rspQ
     response <- recvResponse q
