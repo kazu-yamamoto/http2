@@ -2,14 +2,15 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Client (
-    openHTTP2Connection
-  , Connection
+    Connection
   , Request(..)
   , defaultRequest
   , Response(..)
+  , withConnection
   , withResponse
   ) where
 
+import qualified Control.Exception as E
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad (void, forever)
@@ -122,14 +123,23 @@ withResponse conn req f = do
 
 ----------------------------------------------------------------
 
-openHTTP2Connection :: Socket -> IO Connection
+withConnection :: Socket -> (Connection -> IO a) -> IO a
+withConnection sock body = E.bracket (openHTTP2Connection sock)
+                                     teardown
+                                     (\(conn,_,_) -> body conn)
+  where
+    teardown (_,tid1,tid2) = do
+        killThread tid1
+        killThread tid2
+
+openHTTP2Connection :: Socket -> IO (Connection, ThreadId, ThreadId)
 openHTTP2Connection sock = do
     exchangeSettings sock
     (enc,dec) <- newDynamicTables
     conn@Connection{..} <- newConnection
-    _ <- forkIO $ sender   enc (sendFrame sock) requestQ
-    _ <- forkIO $ receiver dec (recvFrame sock) responseQTable
-    return conn
+    tid1 <- forkIO $ sender   enc (sendFrame sock) requestQ
+    tid2 <- forkIO $ receiver dec (recvFrame sock) responseQTable
+    return (conn,tid1,tid2)
 
 exchangeSettings :: Socket -> IO ()
 exchangeSettings sock = do
