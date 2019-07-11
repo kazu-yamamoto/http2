@@ -29,6 +29,39 @@ import Network.HTTP2
 
 ----------------------------------------------------------------
 
+data Request = Request {
+      requestMethod    :: Method
+    , requestAuthority :: ByteString
+    , requestPath      :: ByteString
+    , requestScheme    :: ByteString
+    , requestHeaders   :: RequestHeaders
+    , requestBody      :: ByteString
+    }
+
+defaultRequest :: Request
+defaultRequest = Request {
+      requestMethod    = methodGet
+    , requestAuthority = "127.0.0.1"
+    , requestPath      = "/"
+    , requestScheme    = "http"
+    , requestHeaders   = []
+    , requestBody      = ""
+    }
+
+----------------------------------------------------------------
+
+data Response = Response {
+    responseStatus :: Status
+  , responseHeader :: HeaderTable
+  , responseBody   :: [ByteString]
+  } deriving Eq
+
+instance Show Response where
+    show (Response st (thl,_) body) =
+        "Response " ++ show (statusCode st) ++ " " ++ show thl ++ " " ++ show body
+
+----------------------------------------------------------------
+
 data Connection = Connection {
     streamNumber   :: TVar Int
   , requestQ       :: RequestQ
@@ -49,6 +82,43 @@ type RecvFrame = IO Frame
 
 type EncodeHeader = HeaderList -> IO ByteString
 type DecodeHeader = ByteString -> IO HeaderTable
+
+----------------------------------------------------------------
+
+newStream :: Connection -> Request -> IO ResponseQ
+newStream Connection{..} req = atomically $ do
+    n <- readTVar streamNumber
+    let n' = n + 2
+    writeTVar streamNumber n'
+    rspQ <- newTQueue
+    modifyTVar' responseQTable $ \q -> I.insert n rspQ q
+    writeTQueue requestQ (n,req)
+    return rspQ
+
+withResponse :: Connection -> Request -> (Response -> IO a) -> IO a
+withResponse conn req f = do
+    q <- newStream conn req
+    response <- recvResponse q
+    f response
+  where
+    recvResponse q = do
+        Header end ht@(_,vt) <- atomically $ readTQueue q
+        let Just status = HPACK.getHeaderValue tokenStatus vt
+            st = toEnum $ read $ C8.unpack status
+        if end then
+            return $ Response st ht []
+          else do
+            body <- recvResponseBody q
+            return $ Response st ht body
+    recvResponseBody q = go id
+      where
+        go builder = do
+            Body end dat <- atomically $ readTQueue q
+            let builder' = (dat :) . builder
+            if end then do
+                return $ builder' []
+              else
+                go builder'
 
 ----------------------------------------------------------------
 
@@ -146,70 +216,3 @@ initialSettingFrame = SettingsFrame [
 
 ackSettingsFrame :: FramePayload
 ackSettingsFrame = SettingsFrame []
-
-----------------------------------------------------------------
-
-data Request = Request {
-      requestMethod    :: Method
-    , requestAuthority :: ByteString
-    , requestPath      :: ByteString
-    , requestScheme    :: ByteString
-    , requestHeaders   :: RequestHeaders
-    , requestBody      :: ByteString
-    }
-
-defaultRequest :: Request
-defaultRequest = Request {
-      requestMethod    = methodGet
-    , requestAuthority = "127.0.0.1"
-    , requestPath      = "/"
-    , requestScheme    = "http"
-    , requestHeaders   = []
-    , requestBody      = ""
-    }
-
-----------------------------------------------------------------
-
-data Response = Response {
-    responseStatus :: Status
-  , responseHeader :: HeaderTable
-  , responseBody   :: [ByteString]
-  } deriving Eq
-
-instance Show Response where
-    show (Response st (thl,_) body) =
-        "Response " ++ show (statusCode st) ++ " " ++ show thl ++ " " ++ show body
-
-----------------------------------------------------------------
-
-withResponse :: Connection -> Request -> (Response -> IO a) -> IO a
-withResponse Connection{..} req f = do
-    q <- atomically $ do
-        n <- readTVar streamNumber
-        let n' = n + 2
-        writeTVar streamNumber n'
-        rspQ <- newTQueue
-        modifyTVar' responseQTable $ \q -> I.insert n rspQ q
-        writeTQueue requestQ (n,req)
-        return rspQ
-    response <- recvResponse q
-    f response
-  where
-    recvResponse q = do
-        Header end ht@(_,vt) <- atomically $ readTQueue q
-        let Just status = HPACK.getHeaderValue tokenStatus vt
-            st = toEnum $ read $ C8.unpack status
-        if end then
-            return $ Response st ht []
-          else do
-            body <- recvResponseBody q
-            return $ Response st ht body
-    recvResponseBody q = go id
-      where
-        go builder = do
-            Body end dat <- atomically $ readTQueue q
-            let builder' = (dat :) . builder
-            if end then do
-                return $ builder' []
-              else
-                go builder'
