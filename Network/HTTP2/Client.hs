@@ -28,6 +28,7 @@ import Network.HTTP.Types
 import Network.HTTP2
 
 ----------------------------------------------------------------
+
 data Connection = Connection {
     streamNumber   :: TVar Int
   , requestQ       :: RequestQ
@@ -51,10 +52,14 @@ type DecodeHeader = ByteString -> IO HeaderTable
 
 ----------------------------------------------------------------
 
-newConnection :: IO Connection
-newConnection = Connection <$> newTVarIO 1
-                           <*> newTQueueIO
-                           <*> newTVarIO I.empty
+openHTTP2Connection :: Socket -> IO Connection
+openHTTP2Connection sock = do
+    exchangeSettings sock
+    (enc,dec) <- newDynamicTables
+    conn@Connection{..} <- newConnection
+    _ <- forkIO $ sender   enc (sendFrame sock) requestQ
+    _ <- forkIO $ receiver dec (recvFrame sock) responseQTable
+    return conn
 
 exchangeSettings :: Socket -> IO ()
 exchangeSettings sock = do
@@ -64,19 +69,18 @@ exchangeSettings sock = do
     void $ recvFrame sock
     sendFrame sock setAck 0 ackSettingsFrame
 
-openHTTP2Connection :: Socket -> IO Connection
-openHTTP2Connection sock = do
+newDynamicTables :: IO (EncodeHeader, DecodeHeader)
+newDynamicTables = do
     etbl <- HPACK.newDynamicTableForEncoding HPACK.defaultDynamicTableSize
     dtbl <- HPACK.newDynamicTableForDecoding HPACK.defaultDynamicTableSize 4096
-    exchangeSettings sock
     let enc = HPACK.encodeHeader HPACK.defaultEncodeStrategy 4096 etbl
         dec = HPACK.decodeTokenHeader dtbl
-        send = sendFrame sock
-        recv = recvFrame sock
-    conn@Connection{..} <- newConnection
-    _ <- forkIO $ receiver dec recv responseQTable
-    _ <- forkIO $ sender   enc send requestQ
-    return conn
+    return (enc, dec)
+
+newConnection :: IO Connection
+newConnection = Connection <$> newTVarIO 1
+                           <*> newTQueueIO
+                           <*> newTVarIO I.empty
 
 sendFrame :: Socket -> (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
 sendFrame sock func sid payload = do
