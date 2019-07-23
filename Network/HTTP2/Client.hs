@@ -57,13 +57,14 @@ defaultRequest = Request {
 
 -- | HTTP\/2 response for clients.
 data Response = Response {
-    responseStatus :: Status
-  , responseHeader :: HeaderTable
-  , responseBody   :: IO ByteString
+    responseStatus  :: Status
+  , responseHeader  :: HeaderTable
+  , responseBody    :: IO ByteString
+  , responseTrailer :: IORef (Maybe HeaderTable)
   }
 
 instance Show Response where
-    show (Response st (thl,_) _body) =
+    show (Response st (thl,_) _body _tref) =
         "Response " ++ show (statusCode st) ++ " " ++ show thl ++ " "
 
 ----------------------------------------------------------------
@@ -122,21 +123,29 @@ withResponse conn req f = do
         RspHeader end ht@(_,vt) <- atomically $ readTQueue q
         let Just status = HPACK.getHeaderValue tokenStatus vt
             st = toEnum $ read $ C8.unpack status
+        trailerRef <- IORef.newIORef Nothing
         if end then
-            return $ Response st ht $ return ""
+            return $ Response st ht (return "") trailerRef
           else do
-            ref <- IORef.newIORef False
-            return $ Response st ht $ recvResponseBody q ref
+            endRef <- IORef.newIORef False
+            return $ Response st ht (recvResponseBody q endRef trailerRef) trailerRef
 
-recvResponseBody :: ResponseQ -> IORef Bool -> IO ByteString
-recvResponseBody q ref = do
-    finished <- IORef.readIORef ref
+recvResponseBody :: ResponseQ -> IORef Bool -> IORef (Maybe HeaderTable)
+                 -> IO ByteString
+recvResponseBody q endRef trailerRef = do
+    finished <- IORef.readIORef endRef
     if finished then
         return ""
       else do
-        RspBody end dat <- atomically $ readTQueue q
-        when end $ IORef.writeIORef ref True
-        return dat
+        rsp <- atomically $ readTQueue q
+        case rsp of
+          RspBody end dat -> do
+              when end $ IORef.writeIORef endRef True
+              return dat
+          RspHeader _end ht -> do -- fixme: not suport continuation
+              IORef.writeIORef endRef True
+              IORef.writeIORef trailerRef $ Just ht
+              return ""
 
 ----------------------------------------------------------------
 
