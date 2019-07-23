@@ -39,7 +39,7 @@ data Request = Request {
     , requestPath      :: ByteString
     , requestScheme    :: ByteString
     , requestHeaders   :: RequestHeaders
-    , requestBody      :: ByteString
+    , requestBody      :: IO ByteString
     }
 
 -- | Default request.
@@ -50,7 +50,7 @@ defaultRequest = Request {
     , requestPath      = "/"
     , requestScheme    = "http"
     , requestHeaders   = []
-    , requestBody      = ""
+    , requestBody      = return ""
     }
 
 ----------------------------------------------------------------
@@ -75,13 +75,15 @@ data Connection = Connection {
   , responseQTable :: ResponseQTable
   }
 
-type RequestQ  = TQueue (StreamId, Request)
+type RequestQ  = TQueue Req
 type ResponseQ = TQueue Rsp
 type ResponseQTable = TVar (IntMap ResponseQ)
 
-data Rsp = Header  EndOfStream HeaderTable
-         | Body    EndOfStream ByteString
---         | Trailer EndOfStream HeaderTable
+data Req = ReqHeader StreamId Request
+         | ReqBody   StreamId ByteString (IO ByteString)
+data Rsp = RspHeader  EndOfStream HeaderTable
+         | RspBody    EndOfStream ByteString
+--       | RspTrailer EndOfStream HeaderTable
 type EndOfStream = Bool
 
 type SendFrame = (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
@@ -99,7 +101,7 @@ newStream Connection{..} req = atomically $ do
     writeTVar streamNumber n'
     rspQ <- newTQueue
     modifyTVar' responseQTable $ \q -> I.insert n rspQ q
-    writeTQueue requestQ (n,req)
+    writeTQueue requestQ $ ReqHeader n req
     return (n, rspQ)
 
 deleteStream :: Connection -> StreamId -> IO ()
@@ -117,7 +119,7 @@ withResponse conn req f = do
     return ret
   where
     recvResponse q = do
-        Header end ht@(_,vt) <- atomically $ readTQueue q
+        RspHeader end ht@(_,vt) <- atomically $ readTQueue q
         let Just status = HPACK.getHeaderValue tokenStatus vt
             st = toEnum $ read $ C8.unpack status
         if end then
@@ -132,7 +134,7 @@ recvResponseBody q ref = do
     if finished then
         return ""
       else do
-        Body end dat <- atomically $ readTQueue q
+        RspBody end dat <- atomically $ readTQueue q
         when end $ IORef.writeIORef ref True
         return dat
 
@@ -197,15 +199,29 @@ recvFrame sock = do
 
 sender :: EncodeHeader -> SendFrame -> RequestQ -> IO ()
 sender enc send requestQ = forever $ do
-    (sid, Request m a p s h _b) <- atomically $ readTQueue requestQ
-    let hdr = (":method", m)
-            : (":authority", a)
-            : (":path", p)
-            : (":scheme", s)
-            : h
-        hdr' = map (\(k,v) -> (CI.foldedCase k,v)) hdr
-    hdrblk <- enc hdr'
-    send (setEndHeader.setEndStream) sid $ HeadersFrame Nothing hdrblk
+    req <- atomically $ readTQueue requestQ
+    case req of
+      ReqHeader sid (Request m a p s h body) -> do
+          let hdr = (":method", m)
+                  : (":authority", a)
+                  : (":path", p)
+                  : (":scheme", s)
+                  : h
+              hdr' = map (\(k,v) -> (CI.foldedCase k,v)) hdr
+          hdrblk <- enc hdr'
+          bs1 <- body
+          if bs1 == "" then
+              send (setEndHeader.setEndStream) sid $ HeadersFrame Nothing hdrblk
+            else do
+              send setEndHeader sid $ HeadersFrame Nothing hdrblk
+              atomically $ writeTQueue requestQ $ ReqBody sid bs1 body
+      ReqBody sid bs0 body -> do
+          bs1 <- body
+          if bs1 == "" then
+              send setEndStream sid $ DataFrame bs0
+            else do
+              send id sid $ DataFrame bs0
+              atomically $ writeTQueue requestQ $ ReqBody sid bs1 body
 
 ----------------------------------------------------------------
 
@@ -219,11 +235,11 @@ receiver dec recv qtbl = forever $ do
       Just responseQ -> case framePayload of
           DataFrame bs -> do
               let endStream = testEndStream flags
-              atomically $ writeTQueue responseQ $ Body endStream bs
+              atomically $ writeTQueue responseQ $ RspBody endStream bs
           HeadersFrame _ hdrblk -> do
               header <- dec hdrblk
               let endStream = testEndStream flags
-              atomically $ writeTQueue responseQ $ Header endStream header
+              atomically $ writeTQueue responseQ $ RspHeader endStream header
           PriorityFrame _ -> return ()
           RSTStreamFrame _ -> return ()
           SettingsFrame _ -> return ()
