@@ -10,13 +10,15 @@ module Network.HTTP2.Client (
   , withResponse
   ) where
 
-import qualified Control.Exception as E
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Monad (void, forever)
+import qualified Control.Exception as E
+import Control.Monad (void, forever, when)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
+import Data.IORef (IORef)
+import qualified Data.IORef as IORef
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as I
 import Network.Socket hiding (Stream)
@@ -57,12 +59,12 @@ defaultRequest = Request {
 data Response = Response {
     responseStatus :: Status
   , responseHeader :: HeaderTable
-  , responseBody   :: [ByteString]
-  } deriving Eq
+  , responseBody   :: IO ByteString
+  }
 
 instance Show Response where
-    show (Response st (thl,_) body) =
-        "Response " ++ show (statusCode st) ++ " " ++ show thl ++ " " ++ show body
+    show (Response st (thl,_) _body) =
+        "Response " ++ show (statusCode st) ++ " " ++ show thl ++ " "
 
 ----------------------------------------------------------------
 
@@ -119,19 +121,20 @@ withResponse conn req f = do
         let Just status = HPACK.getHeaderValue tokenStatus vt
             st = toEnum $ read $ C8.unpack status
         if end then
-            return $ Response st ht []
+            return $ Response st ht $ return ""
           else do
-            body <- recvResponseBody q
-            return $ Response st ht body
-    recvResponseBody q = go id
-      where
-        go builder = do
-            Body end dat <- atomically $ readTQueue q
-            let builder' = (dat :) . builder
-            if end then do
-                return $ builder' []
-              else
-                go builder'
+            ref <- IORef.newIORef False
+            return $ Response st ht $ recvResponseBody q ref
+
+recvResponseBody :: ResponseQ -> IORef Bool -> IO ByteString
+recvResponseBody q ref = do
+    finished <- IORef.readIORef ref
+    if finished then
+        return ""
+      else do
+        Body end dat <- atomically $ readTQueue q
+        when end $ IORef.writeIORef ref True
+        return dat
 
 ----------------------------------------------------------------
 
