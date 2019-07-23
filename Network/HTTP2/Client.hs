@@ -13,7 +13,7 @@ module Network.HTTP2.Client (
 import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import Control.Monad (void, forever, when)
+import Control.Monad (void, forever)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
@@ -139,9 +139,15 @@ recvResponseBody q endRef trailerRef = do
       else do
         rsp <- atomically $ readTQueue q
         case rsp of
-          RspBody end dat -> do
-              when end $ IORef.writeIORef endRef True
-              return dat
+          RspBody end dat
+            | end -> do
+                  IORef.writeIORef endRef True
+                  return dat
+            | otherwise -> do
+                  if dat == "" then
+                       recvResponseBody q endRef trailerRef
+                     else
+                       return dat
           RspHeader _end ht -> do -- fixme: not suport continuation
               IORef.writeIORef endRef True
               IORef.writeIORef trailerRef $ Just ht
