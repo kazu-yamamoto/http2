@@ -135,6 +135,7 @@ Test-Suite spec
                         HPACK.IntegerSpec
                         HTTP2.FrameSpec
                         HTTP2.PrioritySpec
+                        HTTP2.ServerSpec
                         Imports
                         Network.HPACK
                         Network.HPACK.Builder
@@ -162,6 +163,7 @@ Test-Suite spec
                         Network.HTTP2.Priority
                         Network.HTTP2.Priority.PSQ
                         Network.HTTP2.Priority.Queue
+                        Network.HTTP2.Server
                         Network.HTTP2.Server.API
                         Network.HTTP2.Server.Config
                         Network.HTTP2.Server.Context
@@ -184,13 +186,16 @@ Test-Suite spec
                       , bytestring
                       , case-insensitive
                       , containers
+                      , cryptonite
                       , hspec >= 1.3
                       , http-types
                       , network
                       , network-byte-order
+                      , network-run
                       , psqueues
                       , stm
                       , time-manager
+                      , typed-process
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
 
