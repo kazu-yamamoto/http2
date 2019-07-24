@@ -159,6 +159,7 @@ Test-Suite spec
                         Network.HPACK.Token
                         Network.HPACK.Types
                         Network.HTTP2
+                        Network.HTTP2.Client
                         Network.HTTP2.Decode
                         Network.HTTP2.Encode
                         Network.HTTP2.Priority

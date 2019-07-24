@@ -11,7 +11,10 @@ import qualified Crypto.Hash as CH
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.ByteString.Builder (byteString)
+import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
+import Data.IORef
+import Network.HTTP.Types
 import Network.Run.TCP
 import System.Exit
 import System.Process.Typed
@@ -19,19 +22,26 @@ import Test.Hspec
 
 import Network.HPACK
 import Network.HPACK.Token
-import Network.HTTP.Types
+import qualified Network.HTTP2.Client as C
 import Network.HTTP2.Server
+
+port :: String
+port = "8080"
+
+host :: String
+host = "127.0.0.1"
 
 spec :: Spec
 spec = do
     describe "server" $ do
         it "passes the tests of h2spec" $ do
             tid <- forkIO echoServer
-            runProcess (proc "h2spec" ["-h","127.0.0.1","-p","8080"]) `shouldReturn` ExitSuccess
+            runProcess (proc "h2spec" ["-h",host,"-p",port]) `shouldReturn` ExitSuccess
+            client `shouldReturn` Just "da39a3ee5e6b4b0d3255bfef95601890afd80709"
             killThread tid
 
 echoServer :: IO ()
-echoServer = runTCPServer (Just "127.0.0.1") "8080" runHTTP2Server
+echoServer = runTCPServer (Just host) port runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
                                  (`run` server)
@@ -74,3 +84,15 @@ trailersMaker ctx Nothing = return $ Trailers [("X-SHA1", sha1)]
 trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
   where
     !ctx' = CH.hashUpdate ctx bs
+
+request :: C.Request
+request = C.defaultRequest{ C.requestAuthority = pack host }
+
+client :: IO (Maybe HeaderValue)
+client = runTCPClient host port $ \sock -> C.withConnection sock $ \conn -> do
+    C.withResponse conn request { C.requestMethod = methodPost } $ \rsp -> do
+        _ <- C.responseBody rsp
+        mht <- readIORef (C.responseTrailer rsp)
+        return $ case mht of
+          Nothing     -> Nothing
+          Just (ht,_) -> Just (snd (Prelude.head ht))
