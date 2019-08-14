@@ -31,10 +31,10 @@ spec = do
             killThread tid
 
 echoServer :: IO ()
-echoServer = runTCPServer (Just "127.0.0.1") "8080" $ \s _peer -> runHTTP2Server s
+echoServer = runTCPServer (Just "127.0.0.1") "8080" runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
-                                 (\config -> run config server)
+                                 (`run` server)
                                  freeSimpleConfig
     server req _aux sendResponse = case getHeaderValue tokenMethod vt of
       Just "GET"  -> sendResponse responseHello []

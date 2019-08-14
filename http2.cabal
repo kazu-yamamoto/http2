@@ -191,7 +191,7 @@ Test-Suite spec
                       , http-types
                       , network
                       , network-byte-order
-                      , network-run
+                      , network-run >= 0.1.0
                       , psqueues
                       , stm
                       , time-manager
