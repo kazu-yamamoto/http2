@@ -3,6 +3,8 @@
 module Network.HPACK.HeaderBlock.Encode (
     encodeHeader
   , encodeTokenHeader
+  , encodeString
+  , encodeS
   ) where
 
 import Control.Exception (bracket, throwIO)
@@ -15,8 +17,8 @@ import Foreign.Ptr (minusPtr)
 import Network.ByteOrder
 
 import Imports
-import qualified Network.HPACK.HeaderBlock.Integer as I
-import qualified Network.HPACK.Huffman as Huffman
+import Network.HPACK.HeaderBlock.Integer
+import Network.HPACK.Huffman
 import Network.HPACK.Table
 import Network.HPACK.Token
 import Network.HPACK.Types
@@ -189,69 +191,86 @@ literalHeaderFieldWithoutIndexingNewName' _ wbuf huff k v =
 
 {-# INLINE change #-}
 change :: WriteBuffer -> Int -> IO ()
-change wbuf i = I.encode wbuf set001 5 i
+change wbuf i = encodeI wbuf set001 5 i
 
 {-# INLINE index #-}
 index :: WriteBuffer -> Int -> IO ()
-index wbuf i = I.encode wbuf set1 7 i
+index wbuf i = encodeI wbuf set1 7 i
 
 -- Using Huffman encoding
 {-# INLINE indexedName #-}
 indexedName :: WriteBuffer -> Bool -> Int -> Setter -> HeaderValue -> Index -> IO ()
 indexedName wbuf huff n set v idx = do
-    I.encode wbuf set n idx
-    encodeString huff v wbuf
+    encodeI wbuf set n idx
+    encStr wbuf huff v
 
 -- Using Huffman encoding
 {-# INLINE newName #-}
 newName :: WriteBuffer -> Bool -> Setter -> HeaderName -> HeaderValue -> IO ()
 newName wbuf huff set k v = do
     write8 wbuf $ set 0
-    encodeString huff k wbuf
-    encodeString huff v wbuf
+    encStr wbuf huff k
+    encStr wbuf huff v
 
 ----------------------------------------------------------------
 
 type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
-set1, set01, set001, set0000, setH :: Setter
+set1, set01, set001, set0000 :: Setter
 set1    x = x `setBit` 7
 set01   x = x `setBit` 6
 set001  x = x `setBit` 5
 -- set0001 x = x `setBit` 4 -- Never indexing
 set0000 = id
-setH = set1
 
 ----------------------------------------------------------------
 
-{-# INLINE encodeString #-}
-encodeString :: Bool -> ByteString -> WriteBuffer -> IO ()
-encodeString False bs wbuf = do
+-- | String encoding.
+--   The algorithm based on copy avoidance and
+--   selection of better result of huffman or raw.
+encodeS :: WriteBuffer
+        -> Bool             -- ^ Use Huffman if efficient
+        -> (Word8 -> Word8) -- ^ Setting prefix
+        -> (Word8 -> Word8) -- ^ Setting huffman flag
+        -> Int              -- ^ N+
+        -> ByteString       -- ^ Target
+        -> IO ()
+encodeS wbuf False set _ n bs = do
     let !len = BS.length bs
-    I.encode wbuf id 7 len
+    encodeI wbuf set n len
     copyByteString wbuf bs
-encodeString True  bs wbuf = do
+encodeS wbuf True  set setH n bs = do
     let !origLen = BS.length bs
         !expectedLen = (origLen `div` 10) * 8 -- 80%: decided by examples
-        !expectedIntLen = integerLength expectedLen
+        !expectedIntLen = integerLength n expectedLen
     ff wbuf expectedIntLen
-    len <- Huffman.encode wbuf bs
-    let !intLen = integerLength len
+    len <- encodeH wbuf bs
+    let !intLen = integerLength n len
     if origLen < len then do
         ff wbuf (negate (expectedIntLen + len))
-        I.encode wbuf id 7 origLen
+        encodeI wbuf set n origLen
         copyByteString wbuf bs
       else if intLen == expectedIntLen then do
         ff wbuf (negate (expectedIntLen + len))
-        I.encode wbuf setH 7 len
+        encodeI wbuf (set . setH) n len
         ff wbuf len
       else do
         let !gap = intLen - expectedIntLen
         shiftLastN wbuf gap len
         ff wbuf (negate (intLen + len))
-        I.encode wbuf setH 7 len
+        encodeI wbuf (set . setH) n  len
         ff wbuf len
+
+{-# INLINE encStr #-}
+encStr :: WriteBuffer -> Bool -> ByteString -> IO ()
+encStr wbuf h bs = encodeS wbuf h id (`setBit` 7) 7 bs
+
+-- | String encoding (7+) with a temporary buffer whose size is 4096.
+encodeString :: Bool       -- ^ Use Huffman if efficient
+             -> ByteString -- ^ Target
+             -> IO ByteString
+encodeString h bs = withWriteBuffer 4096 $ \wbuf -> encStr wbuf h bs
 
 {-
 N+   1   2     3 <- bytes
@@ -264,9 +283,38 @@ N+   1   2     3 <- bytes
 2    2 130 16386
 1    0 128 16384
 -}
+
 {-# INLINE integerLength #-}
-integerLength :: Int -> Int
-integerLength n
-    | n <= 126  = 1
-    | n <= 254  = 2
-    | otherwise = 3
+integerLength :: Int -> Int -> Int
+integerLength 8 l
+  | l <= 254  = 1
+  | l <= 382  = 2
+  | otherwise = 3
+integerLength 7 l
+  | l <= 126  = 1
+  | l <= 254  = 2
+  | otherwise = 3
+integerLength 6 l
+  | l <=  62  = 1
+  | l <= 190  = 2
+  | otherwise = 3
+integerLength 5 l
+  | l <=  30  = 1
+  | l <= 158  = 2
+  | otherwise = 3
+integerLength 4 l
+  | l <=  14  = 1
+  | l <= 142  = 2
+  | otherwise = 3
+integerLength 3 l
+  | l <=   6  = 1
+  | l <= 134  = 2
+  | otherwise = 3
+integerLength 2 l
+  | l <=   2  = 1
+  | l <= 130  = 2
+  | otherwise = 3
+integerLength _ l
+  | l <=   0  = 1
+  | l <= 128  = 2
+  | otherwise = 3

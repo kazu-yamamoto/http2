@@ -1,12 +1,10 @@
 module Network.HPACK.Huffman (
-  -- * Type
-    HuffmanEncoding
-  , HuffmanDecoding
-  -- * Encoding/decoding
-  , encode
+  -- * Huffman encoding/decoding
+    encodeH
   , encodeHuffman
-  , decode
+  , decodeH
   , decodeHuffman
+  , HuffmanDecoder
   ) where
 
 import Network.HPACK.Huffman.Decode

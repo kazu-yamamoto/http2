@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Decode (
     decodeHeader
@@ -7,9 +7,11 @@ module Network.HPACK.HeaderBlock.Decode (
   , HeaderTable
   , toHeaderTable
   , getHeaderValue
+  , decodeString
+  , decodeS
   ) where
 
-import Control.Exception (throwIO)
+import Control.Exception (throwIO, catch)
 import Data.Array (Array)
 import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import qualified Data.Array.IO as IOA
@@ -22,7 +24,7 @@ import Network.ByteOrder
 
 import Imports hiding (empty)
 import Network.HPACK.Builder
-import qualified Network.HPACK.HeaderBlock.Integer as I
+import Network.HPACK.HeaderBlock.Integer
 import Network.HPACK.Huffman
 import Network.HPACK.Table
 import Network.HPACK.Token
@@ -67,7 +69,8 @@ decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
 decodeTokenHeader :: DynamicTable
                   -> ByteString -- ^ An HPACK format
                   -> IO HeaderTable
-decodeTokenHeader dyntbl inp = decodeHPACK dyntbl inp decodeSophisticated
+decodeTokenHeader dyntbl inp =
+    decodeHPACK dyntbl inp decodeSophisticated `catch` \BufferOverrun -> throwIO HeaderBlockTruncated
 
 decodeHPACK :: DynamicTable
             -> ByteString
@@ -76,17 +79,13 @@ decodeHPACK :: DynamicTable
 decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
   where
     chkChange rbuf = do
-        leftover <- remainingSize rbuf
-        if leftover >= 1 then do
-            w <- read8 rbuf
-            if isTableSizeUpdate w then do
-                tableSizeUpdate dyntbl w rbuf
-                chkChange rbuf
-              else do
-                ff rbuf (-1)
-                dec dyntbl rbuf
-          else
-            throwIO HeaderBlockTruncated
+        w <- read8 rbuf
+        if isTableSizeUpdate w then do
+            tableSizeUpdate dyntbl w rbuf
+            chkChange rbuf
+          else do
+            ff rbuf (-1)
+            dec dyntbl rbuf
 
 decodeSimple :: DynamicTable -> ReadBuffer -> IO HeaderList
 decodeSimple dyntbl rbuf = go empty
@@ -95,12 +94,12 @@ decodeSimple dyntbl rbuf = go empty
         leftover <- remainingSize rbuf
         if leftover >= 1 then do
             w <- read8 rbuf
-            !tv <- toTokenHeader dyntbl w rbuf
+            tv <- toTokenHeader dyntbl w rbuf
             let builder' = builder << tv
             go builder'
           else do
-            let !tvs = run builder
-                !kvs = map (\(t,v) -> let !k = tokenFoldedKey t in (k,v)) tvs
+            let tvs = run builder
+                kvs = map (\(t,v) -> let k = tokenFoldedKey t in (k,v)) tvs
             return kvs
 
 decodeSophisticated :: DynamicTable -> ReadBuffer
@@ -108,7 +107,7 @@ decodeSophisticated :: DynamicTable -> ReadBuffer
 decodeSophisticated dyntbl rbuf = do
     -- using maxTokenIx to reduce condition
     arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
-    !tvs <- pseudoNormal arr
+    tvs <- pseudoNormal arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
   where
@@ -119,7 +118,7 @@ decodeSophisticated dyntbl rbuf = do
             leftover <- remainingSize rbuf
             if leftover >= 1 then do
                 w <- read8 rbuf
-                tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
+                tv@(Token{..},v) <- toTokenHeader dyntbl w rbuf
                 if isPseudo then do
                     mx <- unsafeRead arr ix
                     when (isJust mx) $ throwIO IllegalHeaderName
@@ -136,11 +135,11 @@ decodeSophisticated dyntbl rbuf = do
                         normal (empty << tv) empty
               else
                 return []
-        normal !builder !cookie = do
+        normal builder cookie = do
             leftover <- remainingSize rbuf
             if leftover >= 1 then do
                 w <- read8 rbuf
-                tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
+                tv@(Token{..},v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
                 when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
@@ -150,13 +149,13 @@ decodeSophisticated dyntbl rbuf = do
                   else
                     normal (builder << tv) cookie
               else do
-                let !tvs0 = run builder
-                    !cook = run cookie
+                let tvs0 = run builder
+                    cook = run cookie
                 if null cook then
                     return tvs0
                   else do
-                    let !v = BS.intercalate "; " cook
-                        !tvs = (tokenCookie, v) : tvs0
+                    let v = BS.intercalate "; " cook
+                        tvs = (tokenCookie, v) : tvs0
                     unsafeWrite arr cookieTokenIx (Just v)
                     return tvs
 
@@ -170,8 +169,8 @@ toTokenHeader dyntbl w rbuf
 
 tableSizeUpdate :: DynamicTable -> Word8 -> ReadBuffer -> IO ()
 tableSizeUpdate dyntbl w rbuf = do
-    let !w' = mask5 w
-    !siz <- I.decode 5 w' rbuf
+    let w' = mask5 w
+    siz <- decodeI 5 w' rbuf
     suitable <- isSuitableSize siz dyntbl
     unless suitable $ throwIO TooLargeTableSize
     renewDynamicTable siz dyntbl
@@ -180,8 +179,8 @@ tableSizeUpdate dyntbl w rbuf = do
 
 indexed :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 indexed dyntbl w rbuf = do
-    let !w' = clearBit w 7
-    !idx <- I.decode 7 w' rbuf
+    let w' = clearBit w 7
+    idx <- decodeI 7 w' rbuf
     entryTokenHeader <$> toIndexedEntry dyntbl idx
 
 incrementalIndexing :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
@@ -190,7 +189,7 @@ incrementalIndexing dyntbl w rbuf = do
                     indexedName dyntbl w rbuf 6 mask6
                 else
                     newName dyntbl rbuf
-    let !e = toEntryToken t v
+    let e = toEntryToken t v
     insertEntry e dyntbl
     return tv
 
@@ -210,33 +209,52 @@ indexedName :: DynamicTable -> Word8 -> ReadBuffer
             -> Int -> (Word8 -> Word8)
             -> IO TokenHeader
 indexedName dyntbl w rbuf n mask = do
-    let !p = mask w
-    !idx <- I.decode n p rbuf
-    !t <- entryToken <$> toIndexedEntry dyntbl idx
-    !val <- headerStuff dyntbl rbuf
-    let !tv = (t,val)
+    let p = mask w
+    idx <- decodeI n p rbuf
+    t <- entryToken <$> toIndexedEntry dyntbl idx
+    val <- decStr (huffmanDecoder dyntbl) rbuf
+    let tv = (t,val)
     return tv
 
 newName :: DynamicTable -> ReadBuffer -> IO TokenHeader
 newName dyntbl rbuf = do
-    !t <- toToken <$> headerStuff dyntbl rbuf
-    !val <- headerStuff dyntbl rbuf
-    let !tv = (t,val)
+    let hufdec = huffmanDecoder dyntbl
+    t <- toToken <$> decStr hufdec rbuf
+    val <- decStr hufdec rbuf
+    let tv = (t,val)
     return tv
 
 ----------------------------------------------------------------
 
-headerStuff :: DynamicTable -> ReadBuffer -> IO HeaderStuff
-headerStuff dyntbl rbuf = do
-    leftover <- remainingSize rbuf
-    if leftover >= 1 then do
-        w <- read8 rbuf
-        let !p = dropHuffman w
-            !huff = isHuffman w
-        !len <- I.decode 7 p rbuf
-        decodeString huff (huffmanDecoder dyntbl) rbuf len
+isHuffman :: Word8 -> Bool
+isHuffman w = w `testBit` 7
+
+dropHuffman :: Word8 -> Word8
+dropHuffman w = w `clearBit` 7
+
+-- | String decoding (7+) with a temporal Huffman decoder whose buffer is 4096.
+decodeString :: ReadBuffer -> IO ByteString
+decodeString rbuf = snd <$> withWriteBuffer' 4096
+  (\wbuf -> decodeS dropHuffman isHuffman (decodeH wbuf) rbuf)
+
+decStr :: HuffmanDecoder -> ReadBuffer -> IO ByteString
+decStr = decodeS dropHuffman isHuffman
+
+-- | String decoding with Huffman decoder.
+decodeS :: (Word8 -> Word8) -- ^ Dropping prefix
+        -> (Word8 -> Bool)  -- ^ Checking Huffman flag
+        -> HuffmanDecoder
+        -> ReadBuffer
+        -> IO ByteString
+decodeS mask isH hufdec rbuf = do
+    w <- read8 rbuf
+    let p = mask w
+        huff = isH w
+    len <- decodeI 7 p rbuf
+    if huff then
+        hufdec rbuf len
       else
-        throwIO EmptyEncodedString
+        extractByteString rbuf len
 
 ----------------------------------------------------------------
 
@@ -260,28 +278,6 @@ isTableSizeUpdate w = w .&. 0xe0 == 0x20
 
 ----------------------------------------------------------------
 
-isHuffman :: Word8 -> Bool
-isHuffman w = w `testBit` 7
-
-dropHuffman :: Word8 -> Word8
-dropHuffman w = w `clearBit` 7
-
-----------------------------------------------------------------
-
-decodeString :: Bool -> HuffmanDecoding -> ReadBuffer -> Int -> IO HeaderStuff
-decodeString huff hufdec rbuf len = do
-    leftover <- remainingSize rbuf
-    if leftover >= len then
-        if huff then
-            hufdec rbuf len
-          else
-            extractByteString rbuf len
-      else
-        throwIO HeaderBlockTruncated
-
-
-----------------------------------------------------------------
-
 -- | A pair of token list and value table.
 type HeaderTable = (TokenHeaderList, ValueTable)
 
@@ -290,7 +286,7 @@ type HeaderTable = (TokenHeaderList, ValueTable)
 toHeaderTable :: [(CI HeaderName,HeaderValue)]  -> IO HeaderTable
 toHeaderTable kvs = do
     arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
-    !tvs <- conv arr
+    tvs <- conv arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
   where
@@ -300,8 +296,8 @@ toHeaderTable kvs = do
         go :: [(CI HeaderName,HeaderValue)] -> Builder TokenHeader -> IO TokenHeaderList
         go []         builder = return $ run builder
         go ((k,v):xs) builder = do
-            let !t = toToken (foldedCase k)
+            let t = toToken (foldedCase k)
             unsafeWrite arr (tokenIx t) (Just v)
-            let !tv = (t,v)
-                !builder' = builder << tv
+            let tv = (t,v)
+                builder' = builder << tv
             go xs builder'

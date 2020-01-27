@@ -1,9 +1,9 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Integer (
-    encode
+    encodeI
   , encodeInteger
-  , decode
+  , decodeI
   , decodeInteger
   ) where
 
@@ -32,13 +32,21 @@ if I < 2^N - 1, encode I on N bits
        encode I on 8 bits
 -}
 
-encodeInteger :: Int -> Int -> IO ByteString
-encodeInteger n i = withWriteBuffer 4096 $ \wbuf -> encode wbuf id n i
+-- | Encoding integer with a temporary buffer whose size is 4096.
+encodeInteger :: Int -- ^ N+
+              -> Int -- ^ Target
+              -> IO ByteString
+encodeInteger n i = withWriteBuffer 4096 $ \wbuf -> encodeI wbuf id n i
 
 -- Using write8 is faster than using internals directly.
-{-# INLINABLE encode #-}
-encode :: WriteBuffer -> (Word8 -> Word8) -> Int -> Int -> IO ()
-encode wbuf set n i
+--
+-- | Integer encoding with a write buffer.
+{-# INLINABLE encodeI #-}
+encodeI :: WriteBuffer -> (Word8 -> Word8)
+        -> Int -- ^ N+
+        -> Int -- ^ Target
+        -> IO ()
+encodeI wbuf set n i
   | i < p     = write8 wbuf $ set $ fromIntegral i
   | otherwise = do
         write8 wbuf $ set $ fromIntegral p
@@ -77,22 +85,28 @@ decode I from the next N bits
 -- 1337
 -- >>> decodeInteger 8 42 $ BS.empty
 -- 42
-decodeInteger :: Int -> Word8 -> ByteString -> IO Int
-decodeInteger n w bs = withReadBuffer bs $ \rbuf -> decode n w rbuf
+decodeInteger :: Int        -- ^ N+
+              -> Word8      -- ^ The head of encoded integer
+              -> ByteString -- ^ The tail of encoded integer
+              -> IO Int
+decodeInteger n w bs = withReadBuffer bs $ \rbuf -> decodeI n w rbuf
 
-{-# INLINABLE decode #-}
--- | Integer decoding. The first argument is N of prefix.
-decode :: Int -> Word8 -> ReadBuffer -> IO Int
-decode n w rbuf
+{-# INLINABLE decodeI #-}
+-- | Integer decoding with a read buffer. The first argument is N of prefix.
+decodeI :: Int        -- ^ N+
+        -> Word8      -- ^ The head of encoded integer
+        -> ReadBuffer
+        -> IO Int
+decodeI n w rbuf
   | i < p     = return i
-  | otherwise = decode' 0 i
+  | otherwise = decode 0 i
   where
     !p = powerArray `unsafeAt` (n - 1)
     !i = fromIntegral w
-    decode' :: Int -> Int -> IO Int
-    decode' m j = do
+    decode :: Int -> Int -> IO Int
+    decode m j = do
         !b <- readInt8 rbuf
         let !j' = j + (b .&. 0x7f) * 2 ^ m
             !m' = m + 7
             !cont = b `testBit` 7
-        if cont then decode' m' j' else return j'
+        if cont then decode m' j' else return j'

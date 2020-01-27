@@ -2,9 +2,9 @@
 
 module Network.HPACK.Huffman.Decode (
   -- * Huffman decoding
-    HuffmanDecoding
-  , decode
+    decodeH
   , decodeHuffman
+  , HuffmanDecoder
   ) where
 
 import Control.Exception (throwIO)
@@ -22,7 +22,7 @@ import Network.HPACK.Types (DecodeError(..))
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-type HuffmanDecoding = ReadBuffer -> Int -> IO ByteString
+type HuffmanDecoder = ReadBuffer -> Int -> IO ByteString
 
 ----------------------------------------------------------------
 
@@ -44,14 +44,18 @@ next (WayStep _ a16) w = a16 `unsafeAt` fromIntegral w
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-decode :: Buffer -> BufferSize -> HuffmanDecoding
-decode buf siz rbuf len = do
-    wbuf <- newWriteBuffer buf siz
+decodeH :: WriteBuffer -- ^ A working space
+        -> ReadBuffer  -- ^ A read buffer which contains the target
+        -> Int         -- ^ The target length
+        -> IO ByteString
+decodeH wbuf rbuf len = do
     dec wbuf rbuf len
     toByteString wbuf
 
 dec :: WriteBuffer -> ReadBuffer -> Int -> IO ()
-dec wbuf rbuf len = go len (way256 `unsafeAt` 0)
+dec wbuf rbuf len = do
+    clearWriteBuffer wbuf
+    go len (way256 `unsafeAt` 0)
   where
     go 0 way0 = case way0 of
         WayStep Nothing  _ -> throwIO IllegalEos
@@ -73,9 +77,10 @@ dec wbuf rbuf len = go len (way256 `unsafeAt` 0)
             write8 wbuf v2
             return $ way256 `unsafeAt` fromIntegral n
 
+-- | Huffman decoding with a temporary buffer whose size is 4096.
 decodeHuffman :: ByteString -> IO ByteString
 decodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
-    withReadBuffer bs $ \rbuf -> dec wbuf rbuf (BS.length bs)
+    withReadBuffer bs $ \rbuf -> dec wbuf rbuf $ BS.length bs
 
 ----------------------------------------------------------------
 

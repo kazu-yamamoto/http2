@@ -31,6 +31,7 @@ import Data.Array.IO (IOArray, newArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
 import Foreign.Marshal.Alloc (mallocBytes, free)
+import Network.ByteOrder (newWriteBuffer)
 
 import Imports
 import Network.HPACK.Huffman
@@ -88,7 +89,7 @@ data CodeInfo =
                -- Otherwise, dynamic table size update is sent
                -- and this value should be set to 'Nothing'.
                !(IORef (Maybe Size))
-  | DecodeInfo !HuffmanDecoding
+  | DecodeInfo !HuffmanDecoder
                !(IORef Size)  -- The limit size
                !(IO ())       -- Action to free the buffer
 
@@ -116,7 +117,7 @@ adj maxN x
   | otherwise = let !ret = (x + maxN) `mod` maxN
                 in return ret
 
-huffmanDecoder :: DynamicTable -> HuffmanDecoding
+huffmanDecoder :: DynamicTable -> HuffmanDecoder
 huffmanDecoder DynamicTable{..} = dec
   where
     DecodeInfo dec _ _ = codeInfo
@@ -206,7 +207,8 @@ newDynamicTableForDecoding :: Size -- ^ The dynamic table size
 newDynamicTableForDecoding maxsiz huftmpsiz = do
     lim <- newIORef maxsiz
     buf <- mallocBytes huftmpsiz
-    let !decoder = decode buf huftmpsiz
+    wbuf <- newWriteBuffer buf huftmpsiz
+    let !decoder = decodeH wbuf
         !clear = free buf
         !info = DecodeInfo decoder lim clear
     newDynamicTable maxsiz info

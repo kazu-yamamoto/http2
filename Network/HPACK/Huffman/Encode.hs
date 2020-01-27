@@ -2,8 +2,7 @@
 
 module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
-    HuffmanEncoding
-  , encode
+    encodeH
   , encodeHuffman
   ) where
 
@@ -31,11 +30,10 @@ huffmanCode = listArray (0,idxEos) huffmanTable'
 ----------------------------------------------------------------
 
 -- | Huffman encoding.
-type HuffmanEncoding = WriteBuffer -> ByteString -> IO Int
-
--- | Huffman encoding.
-encode :: HuffmanEncoding
-encode dst bs = withReadBuffer bs $ enc dst
+encodeH :: WriteBuffer
+        -> ByteString -- ^ Target
+        -> IO Int     -- ^ The length of the encoded string.
+encodeH dst bs = withReadBuffer bs $ enc dst
 
 -- The maximum length of Huffman code is 30.
 -- 40 is enough as a work space.
@@ -87,6 +85,7 @@ enc WriteBuffer{..} rbuf = do
                   !o' = o + 8
               cpy p' (w',o')
 
+-- | Huffman encoding with a temporary buffer whose size is 4096.
 encodeHuffman :: ByteString -> IO ByteString
 encodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
-    void $ encode wbuf bs
+    void $ encodeH wbuf bs

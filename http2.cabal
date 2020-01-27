@@ -51,6 +51,7 @@ Library
   Default-Language:     Haskell2010
   GHC-Options:          -Wall
   Exposed-Modules:      Network.HPACK
+                        Network.HPACK.Internal
                         Network.HPACK.Table
                         Network.HPACK.Token
                         Network.HTTP2

@@ -4,7 +4,6 @@ module Network.HPACK.Types (
   -- * Header
     HeaderName
   , HeaderValue
-  , HeaderStuff
   , Header
   , HeaderList
   , TokenHeader
@@ -43,9 +42,6 @@ type Header = (HeaderName, HeaderValue)
 
 -- | Header list.
 type HeaderList = [Header]
-
--- | To be a 'HeaderName' or 'HeaderValue'.
-type HeaderStuff = ByteString
 
 -- | TokenBased header.
 type TokenHeader = (Token, HeaderValue)
