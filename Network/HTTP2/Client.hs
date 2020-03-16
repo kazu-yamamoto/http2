@@ -2,12 +2,17 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Client (
-    Connection
+  -- * Connection
+    withConnection
+  , Config(..)
+  , Send
+  , Recv
+  , Connection
+  -- * Stream
+  , withResponse
   , Request(..)
   , defaultRequest
   , Response(..)
-  , withConnection
-  , withResponse
   ) where
 
 import Control.Concurrent
@@ -21,14 +26,22 @@ import Data.IORef (IORef)
 import qualified Data.IORef as IORef
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as I
-import Network.Socket hiding (Stream)
-import qualified Network.Socket.ByteString as NSB
 
 import Network.HPACK (HeaderList, HeaderTable)
 import qualified Network.HPACK as HPACK
 import Network.HPACK.Token
 import Network.HTTP.Types
 import Network.HTTP2
+
+----------------------------------------------------------------
+
+type Send = ByteString -> IO ()
+type Recv = Int -> IO ByteString
+
+data Config = Config {
+    confSend :: Send
+  , confRecv :: Recv
+  }
 
 ----------------------------------------------------------------
 
@@ -157,8 +170,8 @@ recvResponseBody q endRef trailerRef = do
 
 -- | Creating an HTTP\/2 connection with a socket and
 --   running an action.
-withConnection :: Socket -> (Connection -> IO a) -> IO a
-withConnection sock body = E.bracket (openHTTP2Connection sock)
+withConnection :: Config -> (Connection -> IO a) -> IO a
+withConnection conf body = E.bracket (openHTTP2Connection conf)
                                      teardown
                                      (\(conn,_,_) -> body conn)
   where
@@ -166,22 +179,22 @@ withConnection sock body = E.bracket (openHTTP2Connection sock)
         killThread tid1
         killThread tid2
 
-openHTTP2Connection :: Socket -> IO (Connection, ThreadId, ThreadId)
-openHTTP2Connection sock = do
-    exchangeSettings sock
+openHTTP2Connection :: Config -> IO (Connection, ThreadId, ThreadId)
+openHTTP2Connection conf@Config{..} = do
+    exchangeSettings conf
     (enc,dec) <- newDynamicTables
     conn@Connection{..} <- newConnection
-    tid1 <- forkIO $ sender   enc (sendFrame sock) requestQ
-    tid2 <- forkIO $ receiver dec (recvFrame sock) responseQTable
+    tid1 <- forkIO $ sender   enc (sendFrame confSend) requestQ
+    tid2 <- forkIO $ receiver dec (recvFrame confRecv) responseQTable
     return (conn,tid1,tid2)
 
-exchangeSettings :: Socket -> IO ()
-exchangeSettings sock = do
-    NSB.sendAll sock connectionPreface
-    sendFrame sock id 0 initialSettingFrame
-    void $ recvFrame sock
-    void $ recvFrame sock
-    sendFrame sock setAck 0 ackSettingsFrame
+exchangeSettings :: Config -> IO ()
+exchangeSettings Config{..} = do
+    confSend connectionPreface
+    sendFrame confSend id 0 initialSettingFrame
+    void $ recvFrame confRecv
+    void $ recvFrame confRecv
+    sendFrame confSend setAck 0 ackSettingsFrame
 
 newDynamicTables :: IO (EncodeHeader, DecodeHeader)
 newDynamicTables = do
@@ -196,17 +209,17 @@ newConnection = Connection <$> newTVarIO 1
                            <*> newTQueueIO
                            <*> newTVarIO I.empty
 
-sendFrame :: Socket -> (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
-sendFrame sock func sid payload = do
+sendFrame :: Send -> (FrameFlags -> FrameFlags) -> Int -> FramePayload -> IO ()
+sendFrame send func sid payload = do
     let einfo = encodeInfo func sid
         frame = encodeFrame einfo payload
-    NSB.sendAll sock frame
+    send frame
 
-recvFrame :: Socket -> IO Frame
-recvFrame sock = do
-    (frameId, header) <- decodeFrameHeader <$> NSB.recv sock frameHeaderLength
+recvFrame :: Recv -> IO Frame
+recvFrame recv = do
+    (frameId, header) <- decodeFrameHeader <$> recv frameHeaderLength
     let len = payloadLength header
-    body <- if len == 0 then return "" else NSB.recv sock len
+    body <- if len == 0 then return "" else recv len
     let Right payload = decodeFramePayload frameId header body
     return $ Frame header payload
 
