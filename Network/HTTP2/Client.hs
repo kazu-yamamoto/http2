@@ -3,13 +3,12 @@
 
 module Network.HTTP2.Client (
   -- * Connection
-    withConnection
+    run
   , Config(..)
   , Send
   , Recv
-  , Connection
+  , Client
   -- * Stream
-  , withResponse
   , Request(..)
   , defaultRequest
   , Response(..)
@@ -122,10 +121,12 @@ deleteStream :: Connection -> StreamId -> IO ()
 deleteStream Connection{..} n = atomically $
     modifyTVar' responseQTable $ \q -> I.delete n q
 
+type Client = Request -> (Response -> IO ()) -> IO ()
+
 -- | Sending an HTTP\/2 request and passing its response
 --   to an action.
-withResponse :: Connection -> Request -> (Response -> IO a) -> IO a
-withResponse conn req f = do
+runClient :: Connection -> Client
+runClient conn req f = do
     (sid, q) <- newStream conn req
     response <- recvResponse q
     ret <- f response
@@ -170,10 +171,10 @@ recvResponseBody q endRef trailerRef = do
 
 -- | Creating an HTTP\/2 connection with a socket and
 --   running an action.
-withConnection :: Config -> (Connection -> IO a) -> IO a
-withConnection conf body = E.bracket (openHTTP2Connection conf)
-                                     teardown
-                                     (\(conn,_,_) -> body conn)
+run :: Config -> (Client -> IO ()) -> IO ()
+run conf body = E.bracket (openHTTP2Connection conf)
+                          teardown
+                          (\(conn,_,_) -> body $ runClient conn)
   where
     teardown (_,tid1,tid2) = do
         killThread tid1
