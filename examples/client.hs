@@ -1,7 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Control.Concurrent (forkIO)
-import Data.ByteString.Char8 (pack)
+import Data.ByteString ()
+import Network.HTTP.Types
 import Network.Run.TCP (runTCPClient) -- network-run
 import qualified Network.Socket.ByteString as NSB
 
@@ -14,5 +16,5 @@ main :: IO ()
 main = runTCPClient authority "80" $ \sock -> do
     let conf = Config (NSB.sendAll sock) (NSB.recv sock)
     run conf $ \client -> do
-        _ <- forkIO $ client defaultRequest{ requestAuthority = pack authority } print
-        client defaultRequest{ requestAuthority = pack authority } print
+        _ <- forkIO $ client (requestNoBody methodGet "/" []) print
+        client (requestNoBody methodGet "/" []) print

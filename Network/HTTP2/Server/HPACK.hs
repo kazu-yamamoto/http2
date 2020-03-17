@@ -13,9 +13,6 @@ module Network.HTTP2.Server.HPACK (
   ) where
 
 import qualified Control.Exception as E
-import Data.ByteString.Internal (unsafeCreate)
-import Foreign.Ptr (plusPtr)
-import Foreign.Storable (poke)
 import Network.ByteOrder
 import qualified Network.HTTP.Types as H
 
@@ -30,21 +27,8 @@ import Network.HTTP2.Server.Context
 
 ----------------------------------------------------------------
 
-fixHeaders :: H.Status -> H.ResponseHeaders -> H.ResponseHeaders
-fixHeaders st hdr = (":status", packStatus st) : deleteUnnecessaryHeaders hdr
-
-packStatus :: H.Status -> ByteString
-packStatus status = unsafeCreate 3 $ \p -> do
-    poke p               (toW8 r2)
-    poke (p `plusPtr` 1) (toW8 r1)
-    poke (p `plusPtr` 2) (toW8 r0)
-  where
-    toW8 :: Int -> Word8
-    toW8 n = 48 + fromIntegral n
-    !s = fromIntegral $ H.statusCode status
-    (!q0,!r0) = s `divMod` 10
-    (!q1,!r1) = q0 `divMod` 10
-    !r2 = q1 `mod` 10
+fixHeaders :: H.ResponseHeaders -> H.ResponseHeaders
+fixHeaders hdr = deleteUnnecessaryHeaders hdr
 
 deleteUnnecessaryHeaders :: H.ResponseHeaders -> H.ResponseHeaders
 deleteUnnecessaryHeaders hdr = filter del hdr

@@ -97,6 +97,7 @@ Library
                         Network.HTTP2.Server.Stream
                         Network.HTTP2.Server.Types
                         Network.HTTP2.Server.Worker
+                        Network.HTTP2.Types
   Build-Depends:        base >= 4.8 && < 5
                       , array
                       , bytestring >= 0.10

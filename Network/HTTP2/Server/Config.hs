@@ -6,9 +6,9 @@ import Network.Socket
 import Network.Socket.ByteString (sendAll)
 
 import Network.HPACK
-import Network.HTTP2.Server.API
 import Network.HTTP2.Server.File
 import Network.HTTP2.Server.ReadN
+import Network.HTTP2.Types
 
 {-# DEPRECATED makeSimpleConfig "Use allocSimpleConfig instead" #-}
 -- | Making configuration whose IO is not efficient.

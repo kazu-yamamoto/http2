@@ -14,6 +14,7 @@ import Network.HPACK
 import Network.HTTP2
 import Network.HTTP2.Priority
 import Network.HTTP2.Server.API
+import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 

@@ -18,7 +18,6 @@ import Imports
 import Network.HPACK (setLimitForEncoding, toHeaderTable)
 import Network.HTTP2
 import Network.HTTP2.Priority (isEmptySTM, dequeueSTM, Precedence)
-import Network.HTTP2.Server.API
 import Network.HTTP2.Server.EncodeFrame
 import Network.HTTP2.Server.HPACK
 import Network.HTTP2.Server.Manager hiding (start)
@@ -26,6 +25,7 @@ import Network.HTTP2.Server.Types
 import Network.HTTP2.Server.Queue
 import Network.HTTP2.Server.Context
 import Network.HTTP2.Server.Stream
+import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
@@ -112,7 +112,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
-    output out@(Output strm (Response _ _ _ _) (ONext curr tlrmkr) _ sentinel) off0 lim = do
+    output out@(Output strm (OutObj _ _ _) (ONext curr tlrmkr) _ sentinel) off0 lim = do
         -- Data frame payload
         let !buf = confWriteBuffer `plusPtr` off0
             !siz = confBufferSize - off0
@@ -121,34 +121,34 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
         fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out
 
-    output out@(Output strm (Response st hdr body tlrmkr) ORspn mtbq sentinel) off0 lim = do
+    output out@(Output strm (OutObj hdr body tlrmkr) ORspn mtbq sentinel) off0 lim = do
         -- Header frame and Continuation frame
         let !sid = streamNumber strm
             !endOfStream = case body of
-                RspNoBody -> True
-                _         -> False
-        (ths,_) <- toHeaderTable $ fixHeaders st hdr
+                OutBodyNone -> True
+                _           -> False
+        (ths,_) <- toHeaderTable $ fixHeaders hdr
         kvlen <- headerContinue sid ths endOfStream off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
         case body of
-            RspNoBody -> do
+            OutBodyNone -> do
                 halfClosedLocal ctx strm Finished
                 return off
-            RspFile (FileSpec path fileoff bytecount) -> do
+            OutBodyFile (FileSpec path fileoff bytecount) -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillFileBodyGetNext conf payloadOff lim path fileoff bytecount mgr confPositionReadMaker
                 NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
-            RspBuilder builder -> do
+            OutBodyBuilder builder -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillBuilderBodyGetNext conf payloadOff lim builder
                 NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
-            RspStreaming _ -> do
+            OutBodyStreaming _ -> do
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillStreamBodyGetNext conf payloadOff lim (fromJust mtbq) strm

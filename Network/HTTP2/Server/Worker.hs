@@ -27,6 +27,7 @@ import Network.HTTP2.Server.Manager
 import Network.HTTP2.Server.Queue
 import Network.HTTP2.Server.Stream
 import Network.HTTP2.Server.Types
+import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
@@ -84,19 +85,19 @@ pushStream ctx@Context{..} pstrm reqvt pps0
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> T.Handle -> ThreadContinue -> Stream -> Request -> Response -> [PushPromise] -> IO ()
-response ctx@Context{..} mgr th tconf strm req rsp pps = case responseBody rsp of
-  RspNoBody -> do
+response ctx@Context{..} mgr th tconf strm req rsp pps = case outObjBody rsp of
+  OutBodyNone -> do
       setThreadContinue tconf True
       enqueueOutput outputQ $ Output strm rsp ORspn Nothing (return ())
-  RspBuilder _ -> do
+  OutBodyBuilder _ -> do
       otyp <- pushStream ctx strm reqvt pps
       setThreadContinue tconf True
       enqueueOutput outputQ $ Output strm rsp otyp Nothing (return ())
-  RspFile _ -> do
+  OutBodyFile _ -> do
       otyp <- pushStream ctx strm reqvt pps
       setThreadContinue tconf True
       enqueueOutput outputQ $ Output strm rsp otyp Nothing (return ())
-  RspStreaming strmbdy -> do
+  OutBodyStreaming strmbdy -> do
       otyp <- pushStream ctx strm reqvt pps
       -- We must not exit this WAI application.
       -- If the application exits, streaming would be also closed.
@@ -120,7 +121,7 @@ response ctx@Context{..} mgr th tconf strm req rsp pps = case responseBody rsp o
       atomically $ writeTBQueue tbq RSFinish
       deleteMyId mgr
   where
-    (_,reqvt) = requestHeaders req
+    (_,reqvt) = inpObjHeaders req
 
 worker :: Context -> Manager -> Server -> Action
 worker ctx@Context{inputQ,controlQ} mgr server = do
@@ -154,9 +155,9 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
         cont2 <- getThreadContinue tcont
         clearStreamInfo sinfo
         when (cont1 && cont2) $ go sinfo tcont th
-    pauseRequestBody req th = req { requestBody = readBody' }
+    pauseRequestBody req th = req { inpObjBody = readBody' }
       where
-        !readBody = requestBody req
+        !readBody = inpObjBody req
         !readBody' = do
             T.pause th
             bs <- readBody

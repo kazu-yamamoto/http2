@@ -2,7 +2,7 @@ module Network.HTTP2.Server.File where
 
 import System.IO
 
-import Network.HTTP2.Server.API
+import Network.HTTP2.Types
 
 -- | Position read based on 'Handle'.
 defaultPositionReadMaker :: PositionReadMaker

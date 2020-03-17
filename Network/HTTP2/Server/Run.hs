@@ -15,6 +15,7 @@ import Network.HTTP2.Server.Receiver
 import Network.HTTP2.Server.Sender
 import Network.HTTP2.Server.Worker
 import Network.HTTP2.Server.Context
+import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 

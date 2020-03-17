@@ -32,9 +32,9 @@ module Network.HTTP2.Client (
   , Recv
   , Client
   -- * Stream
-  , Request(..)
-  , defaultRequest
-  , Response(..)
+  , Request
+  , Response
+  , requestNoBody
   ) where
 
 import Control.Concurrent
@@ -42,18 +42,17 @@ import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (void, forever)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as C8
 import qualified Data.CaseInsensitive as CI
 import Data.IORef (IORef)
 import qualified Data.IORef as IORef
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as I
-
 import Network.HPACK (HeaderList, HeaderTable)
 import qualified Network.HPACK as HPACK
-import Network.HPACK.Token
 import Network.HTTP.Types
-import Network.HTTP2
+
+import Network.HTTP2.Frame
+import Network.HTTP2.Types hiding (Config)
 
 ----------------------------------------------------------------
 
@@ -68,39 +67,12 @@ data Config = Config {
 ----------------------------------------------------------------
 
 -- | HTTP\/2 request for clients.
-data Request = Request {
-      requestMethod    :: Method
-    , requestAuthority :: ByteString
-    , requestPath      :: ByteString
-    , requestScheme    :: ByteString
-    , requestHeaders   :: RequestHeaders
-    , requestBody      :: IO ByteString
-    }
-
--- | Default request.
-defaultRequest :: Request
-defaultRequest = Request {
-      requestMethod    = methodGet
-    , requestAuthority = "127.0.0.1"
-    , requestPath      = "/"
-    , requestScheme    = "http"
-    , requestHeaders   = []
-    , requestBody      = return ""
-    }
+type Request = OutObj
 
 ----------------------------------------------------------------
 
 -- | HTTP\/2 response for clients.
-data Response = Response {
-    responseStatus  :: Status
-  , responseHeader  :: HeaderTable
-  , responseBody    :: IO ByteString
-  , responseTrailer :: IORef (Maybe HeaderTable)
-  }
-
-instance Show Response where
-    show (Response st (thl,_) _body _tref) =
-        "Response " ++ show (statusCode st) ++ " " ++ show thl ++ " "
+type Response = InpObj
 
 ----------------------------------------------------------------
 
@@ -157,15 +129,13 @@ runClient conn req f = do
     return ret
   where
     recvResponse q = do
-        RspHeader end ht@(_,vt) <- atomically $ readTQueue q
-        let Just status = HPACK.getHeaderValue tokenStatus vt
-            st = toEnum $ read $ C8.unpack status
+        RspHeader end ht@(_,_vt) <- atomically $ readTQueue q
         trailerRef <- IORef.newIORef Nothing
         if end then
-            return $ Response st ht (return "") trailerRef
+            return $ InpObj ht Nothing (return "") trailerRef
           else do
             endRef <- IORef.newIORef False
-            return $ Response st ht (recvResponseBody q endRef trailerRef) trailerRef
+            return $ InpObj ht Nothing (recvResponseBody q endRef trailerRef) trailerRef
 
 recvResponseBody :: ResponseQ -> IORef Bool -> IORef (Maybe HeaderTable)
                  -> IO ByteString
@@ -252,20 +222,10 @@ sender :: EncodeHeader -> SendFrame -> RequestQ -> IO ()
 sender enc send requestQ = forever $ do
     req <- atomically $ readTQueue requestQ
     case req of
-      ReqHeader sid (Request m a p s h body) -> do
-          let hdr = (":method", m)
-                  : (":authority", a)
-                  : (":path", p)
-                  : (":scheme", s)
-                  : h
-              hdr' = map (\(k,v) -> (CI.foldedCase k,v)) hdr
+      ReqHeader sid (OutObj hdr _body _) -> do -- fixme
+          let hdr' = map (\(k,v) -> (CI.foldedCase k,v)) hdr
           hdrblk <- enc hdr'
-          bs1 <- body
-          if bs1 == "" then
-              send (setEndHeader.setEndStream) sid $ HeadersFrame Nothing hdrblk
-            else do
-              send setEndHeader sid $ HeadersFrame Nothing hdrblk
-              atomically $ writeTQueue requestQ $ ReqBody sid bs1 body
+          send (setEndHeader.setEndStream) sid $ HeadersFrame Nothing hdrblk
       ReqBody sid bs0 body -> do
           bs1 <- body
           if bs1 == "" then
@@ -310,3 +270,14 @@ initialSettingFrame = SettingsFrame [
 
 ackSettingsFrame :: FramePayload
 ackSettingsFrame = SettingsFrame []
+
+----------------------------------------------------------------
+
+requestNoBody :: Method -> ByteString -> RequestHeaders -> Request
+requestNoBody m p hdr = OutObj hdr' OutBodyNone defaultTrailersMaker
+  where
+    hdr' = (":method", m)
+        : (":authority", "127.0.0.1") -- fixme
+        : (":path", p)
+        : (":scheme", "http") -- fixme
+        : hdr

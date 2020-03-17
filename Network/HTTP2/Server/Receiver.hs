@@ -17,13 +17,13 @@ import Network.HTTP2
 import Network.HTTP2.Priority (toPrecedence, delete, prepare)
 
 import Imports hiding (delete, insert)
-import Network.HTTP2.Server.API
 import Network.HTTP2.Server.EncodeFrame
 import Network.HTTP2.Server.HPACK
 import Network.HTTP2.Server.Types
 import Network.HTTP2.Server.Context
 import Network.HTTP2.Server.Stream
 import Network.HTTP2.Server.Queue
+import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
@@ -138,7 +138,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                       writeIORef streamPrecedence $ toPrecedence pri
                       halfClosedRemote ctx strm
                       tlr <- newIORef Nothing
-                      atomically $ writeTQueue inputQ $ Input strm $ Request tbl (Just 0) (return "") tlr
+                      atomically $ writeTQueue inputQ $ Input strm $ InpObj tbl (Just 0) (return "") tlr
                   Open (HasBody tbl@(_,reqvt) pri) -> do
                       resetContinued
                       q <- newTQueueIO
@@ -149,7 +149,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                       setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
                       readQ <- newReadBody q
                       bodySource <- mkSource readQ
-                      atomically $ writeTQueue inputQ $ Input strm $ Request tbl mcl (readSource bodySource) tlr
+                      atomically $ writeTQueue inputQ $ Input strm $ InpObj tbl mcl (readSource bodySource) tlr
                   s@(Open Continued{}) -> do
                       setContinued
                       setStreamState ctx strm s
