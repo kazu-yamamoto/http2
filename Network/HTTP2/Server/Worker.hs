@@ -36,20 +36,20 @@ pushStream :: Context
            -> ValueTable -- request
            -> [PushPromise]
            -> IO OutputType
-pushStream _ _ _ [] = return ORspn
+pushStream _ _ _ [] = return OObj
 pushStream ctx@Context{..} pstrm reqvt pps0
-  | len == 0 = return ORspn
+  | len == 0 = return OObj
   | otherwise = do
         pushable <- enablePush <$> readIORef http2settings
         if pushable then do
             tvar <- newTVarIO 0
             lim <- push tvar pps0 0
             if lim == 0 then
-              return ORspn
+              return OObj
              else
               return $ OWait (waiter lim tvar)
           else
-            return ORspn
+            return OObj
   where
     !pid = streamNumber pstrm
     !len = length pps0
@@ -88,7 +88,7 @@ response :: Context -> Manager -> T.Handle -> ThreadContinue -> Stream -> Reques
 response ctx@Context{..} mgr th tconf strm req rsp pps = case outObjBody rsp of
   OutBodyNone -> do
       setThreadContinue tconf True
-      enqueueOutput outputQ $ Output strm rsp ORspn Nothing (return ())
+      enqueueOutput outputQ $ Output strm rsp OObj Nothing (return ())
   OutBodyBuilder _ -> do
       otyp <- pushStream ctx strm reqvt pps
       setThreadContinue tconf True

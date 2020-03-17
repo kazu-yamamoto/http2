@@ -13,7 +13,6 @@ import Imports
 import Network.HPACK
 import Network.HTTP2
 import Network.HTTP2.Priority
-import Network.HTTP2.Server.API
 import Network.HTTP2.Types
 
 ----------------------------------------------------------------
@@ -75,17 +74,17 @@ newtype StreamTable = StreamTable (IORef (IntMap Stream))
 
 ----------------------------------------------------------------
 
-data Input = Input Stream Request
+data Input = Input Stream InpObj
 
 data Output = Output {
     outputStream   :: Stream
-  , outputResponse :: Response
+  , outputObject   :: OutObj
   , outputType     :: OutputType
   , outputStrmQ    :: Maybe (TBQueue RspStreaming)
   , outputSentinel :: IO ()
   }
 
-data OutputType = ORspn
+data OutputType = OObj
                 | OWait (IO ())
                 | OPush !TokenHeaderList !StreamId -- associated stream id from client
                 | ONext !DynaNext !TrailersMaker

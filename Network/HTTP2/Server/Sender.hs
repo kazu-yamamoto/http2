@@ -121,7 +121,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
         fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out
 
-    output out@(Output strm (OutObj hdr body tlrmkr) ORspn mtbq sentinel) off0 lim = do
+    output out@(Output strm (OutObj hdr body tlrmkr) OObj mtbq sentinel) off0 lim = do
         -- Header frame and Continuation frame
         let !sid = streamNumber strm
             !endOfStream = case body of
@@ -161,7 +161,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         let !sid = streamNumber strm
         len <- pushPromise pid sid ths off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + len
-        output out{outputType=ORspn} off lim
+        output out{outputType=OObj} off lim
 
     output _ _ _ = undefined -- never reach
 
@@ -173,7 +173,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
           else case otyp of
                  OWait wait -> do
                      -- Checking if all push are done.
-                     forkAndEnqueueWhenReady wait outputQ out{outputType=ORspn} mgr
+                     forkAndEnqueueWhenReady wait outputQ out{outputType=OObj} mgr
                      return off
                  _ -> case mtbq of
                         Just tbq -> checkStreaming tbq
