@@ -1,10 +1,11 @@
 module Main where
 
-import Control.Concurrent
-import Data.ByteString.Char8
-import Network.HTTP2.Client
-import Network.Run.TCP
+import Control.Concurrent (forkIO)
+import Data.ByteString.Char8 (pack)
+import Network.Run.TCP (runTCPClient) -- network-run
 import qualified Network.Socket.ByteString as NSB
+
+import Network.HTTP2.Client
 
 authority :: String
 authority = "127.0.0.1"

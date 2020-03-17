@@ -1,6 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
+-- | HTTP\/2 client library.
+--
+--  Example:
+--
+-- > module Main where
+-- >
+-- > import Control.Concurrent (forkIO)
+-- > import Data.ByteString.Char8 (pack)
+-- > import Network.Run.TCP (runTCPClient) -- network-run
+-- > import qualified Network.Socket.ByteString as NSB
+-- >
+-- > import Network.HTTP2.Client
+-- >
+-- > authority :: String
+-- > authority = "127.0.0.1"
+-- >
+-- > main :: IO ()
+-- > main = runTCPClient authority "80" $ \sock -> do
+-- >     let conf = Config (NSB.sendAll sock) (NSB.recv sock)
+-- >     run conf $ \client -> do
+-- >         _ <- forkIO $ client defaultRequest{ requestAuthority = pack authority } print
+-- >         client defaultRequest{ requestAuthority = pack authority } print
+
 module Network.HTTP2.Client (
   -- * Connection
     run
@@ -169,8 +192,7 @@ recvResponseBody q endRef trailerRef = do
 
 ----------------------------------------------------------------
 
--- | Creating an HTTP\/2 connection with a socket and
---   running an action.
+-- | Running HTTP/2 client.
 run :: Config -> (Client -> IO ()) -> IO ()
 run conf body = E.bracket (openHTTP2Connection conf)
                           teardown
