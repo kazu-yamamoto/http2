@@ -80,7 +80,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
             when cont $ loop (n + 1)
 
     processStreamGuardingError (fid, FrameHeader{streamId})
-      | isResponse streamId &&
+      | isServerInitiated streamId &&
         (fid `notElem` [FramePriority,FrameRSTStream,FrameWindowUpdate]) =
         E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
     processStreamGuardingError (FrameUnknown _, FrameHeader{payloadLength}) = do
@@ -181,7 +181,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                          when (isIdle st) $ opened ctx strm0
                      return js
                  Nothing
-                   | isResponse streamId -> return Nothing
+                   | isServerInitiated streamId -> return Nothing
                    | otherwise           -> do
                          csid <- readIORef clientStreamId
                          if streamId <= csid then -- consider the stream closed

@@ -40,6 +40,8 @@ module Network.HTTP2.Frame.Types (
   -- * Stream identifier
   , StreamId
   , isControl
+  , isClientInitiated
+  , isServerInitiated
   , isRequest
   , isResponse
   , testExclusive
@@ -518,6 +520,25 @@ isControl :: StreamId -> Bool
 isControl 0 = True
 isControl _ = False
 
+-- | Checking if the stream identifier is from a client.
+--
+-- >>> isClientInitiated 0
+-- False
+-- >>> isClientInitiated 1
+-- True
+isClientInitiated :: StreamId -> Bool
+isClientInitiated = odd
+
+-- | Checking if the stream identifier is from a server.
+--
+-- >>> isServerInitiated 0
+-- False
+-- >>> isServerInitiated 2
+-- True
+isServerInitiated :: StreamId -> Bool
+isServerInitiated 0 = False
+isServerInitiated n = even n
+
 -- | Checking if the stream identifier for request.
 --
 -- >>> isRequest 0
@@ -526,6 +547,7 @@ isControl _ = False
 -- True
 isRequest :: StreamId -> Bool
 isRequest = odd
+{-# DEPRECATED isRequest "Use isClientInitiated instead" #-}
 
 -- | Checking if the stream identifier for response.
 --
@@ -536,6 +558,7 @@ isRequest = odd
 isResponse :: StreamId -> Bool
 isResponse 0 = False
 isResponse n = even n
+{-# DEPRECATED isResponse "Use isServerInitiated instead" #-}
 
 -- | Checking if the exclusive flag is set.
 testExclusive :: StreamId -> Bool

@@ -33,6 +33,8 @@ module Network.HTTP2.Frame (
   -- * Stream identifier
   , StreamId
   , isControl
+  , isClientInitiated
+  , isServerInitiated
   , isRequest
   , isResponse
   -- * Stream identifier related

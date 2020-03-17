@@ -99,7 +99,7 @@ checkFrameHeader Settings {..} typfrm@(typ,FrameHeader {..})
     checkType FramePushPromise
       | not enablePush =
         Left $ ConnectionError ProtocolError "push not enabled" -- checkme
-      | not (isResponse streamId) =
+      | isClientInitiated streamId =
         Left $ ConnectionError ProtocolError "push promise must be used with even stream identifier"
     checkType FramePing | payloadLength /= 8 =
         Left $ ConnectionError FrameSizeError "payload length is 8 in ping frame"
