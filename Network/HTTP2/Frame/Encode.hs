@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Encode (
+module Network.HTTP2.Frame.Encode (
     encodeFrame
   , encodeFrameChunks
   , encodeFrameHeader
@@ -16,7 +16,7 @@ import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N
 
 import Imports
-import Network.HTTP2.Types
+import Network.HTTP2.Frame.Types
 
 ----------------------------------------------------------------
 

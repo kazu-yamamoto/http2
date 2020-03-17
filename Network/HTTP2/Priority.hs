@@ -38,7 +38,7 @@ import qualified Data.IntMap.Strict as Map
 import Imports hiding (delete, empty)
 import Network.HTTP2.Priority.Queue (TPriorityQueue, Precedence)
 import qualified Network.HTTP2.Priority.Queue as Q
-import Network.HTTP2.Types
+import Network.HTTP2.Frame.Types
 
 ----------------------------------------------------------------
 

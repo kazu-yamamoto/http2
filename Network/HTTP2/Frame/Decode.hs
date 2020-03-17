@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections, BangPatterns, RecordWildCards, OverloadedStrings #-}
 
-module Network.HTTP2.Decode (
+module Network.HTTP2.Frame.Decode (
   -- * Decoding
     decodeFrame
   , decodeFrameHeader
@@ -28,7 +28,7 @@ import qualified Network.ByteOrder as N
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
 import Imports
-import Network.HTTP2.Types
+import Network.HTTP2.Frame.Types
 
 ----------------------------------------------------------------
 

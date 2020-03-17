@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.HTTP2.Types (
+module Network.HTTP2.Frame.Types (
   -- * Constant
     frameHeaderLength
   , maxPayloadLength

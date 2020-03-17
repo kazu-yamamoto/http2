@@ -76,8 +76,10 @@ Library
                         Network.HPACK.Table.RevIndex
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
-                        Network.HTTP2.Decode
-                        Network.HTTP2.Encode
+                        Network.HTTP2.Frame
+                        Network.HTTP2.Frame.Decode
+                        Network.HTTP2.Frame.Encode
+                        Network.HTTP2.Frame.Types
                         Network.HTTP2.Priority.PSQ
                         Network.HTTP2.Priority.Queue
                         Network.HTTP2.Server.API
@@ -95,7 +97,6 @@ Library
                         Network.HTTP2.Server.Stream
                         Network.HTTP2.Server.Types
                         Network.HTTP2.Server.Worker
-                        Network.HTTP2.Types
   Build-Depends:        base >= 4.8 && < 5
                       , array
                       , bytestring >= 0.10
