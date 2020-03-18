@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Network.HTTP2.Arch.Context where
@@ -81,7 +80,7 @@ newPushStream Context{serverStreamId} win pre = do
                <*> newTVarIO win
                <*> newIORef pre
   where
-    inc2 x = let !x' = x + 2 in (x', x')
+    inc2 x = let x' = x + 2 in (x', x')
 
 ----------------------------------------------------------------
 
@@ -96,7 +95,7 @@ opened ctx@Context{concurrency} strm = do
 
 halfClosedRemote :: Context -> Stream -> IO ()
 halfClosedRemote ctx stream@Stream{streamState} = do
-    !closingCode <- atomicModifyIORef streamState closeHalf
+    closingCode <- atomicModifyIORef streamState closeHalf
     traverse_ (closed ctx stream) closingCode
   where
     closeHalf :: StreamState -> (StreamState, Maybe ClosedCode)

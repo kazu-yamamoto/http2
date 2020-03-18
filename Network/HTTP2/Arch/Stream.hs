@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Network.HTTP2.Arch.Stream where
@@ -56,12 +55,12 @@ newStreamTable = StreamTable <$> newIORef M.empty
 
 insert :: StreamTable -> M.Key -> Stream -> IO ()
 insert (StreamTable ref) k v = atomicModifyIORef' ref $ \m ->
-    let !m' = M.insert k v m
+    let m' = M.insert k v m
     in (m', ())
 
 remove :: StreamTable -> M.Key -> IO ()
 remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
-    let !m' = M.delete k m
+    let m' = M.delete k m
     in (m', ())
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)

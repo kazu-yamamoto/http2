@@ -1,4 +1,6 @@
-{-# LANGUAGE TupleSections, BangPatterns, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HTTP2.Frame.Decode (
   -- * Decoding
@@ -56,7 +58,7 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
     typ <- toFrameTypeId <$> N.peek8  p 3
     flg <-                   N.peek8  p 4
     w32 <-                   N.peek32 p 5
-    let !sid = streamIdentifier w32
+    let sid = streamIdentifier w32
     return (typ, FrameHeader len flg sid)
 
 (+.) :: Ptr Word8 -> Int -> Ptr Word8
@@ -227,7 +229,7 @@ decodeWindowUpdateFrame _ bs
   | wsi == 0  = Left $ ConnectionError ProtocolError "window update must not be 0"
   | otherwise = Right $ WindowUpdateFrame wsi
   where
-    !wsi = fromIntegral (N.word32 bs `clearBit` 31)
+    wsi = fromIntegral (N.word32 bs `clearBit` 31)
 
 -- | Frame payload decoder for CONTINUATION frame.
 decodeContinuationFrame :: FramePayloadDecoder
@@ -268,8 +270,8 @@ priority :: ByteString -> Priority
 priority (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     w32 <- N.peek32 p 0
-    let !streamdId = streamIdentifier w32
-        !exclusive = testExclusive (fromIntegral w32) -- fixme
+    let streamdId = streamIdentifier w32
+        exclusive = testExclusive (fromIntegral w32) -- fixme
     w8 <- N.peek8 p 4
     let weight = intFromWord8 w8 + 1
     return $ Priority exclusive streamdId weight

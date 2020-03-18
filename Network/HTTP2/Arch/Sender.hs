@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -100,8 +99,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         setLimit alist
         return 0
     control (CSettings0 frame1 frame2 alist) off = do -- off == 0, just in case
-        let !buf = confWriteBuffer `plusPtr` off
-            !off' = off + BS.length frame1 + BS.length frame2
+        let buf = confWriteBuffer `plusPtr` off
+            off' = off + BS.length frame1 + BS.length frame2
         buf' <- copy buf frame1
         void $ copy buf' frame2
         setLimit alist
@@ -114,17 +113,17 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     output out@(Output strm (OutObj _ _ _) (ONext curr tlrmkr) _ sentinel) off0 lim = do
         -- Data frame payload
-        let !buf = confWriteBuffer `plusPtr` off0
-            !siz = confBufferSize - off0
-            !payloadOff = off0 + frameHeaderLength
+        let buf = confWriteBuffer `plusPtr` off0
+            siz = confBufferSize - off0
+            payloadOff = off0 + frameHeaderLength
         Next datPayloadLen mnext <- curr buf siz lim
-        NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+        NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
         fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out
 
     output out@(Output strm (OutObj hdr body tlrmkr) OObj mtbq sentinel) off0 lim = do
         -- Header frame and Continuation frame
-        let !sid = streamNumber strm
-            !endOfStream = case body of
+        let sid = streamNumber strm
+            endOfStream = case body of
                 OutBodyNone -> True
                 _           -> False
         (ths,_) <- toHeaderTable $ fixHeaders hdr
@@ -139,26 +138,26 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillFileBodyGetNext conf payloadOff lim path fileoff bytecount mgr confPositionReadMaker
-                NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
             OutBodyBuilder builder -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillBuilderBodyGetNext conf payloadOff lim builder
-                NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
             OutBodyStreaming _ -> do
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillStreamBodyGetNext conf payloadOff lim (fromJust mtbq) strm
-                NextTrailersMaker !tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
 
     output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
         -- Creating a push promise header
         -- Frame id should be associated stream id from the client.
-        let !sid = streamNumber strm
+        let sid = streamNumber strm
         len <- pushPromise pid sid ths off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + len
         output out{outputType=OObj} off lim
@@ -194,11 +193,11 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 return off
               else do
                 cws <- readTVarIO connectionWindow -- not 0
-                let !lim = min cws sws
+                let lim = min cws sws
                 output out off lim
         resetStream e = do
             closed ctx strm (ResetByMe e)
-            let !rst = resetFrame InternalError $ streamNumber strm
+            let rst = resetFrame InternalError $ streamNumber strm
             enqueueControl controlQ $ CFrame rst
             return off
 
@@ -209,9 +208,9 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     flushN n = bufferIO confWriteBuffer n confSendAll
 
     headerContinue sid ths endOfStream off = do
-        let !offkv = off + frameHeaderLength
-        let !bufkv = confWriteBuffer `plusPtr` offkv
-            !limkv = confBufferSize - offkv
+        let offkv = off + frameHeaderLength
+        let bufkv = confWriteBuffer `plusPtr` offkv
+            limkv = confBufferSize - offkv
         (hs,kvlen) <- hpackEncodeHeader ctx bufkv limkv ths
         let flag0 = case hs of
                 [] -> setEndHeader defaultFlags
@@ -221,8 +220,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FrameHeaders kvlen sid flag buf
         continue sid kvlen hs
 
-    !bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
-    !headerPayloadLim = confBufferSize - frameHeaderLength
+    bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
+    headerPayloadLim = confBufferSize - frameHeaderLength
 
     continue _   kvlen [] = return kvlen
     continue sid kvlen ths = do
@@ -248,10 +247,10 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     fillDataHeaderEnqueueNext strm@Stream{streamWindow,streamNumber}
                    off datPayloadLen Nothing tlrmkr tell _ = do
-        let !buf  = confWriteBuffer `plusPtr` off
-            !off' = off + frameHeaderLength + datPayloadLen
+        let buf  = confWriteBuffer `plusPtr` off
+            off' = off + frameHeaderLength + datPayloadLen
         (mtrailers, flag) <- do
-              Trailers !trailers <- tlrmkr Nothing
+              Trailers trailers <- tlrmkr Nothing
               if null trailers then
                   return (Nothing, setEndStream defaultFlags)
                 else
@@ -272,27 +271,27 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     fillDataHeaderEnqueueNext Stream{streamWindow,streamNumber}
                    off datPayloadLen (Just next) tlrmkr _ out = do
-        let !buf  = confWriteBuffer `plusPtr` off
-            !off' = off + frameHeaderLength + datPayloadLen
+        let buf  = confWriteBuffer `plusPtr` off
+            off' = off + frameHeaderLength + datPayloadLen
             flag  = defaultFlags
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
         atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
-        let !out' = out { outputType = ONext next tlrmkr }
+        let out' = out { outputType = ONext next tlrmkr }
         enqueueOutput outputQ out'
         return off'
 
     pushPromise pid sid ths off = do
-        let !offsid = off + frameHeaderLength
-            !bufsid = confWriteBuffer `plusPtr` offsid
+        let offsid = off + frameHeaderLength
+            bufsid = confWriteBuffer `plusPtr` offsid
         poke32 (fromIntegral sid) bufsid 0
-        let !offkv  = offsid + 4
-            !bufkv  = confWriteBuffer `plusPtr` offkv
-            !limkv  = confBufferSize - offkv
+        let offkv  = offsid + 4
+            bufkv  = confWriteBuffer `plusPtr` offkv
+            limkv  = confBufferSize - offkv
         (_,kvlen) <- hpackEncodeHeader ctx bufkv limkv ths
-        let !flag = setEndHeader defaultFlags -- No EndStream flag
-            !buf = confWriteBuffer `plusPtr` off
-            !len = kvlen + 4
+        let flag = setEndHeader defaultFlags -- No EndStream flag
+            buf = confWriteBuffer `plusPtr` off
+            len = kvlen + 4
         fillFrameHeader FramePushPromise len pid flag buf
         return len
 
@@ -380,13 +379,13 @@ runStreamBuilder :: Buffer -> BufferSize -> TBQueue RspStreaming
                  -> IO (Leftover, Bool, BytesFilled)
 runStreamBuilder buf0 room0 sq = loop buf0 room0 0
   where
-    loop !buf !room !total = do
+    loop buf room total = do
         mbuilder <- atomically $ tryReadTBQueue sq
         case mbuilder of
             Nothing      -> return (LZero, True, total)
             Just (RSBuilder builder) -> do
                 (len, signal) <- B.runBuilder builder buf room
-                let !total' = total + len
+                let total' = total + len
                 case signal of
                     B.Done -> loop (buf `plusPtr` len) (room - len) total'
                     B.More  _ writer  -> return (LOne writer, True, total')
@@ -419,13 +418,13 @@ fillBufStream leftover0 sq strm buf0 siz0 lim0 = do
         case signal of
             B.Done -> do
                 (leftover, cont, extra) <- runStreamBuilder (buf `plusPtr` len) (room - len) sq
-                let !total = sofar + len + extra
+                let total = sofar + len + extra
                 getNext leftover cont total
             B.More  _ writer -> do
-                let !total = sofar + len
+                let total = sofar + len
                 getNext (LOne writer) True total
             B.Chunk bs writer -> do
-                let !total = sofar + len
+                let total = sofar + len
                 getNext (LTwo bs writer) True total
 
 nextForStream :: TBQueue RspStreaming -> Stream

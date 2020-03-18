@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -62,16 +61,16 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
     sendGoaway e
       | Just (ConnectionError err msg) <- E.fromException e = do
           csid <- readIORef clientStreamId
-          let !frame = goawayFrame csid err msg
+          let frame = goawayFrame csid err msg
           enqueueControl controlQ $ CGoaway frame
       | otherwise = return ()
 
     sendReset err sid = do
-        let !frame = resetFrame err sid
+        let frame = resetFrame err sid
         enqueueControl controlQ $ CFrame frame
 
     loop :: Int -> IO ()
-    loop !n
+    loop n
       | n == 6 = do
           yield
           loop 0
@@ -121,7 +120,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
           control ftyp header pl ctx
       | otherwise = do
           checkContinued
-          !mstrm <- getStream
+          mstrm <- getStream
           pl <- recvN payloadLength
           case mstrm of
             Nothing -> do
@@ -146,7 +145,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                   Open (HasBody tbl@(_,reqvt) pri) -> do
                       resetContinued
                       q <- newTQueueIO
-                      let !mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
+                      let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
                       writeIORef streamPrecedence $ toPrecedence pri
                       bodyLength <- newIORef 0
                       tlr <- newIORef Nothing
@@ -229,9 +228,9 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, contro
         newws <- initialWindowSize <$> readIORef http2settings
         let diff = newws - oldws
         when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
-        let !frame = settingsFrame setAck []
+        let frame = settingsFrame setAck []
         sent <- readIORef firstSettings
-        let !setframe
+        let setframe
               | sent      = CSettings               frame alist
               | otherwise = CSettings0 initialFrame frame alist
         unless sent $ writeIORef firstSettings True
@@ -242,7 +241,7 @@ control FramePing FrameHeader{flags} bs Context{controlQ} =
     if testAck flags then
         return True -- just ignore
       else do
-        let !frame = pingFrame bs
+        let frame = pingFrame bs
         enqueueControl controlQ $ CFrame frame
         return True
 
@@ -252,9 +251,9 @@ control FrameGoAway _ _ Context{controlQ} = do
 
 control FrameWindowUpdate header bs Context{connectionWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    !w <- atomically $ do
+    w <- atomically $ do
       w0 <- readTVar connectionWindow
-      let !w1 = w0 + n
+      let w1 = w0 + n
       writeTVar connectionWindow w1
       return w1
     when (isWindowOverflow w) $ E.throwIO $ ConnectionError FlowControlError "control window should be less than 2^31"
@@ -289,8 +288,8 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{st
         Just p  -> do
             checkPriority p streamNumber
             return p
-    let !endOfStream = testEndStream flags
-        !endOfHeader = testEndHeader flags
+    let endOfStream = testEndStream flags
+        endOfHeader = testEndHeader flags
     if endOfHeader then do
         tbl <- hpackDecodeHeader frag ctx -- fixme
         return $ if endOfStream then
@@ -298,12 +297,12 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{st
                    else
                     Open (HasBody tbl pri)
       else do
-        let !siz = BS.length frag
+        let siz = BS.length frag
         return $ Open $ Continued [frag] siz 1 endOfStream pri
 
 stream FrameHeaders header@FrameHeader{flags} bs ctx (Open (Body q _ _ tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
-    let !endOfStream = testEndStream flags
+    let endOfStream = testEndStream flags
     if endOfStream then do
         tbl <- hpackDecodeTrailer frag ctx
         writeIORef tlr (Just tbl)
@@ -319,11 +318,11 @@ stream FrameData
        _bs
        Context{controlQ} s@(HalfClosedLocal _)
        Stream{streamNumber} = do
-    let !endOfStream = testEndStream flags
+    let endOfStream = testEndStream flags
     when (payloadLength /= 0) $ do
-        let !frame1 = windowUpdateFrame 0 payloadLength
-            !frame2 = windowUpdateFrame streamNumber payloadLength
-            !frame = frame1 `BS.append` frame2
+        let frame1 = windowUpdateFrame 0 payloadLength
+            frame2 = windowUpdateFrame streamNumber payloadLength
+            frame = frame1 `BS.append` frame2
         enqueueControl controlQ $ CFrame frame
     if endOfStream then do
         return HalfClosedRemote
@@ -336,14 +335,14 @@ stream FrameData
        Context{controlQ} s@(Open (Body q mcl bodyLength _))
        Stream{streamNumber} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
-    let !endOfStream = testEndStream flags
+    let endOfStream = testEndStream flags
     len0 <- readIORef bodyLength
-    let !len = len0 + payloadLength
+    let len = len0 + payloadLength
     writeIORef bodyLength len
     when (payloadLength /= 0) $ do
-        let !frame1 = windowUpdateFrame 0 payloadLength
-            !frame2 = windowUpdateFrame streamNumber payloadLength
-            !frame = frame1 `BS.append` frame2
+        let frame1 = windowUpdateFrame 0 payloadLength
+            frame2 = windowUpdateFrame streamNumber payloadLength
+            frame = frame1 `BS.append` frame2
         enqueueControl controlQ $ CFrame frame
     atomically $ writeTQueue q body
     if endOfStream then do
@@ -357,16 +356,16 @@ stream FrameData
         return s
 
 stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz n endOfStream pri)) _ = do
-    let !endOfHeader = testEndHeader flags
-        !rfrags' = frag : rfrags
-        !siz' = siz + BS.length frag
-        !n' = n + 1
+    let endOfHeader = testEndHeader flags
+        rfrags' = frag : rfrags
+        siz' = siz + BS.length frag
+        n' = n + 1
     when (siz' > 51200) $ -- fixme: hard coding: 50K
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too big"
     when (n' > 10) $ -- fixme: hard coding
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too fragmented"
     if endOfHeader then do
-        let !hdrblk = BS.concat $ reverse rfrags'
+        let hdrblk = BS.concat $ reverse rfrags'
         tbl <- hpackDecodeHeader hdrblk ctx
         return $ if endOfStream then
                     Open (NoBody tbl pri)
@@ -377,9 +376,9 @@ stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz
 
 stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    !w <- atomically $ do
+    w <- atomically $ do
       w0 <- readTVar streamWindow
-      let !w1 = w0 + n
+      let w1 = w0 + n
       writeTVar streamWindow w1
       return w1
     when (isWindowOverflow w) $
@@ -388,7 +387,7 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
 
 stream FrameRSTStream header bs ctx _ strm = do
     RSTStreamFrame e <- guardIt $ decoderstStreamFrame header bs
-    let !cc = Reset e
+    let cc = Reset e
     closed ctx strm cc
     return $ Closed cc -- will be written to streamState again
 
@@ -396,7 +395,7 @@ stream FramePriority header bs Context{outputQ,priorityTreeSize} s Stream{stream
     PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
     checkPriority newpri streamNumber
     oldpre <- readIORef streamPrecedence
-    let !newpre = toPrecedence newpri
+    let newpre = toPrecedence newpri
     writeIORef streamPrecedence newpre
     if isIdle s then do
         n <- atomicModifyIORef' priorityTreeSize (\x -> (x+1,x+1))

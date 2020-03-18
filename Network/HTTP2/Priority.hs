@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 -- | This is partial implementation of the priority of HTTP/2.
 --
 -- This implementation does support structured priority queue
@@ -43,8 +41,8 @@ import Network.HTTP2.Frame.Types
 ----------------------------------------------------------------
 
 -- | Abstract data type for priority trees.
-data PriorityTree a = PriorityTree !(TVar (Glue a))
-                                   !(TNestedPriorityQueue a)
+data PriorityTree a = PriorityTree (TVar (Glue a))
+                                   (TNestedPriorityQueue a)
 
 type Glue a = IntMap (TNestedPriorityQueue a, Precedence)
 
@@ -52,8 +50,8 @@ type Glue a = IntMap (TNestedPriorityQueue a, Precedence)
 -- another TNestedPriorityQueue.
 type TNestedPriorityQueue a = TPriorityQueue (Element a)
 
-data Element a = Child !a
-               | Parent !(TNestedPriorityQueue a)
+data Element a = Child a
+               | Parent (TNestedPriorityQueue a)
 
 
 ----------------------------------------------------------------
@@ -90,7 +88,7 @@ prepare (PriorityTree var _) sid p = atomically $ do
 enqueue :: PriorityTree a -> StreamId -> Precedence -> a -> IO ()
 enqueue (PriorityTree var q0) sid p0 x = atomically $ do
     m <- readTVar var
-    let !el = Child x
+    let el = Child x
     loop m el p0
   where
     loop m el p
@@ -102,7 +100,7 @@ enqueue (PriorityTree var q0) sid p0 x = atomically $ do
               notQueued <- Q.isEmpty q'
               Q.enqueue q' sid p el
               when notQueued $ do
-                  let !el' = Parent q'
+                  let el' = Parent q'
                   loop m el' p'
       where
         pid = Q.dependency p
@@ -127,7 +125,7 @@ dequeueSTM (PriorityTree _ q0) = loop q0
     loop q = do
         (sid,p,el) <- Q.dequeue q
         case el of
-            Child x   -> return $! (sid, p, x)
+            Child x   -> return (sid, p, x)
             Parent q' -> do
                 entr <- loop q'
                 empty <- Q.isEmpty q'

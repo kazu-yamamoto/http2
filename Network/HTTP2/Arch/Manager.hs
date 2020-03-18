@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 -- | A thread pool manager.
 --   The manager has responsibility to spawn and kill
 --   worker threads.
@@ -50,20 +48,20 @@ start = do
     void $ forkIO $ go q Set.empty ref timmgr
     return $ Manager q ref timmgr
   where
-    go q !tset0 ref timmgr = do
+    go q tset0 ref timmgr = do
         x <- atomically $ readTQueue q
         case x of
             Stop          -> kill tset0 >> T.killManager timmgr
             Spawn         -> next tset0
-            Add    newtid -> let !tset = add newtid tset0
+            Add    newtid -> let tset = add newtid tset0
                              in go q tset ref timmgr
-            Delete oldtid -> let !tset = del oldtid tset0
+            Delete oldtid -> let tset = del oldtid tset0
                              in go q tset ref timmgr
       where
         next tset = do
             action <- readIORef ref
             newtid <- forkIO action
-            let !tset' = add newtid tset
+            let tset' = add newtid tset
             go q tset' ref timmgr
 
 setAction :: Manager -> Action -> IO ()
@@ -90,12 +88,12 @@ deleteMyId (Manager q _ _) = do
 add :: ThreadId -> Set ThreadId -> Set ThreadId
 add tid set = set'
   where
-    !set' = Set.insert tid set
+    set' = Set.insert tid set
 
 del :: ThreadId -> Set ThreadId -> Set ThreadId
 del tid set = set'
   where
-    !set' = Set.delete tid set
+    set' = Set.delete tid set
 
 kill :: Set ThreadId -> IO ()
 kill set = traverse_ killThread set

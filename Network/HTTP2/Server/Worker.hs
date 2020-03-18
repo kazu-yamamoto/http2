@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -45,33 +44,33 @@ pushStream ctx@Context{..} pstrm reqvt pps0
           else
             return OObj
   where
-    !pid = streamNumber pstrm
-    !len = length pps0
+    pid = streamNumber pstrm
+    len = length pps0
     increment tvar = atomically $ modifyTVar' tvar (+1)
     waiter lim tvar = atomically $ do
         n <- readTVar tvar
         check (n >= lim)
-    push _ [] !n = return (n :: Int)
-    push tvar (pp:pps) !n = do
+    push _ [] n = return (n :: Int)
+    push tvar (pp:pps) n = do
         ws <- initialWindowSize <$> readIORef http2settings
-        let !w = promiseWeight pp
-            !pri = defaultPriority { weight = w }
-            !pre = toPrecedence pri
+        let w = promiseWeight pp
+            pri = defaultPriority { weight = w }
+            pre = toPrecedence pri
         newstrm <- newPushStream ctx ws pre
-        let !sid = streamNumber newstrm
+        let sid = streamNumber newstrm
         insert streamTable sid newstrm
-        let !scheme = fromJust $ getHeaderValue tokenScheme reqvt
+        let scheme = fromJust $ getHeaderValue tokenScheme reqvt
             -- fixme: this value can be Nothing
-            !auth   = fromJust (getHeaderValue tokenHost reqvt
+            auth   = fromJust (getHeaderValue tokenHost reqvt
                             <|> getHeaderValue tokenAuthority reqvt)
-            !path = promiseRequestPath pp
-            !promiseRequest = [(tokenMethod, H.methodGet)
+            path = promiseRequestPath pp
+            promiseRequest = [(tokenMethod, H.methodGet)
                                ,(tokenScheme, scheme)
                                ,(tokenAuthority, auth)
                                ,(tokenPath, path)]
-            !ot = OPush promiseRequest pid
-            !rsp = promiseResponse pp
-            !out = Output newstrm rsp ot Nothing $ increment tvar
+            ot = OPush promiseRequest pid
+            rsp = promiseResponse pp
+            out = Output newstrm rsp ot Nothing $ increment tvar
         enqueueOutput outputQ out
         push tvar pps (n + 1)
 
@@ -151,8 +150,8 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
         when (cont1 && cont2) $ go sinfo tcont th
     pauseRequestBody req th = req { inpObjBody = readBody' }
       where
-        !readBody = inpObjBody req
-        !readBody' = do
+        readBody = inpObjBody req
+        readBody' = do
             T.pause th
             bs <- readBody
             T.resume th
@@ -163,7 +162,7 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
             Nothing   -> return ()
             Just strm -> do
                 closed ctx strm Killed
-                let !frame = resetFrame InternalError (streamNumber strm)
+                let frame = resetFrame InternalError (streamNumber strm)
                 enqueueControl controlQ $ CFrame frame
 
 ----------------------------------------------------------------

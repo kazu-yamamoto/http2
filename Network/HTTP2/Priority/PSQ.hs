@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Priority.PSQ (
@@ -27,10 +26,10 @@ type Deficit = Word -- Deficit can be overflowed
 --   The precedence of a dequeued entry should be specified
 --   to enqueue when the entry is enqueued again.
 data Precedence = Precedence {
-    deficit    :: {-# UNPACK #-} !Deficit
-  , weight     :: {-# UNPACK #-} !Weight
+    deficit    :: {-# UNPACK #-} Deficit
+  , weight     :: {-# UNPACK #-} Weight
   -- stream dependency, used by the upper layer
-  , dependency :: {-# UNPACK #-} !Key
+  , dependency :: {-# UNPACK #-} Key
   } deriving Show
 
 -- | For test only
@@ -48,8 +47,8 @@ instance Ord Precedence where
 type Heap a = IntPSQ Precedence a
 
 data PriorityQueue a = PriorityQueue {
-    baseDeficit :: {-# UNPACK #-} !Deficit
-  , queue :: !(Heap a)
+    baseDeficit :: {-# UNPACK #-} Deficit
+  , queue :: Heap a
   }
 
 ----------------------------------------------------------------
@@ -84,16 +83,16 @@ enqueue :: Key -> Precedence -> a -> PriorityQueue a -> PriorityQueue a
 enqueue k p@Precedence{..} v PriorityQueue{..} =
     PriorityQueue baseDeficit queue'
   where
-    !d = weightToDeficit weight
-    !b = if deficit == 0 then baseDeficit else deficit
-    !deficit' = max (b + d) baseDeficit
-    !p' = p { deficit = deficit' }
-    !queue' = P.insert k p' v queue
+    d = weightToDeficit weight
+    b = if deficit == 0 then baseDeficit else deficit
+    deficit' = max (b + d) baseDeficit
+    p' = p { deficit = deficit' }
+    queue' = P.insert k p' v queue
 
 dequeue :: PriorityQueue a -> Maybe (Key, Precedence, a, PriorityQueue a)
 dequeue PriorityQueue{..} = case P.minView queue of
     Nothing                -> Nothing
-    Just (k, p, v, queue') -> let !base = deficit p
+    Just (k, p, v, queue') -> let base = deficit p
                               in Just (k, p, v, PriorityQueue base queue')
 
 delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
