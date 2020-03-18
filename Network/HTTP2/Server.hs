@@ -95,6 +95,14 @@ import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 
+-- | Getting headers from a request.
+requestHeaders :: Request -> HeaderTable
+requestHeaders = inpObjHeaders
+
+-- | Getting the body size from a request.
+requestBodySize :: Request -> Maybe Int
+requestBodySize = inpObjBodySize
+
 -- | Reading a chunk of the request body.
 --   An empty 'ByteString' returned when finished.
 getRequestBodyChunk :: Request -> IO ByteString
@@ -105,6 +113,8 @@ getRequestBodyChunk = inpObjBody
 --   returns an empty.
 getRequestTrailers :: Request -> IO (Maybe HeaderTable)
 getRequestTrailers = readIORef . inpObjTrailers
+
+----------------------------------------------------------------
 
 -- |Creating response without body.
 responseNoBody :: H.Status -> H.ResponseHeaders -> Response
@@ -132,24 +142,7 @@ responseStreaming st hdr strmbdy = OutObj hdr' (OutBodyStreaming strmbdy) defaul
   where
     hdr' = addStatus st hdr
 
--- | Getter for response body size. This value is available for file body.
-responseBodySize :: Response -> Maybe Int
-responseBodySize (OutObj _ (OutBodyFile (FileSpec _ _ len)) _) = Just (fromIntegral len)
-responseBodySize _                                             = Nothing
-
--- | Setting 'TrailersMaker' to 'Response'.
-setResponseTrailersMaker :: Response -> TrailersMaker -> Response
-setResponseTrailersMaker rsp tm = rsp { outObjTrailers = tm }
-
--- | Creating push promise.
-pushPromise :: ByteString -> Response -> Weight -> PushPromise
-pushPromise path rsp w = PushPromise path rsp w
-
-requestHeaders :: Request -> HeaderTable
-requestHeaders = inpObjHeaders
-
-requestBodySize :: Request -> Maybe Int
-requestBodySize = inpObjBodySize
+----------------------------------------------------------------
 
 addStatus :: H.Status -> H.ResponseHeaders -> H.ResponseHeaders
 addStatus st hdr = (":status", packStatus st) : hdr
@@ -166,3 +159,20 @@ packStatus status = unsafeCreate 3 $ \p -> do
     (q0,r0) = s `divMod` 10
     (q1,r1) = q0 `divMod` 10
     r2 = q1 `mod` 10
+
+----------------------------------------------------------------
+
+-- | Getter for response body size. This value is available for file body.
+responseBodySize :: Response -> Maybe Int
+responseBodySize (OutObj _ (OutBodyFile (FileSpec _ _ len)) _) = Just (fromIntegral len)
+responseBodySize _                                             = Nothing
+
+-- | Setting 'TrailersMaker' to 'Response'.
+setResponseTrailersMaker :: Response -> TrailersMaker -> Response
+setResponseTrailersMaker rsp tm = rsp { outObjTrailers = tm }
+
+----------------------------------------------------------------
+
+-- | Creating push promise.
+pushPromise :: ByteString -> Response -> Weight -> PushPromise
+pushPromise path rsp w = PushPromise path rsp w
