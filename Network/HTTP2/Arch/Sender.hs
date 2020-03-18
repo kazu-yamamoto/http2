@@ -15,6 +15,7 @@ import Network.ByteOrder
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toHeaderTable)
+import Network.HTTP2.Arch.Config
 import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
 import Network.HTTP2.Arch.HPACK

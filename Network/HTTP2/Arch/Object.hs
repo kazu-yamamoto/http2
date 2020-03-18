@@ -8,15 +8,6 @@ import Imports
 import Network.HPACK
 import Network.HTTP2.Frame
 
--- | HTTP/2 server configuration.
-data Config = Config {
-      confWriteBuffer :: Buffer
-    , confBufferSize  :: BufferSize
-    , confSendAll     :: ByteString -> IO ()
-    , confReadN       :: Int -> IO ByteString
-    , confPositionReadMaker :: PositionReadMaker
-    }
-
 ----------------------------------------------------------------
 
 type InpBody = IO ByteString
