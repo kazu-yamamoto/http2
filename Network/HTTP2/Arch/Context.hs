@@ -13,52 +13,64 @@ import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 import Network.HTTP2.Priority
 
+data Role = Client | Server deriving (Eq,Show)
+
 ----------------------------------------------------------------
 
 -- | The context for HTTP/2 connection.
 data Context = Context {
+    role               :: Role
   -- HTTP/2 settings received from a browser
-    http2settings      :: !(IORef Settings)
-  , firstSettings      :: !(IORef Bool)
-  , streamTable        :: !StreamTable
-  , concurrency        :: !(IORef Int)
-  , priorityTreeSize   :: !(IORef Int)
+  , http2settings      :: IORef Settings
+  , firstSettings      :: IORef Bool
+  , streamTable        :: StreamTable
+  , concurrency        :: IORef Int
+  , priorityTreeSize   :: IORef Int
   -- | RFC 7540 says "Other frames (from any stream) MUST NOT
   --   occur between the HEADERS frame and any CONTINUATION
   --   frames that might follow". This field is used to implement
   --   this requirement.
-  , continued          :: !(IORef (Maybe StreamId))
-  , clientStreamId     :: !(IORef StreamId)
-  , serverStreamId     :: !(IORef StreamId)
-  , inputQ             :: !(TQueue Input)
-  , outputQ            :: !(PriorityTree Output)
-  , controlQ           :: !(TQueue Control)
-  , encodeDynamicTable :: !DynamicTable
-  , decodeDynamicTable :: !DynamicTable
+  , continued          :: IORef (Maybe StreamId)
+  , clientStreamId     :: IORef StreamId
+  , serverStreamId     :: IORef StreamId
+  , inputQ             :: TQueue Input
+  , outputQ            :: PriorityTree Output
+  , controlQ           :: TQueue Control
+  , encodeDynamicTable :: DynamicTable
+  , decodeDynamicTable :: DynamicTable
   -- the connection window for data from a server to a browser.
-  , connectionWindow   :: !(TVar WindowSize)
+  , connectionWindow   :: TVar WindowSize
   }
 
 ----------------------------------------------------------------
 
-newContext :: IO Context
-newContext = Context <$> newIORef defaultSettings
-                     <*> newIORef False
-                     <*> newStreamTable
-                     <*> newIORef 0
-                     <*> newIORef 0
-                     <*> newIORef Nothing
-                     <*> newIORef 0
-                     <*> newIORef 0
-                     <*> newTQueueIO
-                     <*> newPriorityTree
-                     <*> newTQueueIO
-                     <*> newDynamicTableForEncoding defaultDynamicTableSize
-                     <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
-                     <*> newTVarIO defaultInitialWindowSize
+newContext :: Role -> IO Context
+newContext rl =
+    Context rl <$> newIORef defaultSettings
+               <*> newIORef False
+               <*> newStreamTable
+               <*> newIORef 0
+               <*> newIORef 0
+               <*> newIORef Nothing
+               <*> newIORef 0
+               <*> newIORef 0
+               <*> newTQueueIO
+               <*> newPriorityTree
+               <*> newTQueueIO
+               <*> newDynamicTableForEncoding defaultDynamicTableSize
+               <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
+               <*> newTVarIO defaultInitialWindowSize
 
 clearContext :: Context -> IO ()
 clearContext _ctx = return ()
+
+----------------------------------------------------------------
+
+isClient :: Context -> Bool
+isClient ctx = role ctx == Client
+
+isServer :: Context -> Bool
+isServer ctx = role ctx == Server
 
 ----------------------------------------------------------------
 

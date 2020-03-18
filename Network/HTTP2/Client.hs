@@ -40,7 +40,7 @@ module Network.HTTP2.Client (
 import Control.Concurrent
 import qualified Control.Exception as E
 import Data.ByteString (ByteString)
-import Data.IORef (writeIORef)
+import Data.IORef (readIORef,writeIORef)
 import Network.HTTP.Types
 
 import Network.HTTP2.Arch
@@ -61,36 +61,38 @@ type Client = Request -> (Response -> IO ()) -> IO ()
 -- | Running HTTP/2 client.
 run :: Config -> (Client -> IO ()) -> IO ()
 run conf@Config{..} clientAction = do
-    ctx <- newContext
+    ctx <- newContext Client
     mgr <- start
     tid0 <- forkIO $ frameReceiver ctx confReadN
-    tid1 <- forkIO $ clientAction $ sendRequest ctx
-    -- enqueueControl controlQ setframe -- exchangeSettings conf ctx
+    exchangeSettings conf ctx
     -- frameSender is the main thread because it ensures to send
     -- a goway frame.
+    tid1 <- forkIO $ do
+        -- fixme: wait
+        threadDelay 100000
+        clientAction $ sendRequest ctx
     frameSender ctx conf mgr `E.finally` do
         clearContext ctx
         killThread tid0
         killThread tid1
 
 sendRequest :: Context -> Client
-sendRequest Context{..} req processResponse = do
-    -- createStream
-    let strm = undefined
-    enqueueOutput outputQ $ Output strm req OObj Nothing (return ())
+sendRequest ctx@Context{..} req processResponse = do
+    ws <- initialWindowSize <$> readIORef http2settings
+    let streamId = undefined
+    newstrm <- newStream streamId (fromIntegral ws)
+    opened ctx newstrm
+    insert streamTable streamId newstrm
+    enqueueOutput outputQ $ Output newstrm req OObj Nothing (return ())
     rsp <- undefined
     processResponse rsp
 
 exchangeSettings :: Config -> Context -> IO ()
 exchangeSettings Config{..} Context{..} = do
     confSendAll connectionPreface
-    -- sendFrame confSend id 0 initialSettingFrame
+    let setframe = CSettings initialFrame [] -- fixme alist
     writeIORef firstSettings True
-
-initialSettingFrame :: FramePayload
-initialSettingFrame = SettingsFrame [
-    (SettingsMaxConcurrentStreams,recommendedConcurrency)
-  ]
+    enqueueControl controlQ setframe
 
 ----------------------------------------------------------------
 

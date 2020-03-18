@@ -3,7 +3,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 
-module Network.HTTP2.Arch.Receiver (frameReceiver) where
+module Network.HTTP2.Arch.Receiver (
+    frameReceiver
+  , maxConcurrency
+  , initialFrame
+  ) where
 
 import Control.Concurrent
 import Control.Concurrent.STM

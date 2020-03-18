@@ -19,7 +19,7 @@ run :: Config -> Server -> IO ()
 run conf@Config{..} server = do
     ok <- checkPreface
     when ok $ do
-        ctx <- newContext
+        ctx <- newContext Server
         -- Workers, worker manager and timer manager
         mgr <- start
         setAction mgr $ worker ctx mgr server
