@@ -1,4 +1,4 @@
-module Network.HTTP2.Types where
+module Network.HTTP2.Arch.Object where
 
 import Data.ByteString.Builder (Builder)
 import Data.IORef (IORef)

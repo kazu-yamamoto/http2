@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.HTTP2.Server.Types where
+module Network.HTTP2.Arch.Types where
 
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
@@ -11,9 +11,9 @@ import Data.IntMap.Strict (IntMap)
 
 import Imports
 import Network.HPACK
-import Network.HTTP2
+import Network.HTTP2.Frame
+import Network.HTTP2.Arch.Object
 import Network.HTTP2.Priority
-import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 

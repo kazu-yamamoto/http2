@@ -2,7 +2,7 @@ module Network.HTTP2.Server.API where
 
 import qualified System.TimeManager as T
 
-import Network.HTTP2.Types
+import Network.HTTP2.Arch
 
 ----------------------------------------------------------------
 

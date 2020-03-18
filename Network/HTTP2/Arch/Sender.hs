@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Server.Sender (frameSender) where
+module Network.HTTP2.Arch.Sender (frameSender) where
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
@@ -16,16 +16,16 @@ import Network.ByteOrder
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toHeaderTable)
-import Network.HTTP2
+import Network.HTTP2.Arch.Context
+import Network.HTTP2.Arch.EncodeFrame
+import Network.HTTP2.Arch.HPACK
+import Network.HTTP2.Arch.Manager hiding (start)
+import Network.HTTP2.Arch.Object
+import Network.HTTP2.Arch.Queue
+import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.Types
+import Network.HTTP2.Frame
 import Network.HTTP2.Priority (isEmptySTM, dequeueSTM, Precedence)
-import Network.HTTP2.Server.EncodeFrame
-import Network.HTTP2.Server.HPACK
-import Network.HTTP2.Server.Manager hiding (start)
-import Network.HTTP2.Server.Types
-import Network.HTTP2.Server.Queue
-import Network.HTTP2.Server.Context
-import Network.HTTP2.Server.Stream
-import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 

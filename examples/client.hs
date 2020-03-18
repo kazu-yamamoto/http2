@@ -16,5 +16,6 @@ main :: IO ()
 main = runTCPClient authority "80" $ \sock -> do
     let conf = Config (NSB.sendAll sock) (NSB.recv sock)
     run conf $ \client -> do
-        _ <- forkIO $ client (requestNoBody methodGet "/" []) print
-        client (requestNoBody methodGet "/" []) print
+        let req = requestNoBody methodGet "/" []
+        _ <- forkIO $ client req print
+        client req print

@@ -18,16 +18,10 @@ import qualified System.TimeManager as T
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HPACK.Token
-import Network.HTTP2
+import Network.HTTP2.Arch
+import Network.HTTP2.Frame
 import Network.HTTP2.Priority
 import Network.HTTP2.Server.API
-import Network.HTTP2.Server.Context
-import Network.HTTP2.Server.EncodeFrame
-import Network.HTTP2.Server.Manager
-import Network.HTTP2.Server.Queue
-import Network.HTTP2.Server.Stream
-import Network.HTTP2.Server.Types
-import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 

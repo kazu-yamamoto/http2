@@ -59,6 +59,10 @@ Library
                         Network.HTTP2.Server
   Other-Modules:        Imports
                         Network.HPACK.Builder
+                        Network.HPACK.HeaderBlock
+                        Network.HPACK.HeaderBlock.Decode
+                        Network.HPACK.HeaderBlock.Encode
+                        Network.HPACK.HeaderBlock.Integer
                         Network.HPACK.Huffman
                         Network.HPACK.Huffman.Bit
                         Network.HPACK.Huffman.ByteString
@@ -67,15 +71,25 @@ Library
                         Network.HPACK.Huffman.Params
                         Network.HPACK.Huffman.Table
                         Network.HPACK.Huffman.Tree
-                        Network.HPACK.HeaderBlock
-                        Network.HPACK.HeaderBlock.Decode
-                        Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.Integer
                         Network.HPACK.Table.Dynamic
                         Network.HPACK.Table.Entry
                         Network.HPACK.Table.RevIndex
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
+                        Network.HTTP2.Arch
+                        Network.HTTP2.Arch.Config
+                        Network.HTTP2.Arch.Context
+                        Network.HTTP2.Arch.EncodeFrame
+                        Network.HTTP2.Arch.File
+                        Network.HTTP2.Arch.HPACK
+                        Network.HTTP2.Arch.Manager
+                        Network.HTTP2.Arch.Object
+                        Network.HTTP2.Arch.Queue
+                        Network.HTTP2.Arch.ReadN
+                        Network.HTTP2.Arch.Receiver
+                        Network.HTTP2.Arch.Sender
+                        Network.HTTP2.Arch.Stream
+                        Network.HTTP2.Arch.Types
                         Network.HTTP2.Frame
                         Network.HTTP2.Frame.Decode
                         Network.HTTP2.Frame.Encode
@@ -83,21 +97,8 @@ Library
                         Network.HTTP2.Priority.PSQ
                         Network.HTTP2.Priority.Queue
                         Network.HTTP2.Server.API
-                        Network.HTTP2.Server.Config
-                        Network.HTTP2.Server.Context
-                        Network.HTTP2.Server.EncodeFrame
-                        Network.HTTP2.Server.File
-                        Network.HTTP2.Server.HPACK
-                        Network.HTTP2.Server.Manager
-                        Network.HTTP2.Server.Queue
-                        Network.HTTP2.Server.ReadN
-                        Network.HTTP2.Server.Receiver
                         Network.HTTP2.Server.Run
-                        Network.HTTP2.Server.Sender
-                        Network.HTTP2.Server.Stream
-                        Network.HTTP2.Server.Types
                         Network.HTTP2.Server.Worker
-                        Network.HTTP2.Types
   Build-Depends:        base >= 4.8 && < 5
                       , array
                       , bytestring >= 0.10

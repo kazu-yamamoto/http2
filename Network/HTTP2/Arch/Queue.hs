@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Server.Queue where
+module Network.HTTP2.Arch.Queue where
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
@@ -9,9 +9,9 @@ import Control.Exception (bracket)
 import Data.IORef
 
 import Imports
+import Network.HTTP2.Arch.Manager
+import Network.HTTP2.Arch.Types
 import Network.HTTP2.Priority
-import Network.HTTP2.Server.Manager
-import Network.HTTP2.Server.Types
 
 {-# INLINE forkAndEnqueueWhenReady #-}
 forkAndEnqueueWhenReady :: IO () -> PriorityTree Output -> Output -> Manager -> IO ()

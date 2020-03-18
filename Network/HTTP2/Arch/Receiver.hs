@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 
-module Network.HTTP2.Server.Receiver (frameReceiver) where
+module Network.HTTP2.Arch.Receiver (frameReceiver) where
 
 import Control.Concurrent
 import Control.Concurrent.STM
@@ -11,19 +11,19 @@ import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
-import Network.HPACK
-import Network.HPACK.Token
-import Network.HTTP2
-import Network.HTTP2.Priority (toPrecedence, delete, prepare)
 
 import Imports hiding (delete, insert)
-import Network.HTTP2.Server.EncodeFrame
-import Network.HTTP2.Server.HPACK
-import Network.HTTP2.Server.Types
-import Network.HTTP2.Server.Context
-import Network.HTTP2.Server.Stream
-import Network.HTTP2.Server.Queue
-import Network.HTTP2.Types
+import Network.HPACK
+import Network.HPACK.Token
+import Network.HTTP2.Arch.Context
+import Network.HTTP2.Arch.EncodeFrame
+import Network.HTTP2.Arch.HPACK
+import Network.HTTP2.Arch.Object
+import Network.HTTP2.Arch.Queue
+import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.Types
+import Network.HTTP2.Frame
+import Network.HTTP2.Priority (toPrecedence, delete, prepare)
 
 ----------------------------------------------------------------
 

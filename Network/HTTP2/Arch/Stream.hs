@@ -1,16 +1,16 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Network.HTTP2.Server.Stream where
+module Network.HTTP2.Arch.Stream where
 
 import Control.Concurrent.STM
 import Data.IORef
 import qualified Data.IntMap.Strict as M
 
 import Imports
-import Network.HTTP2
+import Network.HTTP2.Arch.Types
+import Network.HTTP2.Frame
 import Network.HTTP2.Priority
-import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 

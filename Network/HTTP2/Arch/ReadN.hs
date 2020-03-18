@@ -1,4 +1,4 @@
-module Network.HTTP2.Server.ReadN where
+module Network.HTTP2.Arch.ReadN where
 
 import qualified Data.ByteString as B
 import Data.IORef

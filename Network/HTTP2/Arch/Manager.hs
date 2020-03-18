@@ -3,7 +3,7 @@
 -- | A thread pool manager.
 --   The manager has responsibility to spawn and kill
 --   worker threads.
-module Network.HTTP2.Server.Manager (
+module Network.HTTP2.Arch.Manager (
     Manager
   , Action
   , start

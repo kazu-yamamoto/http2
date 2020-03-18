@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Server.HPACK (
+module Network.HTTP2.Arch.HPACK (
     hpackEncodeHeader
   , hpackEncodeHeaderLoop
   , hpackDecodeHeader
@@ -19,8 +19,8 @@ import qualified Network.HTTP.Types as H
 import Imports
 import Network.HPACK
 import Network.HPACK.Token
-import Network.HTTP2
-import Network.HTTP2.Server.Context
+import Network.HTTP2.Arch.Context
+import Network.HTTP2.Frame
 
 -- $setup
 -- >>> :set -XOverloadedStrings

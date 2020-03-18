@@ -1,4 +1,4 @@
-module Network.HTTP2.Server.Config where
+module Network.HTTP2.Arch.Config where
 
 import Data.IORef
 import Foreign.Marshal.Alloc (mallocBytes, free)
@@ -6,9 +6,9 @@ import Network.Socket
 import Network.Socket.ByteString (sendAll)
 
 import Network.HPACK
-import Network.HTTP2.Server.File
-import Network.HTTP2.Server.ReadN
-import Network.HTTP2.Types
+import Network.HTTP2.Arch.File
+import Network.HTTP2.Arch.Object
+import Network.HTTP2.Arch.ReadN
 
 {-# DEPRECATED makeSimpleConfig "Use allocSimpleConfig instead" #-}
 -- | Making configuration whose IO is not efficient.

@@ -1,8 +1,8 @@
-module Network.HTTP2.Server.File where
+module Network.HTTP2.Arch.File where
 
 import System.IO
 
-import Network.HTTP2.Types
+import Network.HTTP2.Arch.Object
 
 -- | Position read based on 'Handle'.
 defaultPositionReadMaker :: PositionReadMaker

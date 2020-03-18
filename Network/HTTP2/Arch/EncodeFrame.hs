@@ -1,6 +1,6 @@
-module Network.HTTP2.Server.EncodeFrame where
+module Network.HTTP2.Arch.EncodeFrame where
 
-import Network.HTTP2
+import Network.HTTP2.Frame
 
 import Imports
 

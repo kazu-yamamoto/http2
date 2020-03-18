@@ -88,13 +88,10 @@ import qualified Network.HTTP.Types as H
 
 import Imports
 import Network.HPACK
+import Network.HTTP2.Arch
 import Network.HTTP2.Frame.Types
 import Network.HTTP2.Server.API
-import Network.HTTP2.Server.Config
-import Network.HTTP2.Server.File (defaultPositionReadMaker)
-import Network.HTTP2.Server.ReadN (defaultReadN)
 import Network.HTTP2.Server.Run (run)
-import Network.HTTP2.Types
 
 ----------------------------------------------------------------
 
