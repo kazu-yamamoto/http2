@@ -30,8 +30,8 @@ data Context = Context {
   --   frames that might follow". This field is used to implement
   --   this requirement.
   , continued          :: IORef (Maybe StreamId)
-  , clientStreamId     :: IORef StreamId
-  , serverStreamId     :: IORef StreamId
+  , myStreamId         :: IORef StreamId
+  , peerStreamId       :: IORef StreamId
   , inputQ             :: TQueue Input -- Server only
   , outputQ            :: PriorityTree Output
   , controlQ           :: TQueue Control
@@ -51,14 +51,17 @@ newContext rl =
                <*> newIORef 0
                <*> newIORef 0
                <*> newIORef Nothing
-               <*> newIORef 1
-               <*> newIORef 2
+               <*> newIORef sid0
+               <*> newIORef 0
                <*> newTQueueIO
                <*> newPriorityTree
                <*> newTQueueIO
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
                <*> newTVarIO defaultInitialWindowSize
+   where
+     sid0 | rl == Client = 1
+          | otherwise    = 2
 
 clearContext :: Context -> IO ()
 clearContext _ctx = return ()
@@ -74,21 +77,15 @@ isServer ctx = role ctx == Server
 ----------------------------------------------------------------
 
 getMyNewStreamId :: Context -> IO StreamId
-getMyNewStreamId ctx
-  | isServer ctx = atomicModifyIORef' (serverStreamId ctx) inc2
-  | otherwise    = atomicModifyIORef' (clientStreamId ctx) inc2
+getMyNewStreamId ctx = atomicModifyIORef' (myStreamId ctx) inc2
   where
     inc2 n = let n' = n + 2 in (n', n)
 
 getPeerStreamID :: Context -> IO StreamId
-getPeerStreamID ctx
-  | isServer ctx = readIORef $ clientStreamId ctx
-  | otherwise    = readIORef $ serverStreamId ctx
+getPeerStreamID ctx = readIORef $ peerStreamId ctx
 
 setPeerStreamID :: Context -> StreamId -> IO ()
-setPeerStreamID ctx sid
-  | isServer ctx = writeIORef (clientStreamId ctx) sid
-  | otherwise    = writeIORef (serverStreamId ctx) sid
+setPeerStreamID ctx sid =  writeIORef (peerStreamId ctx) sid
 
 ----------------------------------------------------------------
 

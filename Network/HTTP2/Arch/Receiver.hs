@@ -54,14 +54,13 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
            , streamTable
            , concurrency
            , continued
-           , clientStreamId
            , inputQ
            , controlQ
            } = ctx
     sendGoaway e
       | Just (ConnectionError err msg) <- E.fromException e = do
-          csid <- readIORef clientStreamId -- fixme
-          let frame = goawayFrame csid err msg
+          psid <- getPeerStreamID ctx -- fixme
+          let frame = goawayFrame psid err msg
           enqueueControl controlQ $ CGoaway frame
       | otherwise = return ()
 
@@ -136,8 +135,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                   Open (NoBody tbl@(_,reqvt) pri) -> do
                       resetContinued
                       let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
-                      when (just mcl (/= (0 :: Int))) $
-                          E.throwIO $ StreamError ProtocolError streamId
+                      when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamError ProtocolError streamId
                       writeIORef streamPrecedence $ toPrecedence pri
                       halfClosedRemote ctx strm
                       tlr <- newIORef Nothing
@@ -193,8 +191,8 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                      return js
                  Nothing
                    | isServerInitiated streamId -> return Nothing
-                   | otherwise           -> do
-                         csid <- readIORef clientStreamId -- fixme
+                   | isServer ctx -> do
+                         csid <- getPeerStreamID ctx
                          if streamId <= csid then -- consider the stream closed
                              if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
                                  return Nothing -- will be ignored
@@ -204,16 +202,16 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                              when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                                  E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idle stream: " `BS.append` C8.pack (show ftyp)
                              when (ftyp == FrameHeaders) $ do
-                                 writeIORef clientStreamId streamId -- fixme
+                                 setPeerStreamID ctx streamId
                                  cnt <- readIORef concurrency
                                  -- Checking the limitation of concurrency
-                                 when (cnt >= maxConcurrency) $
-                                     E.throwIO $ StreamError RefusedStream streamId
+                                 when (cnt >= maxConcurrency) $ E.throwIO $ StreamError RefusedStream streamId
                              ws <- initialWindowSize <$> readIORef http2settings
                              newstrm <- newStream streamId (fromIntegral ws)
                              when (ftyp == FrameHeaders) $ opened ctx newstrm
                              insert streamTable streamId newstrm
                              return $ Just newstrm
+                   | otherwise -> undefined -- never reach
 
     consume = void . recvN
 
@@ -389,8 +387,7 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
       let w1 = w0 + n
       writeTVar streamWindow w1
       return w1
-    when (isWindowOverflow w) $
-        E.throwIO $ StreamError FlowControlError streamId
+    when (isWindowOverflow w) $ E.throwIO $ StreamError FlowControlError streamId
     return s
 
 stream FrameRSTStream header bs ctx _ strm = do
