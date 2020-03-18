@@ -13,7 +13,7 @@ import Network.HTTP2.Arch
 --   they can be logged.
 type Server = Request -> Aux -> (Response -> [PushPromise] -> IO ()) -> IO ()
 
--- | Request for server.
+-- | Request from client.
 type Request = InpObj
 
 -- | Response from server.

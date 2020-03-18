@@ -34,8 +34,7 @@ module Network.HTTP2.Server (
   , Config(..)
   , allocSimpleConfig
   , freeSimpleConfig
-  , makeSimpleConfig
-  -- * HTTP/2 server
+  -- * HTTP\/2 server
   , Server
   -- * Request
   , Request
@@ -116,25 +115,25 @@ getRequestTrailers = readIORef . inpObjTrailers
 
 ----------------------------------------------------------------
 
--- |Creating response without body.
+-- | Creating response without body.
 responseNoBody :: H.Status -> H.ResponseHeaders -> Response
 responseNoBody st hdr = OutObj hdr' OutBodyNone defaultTrailersMaker
   where
     hdr' = addStatus st hdr
 
--- |Creating response with file.
+-- | Creating response with file.
 responseFile :: H.Status -> H.ResponseHeaders -> FileSpec -> Response
 responseFile st hdr fileSpec = OutObj hdr' (OutBodyFile fileSpec) defaultTrailersMaker
   where
     hdr' = addStatus st hdr
 
--- |Creating response with builder.
+-- | Creating response with builder.
 responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
 responseBuilder st hdr builder = OutObj hdr' (OutBodyBuilder builder) defaultTrailersMaker
   where
     hdr' = addStatus st hdr
 
--- |Creating response with streaming.
+-- | Creating response with streaming.
 responseStreaming :: H.Status -> H.ResponseHeaders
                   -> ((Builder -> IO ()) -> IO () -> IO ())
                   -> Response

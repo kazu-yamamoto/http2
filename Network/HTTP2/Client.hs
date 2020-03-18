@@ -5,121 +5,125 @@
 --
 --  Example:
 --
+-- > {-# LANGUAGE OverloadedStrings #-}
 -- > module Main where
 -- >
--- > import Control.Concurrent (forkIO)
--- > import Data.ByteString.Char8 (pack)
+-- > import qualified Control.Exception as E
+-- > import qualified Data.ByteString.Char8 as C8
+-- > import Network.HTTP.Types
 -- > import Network.Run.TCP (runTCPClient) -- network-run
--- > import qualified Network.Socket.ByteString as NSB
 -- >
 -- > import Network.HTTP2.Client
 -- >
--- > authority :: String
--- > authority = "127.0.0.1"
+-- > server :: String
+-- > server = "127.0.0.1"
+-- >
+-- > authority :: C8.ByteString
+-- > authority = C8.pack server
 -- >
 -- > main :: IO ()
--- > main = runTCPClient authority "80" $ \sock -> do
--- >     let conf = Config (NSB.sendAll sock) (NSB.recv sock)
--- >     run conf $ \client -> do
--- >         _ <- forkIO $ client defaultRequest{ requestAuthority = pack authority } print
--- >         client defaultRequest{ requestAuthority = pack authority } print
+-- > main = runTCPClient server "80" $ runHTTP2Client
+-- >   where
+-- >     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
+-- >                                  (\conf -> run conf "http" authority client)
+-- >                                  freeSimpleConfig
+-- >     client sendRequest = do
+-- >         let req = requestNoBody methodGet "/" []
+-- >         sendRequest req $ \rsp -> do
+-- >             print rsp
+-- >             getResponseBodyChunk rsp >>= C8.putStrLn
 
 module Network.HTTP2.Client (
-  -- * Connection
+  -- * Runner
     run
+  , Scheme
+  , Authority
+  -- * Runner arguments
   , Config(..)
   , allocSimpleConfig
   , freeSimpleConfig
+  -- * HTTP\/2 client
   , Client
-  -- * Stream
+  -- * Request
   , Request
-  , Response
   , requestNoBody
-  , OutObj
-  , InpObj
+  , requestFile
+  , requestStreaming
+  , requestBuilder
+  , Method
+  , Path
+  -- * Response
+  , Response
+  -- ** Accessing response
   , responseHeaders
   , responseBodySize
-  , responseBody
-  , responseTrailers
+  , getResponseBodyChunk
+  , getResponseTrailers
+  -- * Types
+  , FileSpec(..)
+  , FileOffset
+  , ByteCount
+  -- * RecvN
+  , defaultReadN
+  -- * Position read for files
+  , PositionReadMaker
+  , PositionRead
+  , Sentinel(..)
+  , defaultPositionReadMaker
   ) where
 
-import Control.Concurrent
-import qualified Control.Exception as E
 import Data.ByteString (ByteString)
-import Data.IORef (readIORef,writeIORef,IORef)
+import Data.ByteString.Builder (Builder)
+import Data.IORef (readIORef)
 import Network.HTTP.Types
 
 import Network.HPACK
 import Network.HTTP2.Arch
-import Network.HTTP2.Frame
+import Network.HTTP2.Client.Types
+import Network.HTTP2.Client.Run
 
 ----------------------------------------------------------------
 
--- | HTTP\/2 request for clients.
-type Request = OutObj
-
--- | HTTP\/2 response for clients.
-type Response = InpObj
-
-type Client = Request -> (Response -> IO ()) -> IO ()
-
-----------------------------------------------------------------
-
--- | Running HTTP/2 client.
-run :: Config -> (Client -> IO ()) -> IO ()
-run conf@Config{..} clientAction = do
-    ctx <- newContext Client
-    mgr <- start
-    tid0 <- forkIO $ frameReceiver ctx confReadN
-    exchangeSettings conf ctx
-    -- frameSender is the main thread because it ensures to send
-    -- a goway frame.
-    tid1 <- forkIO $ do
-        -- fixme: wait
-        threadDelay 100000
-        clientAction $ sendRequest ctx
-    frameSender ctx conf mgr `E.finally` do
-        clearContext ctx
-        killThread tid0
-        killThread tid1
-
-sendRequest :: Context -> Client
-sendRequest ctx@Context{..} req processResponse = do
-    ws <- initialWindowSize <$> readIORef http2settings
-    sid <- getMyNewStreamId ctx
-    newstrm <- newStream sid (fromIntegral ws)
-    opened ctx newstrm
-    insert streamTable sid newstrm
-    enqueueOutput outputQ $ Output newstrm req OObj Nothing (return ())
-    rsp <- takeMVar $ streamInput newstrm
-    processResponse rsp
-
-exchangeSettings :: Config -> Context -> IO ()
-exchangeSettings Config{..} Context{..} = do
-    confSendAll connectionPreface
-    let setframe = CSettings initialFrame [] -- fixme alist
-    writeIORef firstSettings True
-    enqueueControl controlQ setframe
-
-----------------------------------------------------------------
-
-requestNoBody :: Method -> ByteString -> RequestHeaders -> Request
+-- | Creating request without body.
+requestNoBody :: Method -> Path -> RequestHeaders -> Request
 requestNoBody m p hdr = OutObj hdr' OutBodyNone defaultTrailersMaker
   where
-    hdr' = (":method", m)
-        : (":authority", "127.0.0.1") -- fixme
-        : (":path", p)
-        : (":scheme", "http") -- fixme
-        : hdr
+    hdr' = addHeaders m p hdr
+
+-- | Creating request with file.
+requestFile :: Method -> Path -> RequestHeaders -> FileSpec -> Request
+requestFile m p hdr fileSpec = OutObj hdr' (OutBodyFile fileSpec) defaultTrailersMaker
+  where
+    hdr' = addHeaders m p hdr
+
+-- | Creating request with builder.
+requestBuilder :: Method -> Path -> RequestHeaders -> Builder -> Request
+requestBuilder m p hdr builder = OutObj hdr' (OutBodyBuilder builder) defaultTrailersMaker
+  where
+    hdr' = addHeaders m p hdr
+
+-- | Creating request with streaming.
+requestStreaming :: Method -> Path -> RequestHeaders
+                 -> ((Builder -> IO ()) -> IO () -> IO ())
+                 -> Request
+requestStreaming m p hdr strmbdy = OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
+  where
+    hdr' = addHeaders m p hdr
+
+
+addHeaders :: Method -> Path -> RequestHeaders -> RequestHeaders
+addHeaders m p hdr = (":method", m) : (":path", p) : hdr
+
+----------------------------------------------------------------
 
 responseHeaders :: Response -> HeaderTable
 responseHeaders = inpObjHeaders
 
-responseBodySize :: Response -> InpBody
-responseBodySize = inpObjBody
+responseBodySize :: Response -> Maybe Int
+responseBodySize = inpObjBodySize
 
-responseBody :: Response -> InpBody
-responseBody = inpObjBody
+getResponseBodyChunk :: Response -> IO ByteString
+getResponseBodyChunk = inpObjBody
 
-responseTrailers :: Response -> IORef (Maybe HeaderTable)
-responseTrailers = inpObjTrailers
+getResponseTrailers :: Response -> IO (Maybe HeaderTable)
+getResponseTrailers = readIORef . inpObjTrailers

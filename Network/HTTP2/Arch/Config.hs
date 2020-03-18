@@ -10,7 +10,7 @@ import Network.HPACK
 import Network.HTTP2.Arch.File
 import Network.HTTP2.Arch.ReadN
 
--- | HTTP/2 server configuration.
+-- | HTTP/2 configuration.
 data Config = Config {
       confWriteBuffer :: Buffer
     , confBufferSize  :: BufferSize
@@ -18,15 +18,6 @@ data Config = Config {
     , confReadN       :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
     }
-
-{-# DEPRECATED makeSimpleConfig "Use allocSimpleConfig instead" #-}
--- | Making configuration whose IO is not efficient.
---   A write buffer is allocated internally.
---   That should be deallocated by the returned action.
-makeSimpleConfig :: Socket -> BufferSize -> IO (Config, IO ())
-makeSimpleConfig s bufsiz = do
-    config <- allocSimpleConfig s bufsiz
-    return (config, freeSimpleConfig config)
 
 -- | Making simple configuration whose IO is not efficient.
 --   A write buffer is allocated internally.
