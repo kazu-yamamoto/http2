@@ -37,14 +37,19 @@ module Network.HTTP2.Client (
   , requestNoBody
   , OutObj
   , InpObj
+  , responseHeaders
+  , responseBodySize
+  , responseBody
+  , responseTrailers
   ) where
 
 import Control.Concurrent
 import qualified Control.Exception as E
 import Data.ByteString (ByteString)
-import Data.IORef (readIORef,writeIORef)
+import Data.IORef (readIORef,writeIORef,IORef)
 import Network.HTTP.Types
 
+import Network.HPACK
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame
 
@@ -106,3 +111,15 @@ requestNoBody m p hdr = OutObj hdr' OutBodyNone defaultTrailersMaker
         : (":path", p)
         : (":scheme", "http") -- fixme
         : hdr
+
+responseHeaders :: Response -> HeaderTable
+responseHeaders = inpObjHeaders
+
+responseBodySize :: Response -> InpBody
+responseBodySize = inpObjBody
+
+responseBody :: Response -> InpBody
+responseBody = inpObjBody
+
+responseTrailers :: Response -> IORef (Maybe HeaderTable)
+responseTrailers = inpObjTrailers
