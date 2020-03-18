@@ -7,7 +7,7 @@ import Imports
 ----------------------------------------------------------------
 
 -- | HTTP\/2 client
-type Client = Request -> (Response -> IO ()) -> IO ()
+type Client a = Request -> (Response -> IO a) -> IO a
 
 -- | Request from client.
 type Request = OutObj

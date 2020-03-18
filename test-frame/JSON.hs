@@ -19,7 +19,7 @@ import Data.Maybe (fromJust, fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Network.HTTP2
+import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 

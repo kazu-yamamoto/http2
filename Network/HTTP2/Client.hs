@@ -25,8 +25,8 @@
 -- > main = runTCPClient server "80" $ runHTTP2Client
 -- >   where
 -- >     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
--- >                                  (\conf -> run conf "http" authority client)
 -- >                                  freeSimpleConfig
+-- >                                  (\conf -> run conf "http" authority client)
 -- >     client sendRequest = do
 -- >         let req = requestNoBody methodGet "/" []
 -- >         sendRequest req $ \rsp -> do

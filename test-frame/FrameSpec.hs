@@ -9,7 +9,7 @@ import Control.Monad (forM_)
 import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Lazy as BL
-import Network.HTTP2
+import Network.HTTP2.Frame
 import System.FilePath.Glob (compile, globDir)
 import Test.Hspec
 

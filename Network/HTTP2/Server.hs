@@ -19,8 +19,8 @@
 -- > main = runTCPServer Nothing "80" $ \s _peer -> runHTTP2Server s
 -- >   where
 -- >     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
--- >                                  (\config -> run config server)
 -- >                                  freeSimpleConfig
+-- >                                  (\config -> run config server)
 -- >     server _req _aux sendResponse = sendResponse response []
 -- >       where
 -- >         response = responseBuilder ok200 header body

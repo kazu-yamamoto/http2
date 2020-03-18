@@ -5,9 +5,7 @@ module HTTP2.FrameSpec where
 import Test.Hspec
 
 import Data.ByteString.Char8 ()
-import Network.HTTP2.Decode
-import Network.HTTP2.Encode
-import Network.HTTP2.Types
+import Network.HTTP2.Frame
 
 spec :: Spec
 spec = do

@@ -12,8 +12,8 @@ main :: IO ()
 main = runTCPServer Nothing "80" runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
-                                 (`run` server)
                                  freeSimpleConfig
+                                 (`run` server)
     server _req _aux sendResponse = sendResponse response []
       where
         response = responseBuilder ok200 header body

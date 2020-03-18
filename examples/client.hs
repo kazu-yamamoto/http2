@@ -16,8 +16,8 @@ main :: IO ()
 main = runTCPClient authority "80" $ runHTTP2Client
   where
     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
-                                 (\conf -> run conf "http" (C8.pack authority) client)
                                  freeSimpleConfig
+                                 (\conf -> run conf "http" (C8.pack authority) client)
     client sendRequest = do
         let req = requestNoBody methodGet "/" []
         _ <- forkIO $ sendRequest req $ \rsp -> do

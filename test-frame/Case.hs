@@ -9,7 +9,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as B16
 
 import JSON
-import Network.HTTP2
+import Network.HTTP2.Frame
 
 data CaseSource = CaseSource {
     cs_description :: String

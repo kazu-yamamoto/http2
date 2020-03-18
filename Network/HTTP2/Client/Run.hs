@@ -12,7 +12,7 @@ import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
 
 -- | Running HTTP/2 client.
-run :: Config -> Scheme -> Authority -> (Client -> IO ()) -> IO ()
+run :: Config -> Scheme -> Authority -> (Client a -> IO a) -> IO a
 run conf@Config{..} scheme auth client = do
     ctx <- newContext Client
     mgr <- start
@@ -26,7 +26,7 @@ run conf@Config{..} scheme auth client = do
         killThread tid0
         killThread tid1
 
-sendRequest :: Context -> Scheme -> Authority -> Client
+sendRequest :: Context -> Scheme -> Authority -> Client a
 sendRequest ctx@Context{..} scheme auth req processResponse = do
     let hdr = outObjHeaders req
         hdr' = (":scheme", scheme)

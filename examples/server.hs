@@ -21,8 +21,8 @@ main :: IO ()
 main = runTCPServer Nothing "80" runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
-                                 (`run` server)
                                  freeSimpleConfig
+                                 (`run` server)
     server req _aux sendResponse = case getHeaderValue tokenMethod vt of
       Just "GET"  -> sendResponse responseHello []
       Just "POST" -> sendResponse (responseEcho req) []

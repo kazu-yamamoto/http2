@@ -8,12 +8,10 @@ import qualified Control.Exception as E
 import Control.Monad
 import Crypto.Hash (Context, SHA1) -- cryptonite
 import qualified Crypto.Hash as CH
-import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
-import Data.IORef
 import Network.HTTP.Types
 import Network.Run.TCP
 import System.Exit
@@ -44,8 +42,8 @@ echoServer :: IO ()
 echoServer = runTCPServer (Just host) port runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
-                                 (`run` server)
                                  freeSimpleConfig
+                                 (`run` server)
     server req _aux sendResponse = case getHeaderValue tokenMethod vt of
       Just "GET"  -> sendResponse responseHello []
       Just "POST" -> sendResponse (responseEcho req) []
@@ -85,14 +83,18 @@ trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
   where
     !ctx' = CH.hashUpdate ctx bs
 
-request :: C.Request
-request = C.defaultRequest{ C.requestAuthority = pack host }
-
 client :: IO (Maybe HeaderValue)
-client = runTCPClient host port $ \sock -> C.withConnection sock $ \conn -> do
-    C.withResponse conn request { C.requestMethod = methodPost } $ \rsp -> do
-        _ <- C.responseBody rsp
-        mht <- readIORef (C.responseTrailer rsp)
-        return $ case mht of
-          Nothing     -> Nothing
-          Just (ht,_) -> Just (snd (Prelude.head ht))
+client = runTCPClient host port $ runHTTP2Client
+  where
+    authority = C8.pack host
+    runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
+                                 freeSimpleConfig
+                                 (\conf -> C.run conf "http" authority client')
+    client' sendRequest = do
+        let req = C.requestNoBody methodPost "/" []
+        sendRequest req $ \rsp -> do
+            _ <- C.getResponseBodyChunk rsp
+            mht <- C.getResponseTrailers rsp
+            return $ case mht of
+                       Nothing     -> Nothing
+                       Just (ht,_) -> Just (snd (Prelude.head ht))
