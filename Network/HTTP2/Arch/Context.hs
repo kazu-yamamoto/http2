@@ -32,7 +32,7 @@ data Context = Context {
   , continued          :: IORef (Maybe StreamId)
   , clientStreamId     :: IORef StreamId
   , serverStreamId     :: IORef StreamId
-  , inputQ             :: TQueue Input
+  , inputQ             :: TQueue Input -- Server only
   , outputQ            :: PriorityTree Output
   , controlQ           :: TQueue Control
   , encodeDynamicTable :: DynamicTable
@@ -51,8 +51,8 @@ newContext rl =
                <*> newIORef 0
                <*> newIORef 0
                <*> newIORef Nothing
-               <*> newIORef 0
-               <*> newIORef 0
+               <*> newIORef 1
+               <*> newIORef 2
                <*> newTQueueIO
                <*> newPriorityTree
                <*> newTQueueIO
@@ -73,14 +73,22 @@ isServer ctx = role ctx == Server
 
 ----------------------------------------------------------------
 
-newPushStream :: Context -> WindowSize -> Precedence -> IO Stream
-newPushStream Context{serverStreamId} win pre = do
-    sid <- atomicModifyIORef' serverStreamId inc2
-    Stream sid <$> newIORef Reserved
-               <*> newTVarIO win
-               <*> newIORef pre
+getMyNewStreamId :: Context -> IO StreamId
+getMyNewStreamId ctx
+  | isServer ctx = atomicModifyIORef' (serverStreamId ctx) inc2
+  | otherwise    = atomicModifyIORef' (clientStreamId ctx) inc2
   where
-    inc2 x = let x' = x + 2 in (x', x')
+    inc2 n = let n' = n + 2 in (n', n)
+
+getPeerStreamID :: Context -> IO StreamId
+getPeerStreamID ctx
+  | isServer ctx = readIORef $ clientStreamId ctx
+  | otherwise    = readIORef $ serverStreamId ctx
+
+setPeerStreamID :: Context -> StreamId -> IO ()
+setPeerStreamID ctx sid
+  | isServer ctx = writeIORef (clientStreamId ctx) sid
+  | otherwise    = writeIORef (serverStreamId ctx) sid
 
 ----------------------------------------------------------------
 

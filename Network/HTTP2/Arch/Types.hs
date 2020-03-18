@@ -3,6 +3,7 @@
 
 module Network.HTTP2.Arch.Types where
 
+import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException)
 import Data.ByteString.Builder (Builder)
@@ -20,21 +21,21 @@ import Network.HTTP2.Priority
 data OpenState =
     JustOpened
   | Continued [HeaderBlockFragment]
-              !Int  -- Total size
-              !Int  -- The number of continuation frames
-              !Bool -- End of stream
-              !Priority
+              Int  -- Total size
+              Int  -- The number of continuation frames
+              Bool -- End of stream
+              Priority
   | NoBody HeaderTable !Priority
   | HasBody HeaderTable !Priority
-  | Body !(TQueue ByteString)
-         !(Maybe Int) -- received Content-Length
-                      -- compared the body length for error checking
-         !(IORef Int) -- actual body length
-         !(IORef (Maybe HeaderTable)) -- trailers
+  | Body (TQueue ByteString)
+         (Maybe Int) -- received Content-Length
+                     -- compared the body length for error checking
+         (IORef Int) -- actual body length
+         (IORef (Maybe HeaderTable)) -- trailers
 
 data ClosedCode = Finished
                 | Killed
-                | Reset !ErrorCodeId
+                | Reset ErrorCodeId
                 | ResetByMe SomeException
                 deriving Show
 
@@ -42,27 +43,28 @@ data ClosedCode = Finished
 
 data StreamState =
     Idle
-  | Open !OpenState
+  | Open OpenState
   | HalfClosedRemote
-  | HalfClosedLocal !ClosedCode
-  | Closed !ClosedCode
+  | HalfClosedLocal ClosedCode
+  | Closed ClosedCode
   | Reserved
 
 instance Show StreamState where
-    show Idle        = "Idle"
-    show Open{}      = "Open"
-    show HalfClosedRemote  = "HalfClosedRemote"
-    show (HalfClosedLocal e)  = "HalfClosedLocal: " ++ show e
-    show (Closed e)  = "Closed: " ++ show e
-    show Reserved    = "Reserved"
+    show Idle                = "Idle"
+    show Open{}              = "Open"
+    show HalfClosedRemote    = "HalfClosedRemote"
+    show (HalfClosedLocal e) = "HalfClosedLocal: " ++ show e
+    show (Closed e)          = "Closed: " ++ show e
+    show Reserved            = "Reserved"
 
 ----------------------------------------------------------------
 
 data Stream = Stream {
-    streamNumber     :: !StreamId
-  , streamState      :: !(IORef StreamState)
-  , streamWindow     :: !(TVar WindowSize)
-  , streamPrecedence :: !(IORef Precedence)
+    streamNumber     :: StreamId
+  , streamState      :: IORef StreamState
+  , streamWindow     :: TVar WindowSize
+  , streamPrecedence :: IORef Precedence
+  , streamInput      :: MVar InpObj -- Client only
   }
 
 instance Show Stream where
@@ -86,8 +88,8 @@ data Output = Output {
 
 data OutputType = OObj
                 | OWait (IO ())
-                | OPush !TokenHeaderList !StreamId -- associated stream id from client
-                | ONext !DynaNext !TrailersMaker
+                | OPush TokenHeaderList StreamId -- associated stream id from client
+                | ONext DynaNext TrailersMaker
 
 ----------------------------------------------------------------
 
@@ -95,15 +97,15 @@ type DynaNext = Buffer -> BufferSize -> WindowSize -> IO Next
 
 type BytesFilled = Int
 
-data Next = Next !BytesFilled (Maybe DynaNext)
+data Next = Next BytesFilled (Maybe DynaNext)
 
 ----------------------------------------------------------------
 
 data Control = CFinish
-             | CGoaway    !ByteString
-             | CFrame     !ByteString
-             | CSettings  !ByteString !SettingsList
-             | CSettings0 !ByteString !ByteString !SettingsList
+             | CGoaway    ByteString
+             | CFrame     ByteString
+             | CSettings  ByteString SettingsList
+             | CSettings0 ByteString ByteString SettingsList
 
 ----------------------------------------------------------------
 

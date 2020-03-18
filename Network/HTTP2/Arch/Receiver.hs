@@ -60,7 +60,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
            } = ctx
     sendGoaway e
       | Just (ConnectionError err msg) <- E.fromException e = do
-          csid <- readIORef clientStreamId
+          csid <- readIORef clientStreamId -- fixme
           let frame = goawayFrame csid err msg
           enqueueControl controlQ $ CGoaway frame
       | otherwise = return ()
@@ -129,7 +129,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                     PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
                     checkPriority newpri streamId
                 return True -- just ignore this frame
-            Just strm@Stream{streamPrecedence} -> do
+            Just strm@Stream{streamPrecedence,streamInput} -> do
               state <- readStreamState strm
               state' <- stream ftyp header pl ctx state strm
               case state' of
@@ -141,7 +141,11 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                       writeIORef streamPrecedence $ toPrecedence pri
                       halfClosedRemote ctx strm
                       tlr <- newIORef Nothing
-                      atomically $ writeTQueue inputQ $ Input strm $ InpObj tbl (Just 0) (return "") tlr
+                      let inpObj = InpObj tbl (Just 0) (return "") tlr
+                      if isServer ctx then do
+                          atomically $ writeTQueue inputQ $ Input strm inpObj
+                        else
+                          putMVar streamInput inpObj
                   Open (HasBody tbl@(_,reqvt) pri) -> do
                       resetContinued
                       q <- newTQueueIO
@@ -152,7 +156,11 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                       setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
                       readQ <- newReadBody q
                       bodySource <- mkSource readQ
-                      atomically $ writeTQueue inputQ $ Input strm $ InpObj tbl mcl (readSource bodySource) tlr
+                      let inpObj = InpObj tbl mcl (readSource bodySource) tlr
+                      if isServer ctx then
+                          atomically $ writeTQueue inputQ $ Input strm inpObj
+                        else
+                          putMVar streamInput inpObj
                   s@(Open Continued{}) -> do
                       setContinued
                       setStreamState ctx strm s
@@ -186,7 +194,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                  Nothing
                    | isServerInitiated streamId -> return Nothing
                    | otherwise           -> do
-                         csid <- readIORef clientStreamId
+                         csid <- readIORef clientStreamId -- fixme
                          if streamId <= csid then -- consider the stream closed
                              if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
                                  return Nothing -- will be ignored
@@ -196,7 +204,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                              when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                                  E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idle stream: " `BS.append` C8.pack (show ftyp)
                              when (ftyp == FrameHeaders) $ do
-                                 writeIORef clientStreamId streamId
+                                 writeIORef clientStreamId streamId -- fixme
                                  cnt <- readIORef concurrency
                                  -- Checking the limitation of concurrency
                                  when (cnt >= maxConcurrency) $

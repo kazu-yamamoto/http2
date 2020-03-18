@@ -56,8 +56,8 @@ pushStream ctx@Context{..} pstrm reqvt pps0
         let w = promiseWeight pp
             pri = defaultPriority { weight = w }
             pre = toPrecedence pri
-        newstrm <- newPushStream ctx ws pre
-        let sid = streamNumber newstrm
+        sid <- getMyNewStreamId ctx
+        newstrm <- newPushStream sid ws pre
         insert streamTable sid newstrm
         let scheme = fromJust $ getHeaderValue tokenScheme reqvt
             -- fixme: this value can be Nothing

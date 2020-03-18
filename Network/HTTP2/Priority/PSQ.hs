@@ -26,10 +26,10 @@ type Deficit = Word -- Deficit can be overflowed
 --   The precedence of a dequeued entry should be specified
 --   to enqueue when the entry is enqueued again.
 data Precedence = Precedence {
-    deficit    :: {-# UNPACK #-} Deficit
-  , weight     :: {-# UNPACK #-} Weight
+    deficit    :: Deficit
+  , weight     :: Weight
   -- stream dependency, used by the upper layer
-  , dependency :: {-# UNPACK #-} Key
+  , dependency :: Key
   } deriving Show
 
 -- | For test only
@@ -47,7 +47,7 @@ instance Ord Precedence where
 type Heap a = IntPSQ Precedence a
 
 data PriorityQueue a = PriorityQueue {
-    baseDeficit :: {-# UNPACK #-} Deficit
+    baseDeficit :: Deficit
   , queue :: Heap a
   }
 

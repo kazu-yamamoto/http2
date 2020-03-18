@@ -28,6 +28,8 @@ module Network.HTTP2.Client (
   -- * Connection
     run
   , Config(..)
+  , allocSimpleConfig
+  , freeSimpleConfig
   , Client
   -- * Stream
   , Request
@@ -79,12 +81,12 @@ run conf@Config{..} clientAction = do
 sendRequest :: Context -> Client
 sendRequest ctx@Context{..} req processResponse = do
     ws <- initialWindowSize <$> readIORef http2settings
-    let streamId = undefined
-    newstrm <- newStream streamId (fromIntegral ws)
+    sid <- getMyNewStreamId ctx
+    newstrm <- newStream sid (fromIntegral ws)
     opened ctx newstrm
-    insert streamTable streamId newstrm
+    insert streamTable sid newstrm
     enqueueOutput outputQ $ Output newstrm req OObj Nothing (return ())
-    rsp <- undefined
+    rsp <- takeMVar $ streamInput newstrm
     processResponse rsp
 
 exchangeSettings :: Config -> Context -> IO ()

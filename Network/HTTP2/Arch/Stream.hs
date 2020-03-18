@@ -2,6 +2,7 @@
 
 module Network.HTTP2.Arch.Stream where
 
+import Control.Concurrent
 import Control.Concurrent.STM
 import Data.IORef
 import qualified Data.IntMap.Strict as M
@@ -41,6 +42,13 @@ newStream :: StreamId -> WindowSize -> IO Stream
 newStream sid win = Stream sid <$> newIORef Idle
                                <*> newTVarIO win
                                <*> newIORef defaultPrecedence
+                               <*> newEmptyMVar
+
+newPushStream :: StreamId -> WindowSize -> Precedence -> IO Stream
+newPushStream sid win pre = Stream sid <$> newIORef Reserved
+                                       <*> newTVarIO win
+                                       <*> newIORef pre
+                                       <*> newEmptyMVar
 
 ----------------------------------------------------------------
 
