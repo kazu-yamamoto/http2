@@ -18,6 +18,7 @@ import Network.HPACK (setLimitForEncoding, toHeaderTable)
 import Network.HTTP2.Arch.Config
 import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
+import Network.HTTP2.Arch.File
 import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Manager hiding (start)
 import Network.HTTP2.Arch.Object

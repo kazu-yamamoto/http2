@@ -8,7 +8,6 @@ import Network.Socket.ByteString (sendAll)
 
 import Network.HPACK
 import Network.HTTP2.Arch.File
-import Network.HTTP2.Arch.Object
 import Network.HTTP2.Arch.ReadN
 
 -- | HTTP/2 server configuration.
