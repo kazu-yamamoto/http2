@@ -90,8 +90,8 @@ import Imports
 import Network.HPACK
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame.Types
-import Network.HTTP2.Server.API
 import Network.HTTP2.Server.Run (run)
+import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 

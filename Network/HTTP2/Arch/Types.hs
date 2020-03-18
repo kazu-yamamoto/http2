@@ -27,7 +27,6 @@ data OutBody = OutBodyNone
              | OutBodyBuilder Builder
              | OutBodyFile FileSpec
 
-
 -- | Input object
 data InpObj = InpObj {
     inpObjHeaders  :: HeaderTable   -- ^ Accessor for headers.

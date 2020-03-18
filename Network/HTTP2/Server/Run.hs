@@ -9,7 +9,7 @@ import qualified Control.Exception as E
 import Imports
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame
-import Network.HTTP2.Server.API
+import Network.HTTP2.Server.Types
 import Network.HTTP2.Server.Worker
 
 ----------------------------------------------------------------

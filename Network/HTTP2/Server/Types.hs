@@ -1,4 +1,4 @@
-module Network.HTTP2.Server.API where
+module Network.HTTP2.Server.Types where
 
 import qualified System.TimeManager as T
 

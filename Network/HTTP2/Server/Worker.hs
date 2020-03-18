@@ -20,7 +20,7 @@ import Network.HPACK.Token
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame
 import Network.HTTP2.Priority
-import Network.HTTP2.Server.API
+import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 
