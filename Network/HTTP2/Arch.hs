@@ -5,7 +5,6 @@ module Network.HTTP2.Arch (
   , module Network.HTTP2.Arch.File
   , module Network.HTTP2.Arch.HPACK
   , module Network.HTTP2.Arch.Manager
-  , module Network.HTTP2.Arch.Object
   , module Network.HTTP2.Arch.Queue
   , module Network.HTTP2.Arch.ReadN
   , module Network.HTTP2.Arch.Receiver
@@ -20,7 +19,6 @@ import Network.HTTP2.Arch.EncodeFrame
 import Network.HTTP2.Arch.File
 import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Manager
-import Network.HTTP2.Arch.Object
 import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.ReadN
 import Network.HTTP2.Arch.Receiver

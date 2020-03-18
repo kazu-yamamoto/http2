@@ -84,7 +84,6 @@ Library
                         Network.HTTP2.Arch.File
                         Network.HTTP2.Arch.HPACK
                         Network.HTTP2.Arch.Manager
-                        Network.HTTP2.Arch.Object
                         Network.HTTP2.Arch.Queue
                         Network.HTTP2.Arch.ReadN
                         Network.HTTP2.Arch.Receiver
