@@ -55,6 +55,7 @@ Library
                         Network.HPACK.Token
                         Network.HTTP2
                         Network.HTTP2.Client
+                        Network.HTTP2.Frame
                         Network.HTTP2.Priority
                         Network.HTTP2.Server
   Other-Modules:        Imports
@@ -90,7 +91,6 @@ Library
                         Network.HTTP2.Arch.Sender
                         Network.HTTP2.Arch.Stream
                         Network.HTTP2.Arch.Types
-                        Network.HTTP2.Frame
                         Network.HTTP2.Frame.Decode
                         Network.HTTP2.Frame.Encode
                         Network.HTTP2.Frame.Types
