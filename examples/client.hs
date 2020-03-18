@@ -2,8 +2,8 @@
 module Main where
 
 import qualified Control.Exception as E
-import Control.Concurrent (forkIO)
-import Data.ByteString ()
+import Control.Concurrent (forkIO, threadDelay)
+import qualified Data.ByteString.Char8 as C8
 import Network.HTTP.Types
 import Network.Run.TCP (runTCPClient) -- network-run
 
@@ -20,5 +20,10 @@ main = runTCPClient authority "80" $ runHTTP2Client
                                  freeSimpleConfig
     client sendRequest = do
         let req = requestNoBody methodGet "/" []
-        _ <- forkIO $ sendRequest req print
-        sendRequest req print
+        _ <- forkIO $ sendRequest req $ \rsp -> do
+            print rsp
+            responseBody rsp >>= C8.putStrLn
+        sendRequest req $ \rsp -> do
+            threadDelay 100000
+            print rsp
+            responseBody rsp >>= C8.putStrLn
