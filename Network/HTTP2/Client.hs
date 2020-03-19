@@ -54,6 +54,7 @@ module Network.HTTP2.Client (
   -- * Response
   , Response
   -- ** Accessing response
+  , responseStatus
   , responseHeaders
   , responseBodySize
   , getResponseBodyChunk
@@ -114,6 +115,9 @@ addHeaders :: Method -> Path -> RequestHeaders -> RequestHeaders
 addHeaders m p hdr = (":method", m) : (":path", p) : hdr
 
 ----------------------------------------------------------------
+
+responseStatus :: Response -> Maybe Status
+responseStatus (Response rsp) = getStatus $ inpObjHeaders rsp
 
 responseHeaders :: Response -> HeaderTable
 responseHeaders (Response rsp) = inpObjHeaders rsp

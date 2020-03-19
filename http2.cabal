@@ -90,6 +90,7 @@ Library
                         Network.HTTP2.Arch.ReadN
                         Network.HTTP2.Arch.Receiver
                         Network.HTTP2.Arch.Sender
+                        Network.HTTP2.Arch.Status
                         Network.HTTP2.Arch.Stream
                         Network.HTTP2.Arch.Types
                         Network.HTTP2.Frame.Decode
@@ -175,6 +176,7 @@ Test-Suite spec
                         Network.HTTP2.Arch.ReadN
                         Network.HTTP2.Arch.Receiver
                         Network.HTTP2.Arch.Sender
+                        Network.HTTP2.Arch.Status
                         Network.HTTP2.Arch.Stream
                         Network.HTTP2.Arch.Types
                         Network.HTTP2.Client
@@ -253,6 +255,7 @@ Test-Suite hpack
                         Network.HTTP2.Arch.ReadN
                         Network.HTTP2.Arch.Receiver
                         Network.HTTP2.Arch.Sender
+                        Network.HTTP2.Arch.Status
                         Network.HTTP2.Arch.Stream
                         Network.HTTP2.Arch.Types
                         Network.HTTP2.Client

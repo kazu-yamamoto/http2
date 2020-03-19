@@ -78,10 +78,7 @@ module Network.HTTP2.Server (
   ) where
 
 import Data.ByteString.Builder (Builder)
-import Data.ByteString.Internal (unsafeCreate)
 import Data.IORef (readIORef)
-import Foreign.Ptr (plusPtr)
-import Foreign.Storable (poke)
 import qualified Network.HTTP.Types as H
 
 import Imports
@@ -118,19 +115,19 @@ getRequestTrailers (Request req) = readIORef (inpObjTrailers req)
 responseNoBody :: H.Status -> H.ResponseHeaders -> Response
 responseNoBody st hdr = Response $ OutObj hdr' OutBodyNone defaultTrailersMaker
   where
-    hdr' = addStatus st hdr
+    hdr' = setStatus st hdr
 
 -- | Creating response with file.
 responseFile :: H.Status -> H.ResponseHeaders -> FileSpec -> Response
 responseFile st hdr fileSpec = Response $ OutObj hdr' (OutBodyFile fileSpec) defaultTrailersMaker
   where
-    hdr' = addStatus st hdr
+    hdr' = setStatus st hdr
 
 -- | Creating response with builder.
 responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
 responseBuilder st hdr builder = Response $ OutObj hdr' (OutBodyBuilder builder) defaultTrailersMaker
   where
-    hdr' = addStatus st hdr
+    hdr' = setStatus st hdr
 
 -- | Creating response with streaming.
 responseStreaming :: H.Status -> H.ResponseHeaders
@@ -138,25 +135,7 @@ responseStreaming :: H.Status -> H.ResponseHeaders
                   -> Response
 responseStreaming st hdr strmbdy = Response $ OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
   where
-    hdr' = addStatus st hdr
-
-----------------------------------------------------------------
-
-addStatus :: H.Status -> H.ResponseHeaders -> H.ResponseHeaders
-addStatus st hdr = (":status", packStatus st) : hdr
-
-packStatus :: H.Status -> ByteString
-packStatus status = unsafeCreate 3 $ \p -> do
-    poke p               (toW8 r2)
-    poke (p `plusPtr` 1) (toW8 r1)
-    poke (p `plusPtr` 2) (toW8 r0)
-  where
-    toW8 :: Int -> Word8
-    toW8 n = 48 + fromIntegral n
-    s = fromIntegral $ H.statusCode status
-    (q0,r0) = s `divMod` 10
-    (q1,r1) = q0 `divMod` 10
-    r2 = q1 `mod` 10
+    hdr' = setStatus st hdr
 
 ----------------------------------------------------------------
 
