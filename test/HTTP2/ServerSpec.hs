@@ -4,6 +4,7 @@
 module HTTP2.ServerSpec where
 
 import Control.Concurrent
+import Control.Concurrent.Async
 import qualified Control.Exception as E
 import Control.Monad
 import Crypto.Hash (Context, SHA1) -- cryptonite
@@ -32,11 +33,13 @@ host = "127.0.0.1"
 spec :: Spec
 spec = do
     describe "server" $ do
-        it "passes the tests of h2spec" $ do
-            tid <- forkIO echoServer
-            runProcess (proc "h2spec" ["-h",host,"-p",port]) `shouldReturn` ExitSuccess
-            client `shouldReturn` Just "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-            killThread tid
+        it "handles error cases" $
+            E.bracket (forkIO echoServer) killThread $ \_ -> do
+                runProcess (proc "h2spec" ["-h",host,"-p",port]) `shouldReturn` ExitSuccess
+        it "handles normal cases" $
+            E.bracket (forkIO echoServer) killThread $ \_ -> do
+                threadDelay 10000
+                runClient
 
 echoServer :: IO ()
 echoServer = runTCPServer (Just host) port runHTTP2Server
@@ -83,18 +86,21 @@ trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
   where
     !ctx' = CH.hashUpdate ctx bs
 
-client :: IO (Maybe HeaderValue)
-client = runTCPClient host port $ runHTTP2Client
+runClient :: IO ()
+runClient = runTCPClient host port $ runHTTP2Client
   where
     authority = C8.pack host
     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
-                                 (\conf -> C.run conf "http" authority client')
-    client' sendRequest = do
-        let req = C.requestNoBody methodPost "/" []
-        sendRequest req $ \rsp -> do
-            _ <- C.getResponseBodyChunk rsp
-            mht <- C.getResponseTrailers rsp
-            return $ case mht of
-                       Nothing     -> Nothing
-                       Just (ht,_) -> Just (snd (Prelude.head ht))
+                                 (\conf -> C.run conf "http" authority client)
+    client sendRequest = mapConcurrently_ ($ sendRequest) [client0,client0]
+
+client0 :: C.Client ()
+client0 sendRequest = do
+    let req = C.requestNoBody methodPost "/" []
+    sendRequest req $ \rsp -> do
+        _ <- C.getResponseBodyChunk rsp
+        mt <- C.getResponseTrailers rsp
+        firstTrailerValue <$> mt `shouldBe` Just "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+  where
+     firstTrailerValue = snd . Prelude.head . fst
