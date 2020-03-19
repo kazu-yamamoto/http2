@@ -21,14 +21,14 @@ import Network.HPACK.Table
 
 import JSON
 
-data Conf = Conf {
+newtype Conf = Conf {
     debug :: Bool
   }
 
 data Result = Pass | Fail String deriving (Eq,Show)
 
 run :: Bool -> Test -> IO Result
-run _ (Test _ [])        = return $ Pass
+run _ (Test _ [])        = return Pass
 run d (Test _ ccs) = do
     -- 'size c' must not be used. Initial value is defaultDynamicTableSize!
     withDynamicTableForDecoding defaultDynamicTableSize 4096 $ \dyntbl -> do
@@ -39,7 +39,7 @@ testLoop :: Conf
          -> [Case]
          -> DynamicTable
          -> IO Result
-testLoop _    []     _      = return $ Pass
+testLoop _    []     _      = return Pass
 testLoop conf (c:cs) dyntbl = do
     res <- test conf c dyntbl
     case res of

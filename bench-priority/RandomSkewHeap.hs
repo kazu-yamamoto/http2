@@ -103,5 +103,6 @@ fromList xs = go empty xs
     go !q [] = q
     go !q ((k,w,v):xks) = go (enqueue k w v q) xks
 
+{-# NOINLINE gen #-}
 gen :: GenIO
 gen = unsafePerformIO createSystemRandom

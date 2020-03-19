@@ -12,6 +12,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8 as C8
 import Data.Char
+import Data.Maybe (fromMaybe)
 import Network.HPACK
 import Network.HPACK.Table
 
@@ -25,7 +26,7 @@ data Conf = Conf {
 run :: Bool -> EncodeStrategy -> Test -> IO [ByteString]
 run _ _    (Test        _ []) = return []
 run d stgy (Test _ ccs@(c:_)) = do
-    let siz = maybe 4096 id $ size c
+    let siz = fromMaybe 4096 $ size c
     withDynamicTableForEncoding siz $ \dyntbl -> do
         let conf = Conf { debug = d, enc = encodeHeader stgy 4096 }
         testLoop conf ccs dyntbl []

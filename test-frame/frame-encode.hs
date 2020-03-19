@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
@@ -13,7 +13,7 @@ main :: IO ()
 main = do
     args <- getArgs
     xs <- getContents
-    if length args /= 0 then -- "-w"
+    if not (null args) then -- "-w"
         printWire xs
       else
         printJSON xs

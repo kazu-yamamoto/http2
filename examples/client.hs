@@ -13,7 +13,7 @@ authority :: String
 authority = "127.0.0.1"
 
 main :: IO ()
-main = runTCPClient authority "80" $ runHTTP2Client
+main = runTCPClient authority "80" runHTTP2Client
   where
     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig

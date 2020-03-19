@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings, RecordWildCards, CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -42,7 +42,7 @@ data FramePad = FramePad {
   , fpPad :: Maybe Pad
   } deriving (Show, Read)
 
-data Pad = Pad Padding deriving (Show, Read)
+newtype Pad = Pad Padding deriving (Show, Read)
 
 unPad :: Pad -> Padding
 unPad (Pad x) = x

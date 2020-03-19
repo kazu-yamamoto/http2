@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, CPP #-}
+{-# LANGUAGE OverloadedStrings, FlexibleInstances, CPP #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module JSON (

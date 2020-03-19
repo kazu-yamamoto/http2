@@ -152,7 +152,7 @@ deleteB xs = do
     ents <- createB xs q
     mapM_ (\ent -> atomically $ B.delete ent q) ents
 
-createB :: [(Key,Weight)] -> B.PriorityQueue Int -> IO ([B.Entry Key])
+createB :: [(Key,Weight)] -> B.PriorityQueue Int -> IO [B.Entry Key]
 createB []          _ = return []
 createB ((k,w):xs) !q = do
     ent <- atomically $ B.newEntry k w
@@ -180,7 +180,7 @@ deleteBIO xs = do
     ents <- createBIO xs q
     mapM_ (\ent -> BIO.delete ent q) ents
 
-createBIO :: [(Key,Weight)] -> BIO.PriorityQueue Int -> IO ([BIO.Entry Key])
+createBIO :: [(Key,Weight)] -> BIO.PriorityQueue Int -> IO [BIO.Entry Key]
 createBIO []          _ = return []
 createBIO ((k,w):xs) !q = do
     ent <- BIO.newEntry k w

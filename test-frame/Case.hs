@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, CPP #-}
+{-# LANGUAGE RecordWildCards, CPP #-}
 
 module Case where
 

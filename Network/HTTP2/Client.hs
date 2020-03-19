@@ -21,7 +21,7 @@
 -- > authority = C8.pack server
 -- >
 -- > main :: IO ()
--- > main = runTCPClient server "80" $ runHTTP2Client
+-- > main = runTCPClient server "80" runHTTP2Client
 -- >   where
 -- >     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
 -- >                                  freeSimpleConfig
