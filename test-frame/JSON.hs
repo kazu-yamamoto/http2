@@ -15,7 +15,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
 import Data.HashMap.Strict (union)
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 
@@ -91,9 +91,9 @@ instance ToJSON FramePayload where
         "data" .= body
       ]
     toJSON (HeadersFrame mpri hdr) = object [
-        "exclusive" .= fromMaybe Null (toJSON . exclusive <$> mpri)
-      , "stream_dependency" .= fromMaybe Null (toJSON . streamDependency <$> mpri)
-      , "weight" .= fromMaybe Null (toJSON . weight <$> mpri)
+        "exclusive"             .= maybe Null (toJSON . exclusive) mpri
+      , "stream_dependency"     .= maybe Null (toJSON . streamDependency) mpri
+      , "weight"                .= maybe Null (toJSON . weight) mpri
       , "header_block_fragment" .= hdr
       ]
     toJSON (PriorityFrame pri) = object [
