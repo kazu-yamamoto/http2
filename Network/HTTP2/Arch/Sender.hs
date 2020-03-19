@@ -259,7 +259,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
         off'' <- handleTrailers mtrailers off'
         void tell
-        halfClosedLocal ctx strm Finished
+        when (isServer ctx) $ halfClosedLocal ctx strm Finished
         atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
         return off''
