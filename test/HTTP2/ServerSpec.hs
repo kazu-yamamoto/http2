@@ -19,8 +19,6 @@ import System.Exit
 import System.Process.Typed
 import Test.Hspec
 
-import Network.HPACK
-import Network.HPACK.Token
 import qualified Network.HTTP2.Client as C
 import Network.HTTP2.Server
 
@@ -34,25 +32,27 @@ spec :: Spec
 spec = do
     describe "server" $ do
         it "handles error cases" $
-            E.bracket (forkIO echoServer) killThread $ \_ -> do
+            E.bracket (forkIO runServer) killThread $ \_ -> do
                 runProcess (proc "h2spec" ["-h",host,"-p",port]) `shouldReturn` ExitSuccess
         it "handles normal cases" $
-            E.bracket (forkIO echoServer) killThread $ \_ -> do
+            E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
                 runClient
 
-echoServer :: IO ()
-echoServer = runTCPServer (Just host) port runHTTP2Server
+runServer :: IO ()
+runServer = runTCPServer (Just host) port runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
                                  (`run` server)
-    server req _aux sendResponse = case getHeaderValue tokenMethod vt of
-      Just "GET"  -> sendResponse responseHello []
-      Just "POST" -> sendResponse (responseEcho req) []
-      _           -> sendResponse response404 []
-      where
-        (_, vt) = requestHeaders req
+
+server :: Server
+server req _aux sendResponse = case requestMethod req of
+  Just "GET"  -> case requestPath req of
+                   Just "/" -> sendResponse responseHello []
+                   _        -> sendResponse response404 []
+  Just "POST" -> sendResponse (responseEcho req) []
+  _           -> sendResponse response405 []
 
 responseHello :: Response
 responseHello = responseBuilder ok200 header body
@@ -62,6 +62,9 @@ responseHello = responseBuilder ok200 header body
 
 response404 :: Response
 response404 = responseNoBody notFound404 []
+
+response405 :: Response
+response405 = responseNoBody methodNotAllowed405 []
 
 responseEcho :: Request -> Response
 responseEcho req = setResponseTrailersMaker h2rsp maker
@@ -93,14 +96,30 @@ runClient = runTCPClient host port $ runHTTP2Client
     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
                                  (\conf -> C.run conf "http" authority client)
-    client sendRequest = mapConcurrently_ ($ sendRequest) [client0,client0]
+    client sendRequest = mapConcurrently_ ($ sendRequest) clients
+    clients = [client0,client1,client2]
 
 client0 :: C.Client ()
 client0 sendRequest = do
-    let req = C.requestNoBody methodPost "/" []
+    let req = C.requestNoBody methodGet "/" []
     sendRequest req $ \rsp -> do
-        _ <- C.getResponseBodyChunk rsp
+        C.responseStatus rsp `shouldBe` Just ok200
+
+client1 :: C.Client ()
+client1 sendRequest = do
+    let req = C.requestNoBody methodPut "/" []
+    sendRequest req $ \rsp -> do
+        C.responseStatus rsp `shouldBe` Just methodNotAllowed405
+
+client2 :: C.Client ()
+client2 sendRequest = do
+    let req = C.requestFile methodPost "/" [] $ FileSpec "test/inputFile" 0 1012731
+    sendRequest req $ \rsp -> do
+        let comsumeBody = do
+                bs <- C.getResponseBodyChunk rsp
+                unless (B.null bs) comsumeBody
+        comsumeBody
         mt <- C.getResponseTrailers rsp
-        firstTrailerValue <$> mt `shouldBe` Just "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
   where
-     firstTrailerValue = snd . Prelude.head . fst
+    firstTrailerValue = snd . Prelude.head . fst
