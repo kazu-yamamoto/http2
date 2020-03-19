@@ -85,19 +85,19 @@ import Network.HTTP2.Client.Run
 
 -- | Creating request without body.
 requestNoBody :: Method -> Path -> RequestHeaders -> Request
-requestNoBody m p hdr = OutObj hdr' OutBodyNone defaultTrailersMaker
+requestNoBody m p hdr = Request $ OutObj hdr' OutBodyNone defaultTrailersMaker
   where
     hdr' = addHeaders m p hdr
 
 -- | Creating request with file.
 requestFile :: Method -> Path -> RequestHeaders -> FileSpec -> Request
-requestFile m p hdr fileSpec = OutObj hdr' (OutBodyFile fileSpec) defaultTrailersMaker
+requestFile m p hdr fileSpec = Request $ OutObj hdr' (OutBodyFile fileSpec) defaultTrailersMaker
   where
     hdr' = addHeaders m p hdr
 
 -- | Creating request with builder.
 requestBuilder :: Method -> Path -> RequestHeaders -> Builder -> Request
-requestBuilder m p hdr builder = OutObj hdr' (OutBodyBuilder builder) defaultTrailersMaker
+requestBuilder m p hdr builder = Request $ OutObj hdr' (OutBodyBuilder builder) defaultTrailersMaker
   where
     hdr' = addHeaders m p hdr
 
@@ -105,7 +105,7 @@ requestBuilder m p hdr builder = OutObj hdr' (OutBodyBuilder builder) defaultTra
 requestStreaming :: Method -> Path -> RequestHeaders
                  -> ((Builder -> IO ()) -> IO () -> IO ())
                  -> Request
-requestStreaming m p hdr strmbdy = OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
+requestStreaming m p hdr strmbdy = Request $ OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
   where
     hdr' = addHeaders m p hdr
 
@@ -116,13 +116,13 @@ addHeaders m p hdr = (":method", m) : (":path", p) : hdr
 ----------------------------------------------------------------
 
 responseHeaders :: Response -> HeaderTable
-responseHeaders = inpObjHeaders
+responseHeaders (Response rsp) = inpObjHeaders rsp
 
 responseBodySize :: Response -> Maybe Int
-responseBodySize = inpObjBodySize
+responseBodySize (Response rsp) = inpObjBodySize rsp
 
 getResponseBodyChunk :: Response -> IO ByteString
-getResponseBodyChunk = inpObjBody
+getResponseBodyChunk (Response rsp) = inpObjBody rsp
 
 getResponseTrailers :: Response -> IO (Maybe HeaderTable)
-getResponseTrailers = readIORef . inpObjTrailers
+getResponseTrailers (Response rsp) = readIORef (inpObjTrailers rsp)

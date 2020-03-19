@@ -95,40 +95,40 @@ import Network.HTTP2.Server.Types
 
 -- | Getting headers from a request.
 requestHeaders :: Request -> HeaderTable
-requestHeaders = inpObjHeaders
+requestHeaders (Request req) = inpObjHeaders req
 
 -- | Getting the body size from a request.
 requestBodySize :: Request -> Maybe Int
-requestBodySize = inpObjBodySize
+requestBodySize (Request req) = inpObjBodySize req
 
 -- | Reading a chunk of the request body.
 --   An empty 'ByteString' returned when finished.
 getRequestBodyChunk :: Request -> IO ByteString
-getRequestBodyChunk = inpObjBody
+getRequestBodyChunk (Request req) = inpObjBody req
 
 -- | Reading request trailers.
 --   This function must be called after 'getRequestBodyChunk'
 --   returns an empty.
 getRequestTrailers :: Request -> IO (Maybe HeaderTable)
-getRequestTrailers = readIORef . inpObjTrailers
+getRequestTrailers (Request req) = readIORef (inpObjTrailers req)
 
 ----------------------------------------------------------------
 
 -- | Creating response without body.
 responseNoBody :: H.Status -> H.ResponseHeaders -> Response
-responseNoBody st hdr = OutObj hdr' OutBodyNone defaultTrailersMaker
+responseNoBody st hdr = Response $ OutObj hdr' OutBodyNone defaultTrailersMaker
   where
     hdr' = addStatus st hdr
 
 -- | Creating response with file.
 responseFile :: H.Status -> H.ResponseHeaders -> FileSpec -> Response
-responseFile st hdr fileSpec = OutObj hdr' (OutBodyFile fileSpec) defaultTrailersMaker
+responseFile st hdr fileSpec = Response $ OutObj hdr' (OutBodyFile fileSpec) defaultTrailersMaker
   where
     hdr' = addStatus st hdr
 
 -- | Creating response with builder.
 responseBuilder :: H.Status -> H.ResponseHeaders -> Builder -> Response
-responseBuilder st hdr builder = OutObj hdr' (OutBodyBuilder builder) defaultTrailersMaker
+responseBuilder st hdr builder = Response $ OutObj hdr' (OutBodyBuilder builder) defaultTrailersMaker
   where
     hdr' = addStatus st hdr
 
@@ -136,7 +136,7 @@ responseBuilder st hdr builder = OutObj hdr' (OutBodyBuilder builder) defaultTra
 responseStreaming :: H.Status -> H.ResponseHeaders
                   -> ((Builder -> IO ()) -> IO () -> IO ())
                   -> Response
-responseStreaming st hdr strmbdy = OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
+responseStreaming st hdr strmbdy = Response $ OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
   where
     hdr' = addStatus st hdr
 
@@ -162,12 +162,12 @@ packStatus status = unsafeCreate 3 $ \p -> do
 
 -- | Getter for response body size. This value is available for file body.
 responseBodySize :: Response -> Maybe Int
-responseBodySize (OutObj _ (OutBodyFile (FileSpec _ _ len)) _) = Just (fromIntegral len)
-responseBodySize _                                             = Nothing
+responseBodySize (Response (OutObj _ (OutBodyFile (FileSpec _ _ len)) _)) = Just (fromIntegral len)
+responseBodySize _                                                        = Nothing
 
 -- | Setting 'TrailersMaker' to 'Response'.
 setResponseTrailersMaker :: Response -> TrailersMaker -> Response
-setResponseTrailersMaker rsp tm = rsp { outObjTrailers = tm }
+setResponseTrailersMaker (Response rsp) tm = Response rsp { outObjTrailers = tm }
 
 ----------------------------------------------------------------
 

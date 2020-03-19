@@ -10,10 +10,10 @@ import Imports
 type Client a = Request -> (Response -> IO a) -> IO a
 
 -- | Request from client.
-type Request = OutObj
+newtype Request = Request OutObj
 
 -- | Response from server.
-type Response = InpObj
+newtype Response = Response InpObj
 
 -- | "http" or "https"
 type Scheme = ByteString

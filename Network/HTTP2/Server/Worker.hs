@@ -69,7 +69,7 @@ pushStream ctx@Context{..} pstrm reqvt pps0
                                ,(tokenAuthority, auth)
                                ,(tokenPath, path)]
             ot = OPush promiseRequest pid
-            rsp = promiseResponse pp
+            Response rsp = promiseResponse pp
             out = Output newstrm rsp ot Nothing $ increment tvar
         enqueueOutput outputQ out
         push tvar pps (n + 1)
@@ -78,7 +78,7 @@ pushStream ctx@Context{..} pstrm reqvt pps0
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> T.Handle -> ThreadContinue -> Stream -> Request -> Response -> [PushPromise] -> IO ()
-response ctx@Context{..} mgr th tconf strm req rsp pps = case outObjBody rsp of
+response ctx@Context{..} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
   OutBodyNone -> do
       setThreadContinue tconf True
       enqueueOutput outputQ $ Output strm rsp OObj Nothing (return ())
@@ -132,7 +132,7 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
             T.resume th
             T.tickle th
             let aux = Aux th
-            server req aux $ response ctx mgr th tcont strm req'
+            server (Request req) aux $ response ctx mgr th tcont strm (Request req')
         cont1 <- case ex of
             Right () -> return True
             Left e@(SomeException _)

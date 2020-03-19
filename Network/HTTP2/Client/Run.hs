@@ -27,7 +27,7 @@ run conf@Config{..} scheme auth client = do
         killThread tid1
 
 sendRequest :: Context -> Scheme -> Authority -> Client a
-sendRequest ctx@Context{..} scheme auth req processResponse = do
+sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
     let hdr = outObjHeaders req
         hdr' = (":scheme", scheme)
              : (":authority", auth)
@@ -40,7 +40,7 @@ sendRequest ctx@Context{..} scheme auth req processResponse = do
     insert streamTable sid newstrm
     enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
     rsp <- takeMVar $ streamInput newstrm
-    processResponse rsp
+    processResponse $ Response rsp
 
 exchangeSettings :: Config -> Context -> IO ()
 exchangeSettings Config{..} Context{..} = do
