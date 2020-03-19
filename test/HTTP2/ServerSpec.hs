@@ -97,7 +97,7 @@ runClient = runTCPClient host port $ runHTTP2Client
                                  freeSimpleConfig
                                  (\conf -> C.run conf "http" authority client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
-    clients = [client0,client1,client2]
+    clients = [client0,client1,client2,client3]
 
 client0 :: C.Client ()
 client0 sendRequest = do
@@ -107,12 +107,18 @@ client0 sendRequest = do
 
 client1 :: C.Client ()
 client1 sendRequest = do
+    let req = C.requestNoBody methodGet "/something" []
+    sendRequest req $ \rsp -> do
+        C.responseStatus rsp `shouldBe` Just notFound404
+
+client2 :: C.Client ()
+client2 sendRequest = do
     let req = C.requestNoBody methodPut "/" []
     sendRequest req $ \rsp -> do
         C.responseStatus rsp `shouldBe` Just methodNotAllowed405
 
-client2 :: C.Client ()
-client2 sendRequest = do
+client3 :: C.Client ()
+client3 sendRequest = do
     let req = C.requestFile methodPost "/" [] $ FileSpec "test/inputFile" 0 1012731
     sendRequest req $ \rsp -> do
         let comsumeBody = do
