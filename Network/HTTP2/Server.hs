@@ -37,10 +37,17 @@ module Network.HTTP2.Server (
   , Server
   -- * Request
   , Request
+  , requestMethod
+  , requestPath
+  , requestAuthority
+  , requestScheme
   , requestHeaders
   , requestBodySize
   , getRequestBodyChunk
   , getRequestTrailers
+  , Path
+  , Authority
+  , Scheme
   -- * Aux
   , Aux
   , auxTimeHandle
@@ -83,12 +90,37 @@ import qualified Network.HTTP.Types as H
 
 import Imports
 import Network.HPACK
+import Network.HPACK.Token
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame.Types
 import Network.HTTP2.Server.Run (run)
 import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
+
+-- | Getting the method from a request.
+requestMethod :: Request -> Maybe H.Method
+requestMethod (Request req) = getHeaderValue tokenMethod vt
+  where
+    (_,vt) = inpObjHeaders req
+
+-- | Getting the path from a request.
+requestPath :: Request -> Maybe Path
+requestPath (Request req) = getHeaderValue tokenPath vt
+  where
+    (_,vt) = inpObjHeaders req
+
+-- | Getting the authority from a request.
+requestAuthority :: Request -> Maybe Authority
+requestAuthority (Request req) = getHeaderValue tokenAuthority vt
+  where
+    (_,vt) = inpObjHeaders req
+
+-- | Getting the scheme from a request.
+requestScheme :: Request -> Maybe Scheme
+requestScheme (Request req) = getHeaderValue tokenScheme vt
+  where
+    (_,vt) = inpObjHeaders req
 
 -- | Getting the headers from a request.
 requestHeaders :: Request -> HeaderTable

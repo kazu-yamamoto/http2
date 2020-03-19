@@ -18,6 +18,17 @@ import Network.HTTP2.Priority
 
 ----------------------------------------------------------------
 
+-- | "http" or "https".
+type Scheme = ByteString
+
+-- | For so-called "Host:" header.
+type Authority = ByteString
+
+-- | Path.
+type Path = ByteString
+
+----------------------------------------------------------------
+
 type InpBody = IO ByteString
 
 data OutBody = OutBodyNone
