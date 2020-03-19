@@ -119,7 +119,7 @@ decodeSophisticated dyntbl rbuf = do
             leftover <- remainingSize rbuf
             if leftover >= 1 then do
                 w <- read8 rbuf
-                tv@(!Token{..},!v) <- toTokenHeader dyntbl w rbuf
+                tv@(Token{..},!v) <- toTokenHeader dyntbl w rbuf
                 if isPseudo then do
                     mx <- unsafeRead arr ix
                     when (isJust mx) $ throwIO IllegalHeaderName

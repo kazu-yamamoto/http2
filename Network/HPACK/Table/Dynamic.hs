@@ -1,4 +1,4 @@
-{-# LANGUAGE TupleSections, RecordWildCards, FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards, FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 
 module Network.HPACK.Table.Dynamic (

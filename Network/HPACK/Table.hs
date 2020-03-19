@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_HADDOCK hide #-}
 
 module Network.HPACK.Table (

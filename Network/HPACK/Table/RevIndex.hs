@@ -124,9 +124,7 @@ renewOtherRevIndex ref = writeIORef ref M.empty
 lookupOtherRevIndex :: Header -> OtherRevIdex -> (HIndex -> IO ()) -> IO () -> IO ()
 lookupOtherRevIndex (k,v) ref fa' fc' = do
       oth <- readIORef ref
-      case M.lookup (KeyValue k v) oth of
-          Just i  -> fa' i
-          Nothing -> fc'
+      maybe fc' fa' $ M.lookup (KeyValue k v) oth
 
 {-# INLINE insertOtherRevIndex #-}
 insertOtherRevIndex :: Token -> HeaderValue -> HIndex -> OtherRevIdex -> IO ()
