@@ -2,7 +2,9 @@ module Network.HTTP2.Server.Types where
 
 import qualified System.TimeManager as T
 
+import Imports
 import Network.HTTP2.Arch
+import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 
@@ -18,6 +20,19 @@ type Request = InpObj
 
 -- | Response from server.
 type Response = OutObj
+
+-- | HTTP/2 push promise or sever push.
+--   Pseudo REQUEST headers in push promise is automatically generated.
+--   Then, a server push is sent according to 'promiseResponse'.
+data PushPromise = PushPromise {
+    -- | Accessor for a URL path in a push promise (a virtual request from a server).
+    --   E.g. \"\/style\/default.css\".
+      promiseRequestPath :: ByteString
+    -- | Accessor for response actually pushed from a server.
+    , promiseResponse    :: Response
+    -- | Accessor for response weight.
+    , promiseWeight      :: Weight
+    }
 
 -- | Additional information.
 newtype Aux = Aux {

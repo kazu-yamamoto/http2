@@ -84,19 +84,6 @@ defaultTrailersMaker _       = return $ NextTrailersMaker defaultTrailersMaker
 data NextTrailersMaker = NextTrailersMaker TrailersMaker
                        | Trailers H.ResponseHeaders
 
--- | HTTP/2 push promise or sever push.
---   Pseudo REQUEST headers in push promise is automatically generated.
---   Then, a server push is sent according to 'promiseResponse'.
-data PushPromise = PushPromise {
-    -- | Accessor for a URL path in a push promise (a virtual request from a server).
-    --   E.g. \"\/style\/default.css\".
-      promiseRequestPath :: ByteString
-    -- | Accessor for response actually pushed from a server.
-    , promiseResponse    :: OutObj
-    -- | Accessor for response weight.
-    , promiseWeight      :: Weight
-    }
-
 ----------------------------------------------------------------
 
 -- | File specification.
