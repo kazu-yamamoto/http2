@@ -92,8 +92,8 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
                 consume payloadLength
                 return True
             Just _  -> E.throwIO $ ConnectionError ProtocolError "unknown frame"
-    processStreamGuardingError (FramePushPromise, _) =
-        E.throwIO $ ConnectionError ProtocolError "push promise is not allowed"
+    processStreamGuardingError (FramePushPromise, _)
+      | isServer ctx = E.throwIO $ ConnectionError ProtocolError "push promise is not allowed"
     processStreamGuardingError typhdr@(ftyp, header@FrameHeader{payloadLength}) = do
         settings <- readIORef http2settings
         case checkFrameHeader settings typhdr of
