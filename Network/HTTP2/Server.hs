@@ -90,7 +90,7 @@ import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 
--- | Getting headers from a request.
+-- | Getting the headers from a request.
 requestHeaders :: Request -> HeaderTable
 requestHeaders (Request req) = inpObjHeaders req
 

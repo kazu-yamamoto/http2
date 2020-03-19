@@ -116,17 +116,25 @@ addHeaders m p hdr = (":method", m) : (":path", p) : hdr
 
 ----------------------------------------------------------------
 
+-- | Getting the status of a response.
 responseStatus :: Response -> Maybe Status
 responseStatus (Response rsp) = getStatus $ inpObjHeaders rsp
 
+-- | Getting the headers from a response.
 responseHeaders :: Response -> HeaderTable
 responseHeaders (Response rsp) = inpObjHeaders rsp
 
+-- | Getting the body size from a response.
 responseBodySize :: Response -> Maybe Int
 responseBodySize (Response rsp) = inpObjBodySize rsp
 
+-- | Reading a chunk of the response body.
+--   An empty 'ByteString' returned when finished.
 getResponseBodyChunk :: Response -> IO ByteString
 getResponseBodyChunk (Response rsp) = inpObjBody rsp
 
+-- | Reading response trailers.
+--   This function must be called after 'getResponseBodyChunk'
+--   returns an empty.
 getResponseTrailers :: Response -> IO (Maybe HeaderTable)
 getResponseTrailers (Response rsp) = readIORef (inpObjTrailers rsp)
