@@ -20,7 +20,7 @@ type Request = InpObj
 type Response = OutObj
 
 -- | Additional information.
-data Aux = Aux {
+newtype Aux = Aux {
     -- | Time handle for the worker processing this request and response.
     auxTimeHandle :: T.Handle
   }

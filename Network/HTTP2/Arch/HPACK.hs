@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -66,9 +65,7 @@ hpackEncodeHeaderLoop Context{..} buf siz hs =
 hpackDecodeHeader :: HeaderBlockFragment -> Context -> IO HeaderTable
 hpackDecodeHeader hdrblk ctx = do
     tbl@(_,vt) <- hpackDecodeTrailer hdrblk ctx
-    if isClient ctx then
-        return tbl
-    else if checkRequestHeader vt then
+    if isClient ctx || checkRequestHeader vt then
         return tbl
       else
         E.throwIO $ ConnectionError ProtocolError "the header key is illegal"

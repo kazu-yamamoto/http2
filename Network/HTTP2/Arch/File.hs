@@ -33,4 +33,4 @@ defaultPositionReadMaker file = do
     pread :: Handle -> PositionRead
     pread hdl off bytes buf = do
         hSeek hdl AbsoluteSeek $ fromIntegral off
-        fromIntegral <$> (hGetBufSome hdl buf $ fromIntegral bytes)
+        fromIntegral <$> hGetBufSome hdl buf (fromIntegral bytes)

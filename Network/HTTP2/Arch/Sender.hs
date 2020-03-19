@@ -112,7 +112,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
-    output out@(Output strm (OutObj _ _ _) (ONext curr tlrmkr) _ sentinel) off0 lim = do
+    output out@(Output strm OutObj{} (ONext curr tlrmkr) _ sentinel) off0 lim = do
         -- Data frame payload
         let buf = confWriteBuffer `plusPtr` off0
             siz = confBufferSize - off0

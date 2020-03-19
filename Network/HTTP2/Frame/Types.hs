@@ -617,17 +617,17 @@ data FramePayload =
 -- >>> framePayloadToFrameTypeId (DataFrame "body")
 -- FrameData
 framePayloadToFrameTypeId :: FramePayload -> FrameTypeId
-framePayloadToFrameTypeId (DataFrame _)          = FrameData
-framePayloadToFrameTypeId (HeadersFrame _ _)     = FrameHeaders
-framePayloadToFrameTypeId (PriorityFrame _)      = FramePriority
-framePayloadToFrameTypeId (RSTStreamFrame _)     = FrameRSTStream
-framePayloadToFrameTypeId (SettingsFrame _)      = FrameSettings
-framePayloadToFrameTypeId (PushPromiseFrame _ _) = FramePushPromise
-framePayloadToFrameTypeId (PingFrame _)          = FramePing
-framePayloadToFrameTypeId (GoAwayFrame _ _ _)    = FrameGoAway
-framePayloadToFrameTypeId (WindowUpdateFrame _)  = FrameWindowUpdate
-framePayloadToFrameTypeId (ContinuationFrame _)  = FrameContinuation
-framePayloadToFrameTypeId (UnknownFrame w8 _)    = FrameUnknown w8
+framePayloadToFrameTypeId DataFrame{}          = FrameData
+framePayloadToFrameTypeId HeadersFrame{}       = FrameHeaders
+framePayloadToFrameTypeId PriorityFrame{}      = FramePriority
+framePayloadToFrameTypeId RSTStreamFrame{}     = FrameRSTStream
+framePayloadToFrameTypeId SettingsFrame{}      = FrameSettings
+framePayloadToFrameTypeId PushPromiseFrame{}   = FramePushPromise
+framePayloadToFrameTypeId PingFrame{}          = FramePing
+framePayloadToFrameTypeId GoAwayFrame{}        = FrameGoAway
+framePayloadToFrameTypeId WindowUpdateFrame{}  = FrameWindowUpdate
+framePayloadToFrameTypeId ContinuationFrame{}  = FrameContinuation
+framePayloadToFrameTypeId (UnknownFrame w8 _)  = FrameUnknown w8
 
 ----------------------------------------------------------------
 
@@ -638,14 +638,14 @@ framePayloadToFrameTypeId (UnknownFrame w8 _)    = FrameUnknown w8
 -- >>> isPaddingDefined $ PingFrame ""
 -- False
 isPaddingDefined :: FramePayload -> Bool
-isPaddingDefined (DataFrame _)          = True
-isPaddingDefined (HeadersFrame _ _)     = True
-isPaddingDefined (PriorityFrame _)      = False
-isPaddingDefined (RSTStreamFrame _)     = False
-isPaddingDefined (SettingsFrame _)      = False
-isPaddingDefined (PushPromiseFrame _ _) = True
-isPaddingDefined (PingFrame _)          = False
-isPaddingDefined (GoAwayFrame _ _ _)    = False
-isPaddingDefined (WindowUpdateFrame _)  = False
-isPaddingDefined (ContinuationFrame _)  = False
-isPaddingDefined (UnknownFrame _ _)     = False
+isPaddingDefined DataFrame{}         = True
+isPaddingDefined HeadersFrame{}      = True
+isPaddingDefined PriorityFrame{}     = False
+isPaddingDefined RSTStreamFrame{}    = False
+isPaddingDefined SettingsFrame{}     = False
+isPaddingDefined PushPromiseFrame{}  = True
+isPaddingDefined PingFrame{}         = False
+isPaddingDefined GoAwayFrame{}       = False
+isPaddingDefined WindowUpdateFrame{} = False
+isPaddingDefined ContinuationFrame{} = False
+isPaddingDefined UnknownFrame{}      = False
