@@ -58,7 +58,7 @@ frameReceiver ctx recvN = loop 0 `E.catch` sendGoaway
            } = ctx
     sendGoaway e
       | Just (ConnectionError err msg) <- E.fromException e = do
-          psid <- getPeerStreamID ctx -- fixme
+          psid <- getPeerStreamID ctx
           let frame = goawayFrame psid err msg
           enqueueControl controlQ $ CGoaway frame
       | otherwise = return ()
