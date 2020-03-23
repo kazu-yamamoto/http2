@@ -19,6 +19,7 @@ import System.Exit
 import System.Process.Typed
 import Test.Hspec
 
+import Network.HPACK
 import qualified Network.HTTP2.Client as C
 import Network.HTTP2.Server
 
@@ -51,7 +52,9 @@ server req _aux sendResponse = case requestMethod req of
   Just "GET"  -> case requestPath req of
                    Just "/" -> sendResponse responseHello []
                    _        -> sendResponse response404 []
-  Just "POST" -> sendResponse (responseEcho req) []
+  Just "POST" -> case requestPath req of
+                   Just "/echo" -> sendResponse (responseEcho req) []
+                   _        -> sendResponse responseHello []
   _           -> sendResponse response405 []
 
 responseHello :: Response
@@ -71,7 +74,10 @@ responseEcho req = setResponseTrailersMaker h2rsp maker
   where
     h2rsp = responseStreaming ok200 header streamingBody
     header = [("Content-Type", "text/plain")]
-    streamingBody write _flush = loop
+    streamingBody write _flush = do
+        loop
+        mt <- getRequestTrailers req
+        firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
       where
         loop = do
             bs <- getRequestBodyChunk req
@@ -119,7 +125,8 @@ client2 sendRequest = do
 
 client3 :: C.Client ()
 client3 sendRequest = do
-    let req = C.requestFile methodPost "/" [] $ FileSpec "test/inputFile" 0 1012731
+    let req0 = C.requestFile methodPost "/echo" [] $ FileSpec "test/inputFile" 0 1012731
+        req = C.setRequestTrailersMaker req0 maker
     sendRequest req $ \rsp -> do
         let comsumeBody = do
                 bs <- C.getResponseBodyChunk rsp
@@ -128,4 +135,7 @@ client3 sendRequest = do
         mt <- C.getResponseTrailers rsp
         firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
   where
-    firstTrailerValue = snd . Prelude.head . fst
+    !maker = trailersMaker (CH.hashInit :: Context SHA1)
+
+firstTrailerValue :: HeaderTable -> HeaderValue
+firstTrailerValue = snd . Prelude.head . fst
