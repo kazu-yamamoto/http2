@@ -45,12 +45,16 @@ module Network.HTTP2.Client (
   , Client
   -- * Request
   , Request
+  -- * Creating request
   , requestNoBody
   , requestFile
   , requestStreaming
   , requestBuilder
-  , Method
-  , Path
+  -- ** Trailers maker
+  , TrailersMaker
+  , NextTrailersMaker(..)
+  , defaultTrailersMaker
+  , setRequestTrailersMaker
   -- * Response
   , Response
   -- ** Accessing response
@@ -60,6 +64,8 @@ module Network.HTTP2.Client (
   , getResponseBodyChunk
   , getResponseTrailers
   -- * Types
+  , Method
+  , Path
   , FileSpec(..)
   , FileOffset
   , ByteCount
@@ -113,6 +119,10 @@ requestStreaming m p hdr strmbdy = Request $ OutObj hdr' (OutBodyStreaming strmb
 
 addHeaders :: Method -> Path -> RequestHeaders -> RequestHeaders
 addHeaders m p hdr = (":method", m) : (":path", p) : hdr
+
+-- | Setting 'TrailersMaker' to 'Response'.
+setRequestTrailersMaker :: Request -> TrailersMaker -> Request
+setRequestTrailersMaker (Request req) tm = Request req { outObjTrailers = tm }
 
 ----------------------------------------------------------------
 

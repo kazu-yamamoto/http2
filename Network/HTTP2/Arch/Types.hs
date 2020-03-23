@@ -93,7 +93,7 @@ defaultTrailersMaker _       = return $ NextTrailersMaker defaultTrailersMaker
 
 -- | Either the next trailers maker or final trailers.
 data NextTrailersMaker = NextTrailersMaker TrailersMaker
-                       | Trailers H.ResponseHeaders
+                       | Trailers [H.Header]
 
 ----------------------------------------------------------------
 

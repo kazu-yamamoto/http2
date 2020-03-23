@@ -37,6 +37,7 @@ module Network.HTTP2.Server (
   , Server
   -- * Request
   , Request
+  -- ** Accessing request
   , requestMethod
   , requestPath
   , requestAuthority
@@ -45,9 +46,6 @@ module Network.HTTP2.Server (
   , requestBodySize
   , getRequestBodyChunk
   , getRequestTrailers
-  , Path
-  , Authority
-  , Scheme
   -- * Aux
   , Aux
   , auxTimeHandle
@@ -72,6 +70,9 @@ module Network.HTTP2.Server (
   , promiseResponse
   , promiseWeight
   -- * Types
+  , Path
+  , Authority
+  , Scheme
   , FileSpec(..)
   , FileOffset
   , ByteCount
