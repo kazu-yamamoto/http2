@@ -253,10 +253,17 @@ encodeString True  bs wbuf = do
         I.encode wbuf setH 7 len
         ff wbuf len
 
--- For 7+:
--- 1 byte:    0 -   126
--- 2 bytes: 127 -   254
--- 3 bytes: 255 - 16510
+{-
+N+   1   2     3 <- bytes
+8  254 382 16638
+7  126 254 16510
+6   62 190 16446
+5   30 158 16414
+4   14 142 16398
+3    6 134 16390
+2    2 130 16386
+1    0 128 16384
+-}
 {-# INLINE integerLength #-}
 integerLength :: Int -> Int
 integerLength n
