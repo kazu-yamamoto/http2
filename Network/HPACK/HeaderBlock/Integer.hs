@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Integer (
     encodeI
@@ -52,13 +52,13 @@ encodeI wbuf set n i
         write8 wbuf $ set $ fromIntegral p
         encode' (i - p)
   where
-    !p = powerArray `unsafeAt` (n - 1)
+    p = powerArray `unsafeAt` (n - 1)
     encode' :: Int -> IO ()
     encode' j
       | j < 128   = write8 wbuf $ fromIntegral j
       | otherwise = do
-          let !q = j `shiftR` 7
-              !r = j .&. 0x7f
+          let q = j `shiftR` 7
+              r = j .&. 0x7f
           write8 wbuf $ fromIntegral (r + 128)
           encode' q
 
@@ -101,12 +101,12 @@ decodeI n w rbuf
   | i < p     = return i
   | otherwise = decode 0 i
   where
-    !p = powerArray `unsafeAt` (n - 1)
-    !i = fromIntegral w
+    p = powerArray `unsafeAt` (n - 1)
+    i = fromIntegral w
     decode :: Int -> Int -> IO Int
     decode m j = do
-        !b <- readInt8 rbuf
-        let !j' = j + (b .&. 0x7f) * 2 ^ m
-            !m' = m + 7
-            !cont = b `testBit` 7
+        b <- readInt8 rbuf
+        let j' = j + (b .&. 0x7f) * 2 ^ m
+            m' = m + 7
+            cont = b `testBit` 7
         if cont then decode m' j' else return j'
