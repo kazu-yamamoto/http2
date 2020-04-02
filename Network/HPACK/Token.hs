@@ -73,6 +73,25 @@ module Network.HPACK.Token (
   , tokenConnection
   , tokenTE
   , tokenMax
+  , tokenAccessControlAllowCredentials
+  , tokenAccessControlAllowHeaders
+  , tokenAccessControlAllowMethods
+  , tokenAccessControlExposeHeaders
+  , tokenAccessControlRequestHeaders
+  , tokenAccessControlRequestMethod
+  , tokenAltSvc
+  , tokenContentSecurityPolicy
+  , tokenEarlyData
+  , tokenExpectCt
+  , tokenForwarded
+  , tokenOrigin
+  , tokenPurpose
+  , tokenTimingAllowOrigin
+  , tokenUpgradeInsecureRequests
+  , tokenXContentTypeOptions
+  , tokenXForwardedFor
+  , tokenXFrameOptions
+  , tokenXXssProtection
   ) where
 
 import qualified Data.ByteString as B
@@ -160,8 +179,28 @@ tokenUserAgent                :: Token
 tokenVary                     :: Token
 tokenVia                      :: Token
 tokenWwwAuthenticate          :: Token
-tokenConnection               :: Token -- Original
-tokenTE                       :: Token -- Original
+tokenConnection               :: Token -- Warp
+tokenTE                       :: Token -- Warp
+tokenAccessControlAllowCredentials :: Token -- QPACK
+tokenAccessControlAllowHeaders     :: Token -- QPACK
+tokenAccessControlAllowMethods     :: Token -- QPACK
+tokenAccessControlExposeHeaders    :: Token -- QPACK
+tokenAccessControlRequestHeaders   :: Token -- QPACK
+tokenAccessControlRequestMethod    :: Token -- QPACK
+tokenAltSvc                        :: Token -- QPACK
+tokenContentSecurityPolicy         :: Token -- QPACK
+tokenEarlyData                     :: Token -- QPACK
+tokenExpectCt                      :: Token -- QPACK
+tokenForwarded                     :: Token -- QPACK
+tokenOrigin                        :: Token -- QPACK
+tokenPurpose                       :: Token -- QPACK
+tokenTimingAllowOrigin             :: Token -- QPACK
+tokenUpgradeInsecureRequests       :: Token -- QPACK
+tokenXContentTypeOptions           :: Token -- QPACK
+tokenXForwardedFor                 :: Token -- QPACK
+tokenXFrameOptions                 :: Token -- QPACK
+tokenXXssProtection                :: Token -- QPACK
+
 tokenMax                      :: Token -- Other tokens
 
 tokenAuthority                = Token  0  True  True ":authority"
@@ -216,12 +255,33 @@ tokenUserAgent                = Token 48  True False "User-Agent"
 tokenVary                     = Token 49  True False "Vary"
 tokenVia                      = Token 50  True False "Via"
 tokenWwwAuthenticate          = Token 51  True False "Www-Authenticate"
--- | Not defined in the static table.
-tokenConnection               = Token 52 False False "Connection"
--- | Not defined in the static table.
-tokenTE                       = Token 53 False False "TE"
+
 -- | A place holder to hold header keys not defined in the static table.
-tokenMax                      = Token 54  True False "for other tokens"
+-- | For Warp
+tokenConnection                    = Token 52 False False "Connection"
+tokenTE                            = Token 53 False False "TE"
+-- | For QPACK
+tokenAccessControlAllowCredentials = Token 54  True False "Access-Control-Allow-Credentials"
+tokenAccessControlAllowHeaders     = Token 55  True False "Access-Control-Allow-Headers"
+tokenAccessControlAllowMethods     = Token 56  True False "Access-Control-Allow-Methods"
+tokenAccessControlExposeHeaders    = Token 57  True False "Access-Control-Expose-Headers"
+tokenAccessControlRequestHeaders   = Token 58  True False "Access-Control-Request-Headers"
+tokenAccessControlRequestMethod    = Token 59  True False "Access-Control-Request-Method"
+tokenAltSvc                        = Token 60  True False "Alt-Svc"
+tokenContentSecurityPolicy         = Token 61  True False "Content-Security-Policy"
+tokenEarlyData                     = Token 62  True False "Early-Data"
+tokenExpectCt                      = Token 63  True False "Expect-Ct"
+tokenForwarded                     = Token 64  True False "Forwarded"
+tokenOrigin                        = Token 65  True False "Origin"
+tokenPurpose                       = Token 66  True False "Purpose"
+tokenTimingAllowOrigin             = Token 67  True False "Timing-Allow-Origin"
+tokenUpgradeInsecureRequests       = Token 68  True False "Upgrade-Insecure-Requests"
+tokenXContentTypeOptions           = Token 69  True False "X-Content-Type-Options"
+tokenXForwardedFor                 = Token 70  True False "X-Forwarded-For"
+tokenXFrameOptions                 = Token 71  True False "X-Frame-Options"
+tokenXXssProtection                = Token 72  True False "X-Xss-Protection"
+
+tokenMax                           = Token 73  True False "for other tokens"
 
 -- | Minimum token index.
 minTokenIx :: Int
@@ -289,13 +349,16 @@ toToken bs = case len of
         _                    -> mkTokenMax bs
     6 -> case lst of
         101 | bs === "cookie" -> tokenCookie
+        110 | bs === "origin" -> tokenOrigin
         114 | bs === "server" -> tokenServer
         116 | bs === "expect" -> tokenExpect
             | bs === "accept" -> tokenAccept
         _                     -> mkTokenMax bs
     7 -> case lst of
+        99  | bs === "alt-svc" -> tokenAltSvc
         100 | bs === ":method" -> tokenMethod
         101 | bs === ":scheme" -> tokenScheme
+            | bs === "purpose" -> tokenPurpose
         104 | bs === "refresh" -> tokenRefresh
         114 | bs === "referer" -> tokenReferer
         115 | bs === "expires" -> tokenExpires
@@ -306,7 +369,14 @@ toToken bs = case len of
         104 | bs === "if-match" -> tokenIfMatch
         110 | bs === "location" -> tokenLocation
         _                       -> mkTokenMax bs
+
+    9 -> case lst of
+        100 | bs === "forwarded" -> tokenForwarded
+        116 | bs === "expect-ct" -> tokenExpectCt
+        _                        -> mkTokenMax bs
+
     10 -> case lst of
+        97  | bs === "early-data" -> tokenEarlyData
         101 | bs === "set-cookie" -> tokenSetCookie
         110 | bs === "connection" -> tokenConnection
         116 | bs === "user-agent" -> tokenUserAgent
@@ -334,12 +404,15 @@ toToken bs = case len of
     15 -> case lst of
         101 | bs === "accept-language" -> tokenAcceptLanguage
         103 | bs === "accept-encoding" -> tokenAcceptEncoding
+        114 | bs === "x-forwarded-for" -> tokenXForwardedFor
+        115 | bs === "x-frame-options" -> tokenXFrameOptions
         _                              -> mkTokenMax bs
     16 -> case lst of
         101 | bs === "content-language" -> tokenContentLanguage
             | bs === "www-authenticate" -> tokenWwwAuthenticate
         103 | bs === "content-encoding" -> tokenContentEncoding
         110 | bs === "content-location" -> tokenContentLocation
+            | bs === "x-xss-protection" -> tokenXXssProtection
         _                               -> mkTokenMax bs
     17 -> case lst of
         101 | bs === "if-modified-since" -> tokenIfModifiedSince
@@ -352,13 +425,35 @@ toToken bs = case len of
         101 | bs === "if-unmodified-since" -> tokenIfUnmodifiedSince
         110 | bs === "proxy-authorization" -> tokenProxyAuthorization
             | bs === "content-disposition" -> tokenContentDisposition
+            | bs === "timing-allow-origin" -> tokenTimingAllowOrigin
         _                                  -> mkTokenMax bs
+    22 -> case lst of
+        115 | bs === "x-content-type-options" -> tokenXContentTypeOptions
+        _                                     -> mkTokenMax bs
+    23 -> case lst of
+        121 | bs === "content-security-policy" -> tokenContentSecurityPolicy
+        _                                      -> mkTokenMax bs
     25 -> case lst of
+        115 | bs === "upgrade-insecure-requests" -> tokenUpgradeInsecureRequests
         121 | bs === "strict-transport-security" -> tokenStrictTransportSecurity
         _                                        -> mkTokenMax bs
     27 -> case lst of
         110 | bs === "access-control-allow-origin" -> tokenAccessControlAllowOrigin
         _                                          -> mkTokenMax bs
+    28 -> case lst of
+        115 | bs === "access-control-allow-headers" -> tokenAccessControlAllowHeaders
+            | bs === "access-control-allow-methods" -> tokenAccessControlAllowMethods
+        _                                           -> mkTokenMax bs
+    29 -> case lst of
+        100 | bs === "access-control-request-method" -> tokenAccessControlRequestMethod
+        115 | bs === "access-control-expose-headers" -> tokenAccessControlExposeHeaders
+        _                                            -> mkTokenMax bs
+    30 -> case lst of
+        115 | bs === "access-control-request-headers" -> tokenAccessControlRequestHeaders
+        _                                             -> mkTokenMax bs
+    32 -> case lst of
+        115 | bs === "access-control-allow-credentials" -> tokenAccessControlAllowCredentials
+        _                                               -> mkTokenMax bs
     _  -> mkTokenMax bs
   where
     len = B.length bs
