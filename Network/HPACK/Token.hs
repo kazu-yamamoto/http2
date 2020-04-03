@@ -3,7 +3,6 @@
 module Network.HPACK.Token (
   -- * Data type
     Token(..)
-  , tokenIx
   , tokenCIKey
   , tokenFoldedKey
   , toToken
@@ -106,16 +105,11 @@ import Data.CaseInsensitive (original, mk, CI(..))
 
 -- | Internal representation for header keys.
 data Token = Token {
-    ix :: !Int               -- ^ Index for value table
+    tokenIx :: !Int          -- ^ Index for value table
   , shouldBeIndexed :: !Bool -- ^ should be indexed in HPACK
   , isPseudo :: !Bool        -- ^ is this a pseudo header key?
   , tokenKey :: !(CI ByteString) -- ^ Case insensitive header key
   } deriving (Eq, Show)
-
--- | Extracting an index from a token.
-{-# INLINE tokenIx #-}
-tokenIx :: Token -> Int
-tokenIx (Token n _ _ _) = n
 
 -- | Extracting a case insensitive header key from a token.
 {-# INLINE tokenCIKey #-}

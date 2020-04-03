@@ -158,10 +158,10 @@ lookupRevIndex :: Token
                -> RevIndex
                -> IO ()
 lookupRevIndex t@Token{..} v fa fb fc fd (RevIndex dyn oth)
-  | not (isStaticTokenIx ix) = lookupOtherRevIndex (k,v) oth fa' fc'
-  | shouldBeIndexed          = lookupDynamicStaticRevIndex ix v dyn fa' fb'
+  | not (isStaticTokenIx tokenIx) = lookupOtherRevIndex (k,v) oth fa' fc'
+  | shouldBeIndexed               = lookupDynamicStaticRevIndex tokenIx v dyn fa' fb'
   -- path: is not indexed but ":path /" should be used, sigh.
-  | otherwise                = lookupStaticRevIndex ix v fa' fd'
+  | otherwise                     = lookupStaticRevIndex tokenIx v fa' fd'
   where
     k = foldedCase tokenKey
     ent = toEntryToken t v
@@ -178,8 +178,8 @@ lookupRevIndex' :: Token
                 -> (HeaderName -> HeaderValue -> IO ())
                 -> IO ()
 lookupRevIndex' Token{..} v fa fd fe
-  | isStaticTokenIx ix = lookupStaticRevIndex ix v fa' fd'
-  | otherwise          = fe'
+  | isStaticTokenIx tokenIx = lookupStaticRevIndex tokenIx v fa' fd'
+  | otherwise               = fe'
   where
     k = foldedCase tokenKey
     fa' = fa

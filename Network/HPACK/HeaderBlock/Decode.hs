@@ -120,16 +120,16 @@ decodeSophisticated dyntbl rbuf = do
                 w <- read8 rbuf
                 tv@(Token{..},v) <- toTokenHeader dyntbl w rbuf
                 if isPseudo then do
-                    mx <- unsafeRead arr ix
+                    mx <- unsafeRead arr tokenIx
                     when (isJust mx) $ throwIO IllegalHeaderName
-                    when (isMaxTokenIx ix) $ throwIO IllegalHeaderName
-                    unsafeWrite arr ix (Just v)
+                    when (isMaxTokenIx tokenIx) $ throwIO IllegalHeaderName
+                    unsafeWrite arr tokenIx (Just v)
                     pseudo
                   else do
-                    when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
+                    when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
-                    unsafeWrite arr ix (Just v)
-                    if isCookieTokenIx ix then
+                    unsafeWrite arr tokenIx (Just v)
+                    if isCookieTokenIx tokenIx then
                         normal empty (empty << v)
                       else
                         normal (empty << tv) empty
@@ -141,10 +141,10 @@ decodeSophisticated dyntbl rbuf = do
                 w <- read8 rbuf
                 tv@(Token{..},v) <- toTokenHeader dyntbl w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
-                when (isMaxTokenIx ix && B8.any isUpper (original tokenKey)) $
+                when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
-                unsafeWrite arr ix (Just v)
-                if isCookieTokenIx ix then
+                unsafeWrite arr tokenIx (Just v)
+                if isCookieTokenIx tokenIx then
                     normal builder (cookie << v)
                   else
                     normal (builder << tv) cookie
