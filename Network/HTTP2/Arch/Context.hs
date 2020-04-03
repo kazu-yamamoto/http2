@@ -64,7 +64,9 @@ newContext rl =
           | otherwise    = 2
 
 clearContext :: Context -> IO ()
-clearContext _ctx = return ()
+clearContext ctx = do
+    clearDynamicTable $ encodeDynamicTable ctx
+    clearDynamicTable $ decodeDynamicTable ctx
 
 ----------------------------------------------------------------
 
