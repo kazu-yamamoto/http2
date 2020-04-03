@@ -58,7 +58,9 @@ newContext = Context <$> newIORef defaultSettings
                      <*> newTVarIO defaultInitialWindowSize
 
 clearContext :: Context -> IO ()
-clearContext _ctx = return ()
+clearContext ctx = do
+    clearDynamicTable $ encodeDynamicTable ctx
+    clearDynamicTable $ decodeDynamicTable ctx
 
 ----------------------------------------------------------------
 
