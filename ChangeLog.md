@@ -1,3 +1,7 @@
+## 2.0.4
+
+* Freeing dynamic tables.
+
 ## 2.0.3
 
 * Using shutdown instead of close in the example. This is important to
