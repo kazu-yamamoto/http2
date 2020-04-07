@@ -318,9 +318,9 @@ isStaticToken n = tokenIx n <= maxStaticTokenIx
 -- >>> toToken ":authority" == tokenAuthority
 -- True
 -- >>> toToken "foo"
--- Token {ix = 54, shouldBeIndexed = True, isPseudo = False, tokenKey = "foo"}
+-- Token {tokenIx = 54, shouldBeIndexed = True, isPseudo = False, tokenKey = "foo"}
 -- >>> toToken ":bar"
--- Token {ix = 54, shouldBeIndexed = True, isPseudo = True, tokenKey = ":bar"}
+-- Token {tokenIx = 54, shouldBeIndexed = True, isPseudo = True, tokenKey = ":bar"}
 toToken :: ByteString -> Token
 toToken bs = case len of
     2 -> if bs === "te" then tokenTE else mkTokenMax bs
