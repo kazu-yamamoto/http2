@@ -241,7 +241,7 @@ decStr :: HuffmanDecoder -> ReadBuffer -> IO ByteString
 decStr = decodeS dropHuffman isHuffman
 
 -- | String decoding with Huffman decoder.
-decodeS :: (Word8 -> Word8) -- ^ Dropping prefix
+decodeS :: (Word8 -> Word8) -- ^ Dropping prefix and Huffman
         -> (Word8 -> Bool)  -- ^ Checking Huffman flag
         -> HuffmanDecoder
         -> ReadBuffer

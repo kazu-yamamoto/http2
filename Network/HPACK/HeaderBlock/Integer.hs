@@ -33,6 +33,14 @@ if I < 2^N - 1, encode I on N bits
 -}
 
 -- | Encoding integer with a temporary buffer whose size is 4096.
+--   No prefix is set.
+--
+-- >>> BS.unpack <$> encodeInteger 5 10
+-- [10]
+-- >>> BS.unpack <$> encodeInteger 5 1337
+-- [31,154,10]
+-- >>> BS.unpack <$> encodeInteger 8 42
+-- [42]
 encodeInteger :: Int -- ^ N+
               -> Int -- ^ Target
               -> IO ByteString
@@ -42,7 +50,8 @@ encodeInteger n i = withWriteBuffer 4096 $ \wbuf -> encodeI wbuf id n i
 --
 -- | Integer encoding with a write buffer.
 {-# INLINABLE encodeI #-}
-encodeI :: WriteBuffer -> (Word8 -> Word8)
+encodeI :: WriteBuffer
+        -> (Word8 -> Word8) -- ^ Setting prefix
         -> Int -- ^ N+
         -> Int -- ^ Target
         -> IO ()
@@ -86,7 +95,7 @@ decode I from the next N bits
 -- >>> decodeInteger 8 42 $ BS.empty
 -- 42
 decodeInteger :: Int        -- ^ N+
-              -> Word8      -- ^ The head of encoded integer
+              -> Word8      -- ^ The head of encoded integer whose prefix is already dropped
               -> ByteString -- ^ The tail of encoded integer
               -> IO Int
 decodeInteger n w bs = withReadBuffer bs $ \rbuf -> decodeI n w rbuf
@@ -94,7 +103,7 @@ decodeInteger n w bs = withReadBuffer bs $ \rbuf -> decodeI n w rbuf
 {-# INLINABLE decodeI #-}
 -- | Integer decoding with a read buffer. The first argument is N of prefix.
 decodeI :: Int        -- ^ N+
-        -> Word8      -- ^ The head of encoded integer
+        -> Word8      -- ^ The head of encoded integer whose prefix is already dropped
         -> ReadBuffer
         -> IO Int
 decodeI n w rbuf
