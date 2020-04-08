@@ -71,18 +71,19 @@ encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
 
 -- | Converting 'TokenHeaderList' to the HPACK format directly in the buffer.
 --
---   4th argument is relating to dynamic table size update.
 --   When calling this function for a new 'TokenHeaderList',
---   it must be 'True'.
---   If 'True' and set by 'setLimitForEncoding',
---   dynamic table size update is generated at the beginning of
---   the HPACK format.
+--   4th argument must be 'True'.
 --
 --   The return value is a pair of leftover 'TokenHeaderList' and
 --   how many bytes are filled in the buffer.
 --   If the leftover is empty, the encoding is finished.
 --   Otherwise, this function should be called with it again.
 --   4th argument must be 'False'.
+--
+--   4th argument is relating to dynamic table size update.
+--   If 'True' and the limit is set by 'setLimitForEncoding',
+--   dynamic table size update is generated at the beginning of
+--   the HPACK format.
 --
 encodeTokenHeader :: Buffer
                   -> BufferSize
