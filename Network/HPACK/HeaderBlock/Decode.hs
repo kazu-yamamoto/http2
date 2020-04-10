@@ -235,22 +235,23 @@ dropHuffman w = w `clearBit` 7
 -- | String decoding (7+) with a temporal Huffman decoder whose buffer is 4096.
 decodeString :: ReadBuffer -> IO ByteString
 decodeString rbuf = snd <$> withWriteBuffer' 4096
-  (\wbuf -> decodeS dropHuffman isHuffman (decodeH wbuf) rbuf)
+  (\wbuf -> decodeS dropHuffman isHuffman 7 (decodeH wbuf) rbuf)
 
 decStr :: HuffmanDecoder -> ReadBuffer -> IO ByteString
-decStr = decodeS dropHuffman isHuffman
+decStr = decodeS dropHuffman isHuffman 7
 
 -- | String decoding with Huffman decoder.
 decodeS :: (Word8 -> Word8) -- ^ Dropping prefix and Huffman
         -> (Word8 -> Bool)  -- ^ Checking Huffman flag
+        -> Int              -- ^ N+
         -> HuffmanDecoder
         -> ReadBuffer
         -> IO ByteString
-decodeS mask isH hufdec rbuf = do
+decodeS mask isH n hufdec rbuf = do
     w <- read8 rbuf
     let p = mask w
         huff = isH w
-    len <- decodeI 7 p rbuf
+    len <- decodeI n p rbuf
     if huff then
         hufdec rbuf len
       else
