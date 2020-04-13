@@ -57,6 +57,7 @@ Library
                         Network.HTTP2
                         Network.HTTP2.Client
                         Network.HTTP2.Frame
+                        Network.HTTP2.Internal
                         Network.HTTP2.Priority
                         Network.HTTP2.Server
   Other-Modules:        Imports

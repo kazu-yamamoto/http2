@@ -8,7 +8,7 @@ import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 
--- | HTTP\/2 server takes a HTTP request, should
+-- | Server type. Server takes a HTTP request, should
 --   generate a HTTP response and push promises, then
 --   should give them to the sending function.
 --   The sending function would throw exceptions so that

@@ -4,7 +4,7 @@ import Network.HTTP2.Arch
 
 ----------------------------------------------------------------
 
--- | HTTP\/2 client
+-- | Client type.
 type Client a = (Request -> (Response -> IO a) -> IO a) -> IO a
 
 -- | Request from client.
