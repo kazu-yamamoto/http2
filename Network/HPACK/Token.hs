@@ -287,7 +287,7 @@ maxStaticTokenIx = 51
 
 -- | Maximum token index.
 maxTokenIx :: Int
-maxTokenIx = 54
+maxTokenIx = 73
 
 -- | Token index for 'tokenCookie'.
 cookieTokenIx :: Int
