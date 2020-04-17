@@ -9,6 +9,7 @@ module Network.HPACK.HeaderBlock.Decode (
   , getHeaderValue
   , decodeString
   , decodeS
+  , decodeSophisticated
   ) where
 
 import Control.Exception (throwIO, catch)
@@ -50,7 +51,7 @@ getHeaderValue t tbl = tbl `unsafeAt` tokenIx t
 decodeHeader :: DynamicTable
              -> ByteString -- ^ An HPACK format
              -> IO HeaderList
-decodeHeader dyntbl inp = decodeHPACK dyntbl inp decodeSimple
+decodeHeader dyntbl inp = decodeHPACK dyntbl inp (decodeSimple dyntbl)
 
 -- | Converting the HPACK format to 'TokenHeaderList'
 --   and 'ValueTable'.
@@ -70,11 +71,11 @@ decodeTokenHeader :: DynamicTable
                   -> ByteString -- ^ An HPACK format
                   -> IO HeaderTable
 decodeTokenHeader dyntbl inp =
-    decodeHPACK dyntbl inp decodeSophisticated `catch` \BufferOverrun -> throwIO HeaderBlockTruncated
+    decodeHPACK dyntbl inp (decodeSophisticated (toTokenHeader dyntbl)) `catch` \BufferOverrun -> throwIO HeaderBlockTruncated
 
 decodeHPACK :: DynamicTable
             -> ByteString
-            -> (DynamicTable -> ReadBuffer -> IO a)
+            -> (ReadBuffer -> IO a)
             -> IO a
 decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
   where
@@ -85,7 +86,7 @@ decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
             chkChange rbuf
           else do
             ff rbuf (-1)
-            dec dyntbl rbuf
+            dec rbuf
 
 decodeSimple :: DynamicTable -> ReadBuffer -> IO HeaderList
 decodeSimple dyntbl rbuf = go empty
@@ -102,9 +103,22 @@ decodeSimple dyntbl rbuf = go empty
                 kvs = map (\(t,v) -> let k = tokenFoldedKey t in (k,v)) tvs
             return kvs
 
-decodeSophisticated :: DynamicTable -> ReadBuffer
+-- | Converting to 'TokenHeaderList' and 'ValueTable'.
+--
+--   * Multiple values of Cookie: are concatenated.
+--   * If a pseudo header appears multiple times,
+--     'IllegalHeaderName' is thrown.
+--   * If unknown pseudo headers appear,
+--     'IllegalHeaderName' is thrown.
+--   * If pseudo headers are found after normal headers,
+--     'IllegalHeaderName' is thrown.
+--   * If a header key contains capital letters,
+--     'IllegalHeaderName' is thrown.
+--   * 'DecodeError' would be thrown if the HPACK format is broken.
+--   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
+decodeSophisticated :: (Word8 -> ReadBuffer -> IO TokenHeader) -> ReadBuffer
                     -> IO HeaderTable
-decodeSophisticated dyntbl rbuf = do
+decodeSophisticated decTokenHeader rbuf = do
     -- using maxTokenIx to reduce condition
     arr <- IOA.newArray (minTokenIx,maxTokenIx) Nothing
     tvs <- pseudoNormal arr
@@ -118,7 +132,7 @@ decodeSophisticated dyntbl rbuf = do
             leftover <- remainingSize rbuf
             if leftover >= 1 then do
                 w <- read8 rbuf
-                tv@(Token{..},v) <- toTokenHeader dyntbl w rbuf
+                tv@(Token{..},v) <- decTokenHeader w rbuf
                 if isPseudo then do
                     mx <- unsafeRead arr tokenIx
                     when (isJust mx) $ throwIO IllegalHeaderName
@@ -139,7 +153,7 @@ decodeSophisticated dyntbl rbuf = do
             leftover <- remainingSize rbuf
             if leftover >= 1 then do
                 w <- read8 rbuf
-                tv@(Token{..},v) <- toTokenHeader dyntbl w rbuf
+                tv@(Token{..},v) <- decTokenHeader w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
                 when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
