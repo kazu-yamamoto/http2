@@ -60,6 +60,7 @@ Library
                         Network.HTTP2.Internal
                         Network.HTTP2.Priority
                         Network.HTTP2.Server
+                        Network.HTTP2.Server.Internal
   Other-Modules:        Imports
                         Network.HPACK.Builder
                         Network.HTTP2.Client.Types
@@ -192,6 +193,7 @@ Test-Suite spec
                         Network.HTTP2.Priority.PSQ
                         Network.HTTP2.Priority.Queue
                         Network.HTTP2.Server
+                        Network.HTTP2.Server.Internal
                         Network.HTTP2.Server.Run
                         Network.HTTP2.Server.Types
                         Network.HTTP2.Server.Worker
