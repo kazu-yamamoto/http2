@@ -30,7 +30,7 @@ pushStream :: Context
            -> [PushPromise]
            -> IO OutputType
 pushStream _ _ _ [] = return OObj
-pushStream ctx@Context{..} pstrm reqvt pps0
+pushStream ctx@Context{outputQ,streamTable,http2settings} pstrm reqvt pps0
   | len == 0 = return OObj
   | otherwise = do
         pushable <- enablePush <$> readIORef http2settings
@@ -78,7 +78,7 @@ pushStream ctx@Context{..} pstrm reqvt pps0
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response :: Context -> Manager -> T.Handle -> ThreadContinue -> Stream -> Request -> Response -> [PushPromise] -> IO ()
-response ctx@Context{..} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
+response ctx@Context{outputQ} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
   OutBodyNone -> do
       setThreadContinue tconf True
       enqueueOutput outputQ $ Output strm rsp OObj Nothing (return ())
@@ -92,7 +92,7 @@ response ctx@Context{..} mgr th tconf strm (Request req) (Response rsp) pps = ca
       enqueueOutput outputQ $ Output strm rsp otyp Nothing (return ())
   OutBodyStreaming strmbdy -> do
       otyp <- pushStream ctx strm reqvt pps
-      -- We must not exit this WAI application.
+      -- We must not exit this server application.
       -- If the application exits, streaming would be also closed.
       -- So, this work occupies this thread.
       --
