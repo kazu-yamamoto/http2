@@ -22,7 +22,8 @@ run conf@Config{..} server = do
         ctx <- newContext Server
         -- Workers, worker manager and timer manager
         mgr <- start
-        setAction mgr $ worker ctx mgr server
+        let wc = fromContext ctx
+        setAction mgr $ worker wc mgr server
         -- The number of workers is 3.
         -- This was carefully chosen based on a lot of benchmarks.
         -- If it is 1, we cannot avoid head-of-line blocking.

@@ -5,6 +5,8 @@
 
 module Network.HTTP2.Server.Worker (
     worker
+  , WorkerConf(..)
+  , fromContext
   ) where
 
 import Control.Concurrent.STM
@@ -24,16 +26,46 @@ import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 
-pushStream :: Context
+data WorkerConf = WorkerConf {
+    readInputQ :: IO Input
+  , writeOutputQ :: Output -> IO ()
+  , workerCleanup :: Stream -> IO ()
+  , isPushable :: IO Bool
+  , insertStream :: StreamId -> Stream -> IO ()
+  , makePushStream :: PushPromise -> IO Stream
+  }
+
+fromContext :: Context -> WorkerConf
+fromContext ctx@Context{..} = WorkerConf {
+    readInputQ = atomically $ readTQueue inputQ
+  , writeOutputQ = enqueueOutput outputQ
+  , workerCleanup = \strm -> do
+        closed ctx strm Killed
+        let frame = resetFrame InternalError (streamNumber strm)
+        enqueueControl controlQ $ CFrame frame
+  , isPushable = enablePush <$> readIORef http2settings
+  , insertStream = insert streamTable
+  , makePushStream = \pp -> do
+        ws <- initialWindowSize <$> readIORef http2settings
+        let w = promiseWeight pp
+            pri = defaultPriority { weight = w }
+            pre = toPrecedence pri
+        sid <- getMyNewStreamId ctx
+        newPushStream sid ws pre
+  }
+
+----------------------------------------------------------------
+
+pushStream :: WorkerConf
            -> Stream -- parent stream
            -> ValueTable -- request
            -> [PushPromise]
            -> IO OutputType
 pushStream _ _ _ [] = return OObj
-pushStream ctx@Context{outputQ,streamTable,http2settings} pstrm reqvt pps0
+pushStream WorkerConf{..} pstrm reqvt pps0
   | len == 0 = return OObj
   | otherwise = do
-        pushable <- enablePush <$> readIORef http2settings
+        pushable <- isPushable
         if pushable then do
             tvar <- newTVarIO 0
             lim <- push tvar pps0 0
@@ -52,13 +84,9 @@ pushStream ctx@Context{outputQ,streamTable,http2settings} pstrm reqvt pps0
         check (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp:pps) n = do
-        ws <- initialWindowSize <$> readIORef http2settings
-        let w = promiseWeight pp
-            pri = defaultPriority { weight = w }
-            pre = toPrecedence pri
-        sid <- getMyNewStreamId ctx
-        newstrm <- newPushStream sid ws pre
-        insert streamTable sid newstrm
+        newstrm <- makePushStream pp
+        let sid = streamNumber newstrm
+        insertStream sid newstrm
         let scheme = fromJust $ getHeaderValue tokenScheme reqvt
             -- fixme: this value can be Nothing
             auth   = fromJust (getHeaderValue tokenHost reqvt
@@ -71,27 +99,27 @@ pushStream ctx@Context{outputQ,streamTable,http2settings} pstrm reqvt pps0
             ot = OPush promiseRequest pid
             Response rsp = promiseResponse pp
             out = Output newstrm rsp ot Nothing $ increment tvar
-        enqueueOutput outputQ out
+        writeOutputQ out
         push tvar pps (n + 1)
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: Context -> Manager -> T.Handle -> ThreadContinue -> Stream -> Request -> Response -> [PushPromise] -> IO ()
-response ctx@Context{outputQ} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
+response :: WorkerConf -> Manager -> T.Handle -> ThreadContinue -> Stream -> Request -> Response -> [PushPromise] -> IO ()
+response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
   OutBodyNone -> do
       setThreadContinue tconf True
-      enqueueOutput outputQ $ Output strm rsp OObj Nothing (return ())
+      writeOutputQ $ Output strm rsp OObj Nothing (return ())
   OutBodyBuilder _ -> do
-      otyp <- pushStream ctx strm reqvt pps
+      otyp <- pushStream wc strm reqvt pps
       setThreadContinue tconf True
-      enqueueOutput outputQ $ Output strm rsp otyp Nothing (return ())
+      writeOutputQ $ Output strm rsp otyp Nothing (return ())
   OutBodyFile _ -> do
-      otyp <- pushStream ctx strm reqvt pps
+      otyp <- pushStream wc strm reqvt pps
       setThreadContinue tconf True
-      enqueueOutput outputQ $ Output strm rsp otyp Nothing (return ())
+      writeOutputQ $ Output strm rsp otyp Nothing (return ())
   OutBodyStreaming strmbdy -> do
-      otyp <- pushStream ctx strm reqvt pps
+      otyp <- pushStream wc strm reqvt pps
       -- We must not exit this server application.
       -- If the application exits, streaming would be also closed.
       -- So, this work occupies this thread.
@@ -104,7 +132,7 @@ response ctx@Context{outputQ} mgr th tconf strm (Request req) (Response rsp) pps
       -- Since streaming body is loop, we cannot control it.
       -- So, let's serialize 'Builder' with a designated queue.
       tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-      enqueueOutput outputQ $ Output strm rsp otyp (Just tbq) (return ())
+      writeOutputQ $ Output strm rsp otyp (Just tbq) (return ())
       let push b = do
             T.pause th
             atomically $ writeTBQueue tbq (RSBuilder b)
@@ -116,8 +144,9 @@ response ctx@Context{outputQ} mgr th tconf strm (Request req) (Response rsp) pps
   where
     (_,reqvt) = inpObjHeaders req
 
-worker :: Context -> Manager -> Server -> Action
-worker ctx@Context{inputQ,controlQ} mgr server = do
+-- | Worker for server applications.
+worker :: WorkerConf -> Manager -> Server -> Action
+worker wc@WorkerConf{..} mgr server = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
     timeoutKillThread mgr $ go sinfo tcont
@@ -126,13 +155,13 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
         setThreadContinue tcont True
         ex <- E.try $ do
             T.pause th
-            Input strm req <- atomically $ readTQueue inputQ
+            Input strm req <- readInputQ
             let req' = pauseRequestBody req th
             setStreamInfo sinfo strm
             T.resume th
             T.tickle th
             let aux = Aux th
-            server (Request req) aux $ response ctx mgr th tcont strm (Request req')
+            server (Request req) aux $ response wc mgr th tcont strm (Request req')
         cont1 <- case ex of
             Right () -> return True
             Left e@(SomeException _)
@@ -160,10 +189,7 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
         minp <- getStreamInfo sinfo
         case minp of
             Nothing   -> return ()
-            Just strm -> do
-                closed ctx strm Killed
-                let frame = resetFrame InternalError (streamNumber strm)
-                enqueueControl controlQ $ CFrame frame
+            Just strm -> workerCleanup strm
 
 ----------------------------------------------------------------
 
