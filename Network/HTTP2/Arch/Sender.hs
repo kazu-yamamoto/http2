@@ -52,7 +52,7 @@ waitStreaming tbq = atomically $ do
     check (not isEmpty)
 
 data Switch = C Control
-            | O (StreamId,Precedence,Output)
+            | O (StreamId,Precedence,Output Stream)
             | Flush
 
 frameSender :: Context -> Config -> Manager -> IO ()
@@ -165,7 +165,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     output _ _ _ = undefined -- never reach
 
-    outputOrEnqueueAgain :: Output -> Int -> IO Int
+    outputOrEnqueueAgain :: Output Stream -> Int -> IO Int
     outputOrEnqueueAgain out@(Output strm _ otyp _ _) off = E.handle resetStream $ do
         state <- readStreamState strm
         if isHalfClosedLocal state then

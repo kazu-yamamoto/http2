@@ -160,10 +160,10 @@ newtype StreamTable = StreamTable (IORef (IntMap Stream))
 
 ----------------------------------------------------------------
 
-data Input = Input Stream InpObj
+data Input a = Input a InpObj
 
-data Output = Output {
-    outputStream   :: Stream
+data Output a = Output {
+    outputStream   :: a
   , outputObject   :: OutObj
   , outputType     :: OutputType
   , outputStrmQ    :: Maybe (TBQueue RspStreaming)

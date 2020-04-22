@@ -32,8 +32,8 @@ data Context = Context {
   , continued          :: IORef (Maybe StreamId)
   , myStreamId         :: IORef StreamId
   , peerStreamId       :: IORef StreamId
-  , inputQ             :: TQueue Input -- Server only
-  , outputQ            :: PriorityTree Output
+  , inputQ             :: TQueue (Input Stream) -- Server only
+  , outputQ            :: PriorityTree (Output Stream)
   , controlQ           :: TQueue Control
   , encodeDynamicTable :: DynamicTable
   , decodeDynamicTable :: DynamicTable

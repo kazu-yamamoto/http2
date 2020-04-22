@@ -13,7 +13,7 @@ import Network.HTTP2.Arch.Types
 import Network.HTTP2.Priority
 
 {-# INLINE forkAndEnqueueWhenReady #-}
-forkAndEnqueueWhenReady :: IO () -> PriorityTree Output -> Output -> Manager -> IO ()
+forkAndEnqueueWhenReady :: IO () -> PriorityTree (Output Stream) -> Output Stream -> Manager -> IO ()
 forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
     void . forkIO $ do
         wait
@@ -23,7 +23,7 @@ forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
     teardown _ = deleteMyId mgr
 
 {-# INLINE enqueueOutput #-}
-enqueueOutput :: PriorityTree Output -> Output -> IO ()
+enqueueOutput :: PriorityTree (Output Stream) -> Output Stream -> IO ()
 enqueueOutput outQ out = do
     let Stream{..} = outputStream out
     pre <- readIORef streamPrecedence

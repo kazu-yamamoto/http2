@@ -26,16 +26,16 @@ import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 
-data WorkerConf = WorkerConf {
-    readInputQ :: IO Input
-  , writeOutputQ :: Output -> IO ()
-  , workerCleanup :: Stream -> IO ()
-  , isPushable :: IO Bool
-  , insertStream :: StreamId -> Stream -> IO ()
-  , makePushStream :: PushPromise -> IO Stream
+data WorkerConf a = WorkerConf {
+    readInputQ     :: IO (Input a)
+  , writeOutputQ   :: Output a -> IO ()
+  , workerCleanup  :: a -> IO ()
+  , isPushable     :: IO Bool
+  , insertStream   :: StreamId -> a -> IO ()
+  , makePushStream :: a -> PushPromise -> IO (StreamId, StreamId, a)
   }
 
-fromContext :: Context -> WorkerConf
+fromContext :: Context -> WorkerConf Stream
 fromContext ctx@Context{..} = WorkerConf {
     readInputQ = atomically $ readTQueue inputQ
   , writeOutputQ = enqueueOutput outputQ
@@ -45,19 +45,21 @@ fromContext ctx@Context{..} = WorkerConf {
         enqueueControl controlQ $ CFrame frame
   , isPushable = enablePush <$> readIORef http2settings
   , insertStream = insert streamTable
-  , makePushStream = \pp -> do
+  , makePushStream = \pstrm pp -> do
         ws <- initialWindowSize <$> readIORef http2settings
         let w = promiseWeight pp
             pri = defaultPriority { weight = w }
             pre = toPrecedence pri
         sid <- getMyNewStreamId ctx
-        newPushStream sid ws pre
+        newstrm <- newPushStream sid ws pre
+        let pid = streamNumber pstrm
+        return (pid, sid, newstrm)
   }
 
 ----------------------------------------------------------------
 
-pushStream :: WorkerConf
-           -> Stream -- parent stream
+pushStream :: WorkerConf a
+           -> a -- parent stream
            -> ValueTable -- request
            -> [PushPromise]
            -> IO OutputType
@@ -76,7 +78,6 @@ pushStream WorkerConf{..} pstrm reqvt pps0
           else
             return OObj
   where
-    pid = streamNumber pstrm
     len = length pps0
     increment tvar = atomically $ modifyTVar' tvar (+1)
     waiter lim tvar = atomically $ do
@@ -84,8 +85,7 @@ pushStream WorkerConf{..} pstrm reqvt pps0
         check (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp:pps) n = do
-        newstrm <- makePushStream pp
-        let sid = streamNumber newstrm
+        (pid, sid, newstrm) <- makePushStream pstrm pp
         insertStream sid newstrm
         let scheme = fromJust $ getHeaderValue tokenScheme reqvt
             -- fixme: this value can be Nothing
@@ -105,7 +105,7 @@ pushStream WorkerConf{..} pstrm reqvt pps0
 -- | This function is passed to workers.
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: WorkerConf -> Manager -> T.Handle -> ThreadContinue -> Stream -> Request -> Response -> [PushPromise] -> IO ()
+response :: WorkerConf a -> Manager -> T.Handle -> ThreadContinue -> a -> Request -> Response -> [PushPromise] -> IO ()
 response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
   OutBodyNone -> do
       setThreadContinue tconf True
@@ -145,7 +145,7 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
     (_,reqvt) = inpObjHeaders req
 
 -- | Worker for server applications.
-worker :: WorkerConf -> Manager -> Server -> Action
+worker :: WorkerConf a -> Manager -> Server -> Action
 worker wc@WorkerConf{..} mgr server = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
@@ -214,20 +214,20 @@ getThreadContinue (ThreadContinue ref) = readIORef ref
 ----------------------------------------------------------------
 
 -- | The type for cleaning up.
-newtype StreamInfo = StreamInfo (IORef (Maybe Stream))
+newtype StreamInfo a = StreamInfo (IORef (Maybe a))
 
 {-# INLINE newStreamInfo #-}
-newStreamInfo :: IO StreamInfo
+newStreamInfo :: IO (StreamInfo a)
 newStreamInfo = StreamInfo <$> newIORef Nothing
 
 {-# INLINE clearStreamInfo #-}
-clearStreamInfo :: StreamInfo -> IO ()
+clearStreamInfo :: StreamInfo a -> IO ()
 clearStreamInfo (StreamInfo ref) = writeIORef ref Nothing
 
 {-# INLINE setStreamInfo #-}
-setStreamInfo :: StreamInfo -> Stream -> IO ()
+setStreamInfo :: StreamInfo a -> a -> IO ()
 setStreamInfo (StreamInfo ref) inp = writeIORef ref $ Just inp
 
 {-# INLINE getStreamInfo #-}
-getStreamInfo :: StreamInfo -> IO (Maybe Stream)
+getStreamInfo :: StreamInfo a -> IO (Maybe a)
 getStreamInfo (StreamInfo ref) = readIORef ref
