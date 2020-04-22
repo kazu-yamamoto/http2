@@ -65,9 +65,9 @@ pushStream ctx@Context{..} pstrm reqvt pps0
                             <|> getHeaderValue tokenAuthority reqvt)
             path = promiseRequestPath pp
             promiseRequest = [(tokenMethod, H.methodGet)
-                               ,(tokenScheme, scheme)
-                               ,(tokenAuthority, auth)
-                               ,(tokenPath, path)]
+                             ,(tokenScheme, scheme)
+                             ,(tokenAuthority, auth)
+                             ,(tokenPath, path)]
             ot = OPush promiseRequest pid
             Response rsp = promiseResponse pp
             out = Output newstrm rsp ot Nothing $ increment tvar

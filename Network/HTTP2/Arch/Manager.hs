@@ -27,6 +27,7 @@ import Imports
 
 ----------------------------------------------------------------
 
+-- | Action to be spawned by the manager.
 type Action = IO ()
 
 noAction :: Action
@@ -34,6 +35,7 @@ noAction = return ()
 
 data Command = Stop | Spawn | Add ThreadId | Delete ThreadId
 
+-- | Manager to manage the thread pool and the timer.
 data Manager = Manager (TQueue Command) (IORef Action) T.Manager
 
 -- | Starting a thread pool manager.
@@ -64,20 +66,25 @@ start = do
             let tset' = add newtid tset
             go q tset' ref timmgr
 
+-- | Setting the action to be spawned.
 setAction :: Manager -> Action -> IO ()
 setAction (Manager _ ref _) action = writeIORef ref action
 
+-- | Stopping the manager.
 stop :: Manager -> IO ()
 stop (Manager q _ _) = atomically $ writeTQueue q Stop
 
+-- | Spawning the action.
 spawnAction :: Manager -> IO ()
 spawnAction (Manager q _ _) = atomically $ writeTQueue q Spawn
 
+-- | Adding my thread id to the kill-thread list on stopping.
 addMyId :: Manager -> IO ()
 addMyId (Manager q _ _) = do
     tid <- myThreadId
     atomically $ writeTQueue q $ Add tid
 
+-- | Deleting my thread id from the kill-thread list on stopping.
 deleteMyId :: Manager -> IO ()
 deleteMyId (Manager q _ _) = do
     tid <- myThreadId
@@ -98,6 +105,7 @@ del tid set = set'
 kill :: Set ThreadId -> IO ()
 kill set = traverse_ killThread set
 
+-- | Killing the IO action of the second argument on timeout.
 timeoutKillThread :: Manager -> (T.Handle -> IO ()) -> IO ()
 timeoutKillThread (Manager _ _ tmgr) action = E.bracket register T.cancel action
   where

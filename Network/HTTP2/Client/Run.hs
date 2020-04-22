@@ -23,6 +23,7 @@ run conf@Config{..} scheme auth client = do
     exchangeSettings conf ctx
     client (sendRequest ctx scheme auth) `E.finally` do
         clearContext ctx
+        stop mgr
         killThread tid0
         killThread tid1
 
