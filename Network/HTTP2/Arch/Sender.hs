@@ -2,7 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.Sender (frameSender) where
+module Network.HTTP2.Arch.Sender (
+    frameSender
+  , fillBuilderBodyGetNext
+  , fillFileBodyGetNext
+  , fillStreamBodyGetNext
+  ) where
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
@@ -57,7 +62,7 @@ data Switch = C Control
 
 frameSender :: Context -> Config -> Manager -> IO ()
 frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
-            conf@Config{..}
+            Config{..}
             mgr = loop 0 `E.catch` ignore
   where
     dequeue off = do
@@ -138,20 +143,20 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
-                    fillFileBodyGetNext conf payloadOff lim path fileoff bytecount mgr confPositionReadMaker
+                    fillFileBodyGetNext confWriteBuffer confBufferSize payloadOff lim path fileoff bytecount (timeoutClose mgr) confPositionReadMaker
                 NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
             OutBodyBuilder builder -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
-                    fillBuilderBodyGetNext conf payloadOff lim builder
+                    fillBuilderBodyGetNext confWriteBuffer confBufferSize payloadOff lim builder
                 NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
             OutBodyStreaming _ -> do
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
-                    fillStreamBodyGetNext conf payloadOff lim (fromJust mtbq) strm
+                    fillStreamBodyGetNext confWriteBuffer confBufferSize payloadOff lim (fromJust mtbq) strm
                 NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
 
@@ -311,22 +316,20 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
 ----------------------------------------------------------------
 
-fillBuilderBodyGetNext :: Config -> Int -> WindowSize -> Builder -> IO Next
-fillBuilderBodyGetNext Config{confWriteBuffer,confBufferSize}
-                       off lim bb = do
-    let datBuf = confWriteBuffer `plusPtr` off
-        room = min (confBufferSize - off) lim
+fillBuilderBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> Builder -> IO Next
+fillBuilderBodyGetNext buf siz off lim bb = do
+    let datBuf = buf `plusPtr` off
+        room = min (siz - off) lim
     (len, signal) <- B.runBuilder bb datBuf room
     return $ nextForBuilder len signal
 
-fillFileBodyGetNext :: Config -> Int -> WindowSize -> FilePath -> FileOffset -> ByteCount -> Manager -> PositionReadMaker -> IO Next
-fillFileBodyGetNext Config{confWriteBuffer,confBufferSize}
-                    off lim path start bytecount mgr prmaker = do
-    let datBuf = confWriteBuffer `plusPtr` off
-        room = min (confBufferSize - off) lim
+fillFileBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> FilePath -> FileOffset -> ByteCount -> (IO () -> IO (IO ())) -> PositionReadMaker -> IO Next
+fillFileBodyGetNext buf siz off lim path start bytecount tmout prmaker = do
+    let datBuf = buf `plusPtr` off
+        room = min (siz - off) lim
     (pread, sentinel) <- prmaker path
     refresh <- case sentinel of
-      Closer closer       -> timeoutClose mgr closer
+      Closer closer       -> tmout closer
       Refresher refresher -> return refresher
     len <- pread start (mini room bytecount) datBuf
     let len' = fromIntegral len
@@ -334,11 +337,10 @@ fillFileBodyGetNext Config{confWriteBuffer,confBufferSize}
 
 ----------------------------------------------------------------
 
-fillStreamBodyGetNext :: Config -> Int -> WindowSize -> TBQueue RspStreaming -> Stream -> IO Next
-fillStreamBodyGetNext Config{confWriteBuffer,confBufferSize}
-                      off lim sq strm = do
-    let datBuf = confWriteBuffer `plusPtr` off
-        room = min (confBufferSize - off) lim
+fillStreamBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> TBQueue RspStreaming -> Stream -> IO Next
+fillStreamBodyGetNext buf siz off lim sq strm = do
+    let datBuf = buf `plusPtr` off
+        room = min (siz - off) lim
     (leftover, cont, len) <- runStreamBuilder datBuf room sq
     return $ nextForStream sq strm leftover cont len
 
