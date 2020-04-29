@@ -127,7 +127,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
         fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out
 
-    output out@(Output strm (OutObj hdr body tlrmkr) OObj mtbq sentinel) off0 lim = do
+    output out@(Output strm (OutObj hdr body tlrmkr) OObj mtbq _) off0 lim = do
         -- Header frame and Continuation frame
         let sid = streamNumber strm
             endOfStream = case body of
@@ -136,34 +136,26 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         (ths,_) <- toHeaderTable $ fixHeaders hdr
         kvlen <- headerContinue sid ths endOfStream off0
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
-        let payloadOff = off + frameHeaderLength
-            datBuf     = confWriteBuffer `plusPtr` payloadOff
-            datBufSiz  = confBufferSize - payloadOff
         case body of
             OutBodyNone -> do
                 when (isServer ctx) $ halfClosedLocal ctx strm Finished
                 return off
             OutBodyFile (FileSpec path fileoff bytecount) -> do
-                -- Data frame payload
-                Next datPayloadLen mnext <- do
-                    (pread, sentinel') <- confPositionReadMaker path
-                    refresh <- case sentinel' of
-                      Closer closer       -> timeoutClose mgr closer
-                      Refresher refresher -> return refresher
-                    fillFileBodyGetNext pread fileoff bytecount refresh datBuf datBufSiz lim
-                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-                fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
+                (pread, sentinel') <- confPositionReadMaker path
+                refresh <- case sentinel' of
+                             Closer closer       -> timeoutClose mgr closer
+                             Refresher refresher -> return refresher
+                let next = fillFileBodyGetNext pread fileoff bytecount refresh
+                    out' = out { outputType = ONext next tlrmkr }
+                output out' off lim
             OutBodyBuilder builder -> do
-                -- Data frame payload
-                Next datPayloadLen mnext <-
-                    fillBuilderBodyGetNext builder datBuf datBufSiz lim
-                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-                fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
+                let next = fillBuilderBodyGetNext builder
+                    out' = out { outputType = ONext next tlrmkr }
+                output out' off lim
             OutBodyStreaming _ -> do
-                Next datPayloadLen mnext <-
-                    fillStreamBodyGetNext (fromJust mtbq) datBuf datBufSiz lim
-                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-                fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
+                let next = fillStreamBodyGetNext (fromJust mtbq)
+                    out' = out { outputType = ONext next tlrmkr }
+                output out' off lim
 
     output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
         -- Creating a push promise header
