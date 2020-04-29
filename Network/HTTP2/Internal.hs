@@ -11,18 +11,19 @@ module Network.HTTP2.Internal (
   , OutObj(..)
   , OutBody(..)
   , FileSpec(..)
-  -- * Trailer
-  , TrailersMaker
-  , defaultTrailersMaker
-  , NextTrailersMaker(..)
   -- * Sender
   , Next(..)
   , BytesFilled
   , DynaNext
-  , RspStreaming(..)
+  , StreamingChunk(..)
   , fillBuilderBodyGetNext
   , fillFileBodyGetNext
   , fillStreamBodyGetNext
+  -- * Trailer
+  , TrailersMaker
+  , defaultTrailersMaker
+  , NextTrailersMaker(..)
+  , runTrailersMaker
   )  where
 
 import Network.HTTP2.Arch.File

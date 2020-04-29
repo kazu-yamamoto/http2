@@ -166,7 +166,7 @@ data Output a = Output {
     outputStream   :: a
   , outputObject   :: OutObj
   , outputType     :: OutputType
-  , outputStrmQ    :: Maybe (TBQueue RspStreaming)
+  , outputStrmQ    :: Maybe (TBQueue StreamingChunk)
   , outputSentinel :: IO ()
   }
 
@@ -193,6 +193,6 @@ data Control = CFinish
 
 ----------------------------------------------------------------
 
-data RspStreaming = RSFinish
-                  | RSFlush
-                  | RSBuilder Builder
+data StreamingChunk = StreamingFinished
+                    | StreamingFlush
+                    | StreamingBuilder Builder

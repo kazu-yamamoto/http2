@@ -135,11 +135,11 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
       writeOutputQ $ Output strm rsp otyp (Just tbq) (return ())
       let push b = do
             T.pause th
-            atomically $ writeTBQueue tbq (RSBuilder b)
+            atomically $ writeTBQueue tbq (StreamingBuilder b)
             T.resume th
-          flush  = atomically $ writeTBQueue tbq RSFlush
+          flush  = atomically $ writeTBQueue tbq StreamingFlush
       strmbdy push flush
-      atomically $ writeTBQueue tbq RSFinish
+      atomically $ writeTBQueue tbq StreamingFinished
       deleteMyId mgr
   where
     (_,reqvt) = inpObjHeaders req

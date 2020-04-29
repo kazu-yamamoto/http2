@@ -7,6 +7,7 @@ module Network.HTTP2.Arch.Sender (
   , fillBuilderBodyGetNext
   , fillFileBodyGetNext
   , fillStreamBodyGetNext
+  , runTrailersMaker
   ) where
 
 import Control.Concurrent.STM
@@ -123,7 +124,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             siz = confBufferSize - off0
             payloadOff = off0 + frameHeaderLength
         Next datPayloadLen mnext <- curr buf siz lim
-        NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+        NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr confWriteBuffer payloadOff datPayloadLen
         fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out
 
     output out@(Output strm (OutObj hdr body tlrmkr) OObj mtbq sentinel) off0 lim = do
@@ -148,20 +149,20 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                       Closer closer       -> timeoutClose mgr closer
                       Refresher refresher -> return refresher
                     fillFileBodyGetNext confWriteBuffer confBufferSize payloadOff lim fileoff bytecount pread refresh
-                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr confWriteBuffer payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
             OutBodyBuilder builder -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillBuilderBodyGetNext confWriteBuffer confBufferSize payloadOff lim builder
-                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr confWriteBuffer payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
             OutBodyStreaming _ -> do
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
                     fillStreamBodyGetNext confWriteBuffer confBufferSize payloadOff lim (fromJust mtbq)
-                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
+                NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr confWriteBuffer payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
 
     output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
@@ -310,13 +311,14 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
       where
         hinfo = FrameHeader len flag sid
 
-    runTrailersMaker tlrmkr off siz = do
-        let datBuf = confWriteBuffer `plusPtr` off
-        bufferIO datBuf siz $ \bs -> tlrmkr (Just bs)
-
     {-# INLINE ignore #-}
     ignore :: E.SomeException -> IO ()
     ignore _ = return ()
+
+runTrailersMaker :: TrailersMaker -> Buffer -> Int -> Int -> IO NextTrailersMaker
+runTrailersMaker tlrmkr buf off siz = do
+    let datBuf = buf `plusPtr` off
+    bufferIO datBuf siz $ \bs -> tlrmkr (Just bs)
 
 ----------------------------------------------------------------
 
@@ -337,7 +339,7 @@ fillFileBodyGetNext buf siz off lim start bytecount pread refresh = do
 
 ----------------------------------------------------------------
 
-fillStreamBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> TBQueue RspStreaming -> IO Next
+fillStreamBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> TBQueue StreamingChunk -> IO Next
 fillStreamBodyGetNext buf siz off lim sq = do
     let datBuf = buf `plusPtr` off
         room = min (siz - off) lim
@@ -378,7 +380,7 @@ nextForBuilder len (B.Chunk bs writer)
 
 ----------------------------------------------------------------
 
-runStreamBuilder :: Buffer -> BufferSize -> TBQueue RspStreaming
+runStreamBuilder :: Buffer -> BufferSize -> TBQueue StreamingChunk
                  -> IO (Leftover, Bool, BytesFilled)
 runStreamBuilder buf0 room0 sq = loop buf0 room0 0
   where
@@ -386,17 +388,17 @@ runStreamBuilder buf0 room0 sq = loop buf0 room0 0
         mbuilder <- atomically $ tryReadTBQueue sq
         case mbuilder of
             Nothing      -> return (LZero, True, total)
-            Just (RSBuilder builder) -> do
+            Just (StreamingBuilder builder) -> do
                 (len, signal) <- B.runBuilder builder buf room
                 let total' = total + len
                 case signal of
                     B.Done -> loop (buf `plusPtr` len) (room - len) total'
                     B.More  _ writer  -> return (LOne writer, True, total')
                     B.Chunk bs writer -> return (LTwo bs writer, True, total')
-            Just RSFlush  -> return (LZero, True, total)
-            Just RSFinish -> return (LZero, False, total)
+            Just StreamingFlush       -> return (LZero, True, total)
+            Just StreamingFinished    -> return (LZero, False, total)
 
-fillBufStream :: Leftover -> TBQueue RspStreaming -> DynaNext
+fillBufStream :: Leftover -> TBQueue StreamingChunk -> DynaNext
 fillBufStream leftover0 sq buf0 siz0 lim0 = do
     let payloadBuf = buf0 `plusPtr` frameHeaderLength
         room0 = min (siz0 - frameHeaderLength) lim0
@@ -430,7 +432,7 @@ fillBufStream leftover0 sq buf0 siz0 lim0 = do
                 let total = sofar + len
                 getNext (LTwo bs writer) True total
 
-nextForStream :: TBQueue RspStreaming
+nextForStream :: TBQueue StreamingChunk
               -> Leftover -> Bool -> BytesFilled
               -> Next
 nextForStream _ _ False len = Next len Nothing
