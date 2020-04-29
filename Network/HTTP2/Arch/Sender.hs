@@ -156,7 +156,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             OutBodyStreaming _ -> do
                 let payloadOff = off + frameHeaderLength
                 Next datPayloadLen mnext <-
-                    fillStreamBodyGetNext confWriteBuffer confBufferSize payloadOff lim (fromJust mtbq) strm
+                    fillStreamBodyGetNext confWriteBuffer confBufferSize payloadOff lim (fromJust mtbq)
                 NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
 
@@ -337,12 +337,12 @@ fillFileBodyGetNext buf siz off lim path start bytecount tmout prmaker = do
 
 ----------------------------------------------------------------
 
-fillStreamBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> TBQueue RspStreaming -> Stream -> IO Next
-fillStreamBodyGetNext buf siz off lim sq strm = do
+fillStreamBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> TBQueue RspStreaming -> IO Next
+fillStreamBodyGetNext buf siz off lim sq = do
     let datBuf = buf `plusPtr` off
         room = min (siz - off) lim
     (leftover, cont, len) <- runStreamBuilder datBuf room sq
-    return $ nextForStream sq strm leftover cont len
+    return $ nextForStream sq leftover cont len
 
 ----------------------------------------------------------------
 
@@ -396,8 +396,8 @@ runStreamBuilder buf0 room0 sq = loop buf0 room0 0
             Just RSFlush  -> return (LZero, True, total)
             Just RSFinish -> return (LZero, False, total)
 
-fillBufStream :: Leftover -> TBQueue RspStreaming -> Stream -> DynaNext
-fillBufStream leftover0 sq strm buf0 siz0 lim0 = do
+fillBufStream :: Leftover -> TBQueue RspStreaming -> DynaNext
+fillBufStream leftover0 sq buf0 siz0 lim0 = do
     let payloadBuf = buf0 `plusPtr` frameHeaderLength
         room0 = min (siz0 - frameHeaderLength) lim0
     case leftover0 of
@@ -415,7 +415,7 @@ fillBufStream leftover0 sq strm buf0 siz0 lim0 = do
               void $ copy payloadBuf bs1
               getNext (LTwo bs2 writer) True room0
   where
-    getNext l b r = return $ nextForStream sq strm l b r
+    getNext l b r = return $ nextForStream sq l b r
     write writer1 buf room sofar = do
         (len, signal) <- writer1 buf room
         case signal of
@@ -430,12 +430,12 @@ fillBufStream leftover0 sq strm buf0 siz0 lim0 = do
                 let total = sofar + len
                 getNext (LTwo bs writer) True total
 
-nextForStream :: TBQueue RspStreaming -> Stream
+nextForStream :: TBQueue RspStreaming
               -> Leftover -> Bool -> BytesFilled
               -> Next
-nextForStream _ _ _ False len = Next len Nothing
-nextForStream sq strm leftOrZero True len =
-    Next len $ Just (fillBufStream leftOrZero sq strm)
+nextForStream _ _ False len = Next len Nothing
+nextForStream sq leftOrZero True len =
+    Next len $ Just (fillBufStream leftOrZero sq)
 
 ----------------------------------------------------------------
 
