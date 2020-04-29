@@ -142,8 +142,12 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             OutBodyFile (FileSpec path fileoff bytecount) -> do
                 -- Data frame payload
                 let payloadOff = off + frameHeaderLength
-                Next datPayloadLen mnext <-
-                    fillFileBodyGetNext confWriteBuffer confBufferSize payloadOff lim path fileoff bytecount (timeoutClose mgr) confPositionReadMaker
+                Next datPayloadLen mnext <- do
+                    (pread, sentinel') <- confPositionReadMaker path
+                    refresh <- case sentinel' of
+                      Closer closer       -> timeoutClose mgr closer
+                      Refresher refresher -> return refresher
+                    fillFileBodyGetNext confWriteBuffer confBufferSize payloadOff lim fileoff bytecount pread refresh
                 NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr payloadOff datPayloadLen
                 fillDataHeaderEnqueueNext strm off datPayloadLen mnext tlrmkr' sentinel out
             OutBodyBuilder builder -> do
@@ -323,14 +327,10 @@ fillBuilderBodyGetNext buf siz off lim bb = do
     (len, signal) <- B.runBuilder bb datBuf room
     return $ nextForBuilder len signal
 
-fillFileBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> FilePath -> FileOffset -> ByteCount -> (IO () -> IO (IO ())) -> PositionReadMaker -> IO Next
-fillFileBodyGetNext buf siz off lim path start bytecount tmout prmaker = do
+fillFileBodyGetNext :: Buffer -> BufferSize -> Int -> WindowSize -> FileOffset -> ByteCount -> PositionRead -> IO () -> IO Next
+fillFileBodyGetNext buf siz off lim start bytecount pread refresh = do
     let datBuf = buf `plusPtr` off
         room = min (siz - off) lim
-    (pread, sentinel) <- prmaker path
-    refresh <- case sentinel of
-      Closer closer       -> tmout closer
-      Refresher refresher -> return refresher
     len <- pread start (mini room bytecount) datBuf
     let len' = fromIntegral len
     return $ nextForFile len' pread (start + len) (bytecount - len) refresh
