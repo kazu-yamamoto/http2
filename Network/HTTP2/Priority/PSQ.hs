@@ -2,9 +2,12 @@
 
 module Network.HTTP2.Priority.PSQ (
     Key
+  , Weight
+  , Deficit
   , Precedence(..)
   , newPrecedence
   , PriorityQueue(..)
+  , Heap
   , empty
   , isEmpty
   , enqueue
