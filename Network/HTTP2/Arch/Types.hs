@@ -56,6 +56,10 @@ data OutObj = OutObj {
   , outObjTrailers :: TrailersMaker -- ^ Accessor for trailers maker.
   }
 
+instance Show OutObj where
+    show (OutObj hdr _ _) =
+        "Response " ++ show hdr ++ " "
+
 -- | Trailers maker. A chunks of the response body is passed
 --   with 'Just'. The maker should update internal state
 --   with the 'ByteString' and return the next trailers maker.

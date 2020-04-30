@@ -16,10 +16,10 @@ import Network.HTTP2.Frame
 type Server = Request -> Aux -> (Response -> [PushPromise] -> IO ()) -> IO ()
 
 -- | Request from client.
-newtype Request = Request InpObj
+newtype Request = Request InpObj deriving (Show)
 
 -- | Response from server.
-newtype Response = Response OutObj
+newtype Response = Response OutObj deriving (Show)
 
 -- | HTTP/2 push promise or sever push.
 --   Pseudo REQUEST headers in push promise is automatically generated.

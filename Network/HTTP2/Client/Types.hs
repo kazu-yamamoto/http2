@@ -8,7 +8,7 @@ import Network.HTTP2.Arch
 type Client a = (Request -> (Response -> IO a) -> IO a) -> IO a
 
 -- | Request from client.
-newtype Request = Request OutObj
+newtype Request = Request OutObj deriving (Show)
 
 -- | Response from server.
-newtype Response = Response InpObj
+newtype Response = Response InpObj deriving (Show)
