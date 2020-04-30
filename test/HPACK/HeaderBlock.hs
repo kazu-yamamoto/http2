@@ -4,7 +4,7 @@ module HPACK.HeaderBlock where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Base16
-import Network.HPACK.Types
+import Network.HPACK
 
 fromHexString :: ByteString -> ByteString
 fromHexString = fst . decode

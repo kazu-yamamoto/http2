@@ -10,7 +10,7 @@ import Test.Hspec
 
 import Network.HTTP2.Frame
 import Network.HTTP2.Priority
-import qualified Network.HTTP2.Priority.PSQ as P
+import qualified Network.HTTP2.Priority.Internal as P
 
 spec :: Spec
 spec = do

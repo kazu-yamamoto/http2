@@ -10,7 +10,7 @@ import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8 as BS
 import Data.Char (toLower)
 import Network.HPACK
-import Network.HPACK.Huffman
+import Network.HPACK.Internal
 import Test.Hspec
 import Test.Hspec.QuickCheck
 

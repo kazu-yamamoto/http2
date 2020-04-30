@@ -1,9 +1,9 @@
 module HPACK.IntegerSpec where
 
-import Network.HPACK.HeaderBlock.Integer
+import qualified Data.ByteString as BS
+import Network.HPACK.Internal
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import qualified Data.ByteString as BS
 
 dual :: Int -> Int -> Expectation
 dual n i = do
