@@ -153,7 +153,9 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                     out' = out { outputType = ONext next tlrmkr }
                 output out' off lim
             OutBodyStreaming _ -> do
-                let next = fillStreamBodyGetNext (fromJust mtbq)
+                let tbq = fromJust mtbq
+                    takeQ = atomically $ tryReadTBQueue tbq
+                    next = fillStreamBodyGetNext takeQ
                     out' = out { outputType = ONext next tlrmkr }
                 output out' off lim
 
@@ -328,11 +330,11 @@ fillFileBodyGetNext pread start bytecount refresh buf siz lim = do
     let len' = fromIntegral len
     return $ nextForFile len' pread (start + len) (bytecount - len) refresh
 
-fillStreamBodyGetNext :: TBQueue StreamingChunk -> DynaNext
-fillStreamBodyGetNext sq buf siz lim = do
+fillStreamBodyGetNext :: IO (Maybe StreamingChunk) -> DynaNext
+fillStreamBodyGetNext takeQ buf siz lim = do
     let room = min siz lim
-    (leftover, cont, len) <- runStreamBuilder buf room sq
-    return $ nextForStream sq leftover cont len
+    (leftover, cont, len) <- runStreamBuilder buf room takeQ
+    return $ nextForStream takeQ leftover cont len
 
 ----------------------------------------------------------------
 
@@ -367,12 +369,12 @@ nextForBuilder len (B.Chunk bs writer)
 
 ----------------------------------------------------------------
 
-runStreamBuilder :: Buffer -> BufferSize -> TBQueue StreamingChunk
+runStreamBuilder :: Buffer -> BufferSize -> IO (Maybe StreamingChunk)
                  -> IO (Leftover, Bool, BytesFilled)
-runStreamBuilder buf0 room0 sq = loop buf0 room0 0
+runStreamBuilder buf0 room0 takeQ = loop buf0 room0 0
   where
     loop buf room total = do
-        mbuilder <- atomically $ tryReadTBQueue sq
+        mbuilder <- takeQ
         case mbuilder of
             Nothing      -> return (LZero, True, total)
             Just (StreamingBuilder builder) -> do
@@ -385,12 +387,12 @@ runStreamBuilder buf0 room0 sq = loop buf0 room0 0
             Just StreamingFlush       -> return (LZero, True, total)
             Just StreamingFinished    -> return (LZero, False, total)
 
-fillBufStream :: Leftover -> TBQueue StreamingChunk -> DynaNext
-fillBufStream leftover0 sq buf0 siz0 lim0 = do
+fillBufStream :: Leftover -> IO (Maybe StreamingChunk) -> DynaNext
+fillBufStream leftover0 takeQ buf0 siz0 lim0 = do
     let room0 = min siz0 lim0
     case leftover0 of
         LZero -> do
-            (leftover, cont, len) <- runStreamBuilder buf0 room0 sq
+            (leftover, cont, len) <- runStreamBuilder buf0 room0 takeQ
             getNext leftover cont len
         LOne writer -> write writer buf0 room0 0
         LTwo bs writer
@@ -403,12 +405,12 @@ fillBufStream leftover0 sq buf0 siz0 lim0 = do
               void $ copy buf0 bs1
               getNext (LTwo bs2 writer) True room0
   where
-    getNext l b r = return $ nextForStream sq l b r
+    getNext l b r = return $ nextForStream takeQ l b r
     write writer1 buf room sofar = do
         (len, signal) <- writer1 buf room
         case signal of
             B.Done -> do
-                (leftover, cont, extra) <- runStreamBuilder (buf `plusPtr` len) (room - len) sq
+                (leftover, cont, extra) <- runStreamBuilder (buf `plusPtr` len) (room - len) takeQ
                 let total = sofar + len + extra
                 getNext leftover cont total
             B.More  _ writer -> do
@@ -418,12 +420,12 @@ fillBufStream leftover0 sq buf0 siz0 lim0 = do
                 let total = sofar + len
                 getNext (LTwo bs writer) True total
 
-nextForStream :: TBQueue StreamingChunk
+nextForStream :: IO (Maybe StreamingChunk)
               -> Leftover -> Bool -> BytesFilled
               -> Next
 nextForStream _ _ False len = Next len Nothing
-nextForStream sq leftOrZero True len =
-    Next len $ Just (fillBufStream leftOrZero sq)
+nextForStream takeQ leftOrZero True len =
+    Next len $ Just (fillBufStream leftOrZero takeQ)
 
 ----------------------------------------------------------------
 
