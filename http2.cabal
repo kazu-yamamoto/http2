@@ -163,81 +163,21 @@ Test-Suite spec
 Test-Suite hpack
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack, .
+  HS-Source-Dirs:       test-hpack
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
   Other-Modules:        HPACKDecode
                         HPACKSpec
                         JSON
-                        Imports
-                        Network.HPACK
-                        Network.HPACK.Builder
-                        Network.HPACK.HeaderBlock
-                        Network.HPACK.HeaderBlock.Decode
-                        Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.Integer
-                        Network.HPACK.Huffman
-                        Network.HPACK.Huffman.Bit
-                        Network.HPACK.Huffman.ByteString
-                        Network.HPACK.Huffman.Decode
-                        Network.HPACK.Huffman.Encode
-                        Network.HPACK.Huffman.Params
-                        Network.HPACK.Huffman.Table
-                        Network.HPACK.Huffman.Tree
-                        Network.HPACK.Table
-                        Network.HPACK.Table.Dynamic
-                        Network.HPACK.Table.Entry
-                        Network.HPACK.Table.RevIndex
-                        Network.HPACK.Table.Static
-                        Network.HPACK.Token
-                        Network.HPACK.Types
-                        Network.HTTP2
-                        Network.HTTP2.Arch
-                        Network.HTTP2.Arch.Config
-                        Network.HTTP2.Arch.Context
-                        Network.HTTP2.Arch.EncodeFrame
-                        Network.HTTP2.Arch.File
-                        Network.HTTP2.Arch.HPACK
-                        Network.HTTP2.Arch.Manager
-                        Network.HTTP2.Arch.Queue
-                        Network.HTTP2.Arch.ReadN
-                        Network.HTTP2.Arch.Receiver
-                        Network.HTTP2.Arch.Sender
-                        Network.HTTP2.Arch.Status
-                        Network.HTTP2.Arch.Stream
-                        Network.HTTP2.Arch.Types
-                        Network.HTTP2.Client
-                        Network.HTTP2.Client.Run
-                        Network.HTTP2.Client.Types
-                        Network.HTTP2.Frame
-                        Network.HTTP2.Frame.Decode
-                        Network.HTTP2.Frame.Encode
-                        Network.HTTP2.Frame.Types
-                        Network.HTTP2.Priority
-                        Network.HTTP2.Priority.PSQ
-                        Network.HTTP2.Priority.Queue
-                        Network.HTTP2.Server
-                        Network.HTTP2.Server.Run
-                        Network.HTTP2.Server.Types
-                        Network.HTTP2.Server.Worker
   Build-Depends:        base >= 4 && < 5
                       , aeson
-                      , aeson-pretty
-                      , array
                       , base16-bytestring
                       , bytestring
-                      , case-insensitive
-                      , containers
                       , directory
                       , filepath
                       , hspec >= 1.3
-                      , http-types
-                      , network
-                      , network-byte-order
-                      , psqueues
-                      , stm
+                      , http2
                       , text
-                      , time-manager
                       , unordered-containers
                       , vector
   if impl(ghc >= 8)
