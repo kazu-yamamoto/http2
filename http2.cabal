@@ -56,6 +56,7 @@ Library
                         Network.HPACK.Token
                         Network.HTTP2
                         Network.HTTP2.Client
+                        Network.HTTP2.Client.Internal
                         Network.HTTP2.Frame
                         Network.HTTP2.Internal
                         Network.HTTP2.Priority
@@ -183,6 +184,7 @@ Test-Suite spec
                         Network.HTTP2.Arch.Stream
                         Network.HTTP2.Arch.Types
                         Network.HTTP2.Client
+                        Network.HTTP2.Client.Internal
                         Network.HTTP2.Client.Run
                         Network.HTTP2.Client.Types
                         Network.HTTP2.Frame
