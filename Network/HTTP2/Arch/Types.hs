@@ -46,8 +46,7 @@ data InpObj = InpObj {
   }
 
 instance Show InpObj where
-    show (InpObj (thl,_) _ _body _tref) =
-        "Response " ++ show thl ++ " "
+    show (InpObj (thl,_) _ _body _tref) = show thl
 
 -- | Output object
 data OutObj = OutObj {
@@ -57,8 +56,7 @@ data OutObj = OutObj {
   }
 
 instance Show OutObj where
-    show (OutObj hdr _ _) =
-        "Response " ++ show hdr ++ " "
+    show (OutObj hdr _ _) = show hdr
 
 -- | Trailers maker. A chunks of the response body is passed
 --   with 'Just'. The maker should update internal state
