@@ -45,6 +45,10 @@ Flag devel
   Description:          Development commands
   Default:              False
 
+Flag doc
+  Description:          Doctest
+  Default:              False
+
 ----------------------------------------------------------------
 
 Library
@@ -123,6 +127,10 @@ Library
 ----------------------------------------------------------------
 
 Test-Suite doctest
+  if flag(doc)
+    Buildable:          True
+  else
+    Buildable:          False
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test
