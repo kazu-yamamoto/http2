@@ -6,6 +6,7 @@ env:
  - CABALVER=2.0  GHCVER=8.2.2
  - CABALVER=2.2  GHCVER=8.4.4
  - CABALVER=2.4  GHCVER=8.6.5
+ - CABALVER=3.0  GHCVER=8.8.3
  - CABALVER=head GHCVER=head   # see section about GHC HEAD snapshots
 
 matrix:
