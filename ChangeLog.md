@@ -1,3 +1,9 @@
+## 2.1.0
+
+* `Network.HTTP2` module is deprecated. Use `Network.HTTP2.Frame` instead.
+* `Internal` modules are exported.
+* Adding some tokens.
+
 ## 2.0.3
 
 * Using shutdown instead of close in the example. This is important to
