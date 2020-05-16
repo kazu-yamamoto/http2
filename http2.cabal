@@ -121,6 +121,7 @@ Library
                       , psqueues
                       , stm
                       , time-manager
+                      , wai
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
 
