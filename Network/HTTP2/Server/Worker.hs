@@ -9,6 +9,7 @@ module Network.HTTP2.Server.Worker (
   , fromContext
   ) where
 
+import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
@@ -105,42 +106,29 @@ pushStream WorkerConf{..} pstrm reqvt pps0
 -- | This function is passed to workers.
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: WorkerConf a -> Manager -> T.Handle -> ThreadContinue -> a -> Request -> Response -> [PushPromise] -> IO ()
-response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
+response :: WorkerConf a -> Manager -> a -> Request -> Response -> [PushPromise] -> IO ()
+response wc@WorkerConf{..} mgr strm (Request req) (Response rsp) pps = case outObjBody rsp of
   OutBodyNone -> do
-      setThreadContinue tconf True
       writeOutputQ $ Output strm rsp OObj Nothing (return ())
   OutBodyBuilder _ -> do
       otyp <- pushStream wc strm reqvt pps
-      setThreadContinue tconf True
       writeOutputQ $ Output strm rsp otyp Nothing (return ())
   OutBodyFile _ -> do
       otyp <- pushStream wc strm reqvt pps
-      setThreadContinue tconf True
       writeOutputQ $ Output strm rsp otyp Nothing (return ())
   OutBodyStreaming strmbdy -> do
       otyp <- pushStream wc strm reqvt pps
-      -- We must not exit this server application.
-      -- If the application exits, streaming would be also closed.
-      -- So, this work occupies this thread.
-      --
-      -- We need to increase the number of workers.
-      spawnAction mgr
-      -- After this work, this thread stops to decease
-      -- the number of workers.
-      setThreadContinue tconf False
-      -- Since streaming body is loop, we cannot control it.
-      -- So, let's serialize 'Builder' with a designated queue.
       tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
       writeOutputQ $ Output strm rsp otyp (Just tbq) (return ())
-      let push b = do
-            T.pause th
-            atomically $ writeTBQueue tbq (StreamingBuilder b)
-            T.resume th
-          flush  = atomically $ writeTBQueue tbq StreamingFlush
-      strmbdy push flush
-      atomically $ writeTBQueue tbq StreamingFinished
-      deleteMyId mgr
+      void $ forkIO $ timeoutKillThread mgr $ \nth -> do
+          let push b = do
+                T.pause nth
+                atomically $ writeTBQueue tbq (StreamingBuilder b)
+                T.resume nth
+              flush  = atomically $ writeTBQueue tbq StreamingFlush
+          strmbdy push flush
+          atomically $ writeTBQueue tbq StreamingFinished
+          deleteMyId mgr
   where
     (_,reqvt) = inpObjHeaders req
 
@@ -148,11 +136,9 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
 worker :: WorkerConf a -> Manager -> Server -> Action
 worker wc@WorkerConf{..} mgr server = do
     sinfo <- newStreamInfo
-    tcont <- newThreadContinue
-    timeoutKillThread mgr $ go sinfo tcont
+    timeoutKillThread mgr $ go sinfo
   where
-    go sinfo tcont th = do
-        setThreadContinue tcont True
+    go sinfo th = do
         ex <- E.try $ do
             T.pause th
             Input strm req <- readInputQ
@@ -161,7 +147,7 @@ worker wc@WorkerConf{..} mgr server = do
             T.resume th
             T.tickle th
             let aux = Aux th
-            server (Request req) aux $ response wc mgr th tcont strm (Request req')
+            server (Request req) aux $ response wc mgr strm (Request req')
         cont1 <- case ex of
             Right () -> return True
             Left e@(SomeException _)
@@ -174,9 +160,8 @@ worker wc@WorkerConf{..} mgr server = do
               | otherwise -> do
                   cleanup sinfo
                   return True
-        cont2 <- getThreadContinue tcont
         clearStreamInfo sinfo
-        when (cont1 && cont2) $ go sinfo tcont th
+        when cont1 $ go sinfo th
     pauseRequestBody req th = req { inpObjBody = readBody' }
       where
         readBody = inpObjBody req
@@ -190,26 +175,6 @@ worker wc@WorkerConf{..} mgr server = do
         case minp of
             Nothing   -> return ()
             Just strm -> workerCleanup strm
-
-----------------------------------------------------------------
-
---   A reference is shared by a responder and its worker.
---   The reference refers a value of this type as a return value.
---   If 'True', the worker continue to serve requests.
---   Otherwise, the worker get finished.
-newtype ThreadContinue = ThreadContinue (IORef Bool)
-
-{-# INLINE newThreadContinue #-}
-newThreadContinue :: IO ThreadContinue
-newThreadContinue = ThreadContinue <$> newIORef True
-
-{-# INLINE setThreadContinue #-}
-setThreadContinue :: ThreadContinue -> Bool -> IO ()
-setThreadContinue (ThreadContinue ref) x = writeIORef ref x
-
-{-# INLINE getThreadContinue #-}
-getThreadContinue :: ThreadContinue -> IO Bool
-getThreadContinue (ThreadContinue ref) = readIORef ref
 
 ----------------------------------------------------------------
 
