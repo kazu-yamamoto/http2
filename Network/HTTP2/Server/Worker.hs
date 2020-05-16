@@ -120,7 +120,7 @@ response wc@WorkerConf{..} mgr strm (Request req) (Response rsp) pps = case outO
       otyp <- pushStream wc strm reqvt pps
       tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
       writeOutputQ $ Output strm rsp otyp (Just tbq) (return ())
-      void $ forkIO $ responseStreaming mgr tbq strmbdy
+      void $ forkIO (responseStreaming mgr tbq strmbdy `E.catch` cleanup wc strm)
   where
     (_,reqvt) = inpObjHeaders req
 
@@ -146,12 +146,8 @@ worker wc@WorkerConf{..} mgr server = timeoutKillThread mgr $ \th -> forever $ d
     let req = pauseRequestBody inp th
         aux = Aux th
         sendRsp = response wc mgr strm req
-    server req aux sendRsp `E.catch` cleanup strm
+    server req aux sendRsp `E.catch` cleanup wc strm
   where
-    cleanup strm e@(SomeException _)
-      -- killed by the local worker manager
-      | Just ThreadKilled <- E.fromException e = E.throwIO ThreadKilled
-      | otherwise                              = workerCleanup strm
     pauseRequestBody inp th = Request $ inp { inpObjBody = readBody' }
       where
         readBody = inpObjBody inp
@@ -160,3 +156,9 @@ worker wc@WorkerConf{..} mgr server = timeoutKillThread mgr $ \th -> forever $ d
             bs <- readBody
             T.resume th
             return bs
+
+cleanup :: WorkerConf a -> a -> SomeException -> IO ()
+cleanup WorkerConf{..} strm e
+  -- killed by the local worker manager
+  | Just ThreadKilled <- E.fromException e = E.throwIO ThreadKilled
+  | otherwise                              = workerCleanup strm
