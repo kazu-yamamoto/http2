@@ -217,10 +217,10 @@ getStream' ctx@Context{..} ftyp streamId Nothing
   | isServer ctx = do
         csid <- getPeerStreamID ctx
         if streamId <= csid then -- consider the stream closed
-            if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
-                return Nothing -- will be ignored
-              else
-                E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
+          if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
+              return Nothing -- will be ignored
+            else
+              E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
           else do -- consider the stream idle
             when (ftyp `notElem` [FrameHeaders,FramePriority]) $
                 E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idle stream: " `BS.append` C8.pack (show ftyp)
@@ -229,11 +229,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                 cnt <- readIORef concurrency
                 -- Checking the limitation of concurrency
                 when (cnt >= maxConcurrency) $ E.throwIO $ StreamError RefusedStream streamId
-            ws <- initialWindowSize <$> readIORef http2settings
-            newstrm <- newStream streamId (fromIntegral ws)
-            when (ftyp == FrameHeaders) $ opened ctx newstrm
-            insert streamTable streamId newstrm
-            return $ Just newstrm
+            Just <$> createStream ctx streamId ftyp
   | otherwise = undefined -- never reach
 
 ----------------------------------------------------------------

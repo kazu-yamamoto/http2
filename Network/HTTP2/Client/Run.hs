@@ -5,7 +5,7 @@ module Network.HTTP2.Client.Run where
 
 import Control.Concurrent
 import qualified Control.Exception as E
-import Data.IORef (readIORef, writeIORef)
+import Data.IORef (writeIORef)
 
 import Network.HTTP2.Arch
 import Network.HTTP2.Client.Types
@@ -34,11 +34,8 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
              : (":authority", auth)
              : hdr
         req' = req { outObjHeaders = hdr' }
-    ws <- initialWindowSize <$> readIORef http2settings
     sid <- getMyNewStreamId ctx
-    newstrm <- newStream sid (fromIntegral ws)
-    opened ctx newstrm
-    insert streamTable sid newstrm
+    newstrm <- createStream ctx sid FrameHeaders
     enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
     rsp <- takeMVar $ streamInput newstrm
     processResponse $ Response rsp

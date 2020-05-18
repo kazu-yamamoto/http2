@@ -5,7 +5,7 @@ module Network.HTTP2.Arch.Context where
 import Control.Concurrent.STM
 import Data.IORef
 
-import Imports
+import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
@@ -127,3 +127,11 @@ closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
     -- TODO: prevent double-counting
     atomicModifyIORef' concurrency (\x -> (x-1,()))
     setStreamState ctx strm (Closed cc) -- anyway
+
+createStream :: Context -> StreamId -> FrameTypeId -> IO Stream
+createStream ctx@Context{streamTable, http2settings} sid ftyp = do
+    ws <- initialWindowSize <$> readIORef http2settings
+    newstrm <- newStream sid $ fromIntegral ws
+    when (ftyp == FrameHeaders) $ opened ctx newstrm
+    insert streamTable sid newstrm
+    return newstrm
