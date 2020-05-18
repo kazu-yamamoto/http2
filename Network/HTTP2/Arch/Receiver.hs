@@ -209,7 +209,7 @@ getStream' ctx@Context{..} ftyp _streamId js@(Just strm0) = do
     when (ftyp == FrameHeaders) $ do
         st <- readStreamState strm0
         when (isHalfClosedRemote st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half or fully closed stream"
-        -- Priority made an idele stream
+        -- Priority made an idle stream
         when (isIdle st) $ opened ctx strm0
     return js
 getStream' ctx@Context{..} ftyp streamId Nothing
