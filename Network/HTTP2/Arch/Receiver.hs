@@ -30,6 +30,14 @@ import Network.HTTP2.Priority (toPrecedence, delete, prepare)
 
 ----------------------------------------------------------------
 
+maxConcurrency :: Int
+maxConcurrency = recommendedConcurrency
+
+initialFrame :: ByteString
+initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
+
+----------------------------------------------------------------
+
 -- | Type for input streaming.
 data Source = Source !(IORef ByteString) !(IO ByteString)
 
@@ -47,6 +55,8 @@ readSource (Source ref func) = do
             writeIORef ref BS.empty
             return bs
 
+----------------------------------------------------------------
+
 type RecvN = Int -> IO ByteString
 
 frameReceiver :: Context -> RecvN -> IO ()
@@ -62,7 +72,7 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
         if BS.null hd then
             enqueueControl controlQ CFinish
           else do
-            cont <- processStreamGuardingError ctx recvN $ decodeFrameHeader hd
+            cont <- processFrame ctx recvN $ decodeFrameHeader hd
             when cont $ loop (n + 1)
 
     sendGoaway e
@@ -72,12 +82,14 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
           enqueueControl controlQ $ CGoaway frame
       | otherwise = return ()
 
-processStreamGuardingError :: Context -> RecvN -> (FrameTypeId, FrameHeader) -> IO Bool
-processStreamGuardingError _ctx _recvN (fid, FrameHeader{streamId})
+----------------------------------------------------------------
+
+processFrame :: Context -> RecvN -> (FrameTypeId, FrameHeader) -> IO Bool
+processFrame _ctx _recvN (fid, FrameHeader{streamId})
   | isServerInitiated streamId &&
     (fid `notElem` [FramePriority,FrameRSTStream,FrameWindowUpdate]) =
     E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
-processStreamGuardingError Context{..} recvN (FrameUnknown _, FrameHeader{payloadLength}) = do
+processFrame Context{..} recvN (FrameUnknown _, FrameHeader{payloadLength}) = do
     mx <- readIORef continued
     case mx of
         Nothing -> do
@@ -85,9 +97,9 @@ processStreamGuardingError Context{..} recvN (FrameUnknown _, FrameHeader{payloa
             void $ recvN payloadLength
             return True
         Just _  -> E.throwIO $ ConnectionError ProtocolError "unknown frame"
-processStreamGuardingError ctx _recvN (FramePushPromise, _)
+processFrame ctx _recvN (FramePushPromise, _)
   | isServer ctx = E.throwIO $ ConnectionError ProtocolError "push promise is not allowed"
-processStreamGuardingError ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLength}) = do
+processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLength}) = do
     settings <- readIORef http2settings
     case checkFrameHeader settings typhdr of
       Left h2err -> case h2err of
@@ -109,6 +121,8 @@ processStreamGuardingError ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeade
         let frame = resetFrame err sid
         enqueueControl controlQ $ CFrame frame
 
+----------------------------------------------------------------
+
 controlOrStream :: Context -> RecvN -> FrameTypeId -> FrameHeader -> IO Bool
 controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadLength}
   | isControl streamId = do
@@ -125,57 +139,64 @@ controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadL
                 PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
                 checkPriority newpri streamId
             return True -- just ignore this frame
-        Just strm@Stream{streamPrecedence,streamInput} -> do
-          state <- readStreamState strm
-          state' <- stream ftyp header pl ctx state strm
-          case state' of
-              Open (NoBody tbl@(_,reqvt) pri) -> do
-                  resetContinued
-                  let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
-                  when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamError ProtocolError streamId
-                  writeIORef streamPrecedence $ toPrecedence pri
-                  halfClosedRemote ctx strm
-                  tlr <- newIORef Nothing
-                  let inpObj = InpObj tbl (Just 0) (return "") tlr
-                  if isServer ctx then do
-                      atomically $ writeTQueue inputQ $ Input strm inpObj
-                    else
-                      putMVar streamInput inpObj
-              Open (HasBody tbl@(_,reqvt) pri) -> do
-                  resetContinued
-                  q <- newTQueueIO
-                  let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
-                  writeIORef streamPrecedence $ toPrecedence pri
-                  bodyLength <- newIORef 0
-                  tlr <- newIORef Nothing
-                  setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
-                  readQ <- newReadBody q
-                  bodySource <- mkSource readQ
-                  let inpObj = InpObj tbl mcl (readSource bodySource) tlr
-                  if isServer ctx then
-                      atomically $ writeTQueue inputQ $ Input strm inpObj
-                    else
-                      putMVar streamInput inpObj
-              s@(Open Continued{}) -> do
-                  setContinued
-                  setStreamState ctx strm s
-              HalfClosedRemote -> do
-                  resetContinued
-                  halfClosedRemote ctx strm
-              s -> do -- Idle, Open Body, Closed
-                  resetContinued
-                  setStreamState ctx strm s
-          return True
-   where
-     setContinued = writeIORef continued (Just streamId)
-     resetContinued = writeIORef continued Nothing
-     checkContinued = do
-         mx <- readIORef continued
-         case mx of
-             Nothing  -> return ()
-             Just sid
-               | sid == streamId && ftyp == FrameContinuation -> return ()
-               | otherwise -> E.throwIO $ ConnectionError ProtocolError "continuation frame must follow"
+        Just strm -> do
+            state0 <- readStreamState strm
+            state <- stream ftyp header pl ctx state0 strm
+            let setContinued   = writeIORef continued $ Just streamId
+                resetContinued = writeIORef continued Nothing
+            processState state ctx strm streamId setContinued resetContinued
+            return True
+  where
+    checkContinued = do
+        mx <- readIORef continued
+        case mx of
+            Nothing  -> return ()
+            Just sid
+              | sid == streamId && ftyp == FrameContinuation -> return ()
+              | otherwise -> E.throwIO $ ConnectionError ProtocolError "continuation frame must follow"
+
+----------------------------------------------------------------
+
+processState :: StreamState -> Context -> Stream -> StreamId -> IO () -> IO () -> IO ()
+processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} streamId _set reset = do
+    reset
+    let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
+    when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamError ProtocolError streamId
+    writeIORef streamPrecedence $ toPrecedence pri
+    halfClosedRemote ctx strm
+    tlr <- newIORef Nothing
+    let inpObj = InpObj tbl (Just 0) (return "") tlr
+    if isServer ctx then do
+        atomically $ writeTQueue inputQ $ Input strm inpObj
+      else
+        putMVar streamInput inpObj
+processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} _streamId _set reset = do
+    reset
+    q <- newTQueueIO
+    let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
+    writeIORef streamPrecedence $ toPrecedence pri
+    bodyLength <- newIORef 0
+    tlr <- newIORef Nothing
+    setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
+    readQ <- newReadBody q
+    bodySource <- mkSource readQ
+    let inpObj = InpObj tbl mcl (readSource bodySource) tlr
+    if isServer ctx then
+        atomically $ writeTQueue inputQ $ Input strm inpObj
+      else
+        putMVar streamInput inpObj
+processState s@(Open Continued{}) ctx@Context{..} strm _streamId set _reset = do
+    set
+    setStreamState ctx strm s
+processState HalfClosedRemote ctx@Context{..} strm _streamId _set reset = do
+    reset
+    halfClosedRemote ctx strm
+processState s ctx@Context{..} strm _streamId _set reset = do
+    -- Idle, Open Body, Closed
+    reset
+    setStreamState ctx strm s
+
+----------------------------------------------------------------
 
 getStream :: Context -> FrameTypeId -> StreamId -> IO (Maybe Stream)
 getStream ctx@Context{..} ftyp streamId =
@@ -212,12 +233,6 @@ getStream' ctx@Context{..} ftyp streamId Nothing
             insert streamTable streamId newstrm
             return $ Just newstrm
   | otherwise = undefined -- never reach
-
-maxConcurrency :: Int
-maxConcurrency = recommendedConcurrency
-
-initialFrame :: ByteString
-initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
 
 ----------------------------------------------------------------
 
