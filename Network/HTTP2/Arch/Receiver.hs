@@ -229,7 +229,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                 cnt <- readIORef concurrency
                 -- Checking the limitation of concurrency
                 when (cnt >= maxConcurrency) $ E.throwIO $ StreamError RefusedStream streamId
-            Just <$> createStream ctx streamId ftyp
+            Just <$> openStream ctx streamId ftyp
   | otherwise = undefined -- never reach
 
 ----------------------------------------------------------------

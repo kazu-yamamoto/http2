@@ -35,7 +35,7 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
              : hdr
         req' = req { outObjHeaders = hdr' }
     sid <- getMyNewStreamId ctx
-    newstrm <- createStream ctx sid FrameHeaders
+    newstrm <- openStream ctx sid FrameHeaders
     enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
     rsp <- takeMVar $ streamInput newstrm
     processResponse $ Response rsp
