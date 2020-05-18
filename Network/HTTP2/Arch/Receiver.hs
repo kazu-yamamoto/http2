@@ -133,20 +133,22 @@ controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadL
       mstrm <- getStream ctx ftyp streamId
       pl <- recvN payloadLength
       case mstrm of
-        Nothing -> do
-            -- for h2spec only
-            when (ftyp == FramePriority) $ do
-                PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
-                checkPriority newpri streamId
-            return True -- just ignore this frame
         Just strm -> do
             state0 <- readStreamState strm
             state <- stream ftyp header pl ctx state0 strm
-            let setContinued   = writeIORef continued $ Just streamId
-                resetContinued = writeIORef continued Nothing
-            processState state ctx strm streamId setContinued resetContinued
-            return True
+            resetContinued
+            set <- processState state ctx strm streamId
+            when set setContinued
+        Nothing
+          | ftyp == FramePriority -> do
+                -- for h2spec only
+                PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
+                checkPriority newpri streamId
+          | otherwise -> return ()
+      return True
   where
+    setContinued   = writeIORef continued $ Just streamId
+    resetContinued = writeIORef continued Nothing
     checkContinued = do
         mx <- readIORef continued
         case mx of
@@ -157,9 +159,8 @@ controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadL
 
 ----------------------------------------------------------------
 
-processState :: StreamState -> Context -> Stream -> StreamId -> IO () -> IO () -> IO ()
-processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} streamId _set reset = do
-    reset
+processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
+processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamError ProtocolError streamId
     writeIORef streamPrecedence $ toPrecedence pri
@@ -170,8 +171,8 @@ processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{strea
         atomically $ writeTQueue inputQ $ Input strm inpObj
       else
         putMVar streamInput inpObj
-processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} _streamId _set reset = do
-    reset
+    return False
+processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} _streamId = do
     q <- newTQueueIO
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     writeIORef streamPrecedence $ toPrecedence pri
@@ -185,16 +186,17 @@ processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{stre
         atomically $ writeTQueue inputQ $ Input strm inpObj
       else
         putMVar streamInput inpObj
-processState s@(Open Continued{}) ctx@Context{..} strm _streamId set _reset = do
-    set
+    return False
+processState s@(Open Continued{}) ctx@Context{..} strm _streamId = do
     setStreamState ctx strm s
-processState HalfClosedRemote ctx@Context{..} strm _streamId _set reset = do
-    reset
+    return True
+processState HalfClosedRemote ctx@Context{..} strm _streamId = do
     halfClosedRemote ctx strm
-processState s ctx@Context{..} strm _streamId _set reset = do
+    return False
+processState s ctx@Context{..} strm _streamId = do
     -- Idle, Open Body, Closed
-    reset
     setStreamState ctx strm s
+    return False
 
 ----------------------------------------------------------------
 
