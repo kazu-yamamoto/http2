@@ -78,4 +78,3 @@ updateAllStreamWindow :: (WindowSize -> WindowSize) -> StreamTable -> IO ()
 updateAllStreamWindow adst (StreamTable ref) = do
     strms <- M.elems <$> readIORef ref
     forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
-
