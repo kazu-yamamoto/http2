@@ -90,20 +90,20 @@ processStreamGuardingError ctx _recvN (FramePushPromise, _)
 processStreamGuardingError ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLength}) = do
     settings <- readIORef http2settings
     case checkFrameHeader settings typhdr of
-        Left h2err -> case h2err of
-            StreamError err sid -> do
-                sendReset err sid
-                void $ recvN payloadLength
-                return True
-            connErr -> E.throwIO connErr
-        Right _ -> do
-            ex <- E.try $ controlOrStream ctx recvN ftyp header
-            case ex of
-                Left (StreamError err sid) -> do
-                    sendReset err sid
-                    return True
-                Left connErr -> E.throw connErr
-                Right cont -> return cont
+      Left h2err -> case h2err of
+          StreamError err sid -> do
+              sendReset err sid
+              void $ recvN payloadLength
+              return True
+          connErr -> E.throwIO connErr
+      Right _ -> do
+          ex <- E.try $ controlOrStream ctx recvN ftyp header
+          case ex of
+              Left (StreamError err sid) -> do
+                  sendReset err sid
+                  return True
+              Left connErr -> E.throw connErr
+              Right cont -> return cont
   where
     sendReset err sid = do
         let frame = resetFrame err sid
@@ -178,40 +178,40 @@ controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadL
                | otherwise -> E.throwIO $ ConnectionError ProtocolError "continuation frame must follow"
 
 getStream :: Context -> FrameTypeId -> StreamId -> IO (Maybe Stream)
-getStream ctx@Context{..} ftyp streamId = do
-    mstrm0 <- search streamTable streamId
-    case mstrm0 of
-      js@(Just strm0) -> do
-          when (ftyp == FrameHeaders) $ do
-              st <- readStreamState strm0
-              when (isHalfClosedRemote st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half or fully closed stream"
-              -- Priority made an idele stream
-              when (isIdle st) $ opened ctx strm0
-          return js
-      Nothing
-        | isServerInitiated streamId -> return Nothing
-        | isServer ctx -> do
-              csid <- getPeerStreamID ctx
-              if streamId <= csid then -- consider the stream closed
-                  if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
-                      return Nothing -- will be ignored
-                    else
-                      E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
-                else do -- consider the stream idle
-                  when (ftyp `notElem` [FrameHeaders,FramePriority]) $
-                      E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idle stream: " `BS.append` C8.pack (show ftyp)
-                  when (ftyp == FrameHeaders) $ do
-                      setPeerStreamID ctx streamId
-                      cnt <- readIORef concurrency
-                      -- Checking the limitation of concurrency
-                      when (cnt >= maxConcurrency) $ E.throwIO $ StreamError RefusedStream streamId
-                  ws <- initialWindowSize <$> readIORef http2settings
-                  newstrm <- newStream streamId (fromIntegral ws)
-                  when (ftyp == FrameHeaders) $ opened ctx newstrm
-                  insert streamTable streamId newstrm
-                  return $ Just newstrm
-        | otherwise -> undefined -- never reach
+getStream ctx@Context{..} ftyp streamId =
+    search streamTable streamId >>= getStream' ctx ftyp streamId
 
+getStream' :: Context -> FrameTypeId -> StreamId -> Maybe Stream -> IO (Maybe Stream)
+getStream' ctx@Context{..} ftyp _streamId js@(Just strm0) = do
+    when (ftyp == FrameHeaders) $ do
+        st <- readStreamState strm0
+        when (isHalfClosedRemote st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half or fully closed stream"
+        -- Priority made an idele stream
+        when (isIdle st) $ opened ctx strm0
+    return js
+getStream' ctx@Context{..} ftyp streamId Nothing
+  | isServerInitiated streamId = return Nothing
+  | isServer ctx = do
+        csid <- getPeerStreamID ctx
+        if streamId <= csid then -- consider the stream closed
+            if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
+                return Nothing -- will be ignored
+              else
+                E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
+          else do -- consider the stream idle
+            when (ftyp `notElem` [FrameHeaders,FramePriority]) $
+                E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idle stream: " `BS.append` C8.pack (show ftyp)
+            when (ftyp == FrameHeaders) $ do
+                setPeerStreamID ctx streamId
+                cnt <- readIORef concurrency
+                -- Checking the limitation of concurrency
+                when (cnt >= maxConcurrency) $ E.throwIO $ StreamError RefusedStream streamId
+            ws <- initialWindowSize <$> readIORef http2settings
+            newstrm <- newStream streamId (fromIntegral ws)
+            when (ftyp == FrameHeaders) $ opened ctx newstrm
+            insert streamTable streamId newstrm
+            return $ Just newstrm
+  | otherwise = undefined -- never reach
 
 maxConcurrency :: Int
 maxConcurrency = recommendedConcurrency
