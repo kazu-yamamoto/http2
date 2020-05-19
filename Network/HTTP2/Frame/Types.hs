@@ -328,6 +328,10 @@ recommendedConcurrency = 100
 -- | The type for weight in priority. Its values are from 1 to 256.
 type Weight = Int
 
+-- | Default weight.
+--
+-- >>> defaultWeight
+-- 16
 defaultWeight :: Weight
 defaultWeight = 16
 
