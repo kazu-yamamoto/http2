@@ -19,7 +19,8 @@ run :: Config -> Server -> IO ()
 run conf@Config{..} server = do
     ok <- checkPreface
     when ok $ do
-        ctx <- newContext Server
+        serverInfo <- newServerInfo
+        ctx <- newContext serverInfo
         -- Workers, worker manager and timer manager
         mgr <- start
         let wc = fromContext ctx

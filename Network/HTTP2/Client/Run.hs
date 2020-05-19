@@ -14,7 +14,8 @@ import Network.HTTP2.Frame
 -- | Running HTTP/2 client.
 run :: Config -> Scheme -> Authority -> Client a -> IO a
 run conf@Config{..} scheme auth client = do
-    ctx <- newContext Client
+    clientInfo <- newClientInfo scheme auth 20 -- fixme: hard-coding
+    ctx <- newContext clientInfo
     mgr <- start
     tid0 <- forkIO $ frameReceiver ctx confReadN
     -- fixme: if frameSender is terminated but the main thread is alive,
@@ -30,14 +31,21 @@ run conf@Config{..} scheme auth client = do
 sendRequest :: Context -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
 sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
     let hdr = outObjHeaders req
-        hdr' = (":scheme", scheme)
-             : (":authority", auth)
-             : hdr
-        req' = req { outObjHeaders = hdr' }
-    sid <- getMyNewStreamId ctx
-    newstrm <- openStream ctx sid FrameHeaders
-    enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
-    rsp <- takeMVar $ streamInput newstrm
+        Just method = lookup ":method" hdr
+        Just path   = lookup ":path" hdr
+    mstrm0 <- lookupCache method path roleInfo
+    strm <- case mstrm0 of
+      Nothing -> do
+          let hdr' = (":scheme", scheme)
+                   : (":authority", auth)
+                   : hdr
+              req' = req { outObjHeaders = hdr' }
+          sid <- getMyNewStreamId ctx
+          newstrm <- openStream ctx sid FrameHeaders
+          enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
+          return newstrm
+      Just strm0 -> return strm0
+    rsp <- takeMVar $ streamInput strm
     processResponse $ Response rsp
 
 exchangeSettings :: Config -> Context -> IO ()

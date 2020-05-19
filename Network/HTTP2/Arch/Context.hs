@@ -4,9 +4,12 @@ module Network.HTTP2.Arch.Context where
 
 import Control.Concurrent.STM
 import Data.IORef
+import Network.HTTP.Types (Method)
 
 import Imports hiding (insert)
 import Network.HPACK
+import Network.HTTP2.Arch.Cache (Cache, emptyCache)
+import qualified Network.HTTP2.Arch.Cache as Cache
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
@@ -16,9 +19,36 @@ data Role = Client | Server deriving (Eq,Show)
 
 ----------------------------------------------------------------
 
+data RoleInfo = ServerInfo {
+                    inputQ :: TQueue (Input Stream)
+                  }
+              | ClientInfo {
+                    scheme    :: ByteString
+                  , authority :: ByteString
+                  , cache     :: IORef (Cache (Method,ByteString) Stream)
+                  }
+
+newServerInfo :: IO RoleInfo
+newServerInfo = ServerInfo <$> newTQueueIO
+
+newClientInfo :: ByteString -> ByteString -> Int -> IO RoleInfo
+newClientInfo scm auth lim =  ClientInfo scm auth <$> newIORef (emptyCache lim)
+
+insertCache :: Method -> ByteString -> Stream -> RoleInfo -> IO ()
+insertCache m path v (ClientInfo _ _ ref) = atomicModifyIORef' ref $ \c ->
+  (Cache.insert (m,path) v c, ())
+insertCache _ _ _ _ = error "insertCache"
+
+lookupCache :: Method -> ByteString -> RoleInfo -> IO (Maybe Stream)
+lookupCache m path (ClientInfo _ _ ref) = Cache.lookup (m,path) <$> readIORef ref
+lookupCache _ _ _ = error "lookupCache"
+
+----------------------------------------------------------------
+
 -- | The context for HTTP/2 connection.
 data Context = Context {
     role               :: Role
+  , roleInfo           :: RoleInfo
   -- HTTP/2 settings received from a browser
   , http2settings      :: IORef Settings
   , firstSettings      :: IORef Bool
@@ -32,7 +62,6 @@ data Context = Context {
   , continued          :: IORef (Maybe StreamId)
   , myStreamId         :: IORef StreamId
   , peerStreamId       :: IORef StreamId
-  , inputQ             :: TQueue (Input Stream) -- Server only
   , outputQ            :: PriorityTree (Output Stream)
   , controlQ           :: TQueue Control
   , encodeDynamicTable :: DynamicTable
@@ -43,9 +72,10 @@ data Context = Context {
 
 ----------------------------------------------------------------
 
-newContext :: Role -> IO Context
-newContext rl =
-    Context rl <$> newIORef defaultSettings
+newContext :: RoleInfo -> IO Context
+newContext rinfo =
+    Context rl rinfo
+               <$> newIORef defaultSettings
                <*> newIORef False
                <*> newStreamTable
                <*> newIORef 0
@@ -53,13 +83,15 @@ newContext rl =
                <*> newIORef Nothing
                <*> newIORef sid0
                <*> newIORef 0
-               <*> newTQueueIO
                <*> newPriorityTree
                <*> newTQueueIO
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
                <*> newTVarIO defaultInitialWindowSize
    where
+     rl = case rinfo of
+       ClientInfo{} -> Client
+       _            -> Server
      sid0 | rl == Client = 1
           | otherwise    = 2
 
@@ -132,6 +164,6 @@ openStream :: Context -> StreamId -> FrameTypeId -> IO Stream
 openStream ctx@Context{streamTable, http2settings} sid ftyp = do
     ws <- initialWindowSize <$> readIORef http2settings
     newstrm <- newStream sid $ fromIntegral ws
-    when (ftyp == FrameHeaders) $ opened ctx newstrm
+    when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
     insert streamTable sid newstrm
     return newstrm

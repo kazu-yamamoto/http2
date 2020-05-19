@@ -89,6 +89,7 @@ Library
                         Network.HPACK.Table.Static
                         Network.HPACK.Types
                         Network.HTTP2.Arch
+                        Network.HTTP2.Arch.Cache
                         Network.HTTP2.Arch.Config
                         Network.HTTP2.Arch.Context
                         Network.HTTP2.Arch.EncodeFrame
