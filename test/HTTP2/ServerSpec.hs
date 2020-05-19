@@ -50,8 +50,11 @@ runServer = runTCPServer (Just host) port runHTTP2Server
 server :: Server
 server req _aux sendResponse = case requestMethod req of
   Just "GET"  -> case requestPath req of
-                   Just "/" -> sendResponse responseHello []
-                   _        -> sendResponse response404 []
+                   Just "/"     -> sendResponse responseHello []
+                   Just "/push" -> do
+                       let pp = pushPromise "/push-pp" responsePP 16
+                       sendResponse responseHello [pp]
+                   _            -> sendResponse response404 []
   Just "POST" -> case requestPath req of
                    Just "/echo" -> sendResponse (responseEcho req) []
                    _        -> sendResponse responseHello []
@@ -62,6 +65,13 @@ responseHello = responseBuilder ok200 header body
   where
     header = [("Content-Type", "text/plain")]
     body = byteString "Hello, world!\n"
+
+responsePP :: Response
+responsePP = responseBuilder ok200 header body
+  where
+    header = [("Content-Type", "text/plain")
+             ,("x-push", "True")]
+    body = byteString "Push\n"
 
 response404 :: Response
 response404 = responseNoBody notFound404 []
@@ -103,7 +113,7 @@ runClient = runTCPClient host port $ runHTTP2Client
                                  freeSimpleConfig
                                  (\conf -> C.run conf "http" authority client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
-    clients = [client0,client1,client2,client3]
+    clients = [client0,client1,client2,client3,client4]
 
 client0 :: C.Client ()
 client0 sendRequest = do
@@ -113,7 +123,7 @@ client0 sendRequest = do
 
 client1 :: C.Client ()
 client1 sendRequest = do
-    let req = C.requestNoBody methodGet "/something" []
+    let req = C.requestNoBody methodGet "/push-pp" []
     sendRequest req $ \rsp -> do
         C.responseStatus rsp `shouldBe` Just notFound404
 
@@ -136,6 +146,15 @@ client3 sendRequest = do
         firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
   where
     !maker = trailersMaker (CH.hashInit :: Context SHA1)
+
+client4 :: C.Client ()
+client4 sendRequest = do
+    let req0 = C.requestNoBody methodGet "/push" []
+    sendRequest req0 $ \rsp -> do
+        C.responseStatus rsp `shouldBe` Just ok200
+    let req1 = C.requestNoBody methodGet "/push-pp" []
+    sendRequest req1 $ \rsp -> do
+        C.responseStatus rsp `shouldBe` Just ok200
 
 firstTrailerValue :: HeaderTable -> HeaderValue
 firstTrailerValue = snd . Prelude.head . fst

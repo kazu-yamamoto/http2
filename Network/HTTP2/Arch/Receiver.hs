@@ -85,8 +85,9 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
 ----------------------------------------------------------------
 
 processFrame :: Context -> RecvN -> (FrameTypeId, FrameHeader) -> IO Bool
-processFrame _ctx _recvN (fid, FrameHeader{streamId})
-  | isServerInitiated streamId &&
+processFrame ctx _recvN (fid, FrameHeader{streamId})
+  | isServer ctx &&
+    isServerInitiated streamId &&
     (fid `notElem` [FramePriority,FrameRSTStream,FrameWindowUpdate]) =
     E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
 processFrame Context{..} recvN (FrameUnknown _, FrameHeader{payloadLength}) = do
