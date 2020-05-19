@@ -70,6 +70,7 @@ module Network.HTTP2.Frame.Types (
   -- * Types
   , HeaderBlockFragment
   , Weight
+  , defaultWeight
   , Priority(..)
   , defaultPriority
   , highestPriority
@@ -327,6 +328,9 @@ recommendedConcurrency = 100
 -- | The type for weight in priority. Its values are from 1 to 256.
 type Weight = Int
 
+defaultWeight :: Weight
+defaultWeight = 16
+
 -- | Type for stream priority
 data Priority = Priority {
     exclusive :: !Bool
@@ -339,7 +343,7 @@ data Priority = Priority {
 -- >>> defaultPriority
 -- Priority {exclusive = False, streamDependency = 0, weight = 16}
 defaultPriority :: Priority
-defaultPriority = Priority False 0 16
+defaultPriority = Priority False 0 defaultWeight
 
 -- | Highest priority which depends on stream 0.
 --

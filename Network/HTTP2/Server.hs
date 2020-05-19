@@ -69,6 +69,7 @@ module Network.HTTP2.Server (
   , promiseRequestPath
   , promiseResponse
   , promiseWeight
+  , defaultWeight
   -- * Types
   , Path
   , Authority
