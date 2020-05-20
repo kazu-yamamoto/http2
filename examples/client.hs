@@ -9,15 +9,16 @@ import Network.Run.TCP (runTCPClient) -- network-run
 
 import Network.HTTP2.Client
 
-authority :: String
-authority = "127.0.0.1"
+serverName :: String
+serverName = "127.0.0.1"
 
 main :: IO ()
-main = runTCPClient authority "80" runHTTP2Client
+main = runTCPClient serverName "80" runHTTP2Client
   where
+    cliconf = ClientConfig "http" (C8.pack serverName) 20
     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
-                                 (\conf -> run conf "http" (C8.pack authority) client)
+                                 (\conf -> run cliconf conf client)
     client sendRequest = do
         let req = requestNoBody methodGet "/" []
         _ <- forkIO $ sendRequest req $ \rsp -> do
