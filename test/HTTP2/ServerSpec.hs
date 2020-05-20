@@ -109,9 +109,10 @@ runClient :: IO ()
 runClient = runTCPClient host port $ runHTTP2Client
   where
     authority = C8.pack host
+    cliconf = C.ClientConfig "http" authority 20
     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
-                                 (\conf -> C.run conf "http" authority client)
+                                 (\conf -> C.run cliconf conf client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
     clients = [client0,client1,client2,client3,client4]
 

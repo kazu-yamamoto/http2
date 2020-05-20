@@ -11,10 +11,17 @@ import Network.HTTP2.Arch
 import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
 
+-- | Client configuration
+data ClientConfig = ClientConfig {
+    scheme     :: Scheme    -- ^ https or http
+  , authority  :: Authority -- ^ Server name
+  , cacheLimit :: Int       -- ^ How many pushed responses are contained in the cache
+  }
+
 -- | Running HTTP/2 client.
-run :: Config -> Scheme -> Authority -> Client a -> IO a
-run conf@Config{..} scheme auth client = do
-    clientInfo <- newClientInfo scheme auth 20 -- fixme: hard-coding
+run :: ClientConfig -> Config -> Client a -> IO a
+run ClientConfig{..} conf@Config{..} client = do
+    clientInfo <- newClientInfo scheme authority cacheLimit
     ctx <- newContext clientInfo
     mgr <- start
     tid0 <- forkIO $ frameReceiver ctx confReadN
@@ -22,7 +29,7 @@ run conf@Config{..} scheme auth client = do
     --        what will happen?
     tid1 <- forkIO $ frameSender ctx conf mgr
     exchangeSettings conf ctx
-    client (sendRequest ctx scheme auth) `E.finally` do
+    client (sendRequest ctx scheme authority) `E.finally` do
         clearContext ctx
         stop mgr
         killThread tid0

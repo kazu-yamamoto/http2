@@ -38,6 +38,7 @@ module Network.HTTP2.Client (
   , Scheme
   , Authority
   -- * Runner arguments
+  , ClientConfig(..)
   , Config(..)
   , allocSimpleConfig
   , freeSimpleConfig
