@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -14,7 +15,6 @@ import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
 import Data.IORef
 import qualified Network.HTTP.Types as H
-import Network.Wai (StreamingBody)
 import qualified System.TimeManager as T
 
 import Imports hiding (insert)
@@ -120,43 +120,79 @@ response wc@WorkerConf{..} mgr strm (Request req) (Response rsp) pps = case outO
       otyp <- pushStream wc strm reqvt pps
       tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
       writeOutputQ $ Output strm rsp otyp (Just tbq) (return ())
-      void $ forkIO $ responseStreaming mgr tbq strmbdy
+      void $ forkIO $ timeoutKillThread mgr $ \nth -> do
+          let push b = do
+                T.pause nth
+                atomically $ writeTBQueue tbq (StreamingBuilder b)
+                T.resume nth
+              flush  = atomically $ writeTBQueue tbq StreamingFlush
+          strmbdy push flush
+          atomically $ writeTBQueue tbq StreamingFinished
+          deleteMyId mgr
   where
     (_,reqvt) = inpObjHeaders req
 
-responseStreaming :: Manager -> TBQueue StreamingChunk -> StreamingBody -> IO ()
-responseStreaming mgr tbq strmbdy = timeoutKillThread mgr $ \nth -> do
-    strmbdy (push nth) flush
-    atomically $ writeTBQueue tbq StreamingFinished
-    deleteMyId mgr
-  where
-    push nth b = do
-        T.pause nth
-        atomically $ writeTBQueue tbq (StreamingBuilder b)
-        T.resume nth
-    flush = atomically $ writeTBQueue tbq StreamingFlush
-
 -- | Worker for server applications.
 worker :: WorkerConf a -> Manager -> Server -> Action
-worker wc@WorkerConf{..} mgr server = timeoutKillThread mgr $ \th -> forever $ do
-    T.pause th
-    Input strm inp <- readInputQ
-    T.resume th
-    T.tickle th
-    let req = pauseRequestBody inp th
-        aux = Aux th
-        sendRsp = response wc mgr strm req
-    server req aux sendRsp `E.catch` cleanup strm
+worker wc@WorkerConf{..} mgr server = do
+    sinfo <- newStreamInfo
+    timeoutKillThread mgr $ go sinfo
   where
-    cleanup strm e@(SomeException _)
-      -- killed by the local worker manager
-      | Just ThreadKilled <- E.fromException e = E.throwIO ThreadKilled
-      | otherwise                              = workerCleanup strm
-    pauseRequestBody inp th = Request $ inp { inpObjBody = readBody' }
+    go sinfo th = do
+        ex <- E.try $ do
+            T.pause th
+            Input strm req <- readInputQ
+            let req' = pauseRequestBody req th
+            setStreamInfo sinfo strm
+            T.resume th
+            T.tickle th
+            let aux = Aux th
+            server (Request req) aux $ response wc mgr strm (Request req')
+        cont1 <- case ex of
+            Right () -> return True
+            Left e@(SomeException _)
+              -- killed by the local worker manager
+              | Just ThreadKilled    <- E.fromException e -> return False
+              -- killed by the local timeout manager
+              | Just T.TimeoutThread <- E.fromException e -> do
+                  cleanup sinfo
+                  return True
+              | otherwise -> do
+                  cleanup sinfo
+                  return True
+        clearStreamInfo sinfo
+        when cont1 $ go sinfo th
+    pauseRequestBody req th = req { inpObjBody = readBody' }
       where
-        readBody = inpObjBody inp
+        readBody = inpObjBody req
         readBody' = do
             T.pause th
             bs <- readBody
             T.resume th
             return bs
+    cleanup sinfo = do
+        minp <- getStreamInfo sinfo
+        case minp of
+            Nothing   -> return ()
+            Just strm -> workerCleanup strm
+
+----------------------------------------------------------------
+
+-- | The type for cleaning up.
+newtype StreamInfo a = StreamInfo (IORef (Maybe a))
+
+{-# INLINE newStreamInfo #-}
+newStreamInfo :: IO (StreamInfo a)
+newStreamInfo = StreamInfo <$> newIORef Nothing
+
+{-# INLINE clearStreamInfo #-}
+clearStreamInfo :: StreamInfo a -> IO ()
+clearStreamInfo (StreamInfo ref) = writeIORef ref Nothing
+
+{-# INLINE setStreamInfo #-}
+setStreamInfo :: StreamInfo a -> a -> IO ()
+setStreamInfo (StreamInfo ref) inp = writeIORef ref $ Just inp
+
+{-# INLINE getStreamInfo #-}
+getStreamInfo :: StreamInfo a -> IO (Maybe a)
+getStreamInfo (StreamInfo ref) = readIORef ref
