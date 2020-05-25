@@ -161,7 +161,7 @@ worker wc@WorkerConf{..} mgr server = do
             T.resume th
             T.tickle th
             let aux = Aux th
-            server (Request req) aux $ response wc mgr th tcont strm (Request req')
+            server (Request req') aux $ response wc mgr th tcont strm (Request req')
         cont1 <- case ex of
             Right () -> return True
             Left e@(SomeException _)
