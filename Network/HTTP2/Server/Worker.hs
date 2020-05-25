@@ -12,9 +12,9 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Exception (SomeException(..), AsyncException(..))
 import qualified Control.Exception as E
-import Data.ByteString.Builder (Builder)
 import Data.IORef
 import qualified Network.HTTP.Types as H
+import Network.Wai (StreamingBody)
 import qualified System.TimeManager as T
 
 import Imports hiding (insert)
@@ -124,7 +124,7 @@ response wc@WorkerConf{..} mgr strm (Request req) (Response rsp) pps = case outO
   where
     (_,reqvt) = inpObjHeaders req
 
-responseStreaming :: Manager -> TBQueue StreamingChunk -> ((Builder -> IO ()) -> IO () -> IO ()) -> IO ()
+responseStreaming :: Manager -> TBQueue StreamingChunk -> StreamingBody -> IO ()
 responseStreaming mgr tbq strmbdy = timeoutKillThread mgr $ \nth -> do
     strmbdy (push nth) flush
     atomically $ writeTBQueue tbq StreamingFinished
