@@ -138,7 +138,7 @@ worker ctx@Context{inputQ,controlQ} mgr server = do
             T.resume th
             T.tickle th
             let aux = Aux th
-            server req aux $ response ctx mgr th tcont strm req'
+            server req' aux $ response ctx mgr th tcont strm req'
         cont1 <- case ex of
             Right () -> return True
             Left e@(SomeException _)
