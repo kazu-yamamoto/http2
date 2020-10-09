@@ -8,7 +8,7 @@ module Network.HPACK.Internal (
   , module Network.HPACK.Table.Entry
   ) where
 
-import Network.HPACK.HeaderBlock.Decode (decodeString, decodeS, decodeSophisticated)
+import Network.HPACK.HeaderBlock.Decode (decodeString, decodeS, decodeSophisticated, decodeSimple)
 import Network.HPACK.HeaderBlock.Encode (encodeString, encodeS)
 import Network.HPACK.HeaderBlock.Integer
 import Network.HPACK.Huffman

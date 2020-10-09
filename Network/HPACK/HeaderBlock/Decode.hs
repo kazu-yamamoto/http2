@@ -10,6 +10,7 @@ module Network.HPACK.HeaderBlock.Decode (
   , decodeString
   , decodeS
   , decodeSophisticated
+  , decodeSimple -- testing
   ) where
 
 import Control.Exception (throwIO, catch)
@@ -51,7 +52,7 @@ getHeaderValue t tbl = tbl `unsafeAt` tokenIx t
 decodeHeader :: DynamicTable
              -> ByteString -- ^ An HPACK format
              -> IO HeaderList
-decodeHeader dyntbl inp = decodeHPACK dyntbl inp (decodeSimple dyntbl)
+decodeHeader dyntbl inp = decodeHPACK dyntbl inp (decodeSimple (toTokenHeader dyntbl))
 
 -- | Converting the HPACK format to 'TokenHeaderList'
 --   and 'ValueTable'.
@@ -88,14 +89,21 @@ decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
             ff rbuf (-1)
             dec rbuf
 
-decodeSimple :: DynamicTable -> ReadBuffer -> IO HeaderList
-decodeSimple dyntbl rbuf = go empty
+-- | Converting to 'HeaderList'.
+--
+--   * Headers are decoded as is.
+--   * 'DecodeError' would be thrown if the HPACK format is broken.
+--   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
+decodeSimple :: (Word8 -> ReadBuffer -> IO TokenHeader)
+             -> ReadBuffer
+             -> IO HeaderList
+decodeSimple decTokenHeader rbuf = go empty
   where
     go builder = do
         leftover <- remainingSize rbuf
         if leftover >= 1 then do
             w <- read8 rbuf
-            tv <- toTokenHeader dyntbl w rbuf
+            tv <- decTokenHeader w rbuf
             let builder' = builder << tv
             go builder'
           else do
@@ -116,7 +124,8 @@ decodeSimple dyntbl rbuf = go empty
 --     'IllegalHeaderName' is thrown.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
 --   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
-decodeSophisticated :: (Word8 -> ReadBuffer -> IO TokenHeader) -> ReadBuffer
+decodeSophisticated :: (Word8 -> ReadBuffer -> IO TokenHeader)
+                    -> ReadBuffer
                     -> IO HeaderTable
 decodeSophisticated decTokenHeader rbuf = do
     -- using maxTokenIx to reduce condition
