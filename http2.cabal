@@ -180,7 +180,7 @@ Test-Suite spec
                         Network.HTTP2.Types
   Build-Depends:        base >= 4 && < 5
                       , array
-                      , base16-bytestring
+                      , base16-bytestring >= 1.0
                       , bytestring
                       , case-insensitive
                       , containers
@@ -250,7 +250,7 @@ Test-Suite hpack
                       , aeson
                       , aeson-pretty
                       , array
-                      , base16-bytestring
+                      , base16-bytestring >= 1.0
                       , bytestring
                       , case-insensitive
                       , containers
@@ -282,7 +282,7 @@ Test-Suite frame
                       , Glob >= 0.9
                       , aeson
                       , aeson-pretty
-                      , base16-bytestring
+                      , base16-bytestring >= 1.0
                       , bytestring
                       , directory
                       , filepath
@@ -311,7 +311,7 @@ Executable hpack-encode
                       , aeson
                       , aeson-pretty
                       , array
-                      , base16-bytestring
+                      , base16-bytestring >= 1.0
                       , bytestring
                       , case-insensitive
                       , containers
@@ -336,7 +336,7 @@ Executable hpack-debug
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , array
-                      , base16-bytestring
+                      , base16-bytestring >= 1.0
                       , bytestring
                       , case-insensitive
                       , containers
@@ -391,7 +391,7 @@ Executable frame-encode
   Build-Depends:        base >= 4 && < 5
                       , aeson
                       , aeson-pretty
-                      , base16-bytestring
+                      , base16-bytestring >= 1.0
                       , bytestring
                       , http2
                       , text

@@ -36,11 +36,11 @@ shouldBeEncoded inp out = do
 
 shouldBeDecoded :: ByteString -> ByteString -> Expectation
 shouldBeDecoded inp out = do
-    out' <- decodeHuffman $ fst $ B16.decode inp
+    out' <- decodeHuffman $ B16.decodeLenient inp
     out' `shouldBe` out
 
 tryDecode :: ByteString -> IO ByteString
-tryDecode inp = decodeHuffman $ fst $ B16.decode inp
+tryDecode inp = decodeHuffman $ B16.decodeLenient inp
 
 spec :: Spec
 spec = do

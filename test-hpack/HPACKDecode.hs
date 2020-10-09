@@ -74,7 +74,7 @@ test conf c dyntbl = do
                 return $ Just $ "Headers are different in " ++ B8.unpack wirehex ++ ":\n" ++ show hs ++ "\n" ++ show hs'
   where
     wirehex = wire c
-    inp = fst $ B16.decode wirehex
+    inp = B16.decodeLenient wirehex
     hs = headers c
 
 -- | Printing 'HeaderList'.
