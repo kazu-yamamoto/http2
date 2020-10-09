@@ -203,13 +203,13 @@ processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{stre
       else
         putMVar streamInput inpObj
     return False
-processState s@(Open Continued{}) ctx@Context{..} strm _streamId = do
+processState s@(Open Continued{}) ctx strm _streamId = do
     setStreamState ctx strm s
     return True
-processState HalfClosedRemote ctx@Context{..} strm _streamId = do
+processState HalfClosedRemote ctx strm _streamId = do
     halfClosedRemote ctx strm
     return False
-processState s ctx@Context{..} strm _streamId = do
+processState s ctx strm _streamId = do
     -- Idle, Open Body, Closed
     setStreamState ctx strm s
     return False
@@ -221,7 +221,7 @@ getStream ctx@Context{..} ftyp streamId =
     search streamTable streamId >>= getStream' ctx ftyp streamId
 
 getStream' :: Context -> FrameTypeId -> StreamId -> Maybe Stream -> IO (Maybe Stream)
-getStream' ctx@Context{..} ftyp _streamId js@(Just strm0) = do
+getStream' ctx ftyp _streamId js@(Just strm0) = do
     when (ftyp == FrameHeaders) $ do
         st <- readStreamState strm0
         when (isHalfClosedRemote st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half or fully closed stream"
