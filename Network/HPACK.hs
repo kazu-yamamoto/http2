@@ -41,11 +41,17 @@ module Network.HPACK (
   , Index
   , Buffer
   , BufferSize
+  -- * Re-exports
+  , original
+  , foldedCase
+  , mk
   ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
+import Data.CaseInsensitive
+
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Table
 import Network.HPACK.Types
