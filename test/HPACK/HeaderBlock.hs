@@ -7,7 +7,7 @@ import Data.ByteString.Base16
 import Network.HPACK
 
 fromHexString :: ByteString -> ByteString
-fromHexString = fst . decode
+fromHexString = decodeLenient
 
 ----------------------------------------------------------------
 

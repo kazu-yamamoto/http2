@@ -28,7 +28,7 @@ check file = do
     case etc of
         Left _ -> putStrLn $ "JSON error: " ++ file
         Right tc -> do
-            let bin = fst $ B16.decode $ wire tc
+            let bin = B16.decodeLenient $ wire tc
                 erc = decodeFrame defaultSettings bin
             case erc of
                 Left h2err -> case err tc of
