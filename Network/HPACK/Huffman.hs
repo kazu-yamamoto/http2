@@ -5,6 +5,7 @@ module Network.HPACK.Huffman (
   , decodeH
   , decodeHuffman
   , HuffmanDecoder
+  , decH
   ) where
 
 import Network.HPACK.Huffman.Decode

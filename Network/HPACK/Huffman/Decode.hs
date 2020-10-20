@@ -5,6 +5,7 @@ module Network.HPACK.Huffman.Decode (
     decodeH
   , decodeHuffman
   , HuffmanDecoder
+  , decH
   ) where
 
 import Control.Exception (throwIO)
@@ -49,11 +50,12 @@ decodeH :: WriteBuffer -- ^ A working space
         -> Int         -- ^ The target length
         -> IO ByteString
 decodeH wbuf rbuf len = do
-    dec wbuf rbuf len
+    decH wbuf rbuf len
     toByteString wbuf
 
-dec :: WriteBuffer -> ReadBuffer -> Int -> IO ()
-dec wbuf rbuf len = do
+-- | Low devel Huffman decoding in a write buffer.
+decH :: WriteBuffer -> ReadBuffer -> Int -> IO ()
+decH wbuf rbuf len = do
     clearWriteBuffer wbuf
     go len (way256 `unsafeAt` 0)
   where
@@ -80,7 +82,7 @@ dec wbuf rbuf len = do
 -- | Huffman decoding with a temporary buffer whose size is 4096.
 decodeHuffman :: ByteString -> IO ByteString
 decodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
-    withReadBuffer bs $ \rbuf -> dec wbuf rbuf $ BS.length bs
+    withReadBuffer bs $ \rbuf -> decH wbuf rbuf $ BS.length bs
 
 ----------------------------------------------------------------
 
