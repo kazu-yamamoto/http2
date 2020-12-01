@@ -45,6 +45,10 @@ Flag devel
   Description:          Development commands
   Default:              False
 
+Flag h2spec
+  Description:          Development commands
+  Default:              False
+
 Flag doc
   Description:          Doctest
   Default:              False
@@ -161,6 +165,29 @@ Test-Suite spec
                       , base16-bytestring >= 1.0
                       , bytestring
                       , cryptonite
+                      , hspec >= 1.3
+                      , http-types
+                      , http2
+                      , network-run >= 0.1.0
+                      , typed-process
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+  Build-Tool-Depends:   hspec-discover:hspec-discover
+
+
+Test-Suite spec2
+  if flag(h2spec)
+    Buildable:          True
+  else
+    Buildable:          False
+  Type:                 exitcode-stdio-1.0
+  Default-Language:     Haskell2010
+  HS-Source-Dirs:       test2
+  Ghc-Options:          -Wall
+  Main-Is:              Spec.hs
+  Other-Modules:        ServerSpec
+  Build-Depends:        base >= 4 && < 5
+                      , bytestring
                       , hspec >= 1.3
                       , http-types
                       , http2

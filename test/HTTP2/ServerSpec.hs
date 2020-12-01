@@ -15,8 +15,6 @@ import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP.Types
 import Network.Run.TCP
-import System.Exit
-import System.Process.Typed
 import Test.Hspec
 
 import Network.HPACK
@@ -32,9 +30,6 @@ host = "127.0.0.1"
 spec :: Spec
 spec = do
     describe "server" $ do
-        it "handles error cases" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
-                runProcess (proc "h2spec" ["-h",host,"-p",port]) `shouldReturn` ExitSuccess
         it "handles normal cases" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
