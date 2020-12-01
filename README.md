@@ -1,6 +1,6 @@
-## HTTP/2 and HPACK library in Haskell
+![GitHub Actions status](https://github.com/kazu-yamamoto/http2/workflows/Haskell%20CI/badge.svg)
 
-[![Build Status](https://travis-ci.org/kazu-yamamoto/http2.svg?branch=master)](https://travis-ci.org/kazu-yamamoto/http2)
+## HTTP/2 and HPACK library in Haskell
 
 ### Technical information
 
