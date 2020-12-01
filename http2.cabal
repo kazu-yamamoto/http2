@@ -168,6 +168,7 @@ Test-Suite spec
                       , typed-process
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
+  Build-Tool-Depends:   hspec-discover:hspec-discover
 
 Test-Suite hpack
   Type:                 exitcode-stdio-1.0
@@ -191,6 +192,7 @@ Test-Suite hpack
                       , vector
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
+  Build-Tool-Depends:   hspec-discover:hspec-discover
 
 Test-Suite frame
   Type:                 exitcode-stdio-1.0
@@ -216,6 +218,7 @@ Test-Suite frame
                       , unordered-containers
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
+  Build-Tool-Depends:   hspec-discover:hspec-discover
 
 ----------------------------------------------------------------
 
