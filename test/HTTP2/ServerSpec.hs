@@ -23,7 +23,7 @@ import qualified Network.HTTP2.Client as C
 import Network.HTTP2.Server
 
 port :: String
-port = "8080"
+port = "50000"
 
 host :: String
 host = "127.0.0.1"
