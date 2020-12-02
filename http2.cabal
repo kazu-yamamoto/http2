@@ -139,7 +139,7 @@ Test-Suite doctest
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test
-  Ghc-Options:          -Wall
+  Ghc-Options:          -Wall -threaded
   Main-Is:              doctests.hs
   Build-Depends:        base >= 4 && < 5
                       , doctest >= 0.9.3
@@ -150,7 +150,7 @@ Test-Suite spec
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test
-  Ghc-Options:          -Wall
+  Ghc-Options:          -Wall -threaded
   Main-Is:              Spec.hs
   Other-Modules:        HPACK.DecodeSpec
                         HPACK.EncodeSpec
@@ -183,7 +183,7 @@ Test-Suite spec2
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test2
-  Ghc-Options:          -Wall
+  Ghc-Options:          -Wall -threaded
   Main-Is:              Spec.hs
   Other-Modules:        ServerSpec
   Build-Depends:        base >= 4 && < 5
@@ -201,7 +201,7 @@ Test-Suite hpack
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test-hpack
-  Ghc-Options:          -Wall
+  Ghc-Options:          -Wall -threaded
   Main-Is:              Spec.hs
   Other-Modules:        HPACKDecode
                         HPACKSpec
@@ -225,7 +225,7 @@ Test-Suite frame
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test-frame
-  GHC-Options:          -Wall
+  GHC-Options:          -Wall -threaded
   Main-Is:              Spec.hs
   Other-Modules:        Case
                         FrameSpec
@@ -252,7 +252,7 @@ Test-Suite frame
 Executable hpack-encode
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test-hpack
-  GHC-Options:          -Wall
+  GHC-Options:          -Wall -threaded
   if flag(devel)
     Buildable:          True
   else
@@ -278,7 +278,7 @@ Executable hpack-encode
 Executable hpack-debug
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test-hpack
-  GHC-Options:          -Wall
+  GHC-Options:          -Wall -threaded
   if flag(devel)
     Buildable:          True
   else
@@ -305,7 +305,7 @@ Executable hpack-debug
 Executable hpack-stat
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test-hpack
-  GHC-Options:          -Wall
+  GHC-Options:          -Wall -threaded
   if flag(devel)
     Buildable:          True
   else
@@ -333,7 +333,7 @@ Executable hpack-stat
 Executable frame-encode
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test-frame
-  GHC-Options:          -Wall
+  GHC-Options:          -Wall -threaded
   if flag(devel)
     Buildable:          True
   else
@@ -356,7 +356,7 @@ Benchmark priority
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   Hs-Source-Dirs:       bench-priority, .
-  Ghc-Options:          -Wall
+  Ghc-Options:          -Wall -threaded
   Main-Is:              Main.hs
   Other-Modules:        BinaryHeap
                         BinaryHeapSTM
@@ -381,7 +381,7 @@ Benchmark header-compression
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
   Hs-Source-Dirs:       bench-hpack
-  Ghc-Options:          -Wall
+  Ghc-Options:          -Wall -threaded
   Main-Is:              Main.hs
   Build-Depends:        base
                       , array
