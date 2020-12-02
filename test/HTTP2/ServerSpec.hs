@@ -33,7 +33,7 @@ spec = do
     describe "server" $ do
         it "handles normal cases" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
-                threadDelay 10000
+                threadDelay 200000
                 runClient
 
 runServer :: IO ()
