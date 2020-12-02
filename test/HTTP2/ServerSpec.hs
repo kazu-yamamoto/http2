@@ -15,6 +15,7 @@ import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP.Types
 import Network.Run.TCP
+import System.Timeout
 import Test.Hspec
 
 import Network.HPACK
@@ -101,7 +102,9 @@ trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
     !ctx' = CH.hashUpdate ctx bs
 
 runClient :: IO ()
-runClient = runTCPClient host port $ runHTTP2Client
+runClient = do
+    mx <- timeout 10000000 $ runTCPClient host port $ runHTTP2Client
+    mx `shouldBe` Just ()
   where
     authority = C8.pack host
     cliconf = C.ClientConfig "http" authority 20
