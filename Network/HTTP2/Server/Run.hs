@@ -22,7 +22,7 @@ run conf@Config{..} server = do
         serverInfo <- newServerInfo
         ctx <- newContext serverInfo
         -- Workers, worker manager and timer manager
-        mgr <- start
+        mgr <- start confTimeoutManager
         let wc = fromContext ctx
         setAction mgr $ worker wc mgr server
         -- The number of workers is 3.

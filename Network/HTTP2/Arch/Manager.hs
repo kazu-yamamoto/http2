@@ -42,29 +42,28 @@ data Manager = Manager (TQueue Command) (IORef Action) T.Manager
 --   Its action is initially set to 'return ()' and should be set
 --   by 'setAction'. This allows that the action can include
 --   the manager itself.
-start :: IO Manager
-start = do
+start :: T.Manager -> IO Manager
+start timmgr = do
     q <- newTQueueIO
     ref <- newIORef noAction
-    timmgr <- T.initialize $ 30 * 1000000 -- fixme
-    void $ forkIO $ go q Set.empty ref timmgr
+    void $ forkIO $ go q Set.empty ref
     return $ Manager q ref timmgr
   where
-    go q tset0 ref timmgr = do
+    go q tset0 ref = do
         x <- atomically $ readTQueue q
         case x of
-            Stop          -> kill tset0 >> T.killManager timmgr
+            Stop          -> kill tset0
             Spawn         -> next tset0
             Add    newtid -> let tset = add newtid tset0
-                             in go q tset ref timmgr
+                             in go q tset ref
             Delete oldtid -> let tset = del oldtid tset0
-                             in go q tset ref timmgr
+                             in go q tset ref
       where
         next tset = do
             action <- readIORef ref
             newtid <- forkIO action
             let tset' = add newtid tset
-            go q tset' ref timmgr
+            go q tset' ref
 
 -- | Setting the action to be spawned.
 setAction :: Manager -> Action -> IO ()

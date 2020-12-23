@@ -23,7 +23,7 @@ run :: ClientConfig -> Config -> Client a -> IO a
 run ClientConfig{..} conf@Config{..} client = do
     clientInfo <- newClientInfo scheme authority cacheLimit
     ctx <- newContext clientInfo
-    mgr <- start
+    mgr <- start confTimeoutManager
     tid0 <- forkIO $ frameReceiver ctx confReadN
     -- fixme: if frameSender is terminated but the main thread is alive,
     --        what will happen?
