@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Table.Entry (
   -- * Type
@@ -55,13 +55,13 @@ headerSize' t v = BS.length (tokenFoldedKey t)
 toEntry :: Header -> Entry
 toEntry kv@(k,v) = Entry siz t v
   where
-    !t = toToken k
-    !siz = headerSize kv
+    t = toToken k
+    siz = headerSize kv
 
 toEntryToken :: Token -> HeaderValue -> Entry
 toEntryToken t v = Entry siz t v
   where
-    !siz = headerSize' t v
+    siz = headerSize' t v
 
 ----------------------------------------------------------------
 

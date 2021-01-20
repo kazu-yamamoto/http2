@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Network.HPACK.Huffman.Tree (
   -- * Huffman decoding
     HTree(..)
@@ -22,13 +20,13 @@ type EOSInfo = Maybe Int
 
 -- | Type for Huffman decoding.
 data HTree = Tip
-             !EOSInfo            -- EOS info from 1
-             {-# UNPACK #-} !Int -- Decoded value. Essentially Word8
+             EOSInfo            -- EOS info from 1
+             {-# UNPACK #-} Int -- Decoded value. Essentially Word8
            | Bin
-             !EOSInfo            -- EOS info from 1
-             {-# UNPACK #-} !Int -- Sequence no from 0
-             !HTree              -- Left
-             !HTree              -- Right
+             EOSInfo            -- EOS info from 1
+             {-# UNPACK #-} Int -- Sequence no from 0
+             HTree              -- Left
+             HTree              -- Right
            deriving Show
 
 eosInfo :: HTree -> EOSInfo
@@ -60,10 +58,10 @@ toHTree bs = mark 1 eos $ snd $ build 0 $ zip [0..idxEos] bs
     eos = bs !! idxEos
 
 build :: Int -> [(Int,Bits)] -> (Int, HTree)
-build !cnt0 [(v,[])] = (cnt0,Tip Nothing v)
-build !cnt0 xs       = let (cnt1,l) = build (cnt0 + 1) fs
-                           (cnt2,r) = build cnt1 ts
-                       in (cnt2, Bin Nothing cnt0 l r)
+build cnt0 [(v,[])] = (cnt0,Tip Nothing v)
+build cnt0 xs       = let (cnt1,l) = build (cnt0 + 1) fs
+                          (cnt2,r) = build cnt1 ts
+                      in (cnt2, Bin Nothing cnt0 l r)
   where
     (fs',ts') = partition ((==) F . head . snd) xs
     fs = map (second tail) fs'

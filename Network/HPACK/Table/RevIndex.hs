@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings, CPP, RecordWildCards #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HPACK.Table.RevIndex (
     RevIndex
@@ -27,7 +29,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
-data RevIndex = RevIndex !DynamicRevIndex !OtherRevIdex
+data RevIndex = RevIndex DynamicRevIndex OtherRevIdex
 
 type DynamicRevIndex = Array Int (IORef ValueMap)
 
@@ -45,7 +47,7 @@ type OtherRevIdex = IORef (Map KeyValue HIndex)
 
 type StaticRevIndex = Array Int StaticEntry
 
-data StaticEntry = StaticEntry !HIndex !(Maybe ValueMap) deriving Show
+data StaticEntry = StaticEntry HIndex (Maybe ValueMap) deriving Show
 
 type ValueMap = Map HeaderValue HIndex
 
@@ -59,7 +61,7 @@ staticRevIndex = A.array (minTokenIx,maxStaticTokenIx) $ map toEnt zs
         m = case xs of
             []  -> error "staticRevIndex"
             [("",i)] -> StaticEntry i Nothing
-            (_,i):_  -> let !vs = M.fromList xs
+            (_,i):_  -> let vs = M.fromList xs
                         in StaticEntry i (Just vs)
     zs = map extract $ groupBy ((==) `on` fst) lst
       where
@@ -130,13 +132,13 @@ lookupOtherRevIndex (k,v) ref fa' fc' = do
 insertOtherRevIndex :: Token -> HeaderValue -> HIndex -> OtherRevIdex -> IO ()
 insertOtherRevIndex t v i ref = modifyIORef' ref $ M.insert (KeyValue k v) i
   where
-    !k = tokenFoldedKey t
+    k = tokenFoldedKey t
 
 {-# INLINE deleteOtherRevIndex #-}
 deleteOtherRevIndex :: Token -> HeaderValue -> OtherRevIdex -> IO ()
 deleteOtherRevIndex t v ref = modifyIORef' ref $ M.delete (KeyValue k v)
   where
-    !k = tokenFoldedKey t
+    k = tokenFoldedKey t
 
 ----------------------------------------------------------------
 

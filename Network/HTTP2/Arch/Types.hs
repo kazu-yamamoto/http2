@@ -111,8 +111,8 @@ data OpenState =
               Int  -- The number of continuation frames
               Bool -- End of stream
               Priority
-  | NoBody HeaderTable !Priority
-  | HasBody HeaderTable !Priority
+  | NoBody HeaderTable Priority
+  | HasBody HeaderTable Priority
   | Body (TQueue ByteString)
          (Maybe Int) -- received Content-Length
                      -- compared the body length for error checking

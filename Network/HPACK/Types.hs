@@ -67,9 +67,9 @@ data CompressionAlgo = Naive  -- ^ No compression
 -- | Strategy for HPACK encoding.
 data EncodeStrategy = EncodeStrategy {
   -- | Which compression algorithm is used.
-    compressionAlgo :: !CompressionAlgo
+    compressionAlgo :: CompressionAlgo
   -- | Whether or not to use Huffman encoding for strings.
-  , useHuffman :: !Bool
+  , useHuffman :: Bool
   } deriving (Eq, Show)
 
 -- | Default 'EncodeStrategy'.

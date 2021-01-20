@@ -1,5 +1,5 @@
-{-# LANGUAGE RecordWildCards, FlexibleContexts #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HPACK.Table.Dynamic (
     DynamicTable(..)
@@ -47,7 +47,7 @@ import Network.HPACK.Types
 toIndexedEntry :: DynamicTable -> Index -> IO Entry
 toIndexedEntry dyntbl idx
   | idx <= 0               = throwIO $ IndexOverrun idx
-  | idx <= staticTableSize = return $! toStaticEntry idx
+  | idx <= staticTableSize = return $ toStaticEntry idx
   | otherwise              = toDynamicEntry dyntbl idx
 
 -- For encoder
@@ -58,7 +58,7 @@ fromHIndexToIndex DynamicTable{..} (DIndex didx) = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     x <- adj maxN (didx - off)
-    return $! x + staticTableSize
+    return $ x + staticTableSize
 
 ----------------------------------------------------------------
 
@@ -83,38 +83,38 @@ After insertion:
 -}
 
 data CodeInfo =
-    EncodeInfo !RevIndex -- Reverse index
+    EncodeInfo RevIndex -- Reverse index
                -- The value informed by SETTINGS_HEADER_TABLE_SIZE.
                -- If 'Nothing', dynamic table size update is not necessary.
                -- Otherwise, dynamic table size update is sent
                -- and this value should be set to 'Nothing'.
-               !(IORef (Maybe Size))
-  | DecodeInfo !HuffmanDecoder
-               !(IORef Size)  -- The limit size
-               !(IO ())       -- Action to free the buffer
+               (IORef (Maybe Size))
+  | DecodeInfo HuffmanDecoder
+               (IORef Size)  -- The limit size
+               (IO ())       -- Action to free the buffer
 
 -- | Type for dynamic table.
 data DynamicTable = DynamicTable {
-    codeInfo :: !CodeInfo
+    codeInfo :: CodeInfo
   -- | An array
-  , circularTable :: !(IORef Table)
+  , circularTable :: IORef Table
   -- | Start point
-  , offset :: !(IORef Index)
+  , offset :: IORef Index
   -- | The current number of entries
-  , numOfEntries :: !(IORef Int)
+  , numOfEntries :: IORef Int
   -- | The size of the array
-  , maxNumOfEntries :: !(IORef Int)
+  , maxNumOfEntries :: IORef Int
   -- | The current dynamic table size (defined in HPACK)
-  , dynamicTableSize :: !(IORef Size)
+  , dynamicTableSize :: IORef Size
   -- | The max dynamic table size (defined in HPACK)
-  , maxDynamicTableSize :: !(IORef Size)
+  , maxDynamicTableSize :: IORef Size
   }
 
 {-# INLINE adj #-}
 adj :: Int -> Int -> IO Int
 adj maxN x
   | maxN == 0 = throwIO TooSmallTableSize
-  | otherwise = let !ret = (x + maxN) `mod` maxN
+  | otherwise = let ret = (x + maxN) `mod` maxN
                 in return ret
 
 huffmanDecoder :: DynamicTable -> HuffmanDecoder
@@ -130,11 +130,11 @@ printDynamicTable DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     n <- readIORef numOfEntries
-    let !beg = off + 1
-        !end = off + n
+    let beg = off + 1
+        end = off + n
     tbl <- readIORef circularTable
     es <- mapM (adj maxN >=> unsafeRead tbl) [beg .. end]
-    let !ts = zip [1..] es
+    let ts = zip [1..] es
     mapM_ printEntry ts
     dsize <- readIORef dynamicTableSize
     maxdsize <- readIORef maxDynamicTableSize
@@ -156,15 +156,15 @@ printEntry (i,e) = do
 isDynamicTableEmpty :: DynamicTable -> IO Bool
 isDynamicTableEmpty DynamicTable{..} = do
     n <- readIORef numOfEntries
-    return $! n == 0
+    return $ n == 0
 
 isSuitableSize :: Size -> DynamicTable -> IO Bool
 isSuitableSize siz DynamicTable{..} = do
     let DecodeInfo _ limref _ = codeInfo
     lim <- readIORef limref
-    return $! siz <= lim
+    return $ siz <= lim
 
-data TableSizeAction = Keep | Change !Size | Ignore !Size
+data TableSizeAction = Keep | Change Size | Ignore Size
 
 needChangeTableSize :: DynamicTable -> IO TableSizeAction
 needChangeTableSize DynamicTable{..} = do
@@ -197,7 +197,7 @@ newDynamicTableForEncoding :: Size -- ^ The dynamic table size
 newDynamicTableForEncoding maxsiz = do
     rev <- newRevIndex
     lim <- newIORef Nothing
-    let !info = EncodeInfo rev lim
+    let info = EncodeInfo rev lim
     newDynamicTable maxsiz info
 
 -- | Creating 'DynamicTable' for decoding.
@@ -208,9 +208,9 @@ newDynamicTableForDecoding maxsiz huftmpsiz = do
     lim <- newIORef maxsiz
     buf <- mallocBytes huftmpsiz
     wbuf <- newWriteBuffer buf huftmpsiz
-    let !decoder = decodeH wbuf
-        !clear = free buf
-        !info = DecodeInfo decoder lim clear
+    let decoder = decodeH wbuf
+        clear = free buf
+        info = DecodeInfo decoder lim clear
     newDynamicTable maxsiz info
 
 newDynamicTable :: Size -> CodeInfo -> IO DynamicTable
@@ -223,8 +223,8 @@ newDynamicTable maxsiz info = do
                       <*> newIORef 0       -- dynamicTableSize
                       <*> newIORef maxsiz  -- maxDynamicTableSize
   where
-    !maxN = maxNumbers maxsiz
-    !end = maxN - 1
+    maxN = maxNumbers maxsiz
+    end = maxN - 1
 
 -- | Renewing 'DynamicTable' with necessary entries copied.
 renewDynamicTable :: Size -> DynamicTable -> IO ()
@@ -232,9 +232,9 @@ renewDynamicTable 0 _ = return () -- FIXME: handle case 'Max table size = 0'.
 renewDynamicTable maxsiz dyntbl@DynamicTable{..} = do
     renew <- shouldRenew dyntbl maxsiz
     when renew $ do
-        !entries <- getEntries dyntbl
-        let !maxN = maxNumbers maxsiz
-            !end = maxN - 1
+        entries <- getEntries dyntbl
+        let maxN = maxNumbers maxsiz
+            end = maxN - 1
         newtbl <- newArray (0,end) dummyEntry
         writeIORef circularTable newtbl
         writeIORef offset end
@@ -269,7 +269,7 @@ copyEntries dyntbl@DynamicTable{..} (e:es) = do
 shouldRenew :: DynamicTable -> Size -> IO Bool
 shouldRenew DynamicTable{..} maxsiz = do
     maxdsize <- readIORef maxDynamicTableSize
-    return $! maxdsize /= maxsiz
+    return $ maxdsize /= maxsiz
 
 ----------------------------------------------------------------
 
@@ -321,8 +321,8 @@ insertFront e DynamicTable{..} = do
     dsize <- readIORef dynamicTableSize
     table <- readIORef circularTable
     let i = off
-        !dsize' = dsize + entrySize e
-    !off' <- adj maxN (off - 1)
+        dsize' = dsize + entrySize e
+    off' <- adj maxN (off - 1)
     unsafeWrite table i e
     writeIORef offset off'
     writeIORef numOfEntries $ n + 1
@@ -335,7 +335,7 @@ adjustTableSize :: DynamicTable -> IO [Entry]
 adjustTableSize dyntbl@DynamicTable{..} = adjust []
   where
     adjust :: [Entry] -> IO [Entry]
-    adjust !es = do
+    adjust es = do
         dsize <- readIORef dynamicTableSize
         maxdsize <- readIORef maxDynamicTableSize
         if dsize <= maxdsize then
@@ -353,8 +353,8 @@ insertEnd e DynamicTable{..} = do
     n <- readIORef numOfEntries
     dsize <- readIORef dynamicTableSize
     table <- readIORef circularTable
-    !i <- adj maxN (off + n + 1)
-    let !dsize' = dsize + entrySize e
+    i <- adj maxN (off + n + 1)
+    let dsize' = dsize + entrySize e
     unsafeWrite table i e
     writeIORef numOfEntries $ n + 1
     writeIORef dynamicTableSize dsize'
@@ -369,12 +369,12 @@ removeEnd DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     n <- readIORef numOfEntries
-    !i <- adj maxN (off + n)
+    i <- adj maxN (off + n)
     table <- readIORef circularTable
     e <- unsafeRead table i
     unsafeWrite table i dummyEntry -- let the entry GCed
     dsize <- readIORef dynamicTableSize
-    let !dsize' = dsize - entrySize e
+    let dsize' = dsize - entrySize e
     writeIORef numOfEntries (n - 1)
     writeIORef dynamicTableSize dsize'
     return e
@@ -384,12 +384,12 @@ removeEnd DynamicTable{..} = do
 {-# INLINE toDynamicEntry #-}
 toDynamicEntry :: DynamicTable -> Index -> IO Entry
 toDynamicEntry DynamicTable{..} idx = do
-    !maxN <- readIORef maxNumOfEntries
-    !off <- readIORef offset
-    !n <- readIORef numOfEntries
+    maxN <- readIORef maxNumOfEntries
+    off <- readIORef offset
+    n <- readIORef numOfEntries
     when (idx > n + staticTableSize) $ throwIO $ IndexOverrun idx
-    !didx <- adj maxN (idx + off - staticTableSize)
-    !table <- readIORef circularTable
+    didx <- adj maxN (idx + off - staticTableSize)
+    table <- readIORef circularTable
     unsafeRead table didx
 
 ----------------------------------------------------------------

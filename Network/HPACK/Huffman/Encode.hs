@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, RecordWildCards #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HPACK.Huffman.Encode (
   -- * Huffman encoding
@@ -48,11 +48,11 @@ enc WriteBuffer{..} rbuf = do
     beg <- readIORef offset
     end <- go (beg,0,initialOffset)
     writeIORef offset end
-    let !len = end `minusPtr` beg
+    let len = end `minusPtr` beg
     return len
   where
     go (dst,encoded,off) = do
-        !i <- readInt8 rbuf
+        i <- readInt8 rbuf
         if i >= 0 then
             cpy dst (bond i) >>= go
           else if off == initialOffset then
@@ -64,25 +64,25 @@ enc WriteBuffer{..} rbuf = do
         {-# INLINE bond #-}
         bond i = (encoded', off')
           where
-            !len = huffmanLength `unsafeAt` i
-            !code = huffmanCode `unsafeAt` i
-            !scode = code `shiftL` (off - len)
-            !encoded' = encoded .|. scode
-            !off' = off - len
+            len = huffmanLength `unsafeAt` i
+            code = huffmanCode `unsafeAt` i
+            scode = code `shiftL` (off - len)
+            encoded' = encoded .|. scode
+            off' = off - len
         {-# INLINE write #-}
         write p w = do
             when (p >= limit) $ throwIO BufferOverrun
-            let !w8 = fromIntegral (w `shiftR` shiftForWrite) :: Word8
+            let w8 = fromIntegral (w `shiftR` shiftForWrite) :: Word8
             poke p w8
-            let !p' = p `plusPtr` 1
+            let p' = p `plusPtr` 1
             return p'
         {-# INLINE cpy #-}
         cpy p (w,o)
           | o > shiftForWrite = return (p,w,o)
           | otherwise = do
               p' <- write p w
-              let !w' = w `shiftL` 8
-                  !o' = o + 8
+              let w' = w `shiftL` 8
+                  o' = o + 8
               cpy p' (w',o')
 
 -- | Huffman encoding with a temporary buffer whose size is 4096.

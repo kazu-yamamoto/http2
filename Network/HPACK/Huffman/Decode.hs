@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Huffman.Decode (
   -- * Huffman decoding
@@ -28,15 +28,15 @@ type HuffmanDecoder = ReadBuffer -> Int -> IO ByteString
 ----------------------------------------------------------------
 
 data Pin = EndOfString
-         | Forward {-# UNPACK #-} !Word8 -- node no.
-         | GoBack  {-# UNPACK #-} !Word8 -- node no.
-                   {-# UNPACK #-} !Word8 -- a decoded value
-         | GoBack2 {-# UNPACK #-} !Word8 -- node no.
-                   {-# UNPACK #-} !Word8 -- a decoded value
-                   {-# UNPACK #-} !Word8 -- a decoded value
+         | Forward {-# UNPACK #-} Word8 -- node no.
+         | GoBack  {-# UNPACK #-} Word8 -- node no.
+                   {-# UNPACK #-} Word8 -- a decoded value
+         | GoBack2 {-# UNPACK #-} Word8 -- node no.
+                   {-# UNPACK #-} Word8 -- a decoded value
+                   {-# UNPACK #-} Word8 -- a decoded value
          deriving Show
 
-data WayStep = WayStep !(Maybe Int) !(Array Word8 Pin)
+data WayStep = WayStep (Maybe Int) (Array Word8 Pin)
 type Way256 = Array Word8 WayStep
 
 next :: WayStep -> Word8 -> Pin
@@ -64,11 +64,11 @@ decH wbuf rbuf len = do
         WayStep (Just i) _
           | i <= 8         -> return ()
           | otherwise      -> throwIO TooLongEos
-    go !n !way0 = do
+    go n way0 = do
         w <- read8 rbuf
         way <- doit way0 w
         go (n - 1) way
-    doit !way !w = case next way w of
+    doit way w = case next way w of
         EndOfString -> throwIO EosInTheMiddle
         Forward n   -> return $ way256 `unsafeAt` fromIntegral n
         GoBack  n v -> do
@@ -95,12 +95,12 @@ construct decoder = listArray (0,255) $ map to16ways $ flatten decoder
   where
     to16ways x = WayStep ei a16
       where
-        !ei = eosInfo x
-        !a16 = listArray (0,255) $ map (step decoder x Non) bits8s
+        ei = eosInfo x
+        a16 = listArray (0,255) $ map (step decoder x Non) bits8s
 
 data Chara = Non
-           | One !Word8
-           | Two !Word8 !Word8
+           | One Word8
+           | Two Word8 Word8
 
 inc :: Chara -> Word8 -> Chara
 inc Non w     = One w
@@ -110,8 +110,8 @@ inc _       _ = error "inc"
 step :: HTree -> HTree -> Chara -> [B] -> Pin
 step root (Tip _ v)     x  bss
   | v == idxEos                     = EndOfString
-  | otherwise                       = let !w = fromIntegral v
-                                          !x' = inc x w
+  | otherwise                       = let w = fromIntegral v
+                                          x' = inc x w
                                       in step root root x' bss
 step _    (Bin _ n _ _) Non       [] = Forward (fromIntegral n)
 step _    (Bin _ n _ _) (One w)   [] = GoBack (fromIntegral n) w

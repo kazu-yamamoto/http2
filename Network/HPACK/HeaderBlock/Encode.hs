@@ -1,4 +1,5 @@
-{-# LANGUAGE BangPatterns, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Encode (
     encodeHeader
@@ -49,7 +50,7 @@ encodeHeader :: EncodeStrategy
              -> IO ByteString -- ^ An HPACK format
 encodeHeader stgy siz dyntbl hs = encodeHeader' stgy siz dyntbl hs'
   where
-    hs' = map (\(k,v) -> let !t = toToken k in (t,v)) hs
+    hs' = map (\(k,v) -> let t = toToken k in (t,v)) hs
 
 
 -- | Converting 'HeaderList' to the HPACK format.
@@ -110,7 +111,7 @@ encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
     ref2 <- newIORef hs0
     loop wbuf ref1 ref2 step0 hs0 `E.catch` \BufferOverrun -> return ()
     end <- readIORef ref1
-    let !len = end `minusPtr` buf
+    let len = end `minusPtr` buf
     hs <- readIORef ref2
     return (hs, len)
   where
@@ -238,16 +239,16 @@ encodeS :: WriteBuffer
         -> ByteString       -- ^ Target
         -> IO ()
 encodeS wbuf False set _ n bs = do
-    let !len = BS.length bs
+    let len = BS.length bs
     encodeI wbuf set n len
     copyByteString wbuf bs
 encodeS wbuf True  set setH n bs = do
-    let !origLen = BS.length bs
-        !expectedLen = (origLen `div` 10) * 8 -- 80%: decided by examples
-        !expectedIntLen = integerLength n expectedLen
+    let origLen = BS.length bs
+        expectedLen = (origLen `div` 10) * 8 -- 80%: decided by examples
+        expectedIntLen = integerLength n expectedLen
     ff wbuf expectedIntLen
     len <- encodeH wbuf bs
-    let !intLen = integerLength n len
+    let intLen = integerLength n len
     if origLen < len then do
         ff wbuf (negate (expectedIntLen + len))
         encodeI wbuf set n origLen
@@ -257,7 +258,7 @@ encodeS wbuf True  set setH n bs = do
         encodeI wbuf (set . setH) n len
         ff wbuf len
       else do
-        let !gap = intLen - expectedIntLen
+        let gap = intLen - expectedIntLen
         shiftLastN wbuf gap len
         ff wbuf (negate (intLen + len))
         encodeI wbuf (set . setH) n  len

@@ -166,8 +166,8 @@ toErrorCodeId w   = UnknownErrorCode w
 ----------------------------------------------------------------
 
 -- | The connection error or the stream error.
-data HTTP2Error = ConnectionError !ErrorCodeId !ByteString
-                | StreamError !ErrorCodeId !StreamId
+data HTTP2Error = ConnectionError ErrorCodeId ByteString
+                | StreamError ErrorCodeId StreamId
                 deriving (Eq, Show, Typeable, Read)
 
 instance E.Exception HTTP2Error
@@ -250,12 +250,12 @@ checkSettingsValue _ = Nothing
 
 -- | Cooked version of settings. This is suitable to be stored in a HTTP/2 context.
 data Settings = Settings {
-    headerTableSize :: !Int
-  , enablePush :: !Bool
-  , maxConcurrentStreams :: !(Maybe Int)
-  , initialWindowSize :: !WindowSize
-  , maxFrameSize :: !Int
-  , maxHeaderBlockSize :: !(Maybe Int)
+    headerTableSize :: Int
+  , enablePush :: Bool
+  , maxConcurrentStreams :: Maybe Int
+  , initialWindowSize :: WindowSize
+  , maxFrameSize :: Int
+  , maxHeaderBlockSize :: Maybe Int
   } deriving (Show)
 
 -- | The default settings.
@@ -337,9 +337,9 @@ defaultWeight = 16
 
 -- | Type for stream priority
 data Priority = Priority {
-    exclusive :: !Bool
-  , streamDependency :: !StreamId
-  , weight :: !Weight
+    exclusive :: Bool
+  , streamDependency :: StreamId
+  , weight :: Weight
   } deriving (Show, Read, Eq)
 
 -- | Default priority which depends on stream 0.
@@ -592,30 +592,30 @@ type Padding = ByteString
 
 -- | The data type for HTTP/2 frames.
 data Frame = Frame
-    { frameHeader  :: !FrameHeader
-    , framePayload :: !FramePayload
+    { frameHeader  :: FrameHeader
+    , framePayload :: FramePayload
     } deriving (Show, Read, Eq)
 
 -- | The data type for HTTP/2 frame headers.
 data FrameHeader = FrameHeader
-    { payloadLength :: !Int
-    , flags         :: !FrameFlags
-    , streamId      :: !StreamId
+    { payloadLength :: Int
+    , flags         :: FrameFlags
+    , streamId      :: StreamId
     } deriving (Show, Read, Eq)
 
 -- | The data type for HTTP/2 frame payloads.
 data FramePayload =
-    DataFrame !ByteString
-  | HeadersFrame !(Maybe Priority) !HeaderBlockFragment
-  | PriorityFrame !Priority
-  | RSTStreamFrame !ErrorCodeId
-  | SettingsFrame !SettingsList
-  | PushPromiseFrame !StreamId !HeaderBlockFragment
-  | PingFrame !ByteString
-  | GoAwayFrame !StreamId !ErrorCodeId !ByteString
-  | WindowUpdateFrame !WindowSize
-  | ContinuationFrame !HeaderBlockFragment
-  | UnknownFrame !FrameType !ByteString
+    DataFrame ByteString
+  | HeadersFrame (Maybe Priority) HeaderBlockFragment
+  | PriorityFrame Priority
+  | RSTStreamFrame ErrorCodeId
+  | SettingsFrame SettingsList
+  | PushPromiseFrame StreamId HeaderBlockFragment
+  | PingFrame ByteString
+  | GoAwayFrame StreamId ErrorCodeId ByteString
+  | WindowUpdateFrame WindowSize
+  | ContinuationFrame HeaderBlockFragment
+  | UnknownFrame FrameType ByteString
   deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------

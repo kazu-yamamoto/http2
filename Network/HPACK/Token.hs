@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Token (
   -- * Data type
@@ -105,10 +105,10 @@ import Data.CaseInsensitive (original, mk, CI(..))
 
 -- | Internal representation for header keys.
 data Token = Token {
-    tokenIx :: !Int          -- ^ Index for value table
-  , shouldBeIndexed :: !Bool -- ^ should be indexed in HPACK
-  , isPseudo :: !Bool        -- ^ is this a pseudo header key?
-  , tokenKey :: !(CI ByteString) -- ^ Case insensitive header key
+    tokenIx :: Int          -- ^ Index for value table
+  , shouldBeIndexed :: Bool -- ^ should be indexed in HPACK
+  , isPseudo :: Bool        -- ^ is this a pseudo header key?
+  , tokenKey :: CI ByteString -- ^ Case insensitive header key
   } deriving (Eq, Show)
 
 -- | Extracting a case insensitive header key from a token.
@@ -456,11 +456,11 @@ toToken bs = case len of
       withForeignPtr fp1 $ \p1 ->
       withForeignPtr fp2 $ \p2 -> do
         i <- memcmp (p1 `plusPtr` off1) (p2 `plusPtr` off2) siz
-        return $! i == 0
+        return $ i == 0
 
 mkTokenMax :: ByteString -> Token
 mkTokenMax bs = Token maxTokenIx True p (mk bs)
   where
-    !p | B.length bs == 0 = False
-       | B.head bs == 58  = True
-       | otherwise        = False
+    p | B.length bs == 0 = False
+      | B.head bs == 58  = True
+      | otherwise        = False

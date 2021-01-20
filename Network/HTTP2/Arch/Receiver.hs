@@ -39,12 +39,12 @@ initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
-data Source = Source !(IORef ByteString) !(IO ByteString)
+data Source = Source (IORef ByteString) (IO ByteString)
 
 mkSource :: IO ByteString -> IO Source
 mkSource func = do
     ref <- newIORef BS.empty
-    return $! Source ref func
+    return $ Source ref func
 
 readSource :: Source -> IO ByteString
 readSource (Source ref func) = do
