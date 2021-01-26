@@ -14,6 +14,7 @@ import Data.Array.Base (unsafeAt)
 import qualified Data.ByteString as BS
 import Network.ByteOrder
 
+import Imports
 import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
 import Network.HPACK.Huffman.Table
@@ -45,19 +46,19 @@ next (WayStep _ a16) w = a16 `unsafeAt` fromIntegral w
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-decodeH :: WriteBuffer -- ^ A working space
+decodeH :: GCBuffer    -- ^ A working space
+        -> BufferSize
         -> ReadBuffer  -- ^ A read buffer which contains the target
         -> Int         -- ^ The target length
         -> IO ByteString
-decodeH wbuf rbuf len = do
+decodeH gcbuf bufsiz rbuf len = withForeignPtr gcbuf $ \buf -> do
+    wbuf <- newWriteBuffer buf bufsiz
     decH wbuf rbuf len
     toByteString wbuf
 
 -- | Low devel Huffman decoding in a write buffer.
 decH :: WriteBuffer -> ReadBuffer -> Int -> IO ()
-decH wbuf rbuf len = do
-    clearWriteBuffer wbuf
-    go len (way256 `unsafeAt` 0)
+decH wbuf rbuf len = go len (way256 `unsafeAt` 0)
   where
     go 0 way0 = case way0 of
         WayStep Nothing  _ -> throwIO IllegalEos

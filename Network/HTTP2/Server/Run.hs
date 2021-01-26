@@ -37,7 +37,6 @@ run conf@Config{..} server = do
         -- frameSender is the main thread because it ensures to send
         -- a goway frame.
         frameSender ctx conf mgr `E.finally` do
-            clearContext ctx
             stop mgr
             killThread tid
   where

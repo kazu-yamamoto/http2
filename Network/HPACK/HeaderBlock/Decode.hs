@@ -20,8 +20,8 @@ import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
-import Data.Char (isUpper)
 import Data.CaseInsensitive (CI(..))
+import Data.Char (isUpper)
 import Network.ByteOrder
 
 import Imports hiding (empty)
@@ -257,8 +257,10 @@ dropHuffman w = w `clearBit` 7
 
 -- | String decoding (7+) with a temporal Huffman decoder whose buffer is 4096.
 decodeString :: ReadBuffer -> IO ByteString
-decodeString rbuf = snd <$> withWriteBuffer' 4096
-  (\wbuf -> decodeS dropHuffman isHuffman 7 (decodeH wbuf) rbuf)
+decodeString rbuf = do
+    let bufsiz = 4096
+    gcbuf <- mallocPlainForeignPtrBytes 4096
+    decodeS dropHuffman isHuffman 7 (decodeH gcbuf bufsiz) rbuf
 
 decStr :: HuffmanDecoder -> ReadBuffer -> IO ByteString
 decStr = decodeS dropHuffman isHuffman 7

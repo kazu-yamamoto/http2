@@ -23,7 +23,6 @@ module Network.HTTP2.Frame.Decode (
 
 import Data.Array (Array, listArray, (!))
 import qualified Data.ByteString as BS
-import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N
 import System.IO.Unsafe (unsafeDupablePerformIO)

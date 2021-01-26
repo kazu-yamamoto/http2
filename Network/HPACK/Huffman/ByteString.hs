@@ -6,7 +6,6 @@ module Network.HPACK.Huffman.ByteString (
   ) where
 
 import Foreign.C.Types (CSize(..))
-import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
 import System.IO.Unsafe (unsafeDupablePerformIO)

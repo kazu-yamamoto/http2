@@ -95,11 +95,6 @@ newContext rinfo =
      sid0 | rl == Client = 1
           | otherwise    = 2
 
-clearContext :: Context -> IO ()
-clearContext ctx = do
-    clearDynamicTable $ encodeDynamicTable ctx
-    clearDynamicTable $ decodeDynamicTable ctx
-
 ----------------------------------------------------------------
 
 isClient :: Context -> Bool

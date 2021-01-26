@@ -13,6 +13,8 @@ import Network.HTTP2.Arch.ReadN
 
 -- | HTTP/2 configuration.
 data Config = Config {
+    -- confWriteBuffer is used only by frameSender.
+    -- This MUST be freed after frameSender is terminated.
       confWriteBuffer :: Buffer
     , confBufferSize  :: BufferSize
     , confSendAll     :: ByteString -> IO ()

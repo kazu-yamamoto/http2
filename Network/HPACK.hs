@@ -13,7 +13,6 @@ module Network.HPACK (
   , defaultDynamicTableSize
   , newDynamicTableForEncoding
   , newDynamicTableForDecoding
-  , clearDynamicTable
   , withDynamicTableForEncoding
   , withDynamicTableForDecoding
   , setLimitForEncoding

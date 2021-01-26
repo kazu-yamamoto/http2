@@ -30,7 +30,6 @@ run ClientConfig{..} conf@Config{..} client = do
     tid1 <- forkIO $ frameSender ctx conf mgr
     exchangeSettings conf ctx
     client (sendRequest ctx scheme authority) `E.finally` do
-        clearContext ctx
         stop mgr
         killThread tid0
         killThread tid1
