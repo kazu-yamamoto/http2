@@ -111,6 +111,9 @@ decodeSimple decTokenHeader rbuf = go empty
                 kvs = map (\(t,v) -> let k = tokenFoldedKey t in (k,v)) tvs
             return kvs
 
+headerLimit :: Int
+headerLimit = 200
+
 -- | Converting to 'TokenHeaderList' and 'ValueTable'.
 --
 --   * Multiple values of Cookie: are concatenated.
@@ -122,6 +125,8 @@ decodeSimple decTokenHeader rbuf = go empty
 --     'IllegalHeaderName' is thrown.
 --   * If a header key contains capital letters,
 --     'IllegalHeaderName' is thrown.
+--   * If the number of header fields is too large,
+--     'TooLargeHeader' is thrown
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
 --   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeSophisticated :: (Word8 -> ReadBuffer -> IO TokenHeader)
@@ -157,12 +162,14 @@ decodeSophisticated decTokenHeader rbuf = do
                         throwIO IllegalHeaderName
                     unsafeWrite arr tokenIx (Just v)
                     if isCookieTokenIx tokenIx then
-                        normal empty (empty << v)
+                        normal 0 empty (empty << v)
                       else
-                        normal (empty << tv) empty
+                        normal 0 (empty << tv) empty
               else
                 return []
-        normal builder cookie = do
+        normal n builder cookie
+          | n > headerLimit = throwIO TooLargeHeader
+          | otherwise       = do
             leftover <- remainingSize rbuf
             if leftover >= 1 then do
                 w <- read8 rbuf
@@ -174,9 +181,9 @@ decodeSophisticated decTokenHeader rbuf = do
                     throwIO IllegalHeaderName
                 unsafeWrite arr tokenIx (Just v)
                 if isCookieTokenIx tokenIx then
-                    normal builder (cookie << v)
+                    normal (n+1) builder (cookie << v)
                   else
-                    normal (builder << tv) cookie
+                    normal (n+1) (builder << tv) cookie
               else do
                 let tvs0 = run builder
                     cook = run cookie

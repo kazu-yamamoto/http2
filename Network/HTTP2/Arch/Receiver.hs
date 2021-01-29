@@ -324,7 +324,7 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{st
     let endOfStream = testEndStream flags
         endOfHeader = testEndHeader flags
     if endOfHeader then do
-        tbl <- hpackDecodeHeader frag ctx -- fixme
+        tbl <- hpackDecodeHeader frag ctx
         return $ if endOfStream then
                     Open (NoBody tbl pri)
                    else

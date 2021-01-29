@@ -94,6 +94,7 @@ data DecodeError = IndexOverrun Index -- ^ Index is out of range
                  | IllegalTableSizeUpdate -- ^ Table size update at the non-beginning
                  | HeaderBlockTruncated
                  | IllegalHeaderName
+                 | TooLargeHeader
                  deriving (Eq,Show,Typeable)
 
 instance Exception DecodeError
