@@ -395,6 +395,7 @@ stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz
         n' = n + 1
     when (siz' > 51200) $ -- fixme: hard coding: 50K
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too big"
+    -- This is enough to prevent Empty Frame Flooding - CVE-2019-9518
     when (n' > 10) $ -- fixme: hard coding
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too fragmented"
     if endOfHeader then do
