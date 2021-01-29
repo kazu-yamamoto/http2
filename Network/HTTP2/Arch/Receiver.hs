@@ -313,6 +313,15 @@ checkPriority p me
   where
     dep = streamDependency p
 
+continuationLimit :: Int
+continuationLimit = 10
+
+headerFragmentLimit :: Int
+headerFragmentLimit = 51200 -- 50K
+
+idlePriorityLimit :: Int
+idlePriorityLimit = 20
+
 stream :: FrameTypeId -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
 stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{streamNumber} = do
     HeadersFrame mp frag <- guardIt $ decodeHeadersFrame header bs
@@ -395,10 +404,10 @@ stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz
         rfrags' = frag : rfrags
         siz' = siz + BS.length frag
         n' = n + 1
-    when (siz' > 51200) $ -- fixme: hard coding: 50K
+    when (siz' > headerFragmentLimit) $
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too big"
     -- This is enough to prevent Empty Frame Flooding - CVE-2019-9518
-    when (n' > 10) $ -- fixme: hard coding
+    when (n' > continuationLimit) $
       E.throwIO $ ConnectionError EnhanceYourCalm "Header is too fragmented"
     if endOfHeader then do
         let hdrblk = BS.concat $ reverse rfrags'
@@ -434,8 +443,8 @@ stream FramePriority header bs Context{outputQ,priorityTreeSize} s Stream{stream
     writeIORef streamPrecedence newpre
     if isIdle s then do
         n <- atomicModifyIORef' priorityTreeSize (\x -> (x+1,x+1))
-        -- fixme hard coding
-        when (n >= 20) $ E.throwIO $ ConnectionError EnhanceYourCalm "too many idle priority frames"
+        when (n > idlePriorityLimit) $
+            E.throwIO $ ConnectionError EnhanceYourCalm "too many idle priority frames"
         prepare outputQ streamNumber newpri
       else do
         mout <- delete outputQ streamNumber oldpre
