@@ -322,6 +322,7 @@ isStaticToken n = tokenIx n <= maxStaticTokenIx
 -- >>> toToken ":bar"
 -- Token {tokenIx = 73, shouldBeIndexed = True, isPseudo = True, tokenKey = ":bar"}
 toToken :: ByteString -> Token
+toToken "" = Token maxTokenIx True False ""
 toToken bs = case len of
     2 -> if bs === "te" then tokenTE else mkTokenMax bs
     3 -> case lst of

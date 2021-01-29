@@ -144,11 +144,15 @@ decodeSophisticated decTokenHeader rbuf = do
                 tv@(Token{..},v) <- decTokenHeader w rbuf
                 if isPseudo then do
                     mx <- unsafeRead arr tokenIx
+                    -- duplicated
                     when (isJust mx) $ throwIO IllegalHeaderName
+                    -- unknown
                     when (isMaxTokenIx tokenIx) $ throwIO IllegalHeaderName
                     unsafeWrite arr tokenIx (Just v)
                     pseudo
                   else do
+                    -- 0-Length Headers Leak - CVE-2019-9516
+                    when (tokenKey == "") $ throwIO IllegalHeaderName
                     when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
                         throwIO IllegalHeaderName
                     unsafeWrite arr tokenIx (Just v)
@@ -164,6 +168,8 @@ decodeSophisticated decTokenHeader rbuf = do
                 w <- read8 rbuf
                 tv@(Token{..},v) <- decTokenHeader w rbuf
                 when isPseudo $ throwIO IllegalHeaderName
+                -- 0-Length Headers Leak - CVE-2019-9516
+                when (tokenKey == "") $ throwIO IllegalHeaderName
                 when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
                     throwIO IllegalHeaderName
                 unsafeWrite arr tokenIx (Just v)
