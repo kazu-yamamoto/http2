@@ -368,16 +368,18 @@ stream FrameData
        Context{controlQ} s@(Open (Body q mcl bodyLength _))
        Stream{streamNumber} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
-    let endOfStream = testEndStream flags
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
-    writeIORef bodyLength len
-    when (payloadLength /= 0) $ do
-        let frame1 = windowUpdateFrame 0 payloadLength
-            frame2 = windowUpdateFrame streamNumber payloadLength
-            frame = frame1 `BS.append` frame2
-        enqueueControl controlQ $ CFrame frame
-    atomically $ writeTQueue q body
+    -- Empty Frame Flooding - CVE-2019-9518
+    when (body /= "") $ do
+        writeIORef bodyLength len
+        when (payloadLength /= 0) $ do
+            let frame1 = windowUpdateFrame 0 payloadLength
+                frame2 = windowUpdateFrame streamNumber payloadLength
+                frame = frame1 `BS.append` frame2
+            enqueueControl controlQ $ CFrame frame
+        atomically $ writeTQueue q body
+    let endOfStream = testEndStream flags
     if endOfStream then do
         case mcl of
             Nothing -> return ()
