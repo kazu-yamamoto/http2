@@ -183,7 +183,9 @@ decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCodeId (N.word32 bs)
 
 -- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
-decodeSettingsFrame FrameHeader{..} (PS fptr off _) = Right $ SettingsFrame alist
+decodeSettingsFrame FrameHeader{..} (PS fptr off _)
+  | num > 10  = Left $ ConnectionError EnhanceYourCalm "Settings is too large"
+  | otherwise = Right $ SettingsFrame alist
   where
     num = payloadLength `div` 6
     alist = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
