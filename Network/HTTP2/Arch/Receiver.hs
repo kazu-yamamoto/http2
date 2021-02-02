@@ -120,7 +120,7 @@ processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLengt
     case checkFrameHeader settings typhdr of
       Left h2err -> case h2err of
           StreamError err sid -> do
-              sendReset err sid
+              resetStream err sid
               void $ recvN payloadLength
               return True
           connErr -> E.throwIO connErr
@@ -128,12 +128,12 @@ processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLengt
           ex <- E.try $ controlOrStream ctx recvN ftyp header
           case ex of
               Left (StreamError err sid) -> do
-                  sendReset err sid
+                  resetStream err sid
                   return True
               Left connErr -> E.throw connErr
               Right cont -> return cont
   where
-    sendReset err sid = do
+    resetStream err sid = do
         let frame = resetFrame err sid
         enqueueControl controlQ $ CFrame frame
 
