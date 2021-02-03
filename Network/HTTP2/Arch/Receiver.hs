@@ -23,6 +23,7 @@ import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
 import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Queue
+import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
@@ -32,6 +33,26 @@ import Network.HTTP2.Priority (toPrecedence, delete, prepare)
 
 maxConcurrency :: Int
 maxConcurrency = recommendedConcurrency
+
+continuationLimit :: Int
+continuationLimit = 10
+
+headerFragmentLimit :: Int
+headerFragmentLimit = 51200 -- 50K
+
+idlePriorityLimit :: Int
+idlePriorityLimit = 20
+
+pingRateLimit :: Int
+pingRateLimit = 4
+
+settingsRateLimit :: Int
+settingsRateLimit = 4
+
+emptyDataRateLimit :: Int
+emptyDataRateLimit = 4
+
+----------------------------------------------------------------
 
 initialFrame :: ByteString
 initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
@@ -251,32 +272,44 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 ----------------------------------------------------------------
 
 control :: FrameTypeId -> FrameHeader -> ByteString -> Context -> IO Bool
-control FrameSettings header@FrameHeader{flags} bs Context{http2settings, controlQ, firstSettings, streamTable} = do
+control FrameSettings header@FrameHeader{flags} bs Context{http2settings, controlQ, firstSettings, streamTable, settingsRate} = do
     SettingsFrame alist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList alist
     -- HTTP/2 Setting from a browser
-    unless (testAck flags) $ do
-        oldws <- initialWindowSize <$> readIORef http2settings
-        modifyIORef' http2settings $ \old -> updateSettings old alist
-        newws <- initialWindowSize <$> readIORef http2settings
-        let diff = newws - oldws
-        when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
-        let frame = settingsFrame setAck []
-        sent <- readIORef firstSettings
-        let setframe
-              | sent      = CSettings               frame alist
-              | otherwise = CSettings0 initialFrame frame alist
-        unless sent $ writeIORef firstSettings True
-        enqueueControl controlQ setframe
-    return True
-
-control FramePing FrameHeader{flags} bs Context{controlQ} =
     if testAck flags then
-        return True -- just ignore
-      else do
-        let frame = pingFrame bs
-        enqueueControl controlQ $ CFrame frame
         return True
+      else do
+        -- Settings Flood - CVE-2019-9515
+        rate <- getRate settingsRate
+        if rate > settingsRateLimit then
+            E.throwIO $ ConnectionError ProtocolError "too many settings"
+          else do
+            oldws <- initialWindowSize <$> readIORef http2settings
+            modifyIORef' http2settings $ \old -> updateSettings old alist
+            newws <- initialWindowSize <$> readIORef http2settings
+            let diff = newws - oldws
+            when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+            let frame = settingsFrame setAck []
+            sent <- readIORef firstSettings
+            let setframe
+                  | sent      = CSettings               frame alist
+                  | otherwise = CSettings0 initialFrame frame alist
+            unless sent $ writeIORef firstSettings True
+            enqueueControl controlQ setframe
+            return True
+
+control FramePing FrameHeader{flags} bs Context{controlQ,pingRate} =
+    if testAck flags then
+        return True
+      else do
+        -- Ping Flood - CVE-2019-9512
+        rate <- getRate pingRate
+        if rate > pingRateLimit then
+            E.throwIO $ ConnectionError ProtocolError "too many ping"
+          else do
+            let frame = pingFrame bs
+            enqueueControl controlQ $ CFrame frame
+            return True
 
 control FrameGoAway _ _ Context{controlQ} = do
     enqueueControl controlQ CFinish
@@ -312,15 +345,6 @@ checkPriority p me
   | otherwise = return ()
   where
     dep = streamDependency p
-
-continuationLimit :: Int
-continuationLimit = 10
-
-headerFragmentLimit :: Int
-headerFragmentLimit = 51200 -- 50K
-
-idlePriorityLimit :: Int
-idlePriorityLimit = 20
 
 stream :: FrameTypeId -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
 stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{streamNumber} = do
@@ -374,13 +398,19 @@ stream FrameData
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{controlQ} s@(Open (Body q mcl bodyLength _))
+       Context{controlQ, emptyDataRate} s@(Open (Body q mcl bodyLength _))
        Stream{streamNumber} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
+        endOfStream = testEndStream flags
     -- Empty Frame Flooding - CVE-2019-9518
-    when (body /= "") $ do
+    if body == "" then
+        unless endOfStream $ do
+            rate <- getRate emptyDataRate
+            when (rate > emptyDataRateLimit) $ do
+                E.throwIO $ ConnectionError ProtocolError "too many empty data"
+      else do
         writeIORef bodyLength len
         when (payloadLength /= 0) $ do
             let frame1 = windowUpdateFrame 0 payloadLength
@@ -388,7 +418,6 @@ stream FrameData
                 frame = frame1 `BS.append` frame2
             enqueueControl controlQ $ CFrame frame
         atomically $ writeTQueue q body
-    let endOfStream = testEndStream flags
     if endOfStream then do
         case mcl of
             Nothing -> return ()

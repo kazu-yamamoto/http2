@@ -10,6 +10,7 @@ import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Arch.Cache (Cache, emptyCache)
 import qualified Network.HTTP2.Arch.Cache as Cache
+import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
@@ -68,6 +69,9 @@ data Context = Context {
   , decodeDynamicTable :: DynamicTable
   -- the connection window for data from a server to a browser.
   , connectionWindow   :: TVar WindowSize
+  , pingRate           :: Rate
+  , settingsRate       :: Rate
+  , emptyDataRate      :: Rate
   }
 
 ----------------------------------------------------------------
@@ -88,6 +92,9 @@ newContext rinfo =
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
                <*> newTVarIO defaultInitialWindowSize
+               <*> newRate
+               <*> newRate
+               <*> newRate
    where
      rl = case rinfo of
        ClientInfo{} -> Client

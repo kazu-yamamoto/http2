@@ -101,6 +101,7 @@ Library
                         Network.HTTP2.Arch.HPACK
                         Network.HTTP2.Arch.Manager
                         Network.HTTP2.Arch.Queue
+                        Network.HTTP2.Arch.Rate
                         Network.HTTP2.Arch.ReadN
                         Network.HTTP2.Arch.Receiver
                         Network.HTTP2.Arch.Sender
@@ -126,6 +127,7 @@ Library
                       , psqueues
                       , stm
                       , time-manager
+                      , unix-time
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
 
