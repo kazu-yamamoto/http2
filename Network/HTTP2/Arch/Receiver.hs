@@ -124,6 +124,10 @@ processFrame ctx recvN (FramePushPromise, header@FrameHeader{payloadLength})
   | otherwise = do
       pl <- recvN payloadLength
       PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header pl
+      unless (isServerInitiated sid) $
+          E.throwIO $ ConnectionError ProtocolError "wrong sid for push promise"
+      when (frag == "") $
+          E.throwIO $ ConnectionError ProtocolError "wrong header fragment for push promise"
       (_,vt) <- hpackDecodeHeader frag ctx
       let ClientInfo{..} = roleInfo ctx
       when (getHeaderValue tokenAuthority vt == Just authority
