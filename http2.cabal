@@ -251,6 +251,43 @@ Test-Suite frame
 
 ----------------------------------------------------------------
 
+Executable client
+  Default-Language:     Haskell2010
+  HS-Source-Dirs:       util
+  GHC-Options:          -Wall -threaded
+  if flag(devel)
+    Buildable:          True
+  else
+    Buildable:          False
+  Main-Is:              client.hs
+  Build-Depends:        base >= 4 && < 5
+                      , bytestring
+                      , http-types
+                      , http2
+                      , network-run
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+
+Executable server
+  Default-Language:     Haskell2010
+  HS-Source-Dirs:       util
+  GHC-Options:          -Wall -threaded
+  if flag(devel)
+    Buildable:          True
+  else
+    Buildable:          False
+  Main-Is:              server.hs
+  Build-Depends:        base >= 4 && < 5
+                      , bytestring
+                      , cryptonite
+                      , http2
+                      , http-types
+                      , network-run
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
+
+----------------------------------------------------------------
+
 Executable hpack-encode
   Default-Language:     Haskell2010
   HS-Source-Dirs:       test-hpack
@@ -276,6 +313,8 @@ Executable hpack-encode
                       , unordered-containers
                       , vector
                       , word8
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Executable hpack-debug
   Default-Language:     Haskell2010
@@ -354,6 +393,8 @@ Executable frame-encode
   if impl(ghc >= 8)
       Default-Extensions:  Strict StrictData
 
+----------------------------------------------------------------
+
 Benchmark priority
   Type:                 exitcode-stdio-1.0
   Default-Language:     Haskell2010
@@ -378,6 +419,8 @@ Benchmark priority
                       , network-byte-order
                       , psqueues
                       , stm
+  if impl(ghc >= 8)
+      Default-Extensions:  Strict StrictData
 
 Benchmark header-compression
   Type:                 exitcode-stdio-1.0
