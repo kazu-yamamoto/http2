@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+
 module Main (main) where
 
 import qualified Control.Exception as E
@@ -13,12 +14,19 @@ import qualified Data.ByteString.Char8 as C8
 import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP.Types
-import Network.Run.TCP -- network-run
-
 import Network.HTTP2.Server
+import Network.Run.TCP -- network-run
+import System.Environment
+import System.Exit
 
 main :: IO ()
-main = runTCPServer Nothing "80" runHTTP2Server
+main = do
+    args <- getArgs
+    when (length args /= 2) $ do
+        putStrLn "server <addr> <port>"
+        exitFailure
+    let [host,port] = args
+    runTCPServer (Just host) port runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
