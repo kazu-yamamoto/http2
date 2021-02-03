@@ -49,8 +49,8 @@ pingRateLimit = 4
 settingsRateLimit :: Int
 settingsRateLimit = 4
 
-emptyDataRateLimit :: Int
-emptyDataRateLimit = 4
+emptyFrameRateLimit :: Int
+emptyFrameRateLimit = 4
 
 ----------------------------------------------------------------
 
@@ -351,28 +351,37 @@ checkPriority p me
     dep = streamDependency p
 
 stream :: FrameTypeId -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
-stream FrameHeaders header@FrameHeader{flags} bs ctx (Open JustOpened) Stream{streamNumber} = do
+stream FrameHeaders header@FrameHeader{flags} bs ctx s@(Open JustOpened) Stream{streamNumber} = do
     HeadersFrame mp frag <- guardIt $ decodeHeadersFrame header bs
-    pri <- case mp of
-        Nothing -> return defaultPriority
-        Just p  -> do
-            checkPriority p streamNumber
-            return p
     let endOfStream = testEndStream flags
         endOfHeader = testEndHeader flags
-    if endOfHeader then do
-        tbl <- hpackDecodeHeader frag ctx
-        return $ if endOfStream then
-                    Open (NoBody tbl pri)
-                   else
-                    Open (HasBody tbl pri)
+    if frag == "" && not endOfStream && not endOfHeader then do
+        -- Empty Frame Flooding - CVE-2019-9518
+        rate <- getRate $ emptyFrameRate ctx
+        if rate > emptyFrameRateLimit then
+            E.throwIO $ ConnectionError ProtocolError "too many empty headers"
+          else
+            return s
       else do
-        let siz = BS.length frag
-        return $ Open $ Continued [frag] siz 1 endOfStream pri
+        pri <- case mp of
+            Nothing -> return defaultPriority
+            Just p  -> do
+                checkPriority p streamNumber
+                return p
+        if endOfHeader then do
+            tbl <- hpackDecodeHeader frag ctx
+            return $ if endOfStream then
+                        Open (NoBody tbl pri)
+                       else
+                        Open (HasBody tbl pri)
+          else do
+            let siz = BS.length frag
+            return $ Open $ Continued [frag] siz 1 endOfStream pri
 
 stream FrameHeaders header@FrameHeader{flags} bs ctx (Open (Body q _ _ tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
+    -- checking frag == "" is not necessary
     if endOfStream then do
         tbl <- hpackDecodeTrailer frag ctx
         writeIORef tlr (Just tbl)
@@ -402,7 +411,7 @@ stream FrameData
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{controlQ, emptyDataRate} s@(Open (Body q mcl bodyLength _))
+       Context{controlQ, emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        Stream{streamNumber} = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
@@ -411,8 +420,8 @@ stream FrameData
     -- Empty Frame Flooding - CVE-2019-9518
     if body == "" then
         unless endOfStream $ do
-            rate <- getRate emptyDataRate
-            when (rate > emptyDataRateLimit) $ do
+            rate <- getRate emptyFrameRate
+            when (rate > emptyFrameRateLimit) $ do
                 E.throwIO $ ConnectionError ProtocolError "too many empty data"
       else do
         writeIORef bodyLength len
@@ -432,25 +441,32 @@ stream FrameData
       else
         return s
 
-stream FrameContinuation FrameHeader{flags} frag ctx (Open (Continued rfrags siz n endOfStream pri)) _ = do
+stream FrameContinuation FrameHeader{flags} frag ctx s@(Open (Continued rfrags siz n endOfStream pri)) _ = do
     let endOfHeader = testEndHeader flags
-        rfrags' = frag : rfrags
-        siz' = siz + BS.length frag
-        n' = n + 1
-    when (siz' > headerFragmentLimit) $
-      E.throwIO $ ConnectionError EnhanceYourCalm "Header is too big"
-    -- This is enough to prevent Empty Frame Flooding - CVE-2019-9518
-    when (n' > continuationLimit) $
-      E.throwIO $ ConnectionError EnhanceYourCalm "Header is too fragmented"
-    if endOfHeader then do
-        let hdrblk = BS.concat $ reverse rfrags'
-        tbl <- hpackDecodeHeader hdrblk ctx
-        return $ if endOfStream then
-                    Open (NoBody tbl pri)
-                   else
-                    Open (HasBody tbl pri)
-      else
-        return $ Open $ Continued rfrags' siz' n' endOfStream pri
+    if frag == "" && not endOfHeader then do
+        -- Empty Frame Flooding - CVE-2019-9518
+        rate <- getRate $ emptyFrameRate ctx
+        if rate > emptyFrameRateLimit then
+            E.throwIO $ ConnectionError ProtocolError "too many empty continuation"
+          else
+            return s
+      else do
+        let rfrags' = frag : rfrags
+            siz' = siz + BS.length frag
+            n' = n + 1
+        when (siz' > headerFragmentLimit) $
+          E.throwIO $ ConnectionError EnhanceYourCalm "Header is too big"
+        when (n' > continuationLimit) $
+          E.throwIO $ ConnectionError EnhanceYourCalm "Header is too fragmented"
+        if endOfHeader then do
+            let hdrblk = BS.concat $ reverse rfrags'
+            tbl <- hpackDecodeHeader hdrblk ctx
+            return $ if endOfStream then
+                        Open (NoBody tbl pri)
+                       else
+                        Open (HasBody tbl pri)
+          else
+            return $ Open $ Continued rfrags' siz' n' endOfStream pri
 
 stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs

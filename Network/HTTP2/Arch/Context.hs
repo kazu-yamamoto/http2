@@ -71,7 +71,7 @@ data Context = Context {
   , connectionWindow   :: TVar WindowSize
   , pingRate           :: Rate
   , settingsRate       :: Rate
-  , emptyDataRate      :: Rate
+  , emptyFrameRate     :: Rate
   }
 
 ----------------------------------------------------------------
