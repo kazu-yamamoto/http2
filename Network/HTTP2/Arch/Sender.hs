@@ -138,6 +138,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
         case body of
             OutBodyNone -> do
+                -- halfClosedLocal calls closed which removes
+                -- the stream from stream table.
                 when (isServer ctx) $ halfClosedLocal ctx strm Finished
                 return off
             OutBodyFile (FileSpec path fileoff bytecount) -> do
