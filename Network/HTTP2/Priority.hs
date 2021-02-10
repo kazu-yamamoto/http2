@@ -1,7 +1,5 @@
 -- | This is partial implementation of the priority of HTTP/2.
 --
--- This is deprecated and will be replaced with extensible priority.
---
 -- This implementation does support structured priority queue
 -- but not support re-structuring. This means that it is assumed that
 -- an entry created by a Priority frame is never closed. The entry
@@ -13,7 +11,7 @@
 --
 -- Only one entry per stream should be enqueued.
 
-module Network.HTTP2.Priority (
+module Network.HTTP2.Priority {-# DEPRECATED "Should be replaced with extensible priority" #-} (
   -- * Precedence
     Precedence
   , defaultPrecedence

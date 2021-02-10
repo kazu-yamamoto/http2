@@ -334,6 +334,7 @@ type Weight = Int
 -- 16
 defaultWeight :: Weight
 defaultWeight = 16
+{-# DEPRECATED defaultWeight "Don't use this" #-}
 
 -- | Type for stream priority
 data Priority = Priority {
