@@ -195,13 +195,13 @@ processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{strea
         putMVar streamInput inpObj
     return False
 processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} _streamId = do
-    q <- newTQueueIO
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     writeIORef streamPrecedence $ toPrecedence pri
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
+    q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
-    bodySource <- newReadBody q >>= mkSource
+    bodySource <- mkSource q
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then
         atomically $ writeTQueue (inputQ roleInfo) $ Input strm inpObj
@@ -491,35 +491,22 @@ stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError ProtocolError s
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
-data Source = Source (IORef ByteString) (IO ByteString)
+data Source = Source (TQueue ByteString) (IORef ByteString) (IORef Bool)
 
-mkSource :: IO ByteString -> IO Source
-mkSource func = do
-    ref <- newIORef BS.empty
-    return $ Source ref func
+mkSource :: TQueue ByteString -> IO Source
+mkSource q = Source q <$> newIORef BS.empty <*> newIORef False
 
 readSource :: Source -> IO ByteString
-readSource (Source ref func) = do
-    bs <- readIORef ref
-    if BS.null bs
-        then func
-        else do
-            writeIORef ref BS.empty
-            return bs
-
-{-# INLINE newReadBody #-}
-newReadBody :: TQueue ByteString -> IO (IO ByteString)
-newReadBody q = do
-    ref <- newIORef False
-    return $ readBody q ref
-
-{-# INLINE readBody #-}
-readBody :: TQueue ByteString -> IORef Bool -> IO ByteString
-readBody q ref = do
-    eof <- readIORef ref
+readSource (Source q refBS refEOF) = do
+    eof <- readIORef refEOF
     if eof then
         return ""
       else do
-        bs <- atomically $ readTQueue q
-        when (bs == "") $ writeIORef ref True
-        return bs
+        bs0 <- readIORef refBS
+        if BS.null bs0 then do
+            bs <- atomically $ readTQueue q
+            when (bs == "") $ writeIORef refEOF True
+            return bs
+          else do
+            writeIORef refBS BS.empty
+            return bs0
