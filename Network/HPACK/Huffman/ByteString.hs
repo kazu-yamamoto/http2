@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 
 module Network.HPACK.Huffman.ByteString (
@@ -6,6 +7,7 @@ module Network.HPACK.Huffman.ByteString (
   ) where
 
 import Foreign.C.Types (CSize(..))
+import Foreign.ForeignPtr (ForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
 import System.IO.Unsafe (unsafeDupablePerformIO)
@@ -24,7 +26,7 @@ import Imports
 -- [3,4,15,3,10,11]
 
 unpack4bits :: ByteString -> [Word8]
-unpack4bits (PS fptr off len) = unsafeDupablePerformIO $
+unpack4bits = withBS $ \fptr off len ->unsafeDupablePerformIO $
   withForeignPtr fptr $ \ptr -> do
     let lim = ptr `plusPtr` (off - 1)
         end = ptr `plusPtr` (off + len - 1)
@@ -40,7 +42,7 @@ unpack4bits (PS fptr off len) = unsafeDupablePerformIO $
 
 
 copy :: Ptr Word8 -> ByteString -> IO ()
-copy dst (PS fptr off len) = withForeignPtr fptr $ \ptr -> do
+copy dst = withBS $ \fptr off len -> withForeignPtr fptr $ \ptr -> do
     let beg = ptr `plusPtr` off
     memcpy dst beg (fromIntegral len)
 
@@ -49,3 +51,13 @@ foreign import ccall unsafe "string.h memcpy" c_memcpy
 
 memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
 memcpy dst src s = void $ c_memcpy dst src (fromIntegral s)
+
+----------------------------------------------------------------
+-- Compatibility helpers for bytestring
+
+withBS :: (ForeignPtr Word8 -> Int -> Int -> a) -> ByteString -> a
+#if MIN_VERSION_bytestring(0,11,0)
+withBS f (BS fptr len) = f fptr 0 len
+#else
+withBS f (PS fptr off len) = f fptr off len
+#endif

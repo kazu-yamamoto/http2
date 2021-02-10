@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -23,6 +24,7 @@ module Network.HTTP2.Frame.Decode (
 
 import Data.Array (Array, listArray, (!))
 import qualified Data.ByteString as BS
+import Foreign.ForeignPtr (ForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N
 import System.IO.Unsafe (unsafeDupablePerformIO)
@@ -50,7 +52,7 @@ decodeFrame settings bs = checkFrameHeader settings (decodeFrameHeader bs0)
 -- | Decoding an HTTP/2 frame header.
 --   Must supply 9 bytes.
 decodeFrameHeader :: ByteString -> (FrameTypeId, FrameHeader)
-decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
+decodeFrameHeader = withBS $ \fptr off _ -> unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     len <- fromIntegral  <$> N.peek24 p 0
     typ <- toFrameTypeId <$> N.peek8  p 3
@@ -183,14 +185,13 @@ decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCodeId (N.word32 bs)
 
 -- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
-decodeSettingsFrame FrameHeader{..} (PS fptr off _)
-  | num > 10  = Left $ ConnectionError EnhanceYourCalm "Settings is too large"
-  | otherwise = Right $ SettingsFrame alist
-  where
-    num = payloadLength `div` 6
-    alist = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
+decodeSettingsFrame FrameHeader{..}
+  | num > 10  = const $ Left $ ConnectionError EnhanceYourCalm "Settings is too large"
+  | otherwise = withBS $ \fptr off _ -> Right $ SettingsFrame $ unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
         let p = ptr +. off
         settings num p id
+  where
+    num = payloadLength `div` 6
     settings 0 _ builder = return $ builder []
     settings n p builder = do
         rawSetting <- N.peek16 p 0
@@ -267,7 +268,7 @@ streamIdentifier :: Word32 -> StreamId
 streamIdentifier w32 = clearExclusive $ fromIntegral w32
 
 priority :: ByteString -> Priority
-priority (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
+priority = withBS $ \fptr off _ -> unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
     w32 <- N.peek32 p 0
     let streamdId = streamIdentifier w32
@@ -278,3 +279,13 @@ priority (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -
 
 intFromWord8 :: Word8 -> Int
 intFromWord8 = fromIntegral
+
+----------------------------------------------------------------
+-- Compatibility helpers for bytestring
+
+withBS :: (ForeignPtr Word8 -> Int -> Int -> a) -> ByteString -> a
+#if MIN_VERSION_bytestring(0,11,0)
+withBS f (BS fptr len) = f fptr 0 len
+#else
+withBS f (PS fptr off len) = f fptr off len
+#endif

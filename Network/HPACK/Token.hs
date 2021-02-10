@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Token (
@@ -96,7 +97,9 @@ module Network.HPACK.Token (
 import qualified Data.ByteString as B
 import Data.ByteString.Internal (ByteString(..), memcmp)
 import Foreign.ForeignPtr (withForeignPtr)
+#if !MIN_VERSION_bytestring(0,11,0)
 import Foreign.Ptr (plusPtr)
+#endif
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Data.CaseInsensitive (original, mk, CI(..))
 
@@ -453,11 +456,19 @@ toToken bs = case len of
   where
     len = B.length bs
     lst = B.last bs
+#if MIN_VERSION_bytestring(0,11,0)
+    BS fp1 siz === BS fp2 _ = unsafeDupablePerformIO $
+      withForeignPtr fp1 $ \p1 ->
+      withForeignPtr fp2 $ \p2 -> do
+        i <- memcmp p1 p2 siz
+        return $ i == 0
+#else
     PS fp1 off1 siz === PS fp2 off2 _ = unsafeDupablePerformIO $
       withForeignPtr fp1 $ \p1 ->
       withForeignPtr fp2 $ \p2 -> do
         i <- memcmp (p1 `plusPtr` off1) (p2 `plusPtr` off2) siz
         return $ i == 0
+#endif
 
 mkTokenMax :: ByteString -> Token
 mkTokenMax bs = Token maxTokenIx True p (mk bs)
