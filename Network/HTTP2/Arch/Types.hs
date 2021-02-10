@@ -14,7 +14,6 @@ import Imports
 import Network.HPACK
 import Network.HTTP2.Arch.File
 import Network.HTTP2.Frame
-import Network.HTTP2.Priority
 
 ----------------------------------------------------------------
 
@@ -110,9 +109,8 @@ data OpenState =
               Int  -- Total size
               Int  -- The number of continuation frames
               Bool -- End of stream
-              Priority
-  | NoBody HeaderTable Priority
-  | HasBody HeaderTable Priority
+  | NoBody HeaderTable
+  | HasBody HeaderTable
   | Body (TQueue ByteString)
          (Maybe Int) -- received Content-Length
                      -- compared the body length for error checking
@@ -149,7 +147,6 @@ data Stream = Stream {
     streamNumber     :: StreamId
   , streamState      :: IORef StreamState
   , streamWindow     :: TVar WindowSize
-  , streamPrecedence :: IORef Precedence
   , streamInput      :: MVar InpObj -- Client only
   }
 

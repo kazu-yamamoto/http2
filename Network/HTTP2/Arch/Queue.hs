@@ -5,15 +5,13 @@ module Network.HTTP2.Arch.Queue where
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Exception (bracket)
-import Data.IORef
 
 import Imports
 import Network.HTTP2.Arch.Manager
 import Network.HTTP2.Arch.Types
-import Network.HTTP2.Priority
 
 {-# INLINE forkAndEnqueueWhenReady #-}
-forkAndEnqueueWhenReady :: IO () -> PriorityTree (Output Stream) -> Output Stream -> Manager -> IO ()
+forkAndEnqueueWhenReady :: IO () -> TQueue (Output Stream) -> Output Stream -> Manager -> IO ()
 forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
     void . forkIO $ do
         wait
@@ -23,11 +21,8 @@ forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
     teardown _ = deleteMyId mgr
 
 {-# INLINE enqueueOutput #-}
-enqueueOutput :: PriorityTree (Output Stream) -> Output Stream -> IO ()
-enqueueOutput outQ out = do
-    let Stream{..} = outputStream out
-    pre <- readIORef streamPrecedence
-    enqueue outQ streamNumber pre out
+enqueueOutput :: TQueue (Output Stream) -> Output Stream -> IO ()
+enqueueOutput outQ out = atomically $ writeTQueue outQ out
 
 {-# INLINE enqueueControl #-}
 enqueueControl :: TQueue Control -> Control -> IO ()

@@ -10,7 +10,6 @@ import qualified Data.IntMap.Strict as M
 import Imports
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
-import Network.HTTP2.Priority
 
 ----------------------------------------------------------------
 
@@ -41,14 +40,12 @@ isClosed _        = False
 newStream :: StreamId -> WindowSize -> IO Stream
 newStream sid win = Stream sid <$> newIORef Idle
                                <*> newTVarIO win
-                               <*> newIORef defaultPrecedence
                                <*> newEmptyMVar
 
-newPushStream :: StreamId -> WindowSize -> Precedence -> IO Stream
-newPushStream sid win pre = Stream sid <$> newIORef Reserved
-                                       <*> newTVarIO win
-                                       <*> newIORef pre
-                                       <*> newEmptyMVar
+newPushStream :: StreamId -> WindowSize -> IO Stream
+newPushStream sid win = Stream sid <$> newIORef Reserved
+                                   <*> newTVarIO win
+                                   <*> newEmptyMVar
 
 ----------------------------------------------------------------
 
