@@ -14,7 +14,6 @@ import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
-import Network.HTTP2.Priority
 
 data Role = Client | Server deriving (Eq,Show)
 
@@ -55,7 +54,6 @@ data Context = Context {
   , firstSettings      :: IORef Bool
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
-  , priorityTreeSize   :: IORef Int
   -- | RFC 7540 says "Other frames (from any stream) MUST NOT
   --   occur between the HEADERS frame and any CONTINUATION
   --   frames that might follow". This field is used to implement
@@ -63,7 +61,7 @@ data Context = Context {
   , continued          :: IORef (Maybe StreamId)
   , myStreamId         :: IORef StreamId
   , peerStreamId       :: IORef StreamId
-  , outputQ            :: PriorityTree (Output Stream)
+  , outputQ            :: TQueue (Output Stream)
   , controlQ           :: TQueue Control
   , encodeDynamicTable :: DynamicTable
   , decodeDynamicTable :: DynamicTable
@@ -83,11 +81,10 @@ newContext rinfo =
                <*> newIORef False
                <*> newStreamTable
                <*> newIORef 0
-               <*> newIORef 0
                <*> newIORef Nothing
                <*> newIORef sid0
                <*> newIORef 0
-               <*> newPriorityTree
+               <*> newTQueueIO
                <*> newTQueueIO
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096

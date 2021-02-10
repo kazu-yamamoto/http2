@@ -11,7 +11,7 @@
 --
 -- Only one entry per stream should be enqueued.
 
-module Network.HTTP2.Priority (
+module Network.HTTP2.Priority {-# DEPRECATED "Should be replaced with extensible priority" #-} (
   -- * Precedence
     Precedence
   , defaultPrecedence

@@ -27,7 +27,6 @@ import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
-import Network.HTTP2.Priority (toPrecedence, delete, prepare)
 
 ----------------------------------------------------------------
 
@@ -39,9 +38,6 @@ continuationLimit = 10
 
 headerFragmentLimit :: Int
 headerFragmentLimit = 51200 -- 50K
-
-idlePriorityLimit :: Int
-idlePriorityLimit = 20
 
 pingRateLimit :: Int
 pingRateLimit = 4
@@ -182,10 +178,9 @@ controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadL
 ----------------------------------------------------------------
 
 processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
-processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} streamId = do
+processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamError ProtocolError streamId
-    writeIORef streamPrecedence $ toPrecedence pri
     halfClosedRemote ctx strm
     tlr <- newIORef Nothing
     let inpObj = InpObj tbl (Just 0) (return "") tlr
@@ -194,9 +189,8 @@ processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{strea
       else
         putMVar streamInput inpObj
     return False
-processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} streamId = do
+processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
-    writeIORef streamPrecedence $ toPrecedence pri
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     q <- newTQueueIO
@@ -343,20 +337,18 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx s@(Open JustOpened) Stream{
           else
             return s
       else do
-        pri <- case mp of
-            Nothing -> return defaultPriority
-            Just p  -> do
-                checkPriority p streamNumber
-                return p
+        case mp of
+          Nothing -> return ()
+          Just p  -> checkPriority p streamNumber
         if endOfHeader then do
             tbl <- hpackDecodeHeader frag ctx
             return $ if endOfStream then
-                        Open (NoBody tbl pri)
+                        Open (NoBody tbl)
                        else
-                        Open (HasBody tbl pri)
+                        Open (HasBody tbl)
           else do
             let siz = BS.length frag
-            return $ Open $ Continued [frag] siz 1 endOfStream pri
+            return $ Open $ Continued [frag] siz 1 endOfStream
 
 stream FrameHeaders header@FrameHeader{flags} bs ctx (Open (Body q _ _ tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
@@ -414,7 +406,7 @@ stream FrameData
       else
         return s
 
-stream FrameContinuation FrameHeader{flags} frag ctx s@(Open (Continued rfrags siz n endOfStream pri)) _ = do
+stream FrameContinuation FrameHeader{flags} frag ctx s@(Open (Continued rfrags siz n endOfStream)) _ = do
     let endOfHeader = testEndHeader flags
     if frag == "" && not endOfHeader then do
         -- Empty Frame Flooding - CVE-2019-9518
@@ -435,11 +427,11 @@ stream FrameContinuation FrameHeader{flags} frag ctx s@(Open (Continued rfrags s
             let hdrblk = BS.concat $ reverse rfrags'
             tbl <- hpackDecodeHeader hdrblk ctx
             return $ if endOfStream then
-                        Open (NoBody tbl pri)
+                        Open (NoBody tbl)
                        else
-                        Open (HasBody tbl pri)
+                        Open (HasBody tbl)
           else
-            return $ Open $ Continued rfrags' siz' n' endOfStream pri
+            return $ Open $ Continued rfrags' siz' n' endOfStream
 
 stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
@@ -457,20 +449,11 @@ stream FrameRSTStream header bs ctx _ strm = do
     closed ctx strm cc
     return $ Closed cc -- will be written to streamState again
 
-stream FramePriority header bs Context{outputQ,priorityTreeSize} s Stream{streamNumber,streamPrecedence} = do
+stream FramePriority header bs _ s Stream{streamNumber} = do
+    -- ignore
+    -- Resource Loop - CVE-2019-9513
     PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
     checkPriority newpri streamNumber
-    oldpre <- readIORef streamPrecedence
-    let newpre = toPrecedence newpri
-    writeIORef streamPrecedence newpre
-    if isIdle s then do
-        n <- atomicModifyIORef' priorityTreeSize (\x -> (x+1,x+1))
-        when (n > idlePriorityLimit) $
-            E.throwIO $ ConnectionError EnhanceYourCalm "too many idle priority frames"
-        prepare outputQ streamNumber newpri
-      else do
-        mout <- delete outputQ streamNumber oldpre
-        traverse_ (enqueueOutput outputQ) mout
     return s
 
 -- this ordering is important

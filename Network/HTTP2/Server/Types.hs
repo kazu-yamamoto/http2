@@ -34,6 +34,8 @@ data PushPromise = PushPromise {
     , promiseWeight      :: Weight
     }
 
+{-# DEPRECATED promiseWeight "Don't use this" #-}
+
 -- | Additional information.
 newtype Aux = Aux {
     -- | Time handle for the worker processing this request and response.

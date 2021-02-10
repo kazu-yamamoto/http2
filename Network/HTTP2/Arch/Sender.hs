@@ -15,7 +15,6 @@ import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
-import Data.IORef
 import Foreign.Ptr (plusPtr)
 import Network.ByteOrder
 
@@ -31,7 +30,6 @@ import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
-import Network.HTTP2.Priority (isEmptySTM, dequeueSTM, Precedence)
 
 ----------------------------------------------------------------
 
@@ -58,7 +56,7 @@ waitStreaming tbq = atomically $ do
     check (not isEmpty)
 
 data Switch = C Control
-            | O (StreamId,Precedence,Output Stream)
+            | O (Output Stream)
             | Flush
 
 frameSender :: Context -> Config -> Manager -> IO ()
@@ -71,11 +69,11 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         if isEmpty then do
             w <- readTVar connectionWindow
             check (w > 0)
-            emp <- isEmptySTM outputQ
+            emp <- isEmptyTQueue outputQ
             if emp then
                 if off /= 0 then return Flush else retry
               else
-                O <$> dequeueSTM outputQ
+                O <$> readTQueue outputQ
           else
             C <$> readTQueue controlQ
 
@@ -88,9 +86,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 when (off /= 0) $ flushN off
                 off' <- control ctl off
                 when (off' >= 0) $ loop off'
-            O (_,pre,out) -> do
-                let strm = outputStream out
-                writeIORef (streamPrecedence strm) pre
+            O out -> do
                 off' <- outputOrEnqueueAgain out off
                 case off' of
                     0                    -> loop 0

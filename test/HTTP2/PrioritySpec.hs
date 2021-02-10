@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module HTTP2.PrioritySpec where
 

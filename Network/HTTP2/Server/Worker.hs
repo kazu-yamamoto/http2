@@ -21,7 +21,6 @@ import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame
-import Network.HTTP2.Priority
 import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
@@ -45,13 +44,10 @@ fromContext ctx@Context{..} = WorkerConf {
         enqueueControl controlQ $ CFrame frame
   , isPushable = enablePush <$> readIORef http2settings
   , insertStream = insert streamTable
-  , makePushStream = \pstrm pp -> do
+  , makePushStream = \pstrm _ -> do
         ws <- initialWindowSize <$> readIORef http2settings
-        let w = promiseWeight pp
-            pri = defaultPriority { weight = w }
-            pre = toPrecedence pri
         sid <- getMyNewStreamId ctx
-        newstrm <- newPushStream sid ws pre
+        newstrm <- newPushStream sid ws
         let pid = streamNumber pstrm
         return (pid, sid, newstrm)
   }
