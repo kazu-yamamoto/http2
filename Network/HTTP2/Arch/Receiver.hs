@@ -59,25 +59,6 @@ initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
 
 ----------------------------------------------------------------
 
--- | Type for input streaming.
-data Source = Source (IORef ByteString) (IO ByteString)
-
-mkSource :: IO ByteString -> IO Source
-mkSource func = do
-    ref <- newIORef BS.empty
-    return $ Source ref func
-
-readSource :: Source -> IO ByteString
-readSource (Source ref func) = do
-    bs <- readIORef ref
-    if BS.null bs
-        then func
-        else do
-            writeIORef ref BS.empty
-            return bs
-
-----------------------------------------------------------------
-
 type RecvN = Int -> IO ByteString
 
 frameReceiver :: Context -> RecvN -> IO ()
@@ -213,15 +194,14 @@ processState (Open (NoBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{strea
       else
         putMVar streamInput inpObj
     return False
-processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} _streamId = do
-    q <- newTQueueIO
+processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{streamPrecedence,streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     writeIORef streamPrecedence $ toPrecedence pri
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
+    q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
-    readQ <- newReadBody q
-    bodySource <- mkSource readQ
+    bodySource <- mkSource (updateWindow controlQ streamId) q
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then
         atomically $ writeTQueue (inputQ roleInfo) $ Input strm inpObj
@@ -396,13 +376,11 @@ stream FrameData
        FrameHeader{flags,payloadLength}
        _bs
        Context{controlQ} s@(HalfClosedLocal _)
-       Stream{streamNumber} = do
-    let endOfStream = testEndStream flags
+       _ = do
     when (payloadLength /= 0) $ do
-        let frame1 = windowUpdateFrame 0 payloadLength
-            frame2 = windowUpdateFrame streamNumber payloadLength
-            frame = frame1 `BS.append` frame2
+        let frame = windowUpdateFrame 0 payloadLength
         enqueueControl controlQ $ CFrame frame
+    let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
       else
@@ -411,8 +389,8 @@ stream FrameData
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{controlQ, emptyFrameRate} s@(Open (Body q mcl bodyLength _))
-       Stream{streamNumber} = do
+       Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
+       _ = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -425,11 +403,6 @@ stream FrameData
                 E.throwIO $ ConnectionError ProtocolError "too many empty data"
       else do
         writeIORef bodyLength len
-        when (payloadLength /= 0) $ do
-            let frame1 = windowUpdateFrame 0 payloadLength
-                frame2 = windowUpdateFrame streamNumber payloadLength
-                frame = frame1 `BS.append` frame2
-            enqueueControl controlQ $ CFrame frame
         atomically $ writeTQueue q body
     if endOfStream then do
         case mcl of
@@ -510,19 +483,40 @@ stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError ProtocolError s
 
 ----------------------------------------------------------------
 
-{-# INLINE newReadBody #-}
-newReadBody :: TQueue ByteString -> IO (IO ByteString)
-newReadBody q = do
-    ref <- newIORef False
-    return $ readBody q ref
+-- | Type for input streaming.
+data Source = Source (Int -> IO ())
+                     (TQueue ByteString)
+                     (IORef ByteString)
+                     (IORef Bool)
 
-{-# INLINE readBody #-}
-readBody :: TQueue ByteString -> IORef Bool -> IO ByteString
-readBody q ref = do
-    eof <- readIORef ref
+mkSource :: (Int -> IO ()) -> TQueue ByteString -> IO Source
+mkSource update q = Source update q <$> newIORef "" <*> newIORef False
+
+updateWindow :: TQueue Control -> StreamId -> Int -> IO ()
+updateWindow _        _   0   = return ()
+updateWindow controlQ sid len = enqueueControl controlQ $ CFrame frame
+  where
+    frame1 = windowUpdateFrame 0 len
+    frame2 = windowUpdateFrame sid len
+    frame = frame1 `BS.append` frame2
+
+readSource :: Source -> IO ByteString
+readSource (Source update q refBS refEOF) = do
+    eof <- readIORef refEOF
     if eof then
         return ""
       else do
-        bs <- atomically $ readTQueue q
-        when (bs == "") $ writeIORef ref True
+        bs <- readBS
+        let len = BS.length bs
+        update len
         return bs
+  where
+    readBS = do
+        bs0 <- readIORef refBS
+        if bs0 == "" then do
+            bs <- atomically $ readTQueue q
+            when (bs == "") $ writeIORef refEOF True
+            return bs
+          else do
+            writeIORef refBS ""
+            return bs0
