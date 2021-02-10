@@ -59,25 +59,6 @@ initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
 
 ----------------------------------------------------------------
 
--- | Type for input streaming.
-data Source = Source (IORef ByteString) (IO ByteString)
-
-mkSource :: IO ByteString -> IO Source
-mkSource func = do
-    ref <- newIORef BS.empty
-    return $ Source ref func
-
-readSource :: Source -> IO ByteString
-readSource (Source ref func) = do
-    bs <- readIORef ref
-    if BS.null bs
-        then func
-        else do
-            writeIORef ref BS.empty
-            return bs
-
-----------------------------------------------------------------
-
 type RecvN = Int -> IO ByteString
 
 frameReceiver :: Context -> RecvN -> IO ()
@@ -220,8 +201,7 @@ processState (Open (HasBody tbl@(_,reqvt) pri)) ctx@Context{..} strm@Stream{stre
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
-    readQ <- newReadBody q
-    bodySource <- mkSource readQ
+    bodySource <- newReadBody q >>= mkSource
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then
         atomically $ writeTQueue (inputQ roleInfo) $ Input strm inpObj
@@ -509,6 +489,23 @@ stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError StreamC
 stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError ProtocolError streamId
 
 ----------------------------------------------------------------
+
+-- | Type for input streaming.
+data Source = Source (IORef ByteString) (IO ByteString)
+
+mkSource :: IO ByteString -> IO Source
+mkSource func = do
+    ref <- newIORef BS.empty
+    return $ Source ref func
+
+readSource :: Source -> IO ByteString
+readSource (Source ref func) = do
+    bs <- readIORef ref
+    if BS.null bs
+        then func
+        else do
+            writeIORef ref BS.empty
+            return bs
 
 {-# INLINE newReadBody #-}
 newReadBody :: TQueue ByteString -> IO (IO ByteString)
