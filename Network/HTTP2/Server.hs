@@ -185,5 +185,6 @@ setResponseTrailersMaker (Response rsp) tm = Response rsp { outObjTrailers = tm 
 ----------------------------------------------------------------
 
 -- | Creating push promise.
+--   The third argument is traditional, not used.
 pushPromise :: ByteString -> Response -> Weight -> PushPromise
 pushPromise path rsp w = PushPromise path rsp w

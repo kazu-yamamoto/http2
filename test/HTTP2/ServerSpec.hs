@@ -47,7 +47,7 @@ server req _aux sendResponse = case requestMethod req of
   Just "GET"  -> case requestPath req of
                    Just "/"     -> sendResponse responseHello []
                    Just "/push" -> do
-                       let pp = pushPromise "/push-pp" responsePP defaultWeight
+                       let pp = pushPromise "/push-pp" responsePP 0
                        sendResponse responseHello [pp]
                    _            -> sendResponse response404 []
   Just "POST" -> case requestPath req of
