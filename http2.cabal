@@ -397,7 +397,7 @@ Benchmark priority
                         RingOfQueues
                         RingOfQueuesSTM
                         Network.HTTP2.Priority.PSQ
-  Build-Depends:        base
+  Build-Depends:        base >= 4.9 && < 5
                       , array
                       , case-insensitive
                       , containers
