@@ -1,8 +1,20 @@
-## 2.1.0
+## 3.0.0
 
 * `Network.HTTP2` module is deprecated. Use `Network.HTTP2.Frame` instead.
 * `Internal` modules are exported.
 * Adding some tokens.
+
+## 2.0.6
+
+* Dropping support of GHC 7.x
+
+## 2.0.5
+
+* Passing the correct request
+
+## 2.0.4
+
+* Freeing dynamic tables.
 
 ## 2.0.3
 
