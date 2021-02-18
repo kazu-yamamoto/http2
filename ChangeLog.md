@@ -1,3 +1,11 @@
+## 2.0.6
+
+* Dropping support of GHC 7.x
+
+## 2.0.5
+
+* Passing the correct request
+
 ## 2.0.4
 
 * Freeing dynamic tables.

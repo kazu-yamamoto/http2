@@ -1,5 +1,5 @@
 Name:                   http2
-Version:                2.0.5
+Version:                2.0.6
 Author:                 Kazu Yamamoto <kazu@iij.ad.jp>
 Maintainer:             Kazu Yamamoto <kazu@iij.ad.jp>
 License:                BSD3
@@ -95,7 +95,7 @@ Library
                         Network.HTTP2.Server.Types
                         Network.HTTP2.Server.Worker
                         Network.HTTP2.Types
-  Build-Depends:        base >= 4.8 && < 5
+  Build-Depends:        base >= 4.9 && < 5
                       , array
                       , bytestring >= 0.10
                       , case-insensitive
