@@ -3,6 +3,8 @@
 * `Network.HTTP2` module is deprecated. Use `Network.HTTP2.Frame` instead.
 * `Internal` modules are exported.
 * Adding some tokens.
+* DOS preventions.
+* `Network.HTTP2.Priority` is removed for security reasons.
 
 ## 2.0.6
 
