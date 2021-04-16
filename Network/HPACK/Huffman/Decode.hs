@@ -6,6 +6,7 @@ module Network.HPACK.Huffman.Decode (
   , decodeHuffman
   , HuffmanDecoder
   , decH
+  , GCBuffer
   ) where
 
 import Control.Exception (throwIO)

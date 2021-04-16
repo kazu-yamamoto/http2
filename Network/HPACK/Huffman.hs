@@ -6,6 +6,7 @@ module Network.HPACK.Huffman (
   , decodeHuffman
   , HuffmanDecoder
   , decH
+  , GCBuffer
   ) where
 
 import Network.HPACK.Huffman.Decode
