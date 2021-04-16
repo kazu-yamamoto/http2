@@ -1,10 +1,12 @@
 ## 3.0.0
 
-* `Network.HTTP2` module is deprecated. Use `Network.HTTP2.Frame` instead.
-* `Internal` modules are exported.
-* Adding some tokens.
 * DOS preventions.
-* `Network.HTTP2.Priority` is removed for security reasons.
+* Providing Network.HTTP.Client.
+* `Internal` modules are exported.
+* Dropping the priority feature from Network.HTTP.Server.
+* `Network.HTTP2.Priority` is deprecated.
+* `Network.HTTP2` module is deprecated. Use `Network.HTTP2.Frame` instead.
+* Adding some tokens.
 
 ## 2.0.6
 
