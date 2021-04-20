@@ -11,6 +11,7 @@ Category:               Network
 Cabal-Version:          >= 1.10
 Build-Type:             Simple
 Extra-Source-Files:     ChangeLog.md
+                        test/inputFile
                         test-hpack/hpack-test-case/go-hpack/*.json
                         test-hpack/hpack-test-case/haskell-http2-linear/*.json
                         test-hpack/hpack-test-case/haskell-http2-linear-huffman/*.json
