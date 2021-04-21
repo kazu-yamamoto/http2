@@ -1,3 +1,7 @@
+## 3.0.1
+
+* Including a necessary file for testing.
+
 ## 3.0.0
 
 * DOS preventions.
