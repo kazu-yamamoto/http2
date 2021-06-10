@@ -34,12 +34,12 @@ spec = do
           runNotIndexed EncodeStrategy {compressionAlgo = Linear, useHuffman = False}
 
 run :: Maybe Int -> EncodeStrategy -> [Int] -> Expectation
-run msz stgy lens = do
+run msz stgy lens0 = do
     let sz = fromMaybe defaultDynamicTableSize msz
     hdrs <- read <$> readFile "bench-hpack/headers.hs"
     withDynamicTableForEncoding sz $ \etbl ->
         withDynamicTableForDecoding sz 4096 $ \dtbl ->
-        go etbl dtbl hdrs lens `shouldReturn` True
+        go etbl dtbl hdrs lens0 `shouldReturn` True
     where
         go :: DynamicTable -> DynamicTable -> [HeaderList] -> [Int] -> IO Bool
         go _    _    []     _    = return True
@@ -69,7 +69,7 @@ runNotIndexed stgy = do
         withDynamicTableForDecoding 0 4096 $ \dtbl ->
             mapM_ (go etbl dtbl) (hdrs :: [HeaderList])
     where
-        go etbl dtbl h = do
+        go etbl _dtbl h = do
           print h
           bs <- encodeHeader stgy 4096 etbl h `E.catch` \(E.SomeException e) -> do
               putStrLn $ "encodeHeader: " ++ show e
