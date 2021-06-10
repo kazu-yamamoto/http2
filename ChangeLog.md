@@ -1,3 +1,8 @@
+## 3.0.2
+
+* Skip inserting entries that do not fit in the encoding table
+  (#28)[https://github.com/kazu-yamamoto/http2/pull/28]
+
 ## 3.0.1
 
 * Including a necessary file for testing.
