@@ -222,7 +222,6 @@ newDynamicTable maxsiz info = do
 
 -- | Renewing 'DynamicTable' with necessary entries copied.
 renewDynamicTable :: Size -> DynamicTable -> IO ()
-renewDynamicTable 0 _ = return () -- FIXME: handle case 'Max table size = 0'.
 renewDynamicTable maxsiz dyntbl@DynamicTable{..} = do
     renew <- shouldRenew dyntbl maxsiz
     when renew $ do
@@ -309,14 +308,17 @@ insertFront e DynamicTable{..} = do
     table <- readIORef circularTable
     let i = off
         dsize' = dsize + entrySize e
-    off' <- adj maxN (off - 1)
-    unsafeWrite table i e
-    writeIORef offset off'
-    writeIORef numOfEntries $ n + 1
-    writeIORef dynamicTableSize dsize'
-    case codeInfo of
-        EncodeInfo rev _ -> insertRevIndex e (DIndex i) rev
-        _                -> return ()
+    if maxN == 0
+    then return ()
+    else do
+      off' <- adj maxN (off - 1)
+      unsafeWrite table i e
+      writeIORef offset off'
+      writeIORef numOfEntries $ n + 1
+      writeIORef dynamicTableSize dsize'
+      case codeInfo of
+          EncodeInfo rev _ -> insertRevIndex e (DIndex i) rev
+          _                -> return ()
 
 adjustTableSize :: DynamicTable -> IO [Entry]
 adjustTableSize dyntbl@DynamicTable{..} = adjust []
