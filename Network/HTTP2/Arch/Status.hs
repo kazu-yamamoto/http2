@@ -41,4 +41,4 @@ fromStatus status = unsafeCreate 3 $ \p -> do
 toStatus :: ByteString -> Maybe H.Status
 toStatus bs = case C8.readInt bs of
   Nothing       -> Nothing
-  Just (code,_) -> Just $ H.mkStatus code "fixme"
+  Just (code,_) -> Just $ toEnum code
