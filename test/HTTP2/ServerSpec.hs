@@ -116,6 +116,7 @@ client0 sendRequest = do
     let req = C.requestNoBody methodGet "/" []
     sendRequest req $ \rsp -> do
         C.responseStatus rsp `shouldBe` Just ok200
+        fmap statusMessage (C.responseStatus rsp) `shouldBe` Just "OK"
 
 client1 :: C.Client ()
 client1 sendRequest = do
