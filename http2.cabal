@@ -206,7 +206,7 @@ Test-Suite hpack
                         HPACKSpec
                         JSON
   Build-Depends:        base >= 4.9 && < 5
-                      , aeson
+                      , aeson >= 2
                       , base16-bytestring >= 1.0
                       , bytestring
                       , directory
@@ -230,7 +230,7 @@ Test-Suite frame
                         JSON
   Build-Depends:        base >= 4.9 && < 5
                       , Glob >= 0.9
-                      , aeson
+                      , aeson >= 2
                       , aeson-pretty
                       , base16-bytestring >= 1.0
                       , bytestring
@@ -293,7 +293,7 @@ Executable hpack-encode
   Other-Modules:        HPACKEncode
                         JSON
   Build-Depends:        base >= 4.9 && < 5
-                      , aeson
+                      , aeson >= 2
                       , aeson-pretty
                       , array
                       , base16-bytestring >= 1.0
@@ -320,7 +320,7 @@ Executable hpack-debug
   Other-Modules:        HPACKDecode
                         JSON
   Build-Depends:        base >= 4.9 && < 5
-                      , aeson
+                      , aeson >= 2
                       , array
                       , base16-bytestring >= 1.0
                       , bytestring
@@ -345,7 +345,7 @@ Executable hpack-stat
   Main-Is:              hpack-stat.hs
   Other-Modules:        JSON
   Build-Depends:        base >= 4.9 && < 5
-                      , aeson
+                      , aeson >= 2
                       , aeson-pretty
                       , array
                       , bytestring
@@ -373,7 +373,7 @@ Executable frame-encode
   Other-Modules:        Case
                         JSON
   Build-Depends:        base >= 4.9 && < 5
-                      , aeson
+                      , aeson >= 2
                       , aeson-pretty
                       , base16-bytestring >= 1.0
                       , bytestring
