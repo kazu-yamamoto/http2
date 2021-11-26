@@ -14,7 +14,8 @@ import Control.Monad (mzero)
 import Data.Aeson
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.HashMap.Strict as H
+import qualified Data.Aeson.KeyMap as H
+import qualified Data.Aeson.Key as Key
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Vector ((!))
@@ -83,13 +84,13 @@ instance {-# OVERLAPPING #-} FromJSON Header where
     parseJSON (Array a)  = pure (toKey (a ! 0), toValue (a ! 1)) -- old
       where
         toKey = toValue
-    parseJSON (Object o) = pure (textToByteString k, toValue v) -- new
+    parseJSON (Object o) = pure (textToByteString (Key.toText k), toValue v) -- new
       where
         (k,v) = head $ H.toList o
     parseJSON _          = mzero
 
 instance {-# OVERLAPPING #-} ToJSON Header where
-    toJSON (k,v) = object [ byteStringToText k .= byteStringToText v ]
+    toJSON (k,v) = object [ Key.fromText (byteStringToText k) .= byteStringToText v ]
 
 textToByteString :: Text -> ByteString
 textToByteString = B8.pack . T.unpack
