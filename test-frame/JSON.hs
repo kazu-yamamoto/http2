@@ -14,7 +14,7 @@ import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
-import Data.HashMap.Strict (union)
+import Data.Aeson.KeyMap (union)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
