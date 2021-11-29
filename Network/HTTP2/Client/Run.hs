@@ -24,11 +24,11 @@ run ClientConfig{..} conf@Config{..} client = do
     clientInfo <- newClientInfo scheme authority cacheLimit
     ctx <- newContext clientInfo
     mgr <- start confTimeoutManager
+    exchangeSettings conf ctx
     tid0 <- forkIO $ frameReceiver ctx confReadN
     -- fixme: if frameSender is terminated but the main thread is alive,
     --        what will happen?
     tid1 <- forkIO $ frameSender ctx conf mgr
-    exchangeSettings conf ctx
     client (sendRequest ctx scheme authority) `E.finally` do
         stop mgr
         killThread tid0
