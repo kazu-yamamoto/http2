@@ -169,6 +169,7 @@ Test-Suite spec
                       , hspec >= 1.3
                       , http-types
                       , http2
+                      , network
                       , network-run >= 0.1.0
                       , typed-process
   Default-Extensions:   Strict StrictData
