@@ -3,6 +3,7 @@
 
 module Network.HTTP2.Client.Run where
 
+import Control.Concurrent.Async
 import Control.Concurrent
 import qualified Control.Exception as E
 import Data.IORef (writeIORef)
@@ -24,15 +25,15 @@ run ClientConfig{..} conf@Config{..} client = do
     clientInfo <- newClientInfo scheme authority cacheLimit
     ctx <- newContext clientInfo
     mgr <- start confTimeoutManager
-    tid0 <- forkIO $ frameReceiver ctx confReadN
-    -- fixme: if frameSender is terminated but the main thread is alive,
-    --        what will happen?
-    tid1 <- forkIO $ frameSender ctx conf mgr
+    let runBackgroundThreads = do
+            race_
+                (frameReceiver ctx confReadN)
+                (frameSender ctx conf mgr)
+            E.throwIO (ConnectionError ProtocolError "connection terminated")
     exchangeSettings conf ctx
-    client (sendRequest ctx scheme authority) `E.finally` do
-        stop mgr
-        killThread tid0
-        killThread tid1
+    fmap (either id id) $
+        race runBackgroundThreads (client (sendRequest ctx scheme authority))
+            `E.finally` stop mgr
 
 sendRequest :: Context -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
 sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do

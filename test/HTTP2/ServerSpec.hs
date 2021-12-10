@@ -13,13 +13,17 @@ import qualified Data.ByteString as B
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
+import Data.IORef
 import Network.HTTP.Types
 import Network.Run.TCP
+import Network.Socket
+import Network.Socket.ByteString
 import Test.Hspec
 
 import Network.HPACK
 import qualified Network.HTTP2.Client as C
 import Network.HTTP2.Server
+import Network.HTTP2.Frame
 
 port :: String
 port = "8080"
@@ -33,7 +37,14 @@ spec = do
         it "handles normal cases" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient
+                (runClient allocSimpleConfig)
+        it "should always send the connection preface first" $ do
+            prefaceVar <- newEmptyMVar
+            E.bracket (forkIO (runFakeServer prefaceVar)) killThread $ \_ -> do
+                threadDelay 10000
+                (runClient allocSlowPrefaceConfig)
+            preface <- takeMVar prefaceVar
+            preface `shouldBe` connectionPreface
 
 runServer :: IO ()
 runServer = runTCPServer (Just host) port runHTTP2Server
@@ -41,6 +52,27 @@ runServer = runTCPServer (Just host) port runHTTP2Server
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
                                  (`run` server)
+
+runFakeServer :: MVar ByteString -> IO ()
+runFakeServer prefaceVar = do
+  runTCPServer (Just host) port $ \s -> do
+    ref <- newIORef Nothing
+
+    -- send settings
+    sendAll s $ "\x00\x00\x12\x04\x00\x00\x00\x00\x00"
+      `mappend` "\x00\x03\x00\x00\x00\x80\x00\x04\x00"
+      `mappend` "\x01\x00\x00\x00\x05\x00\xff\xff\xff"
+
+    -- receive preface
+    value <- defaultReadN s ref (B.length connectionPreface)
+    putMVar prefaceVar value
+
+    -- send goaway frame
+    sendAll s "\x00\x00\x08\x07\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+
+    -- wait for a few ms to make sure the client has a chance to close the
+    -- socket on its end
+    threadDelay 10000
 
 server :: Server
 server req _aux sendResponse = case requestMethod req of
@@ -100,16 +132,31 @@ trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
   where
     !ctx' = CH.hashUpdate ctx bs
 
-runClient :: IO ()
-runClient = runTCPClient host port $ runHTTP2Client
+runClient :: (Socket -> BufferSize -> IO Config) -> IO ()
+runClient allocConfig =
+  E.catch (runTCPClient host port $ runHTTP2Client) ignoreHTTP2Error
   where
     authority = C8.pack host
     cliconf = C.ClientConfig "http" authority 20
-    runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
+    runHTTP2Client s = E.bracket (allocConfig s 4096)
                                  freeSimpleConfig
                                  (\conf -> C.run cliconf conf client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
     clients = [client0,client1,client2,client3,client4]
+    ignoreHTTP2Error :: HTTP2Error -> IO ()
+    ignoreHTTP2Error _ = pure ()
+
+-- delay sending preface to be able to test if it is always sent first
+allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
+allocSlowPrefaceConfig s size = do
+  config <- allocSimpleConfig s size
+  pure config { confSendAll = slowPrefaceSend (confSendAll config) }
+  where
+    slowPrefaceSend :: (ByteString -> IO ()) -> ByteString -> IO ()
+    slowPrefaceSend orig chunk = do
+      when (C8.pack "PRI" `isPrefixOf` chunk) $ do
+        threadDelay 10000
+      orig chunk
 
 client0 :: C.Client ()
 client0 sendRequest = do
