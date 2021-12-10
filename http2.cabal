@@ -119,6 +119,7 @@ Library
                         Network.HTTP2.Server.Worker
   Build-Depends:        base >= 4.9 && < 5
                       , array
+                      , async
                       , bytestring >= 0.10
                       , case-insensitive
                       , containers >= 0.5
