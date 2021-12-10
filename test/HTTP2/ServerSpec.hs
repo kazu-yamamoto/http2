@@ -42,9 +42,13 @@ spec = do
             prefaceVar <- newEmptyMVar
             E.bracket (forkIO (runFakeServer prefaceVar)) killThread $ \_ -> do
                 threadDelay 10000
-                (runClient allocSlowPrefaceConfig)
+                E.catch (runClient allocSlowPrefaceConfig) ignoreHTTP2Error
+
             preface <- takeMVar prefaceVar
             preface `shouldBe` connectionPreface
+
+ignoreHTTP2Error :: HTTP2Error -> IO ()
+ignoreHTTP2Error _ = pure ()
 
 runServer :: IO ()
 runServer = runTCPServer (Just host) port runHTTP2Server
@@ -134,7 +138,7 @@ trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
 
 runClient :: (Socket -> BufferSize -> IO Config) -> IO ()
 runClient allocConfig =
-  E.catch (runTCPClient host port $ runHTTP2Client) ignoreHTTP2Error
+  runTCPClient host port $ runHTTP2Client
   where
     authority = C8.pack host
     cliconf = C.ClientConfig "http" authority 20
@@ -143,8 +147,6 @@ runClient allocConfig =
                                  (\conf -> C.run cliconf conf client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
     clients = [client0,client1,client2,client3,client4]
-    ignoreHTTP2Error :: HTTP2Error -> IO ()
-    ignoreHTTP2Error _ = pure ()
 
 -- delay sending preface to be able to test if it is always sent first
 allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
