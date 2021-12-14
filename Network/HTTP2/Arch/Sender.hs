@@ -272,6 +272,12 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             kvlen <- headerContinue streamNumber ths True off0
             sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
 
+    fillDataHeaderEnqueueNext _
+                   off 0 (Just next) tlrmkr _ out = do
+        let out' = out { outputType = ONext next tlrmkr }
+        enqueueOutput outputQ out'
+        return off
+
     fillDataHeaderEnqueueNext Stream{streamWindow,streamNumber}
                    off datPayloadLen (Just next) tlrmkr _ out = do
         let buf  = confWriteBuffer `plusPtr` off

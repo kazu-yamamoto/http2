@@ -10,7 +10,7 @@ import Control.Monad
 import Crypto.Hash (Context, SHA1) -- cryptonite
 import qualified Crypto.Hash as CH
 import qualified Data.ByteString as B
-import Data.ByteString.Builder (byteString)
+import Data.ByteString.Builder (byteString, Builder)
 import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
@@ -42,9 +42,13 @@ spec = do
             prefaceVar <- newEmptyMVar
             E.bracket (forkIO (runFakeServer prefaceVar)) killThread $ \_ -> do
                 threadDelay 10000
-                (runClient allocSlowPrefaceConfig)
+                E.catch (runClient allocSlowPrefaceConfig) ignoreHTTP2Error
+
             preface <- takeMVar prefaceVar
             preface `shouldBe` connectionPreface
+
+ignoreHTTP2Error :: HTTP2Error -> IO ()
+ignoreHTTP2Error _ = pure ()
 
 runServer :: IO ()
 runServer = runTCPServer (Just host) port runHTTP2Server
@@ -78,6 +82,7 @@ server :: Server
 server req _aux sendResponse = case requestMethod req of
   Just "GET"  -> case requestPath req of
                    Just "/"     -> sendResponse responseHello []
+                   Just "/stream" -> sendResponse responseInfinite []
                    Just "/push" -> do
                        let pp = pushPromise "/push-pp" responsePP 0
                        sendResponse responseHello [pp]
@@ -99,6 +104,15 @@ responsePP = responseBuilder ok200 header body
     header = [("Content-Type", "text/plain")
              ,("x-push", "True")]
     body = byteString "Push\n"
+
+responseInfinite :: Response
+responseInfinite = responseStreaming ok200 header body
+  where
+    header = [("Content-Type", "text/plain")]
+    body :: (Builder -> IO ()) -> IO () -> IO ()
+    body write flush = do
+      let go n = write (byteString (C8.pack (show n)) `mappend` "\n") *> flush *> go (succ n)
+      go (0 :: Int)
 
 response404 :: Response
 response404 = responseNoBody notFound404 []
@@ -134,7 +148,7 @@ trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
 
 runClient :: (Socket -> BufferSize -> IO Config) -> IO ()
 runClient allocConfig =
-  E.catch (runTCPClient host port $ runHTTP2Client) ignoreHTTP2Error
+  runTCPClient host port $ runHTTP2Client
   where
     authority = C8.pack host
     cliconf = C.ClientConfig "http" authority 20
@@ -142,9 +156,7 @@ runClient allocConfig =
                                  freeSimpleConfig
                                  (\conf -> C.run cliconf conf client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
-    clients = [client0,client1,client2,client3,client4]
-    ignoreHTTP2Error :: HTTP2Error -> IO ()
-    ignoreHTTP2Error _ = pure ()
+    clients = [client0,client1,client2,client3,client4,client5]
 
 -- delay sending preface to be able to test if it is always sent first
 allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
@@ -199,6 +211,16 @@ client4 sendRequest = do
     let req1 = C.requestNoBody methodGet "/push-pp" []
     sendRequest req1 $ \rsp -> do
         C.responseStatus rsp `shouldBe` Just ok200
+
+client5 :: C.Client ()
+client5 sendRequest = do
+    let req0 = C.requestNoBody methodGet "/stream" []
+    sendRequest req0 $ \rsp -> do
+        C.responseStatus rsp `shouldBe` Just ok200
+        let go n | n > 0 = do _ <- C.getResponseBodyChunk rsp
+                              go (pred n)
+                 | otherwise = pure ()
+        go (100 :: Int)
 
 firstTrailerValue :: HeaderTable -> HeaderValue
 firstTrailerValue = snd . Prelude.head . fst
