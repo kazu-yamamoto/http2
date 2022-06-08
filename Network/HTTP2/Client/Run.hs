@@ -8,6 +8,7 @@ import Control.Concurrent
 import qualified Control.Exception as E
 import Data.IORef (writeIORef)
 
+import Imports
 import Network.HTTP2.Arch
 import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
@@ -38,8 +39,8 @@ run ClientConfig{..} conf@Config{..} client = do
 sendRequest :: Context -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
 sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
     let hdr = outObjHeaders req
-        Just method = lookup ":method" hdr
-        Just path   = lookup ":path" hdr
+        method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr
+        path   = fromMaybe (error "sendRequest:path") $ lookup ":path" hdr
     mstrm0 <- lookupCache method path roleInfo
     strm <- case mstrm0 of
       Nothing -> do

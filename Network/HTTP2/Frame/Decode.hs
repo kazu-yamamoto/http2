@@ -252,7 +252,7 @@ checkFrameSize func header@FrameHeader{..} body
 -- padding octet and the actual padding
 decodeWithPadding :: FrameHeader -> ByteString -> (ByteString -> FramePayload) -> Either HTTP2Error FramePayload
 decodeWithPadding FrameHeader{..} bs body
-  | padded = let Just (w8,rest) = BS.uncons bs
+  | padded = let (w8,rest) = fromMaybe (error "decodeWithPadding") $ BS.uncons bs
                  padlen = intFromWord8 w8
                  bodylen = payloadLength - padlen - 1
              in if bodylen < 0 then

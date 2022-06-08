@@ -7,6 +7,7 @@ module HTTP2.PrioritySpec where
 import Control.Applicative
 #endif
 import Data.List (group, sort)
+import Data.Maybe (fromMaybe)
 import Test.Hspec
 
 import Network.HTTP2.Frame
@@ -29,13 +30,13 @@ spec = do
                     P.enqueue 5 (P.newPrecedence   5) 5 $
                     P.enqueue 3 (P.newPrecedence  50) 3 $
                     P.enqueue 1 (P.newPrecedence 201) (1 :: Int) P.empty
-            let Just (k1,_,_,q1) = P.dequeue q
+            let (k1,_,_,q1) = fromMaybe (error "dequeue q") $ P.dequeue q
             k1 `shouldBe` 1
             let (mk, q2) = P.delete 5 q1
             mk `shouldBe` Just 5
-            let Just (k3,_,_,q3) = P.dequeue q2
+            let (k3,_,_,q3) = fromMaybe (error "dequeue q2") $ P.dequeue q2
             k3 `shouldBe` 3
-            let Just (k4,_,_,_) = P.dequeue q3
+            let (k4,_,_,_) = fromMaybe (error "dequeue q3") $ P.dequeue q3
             k4 `shouldBe` 7
         it "deletes entries properly" $ do
             let q = P.enqueue 5 (P.newPrecedence   1) 5 $
