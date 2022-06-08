@@ -1,6 +1,7 @@
 module HPACK.IntegerSpec where
 
 import qualified Data.ByteString as BS
+import Data.Maybe (fromMaybe)
 import Network.HPACK.Internal
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -9,7 +10,7 @@ dual :: Int -> Int -> Expectation
 dual n i = do
     let x = abs i
     bs <- encodeInteger n x
-    let Just (w, ws) = BS.uncons bs
+    let (w, ws) = fromMaybe (error "dual") $ BS.uncons bs
     x' <- decodeInteger n w ws
     x `shouldBe` x'
 

@@ -36,7 +36,7 @@ data WorkerConf a = WorkerConf {
 
 fromContext :: Context -> WorkerConf Stream
 fromContext ctx@Context{..} = WorkerConf {
-    readInputQ = atomically $ readTQueue $ inputQ roleInfo
+    readInputQ = atomically $ readTQueue $ inputQ $ toServerInfo roleInfo
   , writeOutputQ = enqueueOutput outputQ
   , workerCleanup = \strm -> do
         closed ctx strm Killed

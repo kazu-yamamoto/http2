@@ -106,7 +106,7 @@ processFrame ctx recvN (FramePushPromise, header@FrameHeader{payloadLength})
       when (frag == "") $
           E.throwIO $ ConnectionError ProtocolError "wrong header fragment for push promise"
       (_,vt) <- hpackDecodeHeader frag ctx
-      let ClientInfo{..} = roleInfo ctx
+      let ClientInfo{..} = toClientInfo $ roleInfo ctx
       when (getHeaderValue tokenAuthority vt == Just authority
          && getHeaderValue tokenScheme    vt == Just scheme) $ do
           let mmethod = getHeaderValue tokenMethod vt
@@ -184,8 +184,9 @@ processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInp
     halfClosedRemote ctx strm
     tlr <- newIORef Nothing
     let inpObj = InpObj tbl (Just 0) (return "") tlr
-    if isServer ctx then
-        atomically $ writeTQueue (inputQ roleInfo) $ Input strm inpObj
+    if isServer ctx then do
+        let si = toServerInfo roleInfo
+        atomically $ writeTQueue (inputQ si) $ Input strm inpObj
       else
         putMVar streamInput inpObj
     return False
@@ -197,8 +198,9 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
     bodySource <- mkSource (updateWindow controlQ streamId) q
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
-    if isServer ctx then
-        atomically $ writeTQueue (inputQ roleInfo) $ Input strm inpObj
+    if isServer ctx then do
+        let si = toServerInfo roleInfo
+        atomically $ writeTQueue (inputQ si) $ Input strm inpObj
       else
         putMVar streamInput inpObj
     return False

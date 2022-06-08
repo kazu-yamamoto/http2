@@ -19,28 +19,39 @@ data Role = Client | Server deriving (Eq,Show)
 
 ----------------------------------------------------------------
 
-data RoleInfo = ServerInfo {
-                    inputQ :: TQueue (Input Stream)
-                  }
-              | ClientInfo {
-                    scheme    :: ByteString
-                  , authority :: ByteString
-                  , cache     :: IORef (Cache (Method,ByteString) Stream)
-                  }
+data RoleInfo = RIS ServerInfo | RIC ClientInfo
+
+data ServerInfo = ServerInfo {
+    inputQ :: TQueue (Input Stream)
+  }
+
+data ClientInfo = ClientInfo {
+    scheme    :: ByteString
+  , authority :: ByteString
+  , cache     :: IORef (Cache (Method,ByteString) Stream)
+  }
+
+toServerInfo :: RoleInfo -> ServerInfo
+toServerInfo (RIS x) = x
+toServerInfo _       = error "toServerInfo"
+
+toClientInfo :: RoleInfo -> ClientInfo
+toClientInfo (RIC x) = x
+toClientInfo _       = error "toClientInfo"
 
 newServerInfo :: IO RoleInfo
-newServerInfo = ServerInfo <$> newTQueueIO
+newServerInfo = RIS . ServerInfo <$> newTQueueIO
 
 newClientInfo :: ByteString -> ByteString -> Int -> IO RoleInfo
-newClientInfo scm auth lim =  ClientInfo scm auth <$> newIORef (emptyCache lim)
+newClientInfo scm auth lim =  RIC . ClientInfo scm auth <$> newIORef (emptyCache lim)
 
 insertCache :: Method -> ByteString -> Stream -> RoleInfo -> IO ()
-insertCache m path v (ClientInfo _ _ ref) = atomicModifyIORef' ref $ \c ->
+insertCache m path v (RIC (ClientInfo _ _ ref)) = atomicModifyIORef' ref $ \c ->
   (Cache.insert (m,path) v c, ())
 insertCache _ _ _ _ = error "insertCache"
 
 lookupCache :: Method -> ByteString -> RoleInfo -> IO (Maybe Stream)
-lookupCache m path (ClientInfo _ _ ref) = Cache.lookup (m,path) <$> readIORef ref
+lookupCache m path (RIC (ClientInfo _ _ ref)) = Cache.lookup (m,path) <$> readIORef ref
 lookupCache _ _ _ = error "lookupCache"
 
 ----------------------------------------------------------------
@@ -94,8 +105,8 @@ newContext rinfo =
                <*> newRate
    where
      rl = case rinfo of
-       ClientInfo{} -> Client
-       _            -> Server
+       RIC{} -> Client
+       _     -> Server
      sid0 | rl == Client = 1
           | otherwise    = 2
 

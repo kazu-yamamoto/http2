@@ -5,6 +5,7 @@ module HTTP2.FrameSpec where
 import Test.Hspec
 
 import Data.ByteString.Char8 ()
+import Data.Either
 import Network.HTTP2.Frame
 
 spec :: Spec
@@ -29,7 +30,7 @@ spec = do
                   }
                 payload = DataFrame "Hello, world!"
                 wire = encodeFrame einfo payload
-                Right frame = decodeFrame defaultSettings wire
+                frame = fromRight (error "encode/decodes frames properly") $ decodeFrame defaultSettings wire
                 payload' = framePayload frame
             payload' `shouldBe` payload
         it "encode/decodes padded frames properly" $ do
@@ -40,6 +41,6 @@ spec = do
                   }
                 payload = DataFrame "Hello, world!"
                 wire = encodeFrame einfo payload
-                Right frame = decodeFrame defaultSettings wire
+                frame = fromRight (error "encode/decodes padded frames properly") $ decodeFrame defaultSettings wire
                 payload' = framePayload frame
             payload' `shouldBe` payload
