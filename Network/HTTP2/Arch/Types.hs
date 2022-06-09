@@ -20,7 +20,7 @@ import Network.HTTP2.Frame
 -- | "http" or "https".
 type Scheme = ByteString
 
--- | For so-called "Host:" header.
+-- | Authority.
 type Authority = ByteString
 
 -- | Path.

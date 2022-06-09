@@ -86,8 +86,8 @@ pushStream WorkerConf{..} pstrm reqvt pps0
         insertStream sid newstrm
         let scheme = fromJust $ getHeaderValue tokenScheme reqvt
             -- fixme: this value can be Nothing
-            auth   = fromJust (getHeaderValue tokenHost reqvt
-                            <|> getHeaderValue tokenAuthority reqvt)
+            auth   = fromJust (getHeaderValue tokenAuthority reqvt
+                           <|> getHeaderValue tokenHost      reqvt)
             path = promiseRequestPath pp
             promiseRequest = [(tokenMethod, H.methodGet)
                              ,(tokenScheme, scheme)
