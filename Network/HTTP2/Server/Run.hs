@@ -3,7 +3,7 @@
 
 module Network.HTTP2.Server.Run where
 
-import UnliftIO.Concurrent (forkIO, killThread)
+import UnliftIO.Async (race_)
 import qualified UnliftIO.Exception as E
 
 import Imports
@@ -31,14 +31,9 @@ run conf@Config{..} server = do
         -- If it is large, huge memory is consumed and many
         -- context switches happen.
         replicateM_ 3 $ spawnAction mgr
-        -- Receiver
-        tid <- forkIO $ frameReceiver ctx confReadN
-        -- Sender
-        -- frameSender is the main thread because it ensures to send
-        -- a goway frame.
-        frameSender ctx conf mgr `E.finally` do
-            stop mgr
-            killThread tid
+        let runReceiver = frameReceiver ctx confReadN
+            runSender = frameSender ctx conf mgr
+        race_ runReceiver runSender `E.finally` stop mgr
   where
     checkPreface = do
         preface <- confReadN connectionPrefaceLength

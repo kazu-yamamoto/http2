@@ -27,14 +27,15 @@ run ClientConfig{..} conf@Config{..} client = do
     ctx <- newContext clientInfo
     mgr <- start confTimeoutManager
     let runBackgroundThreads = do
-            race_
-                (frameReceiver ctx confReadN)
-                (frameSender ctx conf mgr)
-            E.throwIO (ConnectionError ProtocolError "connection terminated")
+            let runReceiver = frameReceiver ctx confReadN
+                runSender = frameSender ctx conf mgr
+            race_ runReceiver runSender
     exchangeSettings conf ctx
-    fmap (either id id) $
-        race runBackgroundThreads (client (sendRequest ctx scheme authority))
-            `E.finally` stop mgr
+    let runClient = client $ sendRequest ctx scheme authority
+    ex <- race runBackgroundThreads runClient `E.finally` stop mgr
+    case ex of
+      Left () -> E.throwIO $ ConnectionError ProtocolError "connection terminated"
+      Right x -> return x
 
 sendRequest :: Context -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
 sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do

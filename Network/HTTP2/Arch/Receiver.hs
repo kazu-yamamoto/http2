@@ -78,7 +78,8 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
           psid <- getPeerStreamID ctx
           let frame = goawayFrame psid err msg
           enqueueControl controlQ $ CGoaway frame
-      | otherwise = return ()
+          E.throwIO e
+      | otherwise = E.throwIO e
 
 ----------------------------------------------------------------
 

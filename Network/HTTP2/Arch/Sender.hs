@@ -62,7 +62,7 @@ data Switch = C Control
 frameSender :: Context -> Config -> Manager -> IO ()
 frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             Config{..}
-            mgr = loop 0 `E.catch` ignore
+            mgr = loop 0
   where
     dequeue off = do
         isEmpty <- isEmptyTQueue controlQ
@@ -308,10 +308,6 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
         hinfo = FrameHeader len flag sid
-
-    {-# INLINE ignore #-}
-    ignore :: E.SomeException -> IO ()
-    ignore _ = return ()
 
 -- | Running trailers-maker.
 --
