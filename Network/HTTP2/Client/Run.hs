@@ -39,16 +39,17 @@ run ClientConfig{..} conf@Config{..} client = do
 
 sendRequest :: Context -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
 sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
-    let hdr = outObjHeaders req
-        method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr
-        path   = fromMaybe (error "sendRequest:path") $ lookup ":path" hdr
+    let hdr0 = outObjHeaders req
+        method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr0
+        path   = fromMaybe (error "sendRequest:path") $ lookup ":path" hdr0
     mstrm0 <- lookupCache method path roleInfo
     strm <- case mstrm0 of
       Nothing -> do
-          let hdr' = (":scheme", scheme)
-                   : (":authority", auth)
-                   : hdr
-              req' = req { outObjHeaders = hdr' }
+          let hdr1 | scheme /= "" = (":scheme", scheme) : hdr0
+                   | otherwise    = hdr0
+              hdr2 | auth /= "" = (":authority", auth) : hdr1
+                   | otherwise  = hdr1
+              req' = req { outObjHeaders = hdr2 }
           sid <- getMyNewStreamId ctx
           newstrm <- openStream ctx sid FrameHeaders
           enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
