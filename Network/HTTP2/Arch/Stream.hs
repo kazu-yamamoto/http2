@@ -2,10 +2,10 @@
 
 module Network.HTTP2.Arch.Stream where
 
-import Control.Concurrent
-import Control.Concurrent.STM
 import Data.IORef
 import qualified Data.IntMap.Strict as M
+import UnliftIO.Concurrent
+import UnliftIO.STM
 
 import Imports
 import Network.HTTP2.Arch.Types

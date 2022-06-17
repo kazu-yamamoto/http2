@@ -130,6 +130,7 @@ Library
                       , stm
                       , time-manager
                       , unix-time
+                      , unliftio
   Default-Extensions:   Strict StrictData
 
 ----------------------------------------------------------------

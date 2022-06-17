@@ -3,10 +3,10 @@
 
 module Network.HTTP2.Client.Run where
 
-import Control.Concurrent.Async
-import Control.Concurrent
-import qualified Control.Exception as E
 import Data.IORef (writeIORef)
+import UnliftIO.Async
+import UnliftIO.Concurrent
+import qualified UnliftIO.Exception as E
 
 import Imports
 import Network.HTTP2.Arch

@@ -2,9 +2,9 @@
 
 module Network.HTTP2.Arch.Context where
 
-import Control.Concurrent.STM
 import Data.IORef
 import Network.HTTP.Types (Method)
+import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK

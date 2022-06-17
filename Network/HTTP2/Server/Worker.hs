@@ -9,12 +9,13 @@ module Network.HTTP2.Server.Worker (
   , fromContext
   ) where
 
-import Control.Concurrent.STM
-import Control.Exception (SomeException(..), AsyncException(..))
-import qualified Control.Exception as E
+import Control.Exception (AsyncException(..))
 import Data.IORef
 import qualified Network.HTTP.Types as H
 import qualified System.TimeManager as T
+import UnliftIO.Exception (SomeException(..))
+import qualified UnliftIO.Exception as E
+import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK
@@ -78,7 +79,7 @@ pushStream WorkerConf{..} pstrm reqvt pps0
     increment tvar = atomically $ modifyTVar' tvar (+1)
     waiter lim tvar = atomically $ do
         n <- readTVar tvar
-        check (n >= lim)
+        checkSTM (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp:pps) n = do
         (pid, sid, newstrm) <- makePushStream pstrm pp
@@ -149,7 +150,7 @@ worker wc@WorkerConf{..} mgr server = do
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
-        ex <- E.try $ do
+        ex <- E.trySyncOrAsync $ do
             T.pause th
             Input strm req <- readInputQ
             let req' = pauseRequestBody req th

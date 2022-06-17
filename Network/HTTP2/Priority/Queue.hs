@@ -8,7 +8,8 @@ module Network.HTTP2.Priority.Queue (
   , delete
   ) where
 
-import Control.Concurrent.STM
+import UnliftIO.STM
+
 import Network.HTTP2.Priority.PSQ (PriorityQueue, Key, Precedence(..))
 import qualified Network.HTTP2.Priority.PSQ as Q
 
@@ -29,7 +30,7 @@ dequeue :: TPriorityQueue a -> STM (Key, Precedence, a)
 dequeue (TPriorityQueue th) = do
   h <- readTVar th
   case Q.dequeue h of
-    Nothing -> retry
+    Nothing -> retrySTM
     Just (k, p, v, h') -> do
       writeTVar th h'
       return (k, p, v)

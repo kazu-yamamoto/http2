@@ -29,9 +29,9 @@ module Network.HTTP2.Priority {-# DEPRECATED "Should be replaced with extensible
   , delete
   ) where
 
-import Control.Concurrent.STM
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as Map
+import UnliftIO.STM
 
 import Imports hiding (delete, empty)
 import Network.HTTP2.Priority.Queue (TPriorityQueue, Precedence)

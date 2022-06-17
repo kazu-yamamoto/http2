@@ -10,13 +10,13 @@ module Network.HTTP2.Arch.Sender (
   , runTrailersMaker
   ) where
 
-import Control.Concurrent.STM
-import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr (plusPtr)
 import Network.ByteOrder
+import qualified UnliftIO.Exception as E
+import UnliftIO.STM
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toHeaderTable)
@@ -47,13 +47,13 @@ getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow
 waitStreamWindowSize :: Stream -> IO ()
 waitStreamWindowSize Stream{streamWindow} = atomically $ do
     w <- readTVar streamWindow
-    check (w > 0)
+    checkSTM (w > 0)
 
 {-# INLINE waitStreaming #-}
 waitStreaming :: TBQueue a -> IO ()
 waitStreaming tbq = atomically $ do
     isEmpty <- isEmptyTBQueue tbq
-    check (not isEmpty)
+    checkSTM (not isEmpty)
 
 data Switch = C Control
             | O (Output Stream)
@@ -68,10 +68,10 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         isEmpty <- isEmptyTQueue controlQ
         if isEmpty then do
             w <- readTVar connectionWindow
-            check (w > 0)
+            checkSTM (w > 0)
             emp <- isEmptyTQueue outputQ
             if emp then
-                if off /= 0 then return Flush else retry
+                if off /= 0 then return Flush else retrySTM
               else
                 O <$> readTQueue outputQ
           else

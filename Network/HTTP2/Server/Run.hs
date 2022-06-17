@@ -3,8 +3,8 @@
 
 module Network.HTTP2.Server.Run where
 
-import Control.Concurrent (forkIO, killThread)
-import qualified Control.Exception as E
+import UnliftIO.Concurrent (forkIO, killThread)
+import qualified UnliftIO.Exception as E
 
 import Imports
 import Network.HTTP2.Arch

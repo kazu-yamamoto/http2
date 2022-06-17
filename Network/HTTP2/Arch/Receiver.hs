@@ -9,12 +9,12 @@ module Network.HTTP2.Arch.Receiver (
   , initialFrame
   ) where
 
-import Control.Concurrent
-import Control.Concurrent.STM
-import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
+import UnliftIO.Concurrent
+import qualified UnliftIO.Exception as E
+import UnliftIO.STM
 
 import Imports hiding (delete, insert)
 import Network.HPACK
@@ -132,8 +132,8 @@ processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLengt
               Left (StreamError err sid) -> do
                   resetStream err sid
                   return True
-              Left connErr -> E.throw connErr
-              Right cont -> return cont
+              Left connErr -> E.throwIO connErr
+              Right cont   -> return cont
   where
     resetStream err sid = do
         let frame = resetFrame err sid
