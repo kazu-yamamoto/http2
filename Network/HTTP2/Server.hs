@@ -68,8 +68,6 @@ module Network.HTTP2.Server (
   , pushPromise
   , promiseRequestPath
   , promiseResponse
-  , promiseWeight
-  , defaultWeight
   -- * Types
   , Path
   , Authority
@@ -187,4 +185,4 @@ setResponseTrailersMaker (Response rsp) tm = Response rsp { outObjTrailers = tm 
 -- | Creating push promise.
 --   The third argument is traditional, not used.
 pushPromise :: ByteString -> Response -> Weight -> PushPromise
-pushPromise path rsp w = PushPromise path rsp w
+pushPromise path rsp _ = PushPromise path rsp

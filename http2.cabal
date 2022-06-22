@@ -63,13 +63,10 @@ Library
                         Network.HPACK.Internal
                         Network.HPACK.Table
                         Network.HPACK.Token
-                        Network.HTTP2
                         Network.HTTP2.Client
                         Network.HTTP2.Client.Internal
                         Network.HTTP2.Frame
                         Network.HTTP2.Internal
-                        Network.HTTP2.Priority
-                        Network.HTTP2.Priority.Internal
                         Network.HTTP2.Server
                         Network.HTTP2.Server.Internal
   Other-Modules:        Imports
@@ -112,8 +109,6 @@ Library
                         Network.HTTP2.Frame.Decode
                         Network.HTTP2.Frame.Encode
                         Network.HTTP2.Frame.Types
-                        Network.HTTP2.Priority.PSQ
-                        Network.HTTP2.Priority.Queue
                         Network.HTTP2.Server.Run
                         Network.HTTP2.Server.Types
                         Network.HTTP2.Server.Worker
@@ -161,7 +156,6 @@ Test-Suite spec
                         HPACK.HuffmanSpec
                         HPACK.IntegerSpec
                         HTTP2.FrameSpec
-                        HTTP2.PrioritySpec
                         HTTP2.ServerSpec
   Build-Depends:        base >= 4.9 && < 5
                       , async
@@ -386,32 +380,6 @@ Executable frame-encode
   Default-Extensions:   Strict StrictData
 
 ----------------------------------------------------------------
-
-Benchmark priority
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  Hs-Source-Dirs:       bench-priority, .
-  Ghc-Options:          -Wall
-  Main-Is:              Main.hs
-  Other-Modules:        BinaryHeap
-                        BinaryHeapSTM
-                        DoublyLinkedQueueIO
-                        Heap
-                        RandomSkewHeap
-                        RingOfQueues
-                        RingOfQueuesSTM
-                        Network.HTTP2.Priority.PSQ
-  Build-Depends:        base >= 4.9 && < 5
-                      , array
-                      , case-insensitive
-                      , containers
-                      , gauge
-                      , heaps
-                      , mwc-random
-                      , network-byte-order
-                      , psqueues
-                      , stm
-  Default-Extensions:   Strict StrictData
 
 Benchmark header-compression
   Type:                 exitcode-stdio-1.0

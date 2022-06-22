@@ -30,14 +30,11 @@ module Network.HTTP2.Frame (
   , Weight
   , defaultPriority
   , highestPriority
-  , defaultWeight
   -- * Stream identifier
   , StreamId
   , isControl
   , isClientInitiated
   , isServerInitiated
-  , isRequest
-  , isResponse
   -- * Stream identifier related
   , testExclusive
   , setExclusive

@@ -10,5 +10,5 @@ main = do
       ]
     doctest [
         "-XOverloadedStrings"
-      , "Network/HTTP2.hs"
+      , "Network/HTTP2/Frame.hs"
       ]

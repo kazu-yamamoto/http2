@@ -279,14 +279,6 @@ recommendedConcurrency = 100
 -- | The type for weight in priority. Its values are from 1 to 256.
 type Weight = Int
 
--- | Default weight.
---
--- >>> defaultWeight
--- 16
-defaultWeight :: Weight
-defaultWeight = 16
-{-# DEPRECATED defaultWeight "Don't use this" #-}
-
 -- | Type for stream priority
 data Priority = Priority {
     exclusive :: Bool
@@ -299,7 +291,7 @@ data Priority = Priority {
 -- >>> defaultPriority
 -- Priority {exclusive = False, streamDependency = 0, weight = 16}
 defaultPriority :: Priority
-defaultPriority = Priority False 0 defaultWeight
+defaultPriority = Priority False 0 16
 
 -- | Highest priority which depends on stream 0.
 --
@@ -519,27 +511,6 @@ isClientInitiated = odd
 isServerInitiated :: StreamId -> Bool
 isServerInitiated 0 = False
 isServerInitiated n = even n
-
--- | Checking if the stream identifier for request.
---
--- >>> isRequest 0
--- False
--- >>> isRequest 1
--- True
-isRequest :: StreamId -> Bool
-isRequest = odd
-{-# DEPRECATED isRequest "Use isClientInitiated instead" #-}
-
--- | Checking if the stream identifier for response.
---
--- >>> isResponse 0
--- False
--- >>> isResponse 2
--- True
-isResponse :: StreamId -> Bool
-isResponse 0 = False
-isResponse n = even n
-{-# DEPRECATED isResponse "Use isServerInitiated instead" #-}
 
 -- | Checking if the exclusive flag is set.
 testExclusive :: StreamId -> Bool
