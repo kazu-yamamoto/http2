@@ -57,10 +57,10 @@ module Network.HTTP2.Frame (
   , setPriority
   -- * SettingsList
   , SettingsList
-  , SettingsKeyId(..)
+  , SettingsKey(SettingsKey,SettingsHeaderTableSize,SettingsEnablePush,SettingsMaxConcurrentStreams,SettingsInitialWindowSize,SettingsMaxFrameSize,SettingsMaxHeaderBlockSize)
   , SettingsValue
-  , fromSettingsKeyId
-  , toSettingsKeyId
+  , fromSettingsKey
+  , toSettingsKey
   , checkSettingsList
   -- * Settings
   , Settings(..)

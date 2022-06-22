@@ -195,14 +195,14 @@ decodeSettingsFrame FrameHeader{..} (PS fptr off _)
     settings 0 _ builder = return $ builder []
     settings n p builder = do
         rawSetting <- N.peek16 p 0
-        let msettings = toSettingsKeyId rawSetting
+        let k = toSettingsKey rawSetting
             n' = n - 1
-        case msettings of
-            Nothing -> settings n' (p +. 6) builder -- ignoring unknown one (Section 6.5.2)
-            Just k  -> do
-                w32 <- N.peek32 p 2
-                let v = fromIntegral w32
-                settings n' (p +. 6) (builder. ((k,v):))
+        if k < minSettingsKey || k > maxSettingsKey then
+            settings n' (p +. 6) builder -- ignoring unknown one (Section 6.5.2)
+          else do
+            w32 <- N.peek32 p 2
+            let v = fromIntegral w32
+            settings n' (p +. 6) (builder. ((k,v):))
 
 -- | Frame payload decoder for PUSH_PROMISE frame.
 decodePushPromiseFrame :: FramePayloadDecoder

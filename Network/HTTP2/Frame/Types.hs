@@ -112,53 +112,71 @@ instance E.Exception HTTP2Error
 ----------------------------------------------------------------
 
 -- | The type for SETTINGS key.
-data SettingsKeyId = SettingsHeaderTableSize
-                   | SettingsEnablePush
-                   | SettingsMaxConcurrentStreams
-                   | SettingsInitialWindowSize
-                   | SettingsMaxFrameSize -- this means payload size
-                   | SettingsMaxHeaderBlockSize
-                   deriving (Show, Read, Eq, Ord, Enum, Bounded)
+newtype SettingsKey = SettingsKey Word16 deriving (Eq, Ord)
+
+fromSettingsKey :: SettingsKey -> Word16
+fromSettingsKey (SettingsKey x) = x
+
+toSettingsKey :: Word16 -> SettingsKey
+toSettingsKey = SettingsKey
+
+minSettingsKey :: SettingsKey
+minSettingsKey = SettingsKey 1
+
+maxSettingsKey :: SettingsKey
+maxSettingsKey = SettingsKey 6
+
+pattern SettingsHeaderTableSize      :: SettingsKey
+pattern SettingsHeaderTableSize       = SettingsKey 1
+
+pattern SettingsEnablePush           :: SettingsKey
+pattern SettingsEnablePush            = SettingsKey 2
+
+pattern SettingsMaxConcurrentStreams :: SettingsKey
+pattern SettingsMaxConcurrentStreams  = SettingsKey 3
+
+pattern SettingsInitialWindowSize    :: SettingsKey
+pattern SettingsInitialWindowSize     = SettingsKey 4
+
+pattern SettingsMaxFrameSize         :: SettingsKey
+pattern SettingsMaxFrameSize          = SettingsKey 5 -- this means payload size
+
+pattern SettingsMaxHeaderBlockSize   :: SettingsKey
+pattern SettingsMaxHeaderBlockSize    = SettingsKey 6
+
+instance Show SettingsKey where
+    show SettingsHeaderTableSize      = "SettingsHeaderTableSize"
+    show SettingsEnablePush           = "SettingsEnablePush"
+    show SettingsMaxConcurrentStreams = "SettingsMaxConcurrentStreams"
+    show SettingsInitialWindowSize    = "SettingsInitialWindowSize"
+    show SettingsMaxFrameSize         = "SettingsMaxFrameSize"
+    show SettingsMaxHeaderBlockSize   = "SettingsMaxHeaderBlockSize"
+    show (SettingsKey x)              = "SettingsKey " ++ show x
+
+instance Read SettingsKey where
+    readListPrec = readListPrecDefault
+    readPrec = do
+        Ident idnt <- lexP
+        readSK idnt
+      where
+        readSK "SettingsHeaderTableSize"      = return SettingsHeaderTableSize
+        readSK "SettingsEnablePush"           = return SettingsEnablePush
+        readSK "SettingsMaxConcurrentStreams" = return SettingsMaxConcurrentStreams
+        readSK "SettingsInitialWindowSize"    = return SettingsInitialWindowSize
+        readSK "SettingsMaxFrameSize"         = return SettingsMaxFrameSize
+        readSK "SettingsMaxHeaderBlockSize"   = return SettingsMaxHeaderBlockSize
+        readSK "SettingsKey"         = do
+              Number ftyp <- lexP
+              return $ SettingsKey $ fromIntegral $ fromJust $ L.numberToInteger ftyp
+        readSK _                   = error "Read for SettingsKey"
 
 -- | The type for raw SETTINGS value.
 type SettingsValue = Int -- Word32
 
--- | Converting 'SettingsKeyId' to raw value.
---
--- >>> fromSettingsKeyId SettingsHeaderTableSize
--- 1
--- >>> fromSettingsKeyId SettingsMaxHeaderBlockSize
--- 6
-fromSettingsKeyId :: SettingsKeyId -> Word16
-fromSettingsKeyId x = fromIntegral (fromEnum x) + 1
-
-minSettingsKeyId :: Word16
-minSettingsKeyId = fromIntegral $ fromEnum (minBound :: SettingsKeyId)
-
-maxSettingsKeyId :: Word16
-maxSettingsKeyId = fromIntegral $ fromEnum (maxBound :: SettingsKeyId)
-
--- | Converting raw value to 'SettingsKeyId'.
---
--- >>> toSettingsKeyId 0
--- Nothing
--- >>> toSettingsKeyId 1
--- Just SettingsHeaderTableSize
--- >>> toSettingsKeyId 6
--- Just SettingsMaxHeaderBlockSize
--- >>> toSettingsKeyId 7
--- Nothing
-toSettingsKeyId :: Word16 -> Maybe SettingsKeyId
-toSettingsKeyId x
-  | minSettingsKeyId <= n && n <= maxSettingsKeyId = Just . toEnum . fromIntegral $ n
-  | otherwise                                = Nothing
-  where
-    n = x - 1
-
 ----------------------------------------------------------------
 
 -- | Association list of SETTINGS.
-type SettingsList = [(SettingsKeyId,SettingsValue)]
+type SettingsList = [(SettingsKey,SettingsValue)]
 
 -- | Checking 'SettingsList' and reporting an error if any.
 --
@@ -169,7 +187,7 @@ checkSettingsList settings = case mapMaybe checkSettingsValue settings of
     []    -> Nothing
     (x:_) -> Just x
 
-checkSettingsValue :: (SettingsKeyId,SettingsValue) -> Maybe HTTP2Error
+checkSettingsValue :: (SettingsKey,SettingsValue) -> Maybe HTTP2Error
 checkSettingsValue (SettingsEnablePush,v)
   | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError "enable push must be 0 or 1"
 checkSettingsValue (SettingsInitialWindowSize,v)
@@ -218,6 +236,7 @@ updateSettings settings kvs = foldl' update settings kvs
     update def (SettingsInitialWindowSize,x)    = def { initialWindowSize = x }
     update def (SettingsMaxFrameSize,x)         = def { maxFrameSize = x }
     update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderBlockSize = Just x }
+    update def _                                = def
 
 -- | The type for window size.
 type WindowSize = Int

@@ -79,10 +79,10 @@ instance FromJSON FrameType where
     parseJSON e = toFrameType <$> parseJSON e
 
 instance {-# OVERLAPPING #-} ToJSON SettingsList where
-    toJSON settings = toJSON $ map (first fromSettingsKeyId) settings
+    toJSON settings = toJSON $ map (first fromSettingsKey) settings
 
 instance {-# OVERLAPPING #-} FromJSON SettingsList where
-    parseJSON x = map (first (fromJust . toSettingsKeyId)) <$> parseJSON x
+    parseJSON x = map (first toSettingsKey) <$> parseJSON x
 
 instance ToJSON ByteString where
     toJSON bs = toJSON $ byteStringToText bs

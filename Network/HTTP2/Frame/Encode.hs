@@ -189,8 +189,8 @@ buildFramePayloadSettings EncodeInfo{..} alist = (header, builder)
     settings = unsafeCreate len $ \ptr -> go ptr alist
     go _ []          = return ()
     go p ((k,v):kvs) = do
-        N.poke16 (fromSettingsKeyId k) p 0
-        N.poke32 (fromIntegral v)      p 2
+        N.poke16 (fromSettingsKey k) p 0
+        N.poke32 (fromIntegral v)    p 2
         go (p `plusPtr` 6) kvs
     len = length alist * 6
     header = FrameHeader len encodeFlags encodeStreamId
