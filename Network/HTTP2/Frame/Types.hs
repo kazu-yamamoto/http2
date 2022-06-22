@@ -2,82 +2,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-module Network.HTTP2.Frame.Types (
-  -- * Constant
-    frameHeaderLength
-  , maxPayloadLength
-  -- * SettingsList
-  , SettingsKeyId(..)
-  , checkSettingsList
-  , fromSettingsKeyId
-  , SettingsValue
-  , SettingsList
-  , toSettingsKeyId
-  -- * Settings
-  , Settings(..)
-  , defaultSettings
-  , updateSettings
-  -- * Error
-  , HTTP2Error(..)
-  -- * Error code
-  , ErrorCode(ErrorCode,NoError,ProtocolError,InternalError,FlowControlError,SettingsTimeout,StreamClosed,FrameSizeError,RefusedStream,Cancel,CompressionError,ConnectError,EnhanceYourCalm,InadequateSecurity,HTTP11Required)
-  , fromErrorCode
-  , toErrorCode
-  -- * Frame type
-  , FrameType
-  , minFrameType
-  , maxFrameType
-  , FrameTypeId(..)
-  , fromFrameTypeId
-  , toFrameTypeId
-  -- * Frame
-  , Frame(..)
-  , FrameHeader(..)
-  , FramePayload(..)
-  , framePayloadToFrameTypeId
-  , isPaddingDefined
-  -- * Stream identifier
-  , StreamId
-  , isControl
-  , isClientInitiated
-  , isServerInitiated
-  , isRequest
-  , isResponse
-  , testExclusive
-  , setExclusive
-  , clearExclusive
-  -- * Flags
-  , FrameFlags
-  , defaultFlags
-  , testEndStream
-  , testAck
-  , testEndHeader
-  , testPadded
-  , testPriority
-  , setEndStream
-  , setAck
-  , setEndHeader
-  , setPadded
-  , setPriority
-  -- * Window
-  , WindowSize
-  , defaultInitialWindowSize
-  , maxWindowSize
-  , isWindowOverflow
-  -- * Misc
-  , recommendedConcurrency
-  -- * Types
-  , HeaderBlockFragment
-  , Weight
-  , defaultWeight
-  , Priority(..)
-  , defaultPriority
-  , highestPriority
-  , Padding
-  ) where
+module Network.HTTP2.Frame.Types where
 
 import qualified Control.Exception as E
+import Data.Ix
 import Data.Typeable
+import Text.Read
+import qualified Text.Read.Lex as L
 
 import Imports
 
@@ -361,69 +292,89 @@ highestPriority = Priority False 0 256
 ----------------------------------------------------------------
 
 -- | The type for raw frame type.
-type FrameType = Word8
+newtype FrameType = FrameType Word8 deriving (Eq, Ord, Ix)
+
+fromFrameType :: FrameType -> Word8
+fromFrameType (FrameType x) = x
+
+toFrameType :: Word8 -> FrameType
+toFrameType = FrameType
 
 minFrameType :: FrameType
-minFrameType = 0
+minFrameType = FrameType 0
 
 maxFrameType :: FrameType
-maxFrameType = 9
+maxFrameType = FrameType 9
 
--- | The type for frame type.
-data FrameTypeId = FrameData
-                 | FrameHeaders
-                 | FramePriority
-                 | FrameRSTStream
-                 | FrameSettings
-                 | FramePushPromise
-                 | FramePing
-                 | FrameGoAway
-                 | FrameWindowUpdate
-                 | FrameContinuation
-                 | FrameUnknown FrameType
-                 deriving (Show, Eq, Ord)
+pattern FrameData         :: FrameType
+pattern FrameData          = FrameType 0
+
+pattern FrameHeaders      :: FrameType
+pattern FrameHeaders       = FrameType 1
+
+pattern FramePriority     :: FrameType
+pattern FramePriority      = FrameType 2
+
+pattern FrameRSTStream    :: FrameType
+pattern FrameRSTStream     = FrameType 3
+
+pattern FrameSettings     :: FrameType
+pattern FrameSettings      = FrameType 4
+
+pattern FramePushPromise  :: FrameType
+pattern FramePushPromise   = FrameType 5
+
+pattern FramePing         :: FrameType
+pattern FramePing          = FrameType 6
+
+pattern FrameGoAway       :: FrameType
+pattern FrameGoAway        = FrameType 7
+
+pattern FrameWindowUpdate :: FrameType
+pattern FrameWindowUpdate  = FrameType 8
+
+pattern FrameContinuation :: FrameType
+pattern FrameContinuation  = FrameType 9
 
 -- | Converting 'FrameTypeId' to 'FrameType'.
 --
--- >>> fromFrameTypeId FrameData
+-- >>> fromFrameType FrameData
 -- 0
--- >>> fromFrameTypeId FrameContinuation
+-- >>> fromFrameType FrameContinuation
 -- 9
--- >>> fromFrameTypeId (FrameUnknown 10)
--- 10
-fromFrameTypeId :: FrameTypeId -> FrameType
-fromFrameTypeId FrameData         = 0
-fromFrameTypeId FrameHeaders      = 1
-fromFrameTypeId FramePriority     = 2
-fromFrameTypeId FrameRSTStream    = 3
-fromFrameTypeId FrameSettings     = 4
-fromFrameTypeId FramePushPromise  = 5
-fromFrameTypeId FramePing         = 6
-fromFrameTypeId FrameGoAway       = 7
-fromFrameTypeId FrameWindowUpdate = 8
-fromFrameTypeId FrameContinuation = 9
-fromFrameTypeId (FrameUnknown x)  = x
 
--- | Converting 'FrameType' to 'FrameTypeId'.
---
--- >>> toFrameTypeId 0
--- FrameData
--- >>> toFrameTypeId 9
--- FrameContinuation
--- >>> toFrameTypeId 10
--- FrameUnknown 10
-toFrameTypeId :: FrameType -> FrameTypeId
-toFrameTypeId  0 = FrameData
-toFrameTypeId  1 = FrameHeaders
-toFrameTypeId  2 = FramePriority
-toFrameTypeId  3 = FrameRSTStream
-toFrameTypeId  4 = FrameSettings
-toFrameTypeId  5 = FramePushPromise
-toFrameTypeId  6 = FramePing
-toFrameTypeId  7 = FrameGoAway
-toFrameTypeId  8 = FrameWindowUpdate
-toFrameTypeId  9 = FrameContinuation
-toFrameTypeId  x = FrameUnknown x
+instance Show FrameType where
+    show (FrameType 0) = "FrameData"
+    show (FrameType 1) = "FrameHeaders"
+    show (FrameType 2) = "FramePriority"
+    show (FrameType 3) = "FrameRSTStream"
+    show (FrameType 4) = "FrameSettings"
+    show (FrameType 5) = "FramePushPromise"
+    show (FrameType 6) = "FramePing"
+    show (FrameType 7) = "FrameGoAway"
+    show (FrameType 8) = "FrameWindowUpdate"
+    show (FrameType 9) = "FrameContinuation"
+    show (FrameType x) = "FrameType " ++ show x
+
+instance Read FrameType where
+    readListPrec = readListPrecDefault
+    readPrec = do
+        Ident idnt <- lexP
+        case idnt of
+          "FrameData"         -> return FrameData
+          "FrameHeaders"      -> return FrameHeaders
+          "FramePriority"     -> return FramePriority
+          "FrameRSTStream"    -> return FrameRSTStream
+          "FrameSettings"     -> return FrameSettings
+          "FramePushPromise"  -> return FramePushPromise
+          "FramePing"         -> return FramePing
+          "FrameGoAway"       -> return FrameGoAway
+          "FrameWindowUpdate" -> return FrameWindowUpdate
+          "FrameContinuation" -> return FrameContinuation
+          "FrameType"         -> do
+              Number ftyp <- lexP
+              return $ FrameType $ fromIntegral $ fromJust $ L.numberToInteger ftyp
+          _                   -> error "Read for FrameType"
 
 ----------------------------------------------------------------
 
@@ -624,20 +575,20 @@ data FramePayload =
 
 -- | Getting 'FrameType' from 'FramePayload'.
 --
--- >>> framePayloadToFrameTypeId (DataFrame "body")
+-- >>> framePayloadToFrameType (DataFrame "body")
 -- FrameData
-framePayloadToFrameTypeId :: FramePayload -> FrameTypeId
-framePayloadToFrameTypeId DataFrame{}          = FrameData
-framePayloadToFrameTypeId HeadersFrame{}       = FrameHeaders
-framePayloadToFrameTypeId PriorityFrame{}      = FramePriority
-framePayloadToFrameTypeId RSTStreamFrame{}     = FrameRSTStream
-framePayloadToFrameTypeId SettingsFrame{}      = FrameSettings
-framePayloadToFrameTypeId PushPromiseFrame{}   = FramePushPromise
-framePayloadToFrameTypeId PingFrame{}          = FramePing
-framePayloadToFrameTypeId GoAwayFrame{}        = FrameGoAway
-framePayloadToFrameTypeId WindowUpdateFrame{}  = FrameWindowUpdate
-framePayloadToFrameTypeId ContinuationFrame{}  = FrameContinuation
-framePayloadToFrameTypeId (UnknownFrame w8 _)  = FrameUnknown w8
+framePayloadToFrameType :: FramePayload -> FrameType
+framePayloadToFrameType DataFrame{}          = FrameData
+framePayloadToFrameType HeadersFrame{}       = FrameHeaders
+framePayloadToFrameType PriorityFrame{}      = FramePriority
+framePayloadToFrameType RSTStreamFrame{}     = FrameRSTStream
+framePayloadToFrameType SettingsFrame{}      = FrameSettings
+framePayloadToFrameType PushPromiseFrame{}   = FramePushPromise
+framePayloadToFrameType PingFrame{}          = FramePing
+framePayloadToFrameType GoAwayFrame{}        = FrameGoAway
+framePayloadToFrameType WindowUpdateFrame{}  = FrameWindowUpdate
+framePayloadToFrameType ContinuationFrame{}  = FrameContinuation
+framePayloadToFrameType (UnknownFrame ft _)  = ft
 
 ----------------------------------------------------------------
 

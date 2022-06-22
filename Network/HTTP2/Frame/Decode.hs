@@ -49,13 +49,13 @@ decodeFrame settings bs = checkFrameHeader settings (decodeFrameHeader bs0)
 
 -- | Decoding an HTTP/2 frame header.
 --   Must supply 9 bytes.
-decodeFrameHeader :: ByteString -> (FrameTypeId, FrameHeader)
+decodeFrameHeader :: ByteString -> (FrameType, FrameHeader)
 decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr $ \ptr -> do
     let p = ptr +. off
-    len <- fromIntegral  <$> N.peek24 p 0
-    typ <- toFrameTypeId <$> N.peek8  p 3
-    flg <-                   N.peek8  p 4
-    w32 <-                   N.peek32 p 5
+    len <- fromIntegral <$> N.peek24 p 0
+    typ <- toFrameType  <$> N.peek8  p 3
+    flg <-                  N.peek8  p 4
+    w32 <-                  N.peek32 p 5
     let sid = streamIdentifier w32
     return (typ, FrameHeader len flg sid)
 
@@ -69,8 +69,8 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
 -- >>> checkFrameHeader defaultSettings (FrameData,(FrameHeader 100 0 0))
 -- Left (ConnectionErrorIsSent ProtocolError "cannot used in control stream")
 checkFrameHeader :: Settings
-                 -> (FrameTypeId, FrameHeader)
-                 -> Either HTTP2Error (FrameTypeId, FrameHeader)
+                 -> (FrameType, FrameHeader)
+                 -> Either HTTP2Error (FrameType, FrameHeader)
 checkFrameHeader Settings {..} typfrm@(typ,FrameHeader {..})
   | payloadLength > maxFrameSize =
       Left $ ConnectionErrorIsSent FrameSizeError "exceeds maximum frame size"
@@ -109,14 +109,14 @@ checkFrameHeader Settings {..} typfrm@(typ,FrameHeader {..})
         Left $ ConnectionErrorIsSent FrameSizeError "payload length is 4 in window update frame"
     checkType _ = Right typfrm
 
-zeroFrameTypes :: [FrameTypeId]
+zeroFrameTypes :: [FrameType]
 zeroFrameTypes = [
     FrameSettings
   , FramePing
   , FrameGoAway
   ]
 
-nonZeroFrameTypes :: [FrameTypeId]
+nonZeroFrameTypes :: [FrameType]
 nonZeroFrameTypes = [
     FrameData
   , FrameHeaders
@@ -132,7 +132,7 @@ nonZeroFrameTypes = [
 type FramePayloadDecoder = FrameHeader -> ByteString
                         -> Either HTTP2Error FramePayload
 
-payloadDecoders :: Array Word8 FramePayloadDecoder
+payloadDecoders :: Array FrameType FramePayloadDecoder
 payloadDecoders = listArray (minFrameType, maxFrameType)
     [ decodeDataFrame
     , decodeHeadersFrame
@@ -149,11 +149,12 @@ payloadDecoders = listArray (minFrameType, maxFrameType)
 -- | Decoding an HTTP/2 frame payload.
 --   This function is considered to return a frame payload decoder
 --   according to a frame type.
-decodeFramePayload :: FrameTypeId -> FramePayloadDecoder
-decodeFramePayload (FrameUnknown typ) = checkFrameSize $ decodeUnknownFrame typ
-decodeFramePayload ftyp               = checkFrameSize decoder
+decodeFramePayload :: FrameType -> FramePayloadDecoder
+decodeFramePayload ftyp
+    | ftyp > maxFrameType = checkFrameSize $ decodeUnknownFrame ftyp
+decodeFramePayload ftyp   = checkFrameSize decoder
   where
-    decoder = payloadDecoders ! fromFrameTypeId ftyp
+    decoder = payloadDecoders ! ftyp
 
 ----------------------------------------------------------------
 

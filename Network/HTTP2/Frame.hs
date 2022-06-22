@@ -18,13 +18,13 @@ module Network.HTTP2.Frame (
   , EncodeInfo(..)
   , encodeInfo
   , module Network.HTTP2.Frame.Decode
-  -- * Frame type ID
-  , FrameTypeId(..)
-  , framePayloadToFrameTypeId
   -- * Frame type
-  , FrameType
-  , fromFrameTypeId
-  , toFrameTypeId
+  , FrameType(FrameType,FrameData,FrameHeaders,FramePriority,FrameRSTStream,FrameSettings,FramePushPromise,FramePing,FrameGoAway,FrameWindowUpdate,FrameContinuation)
+  , fromFrameType
+  , toFrameType
+  , minFrameType
+  , maxFrameType
+  , framePayloadToFrameType
   -- * Priority
   , Priority(..)
   , Weight

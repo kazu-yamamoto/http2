@@ -170,7 +170,7 @@ closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
     atomicModifyIORef' concurrency (\x -> (x-1,()))
     setStreamState ctx strm (Closed cc) -- anyway
 
-openStream :: Context -> StreamId -> FrameTypeId -> IO Stream
+openStream :: Context -> StreamId -> FrameType -> IO Stream
 openStream ctx@Context{streamTable, http2settings} sid ftyp = do
     ws <- initialWindowSize <$> readIORef http2settings
     newstrm <- newStream sid $ fromIntegral ws

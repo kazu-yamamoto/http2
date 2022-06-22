@@ -84,13 +84,15 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
 
 ----------------------------------------------------------------
 
-processFrame :: Context -> RecvN -> (FrameTypeId, FrameHeader) -> IO Bool
+processFrame :: Context -> RecvN -> (FrameType, FrameHeader) -> IO Bool
 processFrame ctx _recvN (fid, FrameHeader{streamId})
   | isServer ctx &&
     isServerInitiated streamId &&
     (fid `notElem` [FramePriority,FrameRSTStream,FrameWindowUpdate]) =
     E.throwIO $ ConnectionErrorIsSent ProtocolError "stream id should be odd"
-processFrame Context{..} recvN (FrameUnknown _, FrameHeader{payloadLength}) = do
+
+processFrame Context{..} recvN (ftyp, FrameHeader{payloadLength})
+  | ftyp > maxFrameType = do
     mx <- readIORef continued
     case mx of
         Nothing -> do
@@ -143,7 +145,7 @@ processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLengt
 
 ----------------------------------------------------------------
 
-controlOrStream :: Context -> RecvN -> FrameTypeId -> FrameHeader -> IO Bool
+controlOrStream :: Context -> RecvN -> FrameType -> FrameHeader -> IO Bool
 controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadLength}
   | isControl streamId = do
       pl <- recvN payloadLength
@@ -219,11 +221,11 @@ processState s ctx strm _streamId = do
 
 ----------------------------------------------------------------
 
-getStream :: Context -> FrameTypeId -> StreamId -> IO (Maybe Stream)
+getStream :: Context -> FrameType -> StreamId -> IO (Maybe Stream)
 getStream ctx@Context{..} ftyp streamId =
     search streamTable streamId >>= getStream' ctx ftyp streamId
 
-getStream' :: Context -> FrameTypeId -> StreamId -> Maybe Stream -> IO (Maybe Stream)
+getStream' :: Context -> FrameType -> StreamId -> Maybe Stream -> IO (Maybe Stream)
 getStream' ctx ftyp _streamId js@(Just strm0) = do
     when (ftyp == FrameHeaders) $ do
         st <- readStreamState strm0
@@ -253,7 +255,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 
 ----------------------------------------------------------------
 
-control :: FrameTypeId -> FrameHeader -> ByteString -> Context -> IO Bool
+control :: FrameType -> FrameHeader -> ByteString -> Context -> IO Bool
 control FrameSettings header@FrameHeader{flags} bs Context{http2settings, controlQ, firstSettings, streamTable, settingsRate} = do
     SettingsFrame alist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList alist
@@ -328,7 +330,7 @@ checkPriority p me
   where
     dep = streamDependency p
 
-stream :: FrameTypeId -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
+stream :: FrameType -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
 stream FrameHeaders header@FrameHeader{flags} bs ctx s@(Open JustOpened) Stream{streamNumber} = do
     HeadersFrame mp frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags

@@ -59,18 +59,18 @@ encodeFrame einfo payload = BS.concat $ encodeFrameChunks einfo payload
 encodeFrameChunks :: EncodeInfo -> FramePayload -> [ByteString]
 encodeFrameChunks einfo payload = bs : bss
   where
-    ftid = framePayloadToFrameTypeId payload
+    ftid = framePayloadToFrameType payload
     bs = encodeFrameHeader ftid header
     (header, bss) = encodeFramePayload einfo payload
 
 -- | Encoding an HTTP/2 frame header.
 --   The frame header must be completed.
-encodeFrameHeader :: FrameTypeId -> FrameHeader -> ByteString
+encodeFrameHeader :: FrameType -> FrameHeader -> ByteString
 encodeFrameHeader ftid fhdr = unsafeCreate frameHeaderLength $ encodeFrameHeaderBuf ftid fhdr
 
 -- | Writing an encoded HTTP/2 frame header to the buffer.
 --   The length of the buffer must be larger than or equal to 9 bytes.
-encodeFrameHeaderBuf :: FrameTypeId -> FrameHeader -> Ptr Word8 -> IO ()
+encodeFrameHeaderBuf :: FrameType -> FrameHeader -> Ptr Word8 -> IO ()
 encodeFrameHeaderBuf ftid FrameHeader{..} ptr = do
     N.poke24 plen  ptr 0
     N.poke8  typ   ptr 3
@@ -78,7 +78,7 @@ encodeFrameHeaderBuf ftid FrameHeader{..} ptr = do
     N.poke32 sid   ptr 5
   where
     plen = fromIntegral payloadLength
-    typ = fromFrameTypeId ftid
+    typ = fromFrameType ftid
     sid = fromIntegral streamId
 
 -- | Encoding an HTTP/2 frame payload.
