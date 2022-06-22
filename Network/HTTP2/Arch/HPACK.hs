@@ -68,15 +68,15 @@ hpackDecodeHeader hdrblk ctx = do
     if isClient ctx || checkRequestHeader vt then
         return tbl
       else
-        E.throwIO $ ConnectionError ProtocolError "the header key is illegal"
+        E.throwIO $ ConnectionErrorIsSent ProtocolError "the header key is illegal"
 
 hpackDecodeTrailer :: HeaderBlockFragment -> Context -> IO HeaderTable
 hpackDecodeTrailer hdrblk Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
     handl IllegalHeaderName =
-        E.throwIO $ ConnectionError ProtocolError "the header key is illegal"
+        E.throwIO $ ConnectionErrorIsSent ProtocolError "the header key is illegal"
     handl _ =
-        E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
+        E.throwIO $ ConnectionErrorIsSent CompressionError "cannot decompress the header"
 
 {-# INLINE checkRequestHeader #-}
 checkRequestHeader :: ValueTable -> Bool

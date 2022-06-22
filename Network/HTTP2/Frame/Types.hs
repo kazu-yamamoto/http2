@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module Network.HTTP2.Frame.Types (
   -- * Constant
@@ -18,12 +19,10 @@ module Network.HTTP2.Frame.Types (
   , updateSettings
   -- * Error
   , HTTP2Error(..)
-  , errorCodeId
   -- * Error code
-  , ErrorCode
-  , ErrorCodeId(..)
-  , fromErrorCodeId
-  , toErrorCodeId
+  , ErrorCode(ErrorCode,NoError,ProtocolError,InternalError,FlowControlError,SettingsTimeout,StreamClosed,FrameSizeError,RefusedStream,Cancel,CompressionError,ConnectError,EnhanceYourCalm,InadequateSecurity,HTTP11Required)
+  , fromErrorCode
+  , toErrorCode
   -- * Frame type
   , FrameType
   , minFrameType
@@ -94,88 +93,90 @@ frameHeaderLength = 9
 ----------------------------------------------------------------
 
 -- | The type for raw error code.
-type ErrorCode = Word32
+newtype ErrorCode = ErrorCode Word32 deriving (Eq, Ord, Read)
+
+fromErrorCode :: ErrorCode -> Word32
+fromErrorCode (ErrorCode w) = w
+
+toErrorCode :: Word32 -> ErrorCode
+toErrorCode = ErrorCode
 
 -- | The type for error code. See <https://tools.ietf.org/html/rfc7540#section-7>.
-data ErrorCodeId = NoError
-                 | ProtocolError
-                 | InternalError
-                 | FlowControlError
-                 | SettingsTimeout
-                 | StreamClosed
-                 | FrameSizeError
-                 | RefusedStream
-                 | Cancel
-                 | CompressionError
-                 | ConnectError
-                 | EnhanceYourCalm
-                 | InadequateSecurity
-                 | HTTP11Required
-                   -- our extensions
-                 | UnknownErrorCode ErrorCode
-                 deriving (Show, Read, Eq, Ord)
 
--- | Converting 'ErrorCodeId' to 'ErrorCode'.
---
--- >>> fromErrorCodeId NoError
--- 0
--- >>> fromErrorCodeId InadequateSecurity
--- 12
-fromErrorCodeId :: ErrorCodeId -> ErrorCode
-fromErrorCodeId NoError              = 0x0
-fromErrorCodeId ProtocolError        = 0x1
-fromErrorCodeId InternalError        = 0x2
-fromErrorCodeId FlowControlError     = 0x3
-fromErrorCodeId SettingsTimeout      = 0x4
-fromErrorCodeId StreamClosed         = 0x5
-fromErrorCodeId FrameSizeError       = 0x6
-fromErrorCodeId RefusedStream        = 0x7
-fromErrorCodeId Cancel               = 0x8
-fromErrorCodeId CompressionError     = 0x9
-fromErrorCodeId ConnectError         = 0xa
-fromErrorCodeId EnhanceYourCalm      = 0xb
-fromErrorCodeId InadequateSecurity   = 0xc
-fromErrorCodeId HTTP11Required       = 0xd
-fromErrorCodeId (UnknownErrorCode w) = w
+pattern NoError :: ErrorCode
+pattern NoError            = ErrorCode 0x0
 
--- | Converting 'ErrorCode' to 'ErrorCodeId'.
---
--- >>> toErrorCodeId 0
--- NoError
--- >>> toErrorCodeId 0xc
--- InadequateSecurity
--- >>> toErrorCodeId 0xe
--- UnknownErrorCode 14
-toErrorCodeId :: ErrorCode -> ErrorCodeId
-toErrorCodeId 0x0 = NoError
-toErrorCodeId 0x1 = ProtocolError
-toErrorCodeId 0x2 = InternalError
-toErrorCodeId 0x3 = FlowControlError
-toErrorCodeId 0x4 = SettingsTimeout
-toErrorCodeId 0x5 = StreamClosed
-toErrorCodeId 0x6 = FrameSizeError
-toErrorCodeId 0x7 = RefusedStream
-toErrorCodeId 0x8 = Cancel
-toErrorCodeId 0x9 = CompressionError
-toErrorCodeId 0xa = ConnectError
-toErrorCodeId 0xb = EnhanceYourCalm
-toErrorCodeId 0xc = InadequateSecurity
-toErrorCodeId 0xd = HTTP11Required
-toErrorCodeId w   = UnknownErrorCode w
+pattern ProtocolError :: ErrorCode
+pattern ProtocolError      = ErrorCode 0x1
+
+pattern InternalError :: ErrorCode
+pattern InternalError      = ErrorCode 0x2
+
+pattern FlowControlError :: ErrorCode
+pattern FlowControlError   = ErrorCode 0x3
+
+pattern SettingsTimeout :: ErrorCode
+pattern SettingsTimeout    = ErrorCode 0x4
+
+pattern StreamClosed :: ErrorCode
+pattern StreamClosed       = ErrorCode 0x5
+
+pattern FrameSizeError :: ErrorCode
+pattern FrameSizeError     = ErrorCode 0x6
+
+pattern RefusedStream :: ErrorCode
+pattern RefusedStream      = ErrorCode 0x7
+
+pattern Cancel :: ErrorCode
+pattern Cancel             = ErrorCode 0x8
+
+pattern CompressionError :: ErrorCode
+pattern CompressionError   = ErrorCode 0x9
+
+pattern ConnectError :: ErrorCode
+pattern ConnectError       = ErrorCode 0xa
+
+pattern EnhanceYourCalm :: ErrorCode
+pattern EnhanceYourCalm    = ErrorCode 0xb
+
+pattern InadequateSecurity :: ErrorCode
+pattern InadequateSecurity = ErrorCode 0xc
+
+pattern HTTP11Required :: ErrorCode
+pattern HTTP11Required     = ErrorCode 0xd
+
+instance Show ErrorCode where
+    show (ErrorCode 0x0) = "NoError"
+    show (ErrorCode 0x1) = "ProtocolError"
+    show (ErrorCode 0x2) = "InternalError"
+    show (ErrorCode 0x3) = "FlowControlError"
+    show (ErrorCode 0x4) = "SettingsTimeout"
+    show (ErrorCode 0x5) = "StreamClosed"
+    show (ErrorCode 0x6) = "FrameSizeError"
+    show (ErrorCode 0x7) = "RefusedStream"
+    show (ErrorCode 0x8) = "Cancel"
+    show (ErrorCode 0x9) = "CompressionError"
+    show (ErrorCode 0xa) = "ConnectError"
+    show (ErrorCode 0xb) = "EnhanceYourCalm"
+    show (ErrorCode 0xc) = "InadequateSecurity"
+    show (ErrorCode 0xd) = "HTTP11Required"
+    show (ErrorCode   x) = "ErrorCode " ++ show x
 
 ----------------------------------------------------------------
 
+type ReasonPhrase = ShortByteString
+
 -- | The connection error or the stream error.
-data HTTP2Error = ConnectionError ErrorCodeId ByteString
-                | StreamError ErrorCodeId StreamId
-                deriving (Eq, Show, Typeable, Read)
+data HTTP2Error =
+    ConnectionIsClosed -- NoError
+  | ConnectionErrorIsReceived ErrorCode ReasonPhrase
+  | ConnectionErrorIsSent     ErrorCode ReasonPhrase
+  | StreamErrorIsReceived     ErrorCode StreamId
+  | StreamErrorIsSent         ErrorCode StreamId
+  | BadThingHappen E.SomeException
+  deriving (Show, Typeable)
 
 instance E.Exception HTTP2Error
-
--- | Obtaining 'ErrorCodeId' from 'HTTP2Error'.
-errorCodeId :: HTTP2Error -> ErrorCodeId
-errorCodeId (ConnectionError err _) = err
-errorCodeId (StreamError     err _) = err
 
 ----------------------------------------------------------------
 
@@ -231,7 +232,7 @@ type SettingsList = [(SettingsKeyId,SettingsValue)]
 -- | Checking 'SettingsList' and reporting an error if any.
 --
 -- >>> checkSettingsList [(SettingsEnablePush,2)]
--- Just (ConnectionError ProtocolError "enable push must be 0 or 1")
+-- Just (ConnectionErrorIsSent ProtocolError "enable push must be 0 or 1")
 checkSettingsList :: SettingsList -> Maybe HTTP2Error
 checkSettingsList settings = case mapMaybe checkSettingsValue settings of
     []    -> Nothing
@@ -239,11 +240,11 @@ checkSettingsList settings = case mapMaybe checkSettingsValue settings of
 
 checkSettingsValue :: (SettingsKeyId,SettingsValue) -> Maybe HTTP2Error
 checkSettingsValue (SettingsEnablePush,v)
-  | v /= 0 && v /= 1 = Just $ ConnectionError ProtocolError "enable push must be 0 or 1"
+  | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError "enable push must be 0 or 1"
 checkSettingsValue (SettingsInitialWindowSize,v)
-  | v > 2147483647   = Just $ ConnectionError FlowControlError "Window size must be less than or equal to 65535"
+  | v > 2147483647   = Just $ ConnectionErrorIsSent FlowControlError "Window size must be less than or equal to 65535"
 checkSettingsValue (SettingsMaxFrameSize,v)
-  | v < 16384 || v > 16777215 = Just $ ConnectionError ProtocolError "Max frame size must be in between 16384 and 16777215"
+  | v < 16384 || v > 16777215 = Just $ ConnectionErrorIsSent ProtocolError "Max frame size must be in between 16384 and 16777215"
 checkSettingsValue _ = Nothing
 
 ----------------------------------------------------------------
@@ -609,11 +610,11 @@ data FramePayload =
     DataFrame ByteString
   | HeadersFrame (Maybe Priority) HeaderBlockFragment
   | PriorityFrame Priority
-  | RSTStreamFrame ErrorCodeId
+  | RSTStreamFrame ErrorCode
   | SettingsFrame SettingsList
   | PushPromiseFrame StreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame StreamId ErrorCodeId ByteString
+  | GoAwayFrame StreamId ErrorCode ByteString
   | WindowUpdateFrame WindowSize
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameType ByteString

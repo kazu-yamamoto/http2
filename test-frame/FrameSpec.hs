@@ -36,7 +36,13 @@ check file = do
                         putStrLn file -- fixme
                         print h2err
                     Just errs -> do
-                        let e = fromErrorCodeId $ errorCodeId h2err
+                        let e = case h2err of
+                              ConnectionIsClosed -> NoError
+                              ConnectionErrorIsReceived x _ -> x
+                              ConnectionErrorIsSent     x _ -> x
+                              StreamErrorIsReceived     x _ -> x
+                              StreamErrorIsSent         x _ -> x
+                              _                             -> undefined
                         errs `shouldContain` [e]
                 Right frm -> do
                     case frame tc of

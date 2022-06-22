@@ -66,11 +66,11 @@ instance FromJSON StreamIdentifier where
     parseJSON x = StreamIdentifier <$> parseJSON x
 -}
 
-instance ToJSON ErrorCodeId where
-    toJSON e = toJSON $ fromErrorCodeId e
+instance ToJSON ErrorCode where
+    toJSON e = toJSON $ fromErrorCode e
 
-instance FromJSON ErrorCodeId where
-    parseJSON e = toErrorCodeId <$> parseJSON e
+instance FromJSON ErrorCode where
+    parseJSON e = toErrorCode <$> parseJSON e
 
 instance {-# OVERLAPPING #-} ToJSON SettingsList where
     toJSON settings = toJSON $ map (first fromSettingsKeyId) settings

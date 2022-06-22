@@ -1,5 +1,6 @@
 module Imports (
     ByteString(..)
+  , ShortByteString
   , module Control.Applicative
   , module Control.Monad
   , module Data.Bits
@@ -20,6 +21,7 @@ import Control.Applicative
 import Control.Monad
 import Data.Bits hiding (Bits)
 import Data.ByteString.Internal (ByteString(..))
+import Data.ByteString.Short (ShortByteString)
 import Data.Foldable
 import Data.Int
 import Data.List

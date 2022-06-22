@@ -11,6 +11,7 @@ module Network.HTTP2.Arch.Receiver (
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Short as Short
 import Data.IORef
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
@@ -74,9 +75,9 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
             when cont $ loop (n + 1)
 
     sendGoaway e
-      | Just (ConnectionError err msg) <- E.fromException e = do
+      | Just (ConnectionErrorIsSent err msg) <- E.fromException e = do
           psid <- getPeerStreamID ctx
-          let frame = goawayFrame psid err msg
+          let frame = goawayFrame psid err $ Short.fromShort msg
           enqueueControl controlQ $ CGoaway frame
           E.throwIO e
       | otherwise = E.throwIO e
@@ -88,7 +89,7 @@ processFrame ctx _recvN (fid, FrameHeader{streamId})
   | isServer ctx &&
     isServerInitiated streamId &&
     (fid `notElem` [FramePriority,FrameRSTStream,FrameWindowUpdate]) =
-    E.throwIO $ ConnectionError ProtocolError "stream id should be odd"
+    E.throwIO $ ConnectionErrorIsSent ProtocolError "stream id should be odd"
 processFrame Context{..} recvN (FrameUnknown _, FrameHeader{payloadLength}) = do
     mx <- readIORef continued
     case mx of
@@ -96,16 +97,16 @@ processFrame Context{..} recvN (FrameUnknown _, FrameHeader{payloadLength}) = do
             -- ignoring unknown frame
             void $ recvN payloadLength
             return True
-        Just _  -> E.throwIO $ ConnectionError ProtocolError "unknown frame"
+        Just _  -> E.throwIO $ ConnectionErrorIsSent ProtocolError "unknown frame"
 processFrame ctx recvN (FramePushPromise, header@FrameHeader{payloadLength})
-  | isServer ctx = E.throwIO $ ConnectionError ProtocolError "push promise is not allowed"
+  | isServer ctx = E.throwIO $ ConnectionErrorIsSent ProtocolError "push promise is not allowed"
   | otherwise = do
       pl <- recvN payloadLength
       PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header pl
       unless (isServerInitiated sid) $
-          E.throwIO $ ConnectionError ProtocolError "wrong sid for push promise"
+          E.throwIO $ ConnectionErrorIsSent ProtocolError "wrong sid for push promise"
       when (frag == "") $
-          E.throwIO $ ConnectionError ProtocolError "wrong header fragment for push promise"
+          E.throwIO $ ConnectionErrorIsSent ProtocolError "wrong header fragment for push promise"
       (_,vt) <- hpackDecodeHeader frag ctx
       let ClientInfo{..} = toClientInfo $ roleInfo ctx
       when (getHeaderValue tokenAuthority vt == Just authority
@@ -122,7 +123,7 @@ processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLengt
     settings <- readIORef http2settings
     case checkFrameHeader settings typhdr of
       Left h2err -> case h2err of
-          StreamError err sid -> do
+          StreamErrorIsSent err sid -> do
               resetStream err sid
               void $ recvN payloadLength
               return True
@@ -130,7 +131,7 @@ processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLengt
       Right _ -> do
           ex <- E.try $ controlOrStream ctx recvN ftyp header
           case ex of
-              Left (StreamError err sid) -> do
+              Left (StreamErrorIsSent err sid) -> do
                   resetStream err sid
                   return True
               Left connErr -> E.throwIO connErr
@@ -174,14 +175,14 @@ controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadL
             Nothing  -> return ()
             Just sid
               | sid == streamId && ftyp == FrameContinuation -> return ()
-              | otherwise -> E.throwIO $ ConnectionError ProtocolError "continuation frame must follow"
+              | otherwise -> E.throwIO $ ConnectionErrorIsSent ProtocolError "continuation frame must follow"
 
 ----------------------------------------------------------------
 
 processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
 processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
-    when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamError ProtocolError streamId
+    when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId
     halfClosedRemote ctx strm
     tlr <- newIORef Nothing
     let inpObj = InpObj tbl (Just 0) (return "") tlr
@@ -226,7 +227,7 @@ getStream' :: Context -> FrameTypeId -> StreamId -> Maybe Stream -> IO (Maybe St
 getStream' ctx ftyp _streamId js@(Just strm0) = do
     when (ftyp == FrameHeaders) $ do
         st <- readStreamState strm0
-        when (isHalfClosedRemote st) $ E.throwIO $ ConnectionError StreamClosed "header must not be sent to half or fully closed stream"
+        when (isHalfClosedRemote st) $ E.throwIO $ ConnectionErrorIsSent StreamClosed "header must not be sent to half or fully closed stream"
         -- Priority made an idle stream
         when (isIdle st) $ opened ctx strm0
     return js
@@ -238,15 +239,15 @@ getStream' ctx@Context{..} ftyp streamId Nothing
           if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority] then
               return Nothing -- will be ignored
             else
-              E.throwIO $ ConnectionError ProtocolError "stream identifier must not decrease"
+              E.throwIO $ ConnectionErrorIsSent ProtocolError "stream identifier must not decrease"
           else do -- consider the stream idle
             when (ftyp `notElem` [FrameHeaders,FramePriority]) $
-                E.throwIO $ ConnectionError ProtocolError $ "this frame is not allowed in an idle stream: " `BS.append` C8.pack (show ftyp)
+                E.throwIO $ ConnectionErrorIsSent ProtocolError $ "this frame is not allowed in an idle stream: " `Short.append` Short.toShort (C8.pack (show ftyp))
             when (ftyp == FrameHeaders) $ do
                 setPeerStreamID ctx streamId
                 cnt <- readIORef concurrency
                 -- Checking the limitation of concurrency
-                when (cnt >= maxConcurrency) $ E.throwIO $ StreamError RefusedStream streamId
+                when (cnt >= maxConcurrency) $ E.throwIO $ StreamErrorIsSent RefusedStream streamId
             Just <$> openStream ctx streamId ftyp
   | otherwise = undefined -- never reach
 
@@ -263,7 +264,7 @@ control FrameSettings header@FrameHeader{flags} bs Context{http2settings, contro
         -- Settings Flood - CVE-2019-9515
         rate <- getRate settingsRate
         if rate > settingsRateLimit then
-            E.throwIO $ ConnectionError ProtocolError "too many settings"
+            E.throwIO $ ConnectionErrorIsSent ProtocolError "too many settings"
           else do
             oldws <- initialWindowSize <$> readIORef http2settings
             modifyIORef' http2settings $ \old -> updateSettings old alist
@@ -286,7 +287,7 @@ control FramePing FrameHeader{flags} bs Context{controlQ,pingRate} =
         -- Ping Flood - CVE-2019-9512
         rate <- getRate pingRate
         if rate > pingRateLimit then
-            E.throwIO $ ConnectionError ProtocolError "too many ping"
+            E.throwIO $ ConnectionErrorIsSent ProtocolError "too many ping"
           else do
             let frame = pingFrame bs
             enqueueControl controlQ $ CFrame frame
@@ -303,7 +304,7 @@ control FrameWindowUpdate header bs Context{connectionWindow} = do
       let w1 = w0 + n
       writeTVar connectionWindow w1
       return w1
-    when (isWindowOverflow w) $ E.throwIO $ ConnectionError FlowControlError "control window should be less than 2^31"
+    when (isWindowOverflow w) $ E.throwIO $ ConnectionErrorIsSent FlowControlError "control window should be less than 2^31"
     return True
 
 control _ _ _ _ =
@@ -322,7 +323,7 @@ guardIt x = case x of
 {-# INLINE checkPriority #-}
 checkPriority :: Priority -> StreamId -> IO ()
 checkPriority p me
-  | dep == me = E.throwIO $ StreamError ProtocolError me
+  | dep == me = E.throwIO $ StreamErrorIsSent ProtocolError me
   | otherwise = return ()
   where
     dep = streamDependency p
@@ -336,7 +337,7 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx s@(Open JustOpened) Stream{
         -- Empty Frame Flooding - CVE-2019-9518
         rate <- getRate $ emptyFrameRate ctx
         if rate > emptyFrameRateLimit then
-            E.throwIO $ ConnectionError ProtocolError "too many empty headers"
+            E.throwIO $ ConnectionErrorIsSent ProtocolError "too many empty headers"
           else
             return s
       else do
@@ -364,7 +365,7 @@ stream FrameHeaders header@FrameHeader{flags} bs ctx (Open (Body q _ _ tlr)) _ =
         return HalfClosedRemote
       else
         -- we don't support continuation here.
-        E.throwIO $ ConnectionError ProtocolError "continuation in trailer is not supported"
+        E.throwIO $ ConnectionErrorIsSent ProtocolError "continuation in trailer is not supported"
 
 -- ignore data-frame except for flow-control when we're done locally
 stream FrameData
@@ -395,14 +396,14 @@ stream FrameData
         unless endOfStream $ do
             rate <- getRate emptyFrameRate
             when (rate > emptyFrameRateLimit) $ do
-                E.throwIO $ ConnectionError ProtocolError "too many empty data"
+                E.throwIO $ ConnectionErrorIsSent ProtocolError "too many empty data"
       else do
         writeIORef bodyLength len
         atomically $ writeTQueue q body
     if endOfStream then do
         case mcl of
             Nothing -> return ()
-            Just cl -> when (cl /= len) $ E.throwIO $ StreamError ProtocolError streamId
+            Just cl -> when (cl /= len) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId
         -- no trailers
         atomically $ writeTQueue q ""
         return HalfClosedRemote
@@ -415,7 +416,7 @@ stream FrameContinuation FrameHeader{flags} frag ctx s@(Open (Continued rfrags s
         -- Empty Frame Flooding - CVE-2019-9518
         rate <- getRate $ emptyFrameRate ctx
         if rate > emptyFrameRateLimit then
-            E.throwIO $ ConnectionError ProtocolError "too many empty continuation"
+            E.throwIO $ ConnectionErrorIsSent ProtocolError "too many empty continuation"
           else
             return s
       else do
@@ -423,9 +424,9 @@ stream FrameContinuation FrameHeader{flags} frag ctx s@(Open (Continued rfrags s
             siz' = siz + BS.length frag
             n' = n + 1
         when (siz' > headerFragmentLimit) $
-          E.throwIO $ ConnectionError EnhanceYourCalm "Header is too big"
+          E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm "Header is too big"
         when (n' > continuationLimit) $
-          E.throwIO $ ConnectionError EnhanceYourCalm "Header is too fragmented"
+          E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm "Header is too fragmented"
         if endOfHeader then do
             let hdrblk = BS.concat $ reverse rfrags'
             tbl <- hpackDecodeHeader hdrblk ctx
@@ -443,7 +444,7 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
       let w1 = w0 + n
       writeTVar streamWindow w1
       return w1
-    when (isWindowOverflow w) $ E.throwIO $ StreamError FlowControlError streamId
+    when (isWindowOverflow w) $ E.throwIO $ StreamErrorIsSent FlowControlError streamId
     return s
 
 stream FrameRSTStream header bs ctx _ strm = do
@@ -460,12 +461,12 @@ stream FramePriority header bs _ s Stream{streamNumber} = do
     return s
 
 -- this ordering is important
-stream FrameContinuation _ _ _ _ _ = E.throwIO $ ConnectionError ProtocolError "continue frame cannot come here"
-stream _ _ _ _ (Open Continued{}) _ = E.throwIO $ ConnectionError ProtocolError "an illegal frame follows header/continuation frames"
+stream FrameContinuation _ _ _ _ _ = E.throwIO $ ConnectionErrorIsSent ProtocolError "continue frame cannot come here"
+stream _ _ _ _ (Open Continued{}) _ = E.throwIO $ ConnectionErrorIsSent ProtocolError "an illegal frame follows header/continuation frames"
 -- Ignore frames to streams we have just reset, per section 5.1.
 stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st
-stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError StreamClosed streamId
-stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamError ProtocolError streamId
+stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent StreamClosed streamId
+stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent ProtocolError streamId
 
 ----------------------------------------------------------------
 

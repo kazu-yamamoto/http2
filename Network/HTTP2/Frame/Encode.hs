@@ -175,11 +175,11 @@ buildFramePayloadPriority EncodeInfo{..} p = (header, builder)
     builder = buildPriority p
     header = FrameHeader 5 encodeFlags encodeStreamId
 
-buildFramePayloadRSTStream :: EncodeInfo -> ErrorCodeId -> (FrameHeader, Builder)
+buildFramePayloadRSTStream :: EncodeInfo -> ErrorCode -> (FrameHeader, Builder)
 buildFramePayloadRSTStream EncodeInfo{..} e = (header, builder)
   where
     builder = (b4 :)
-    b4 = N.bytestring32 $ fromErrorCodeId e
+    b4 = N.bytestring32 $ fromErrorCode e
     header = FrameHeader 4 encodeFlags encodeStreamId
 
 buildFramePayloadSettings :: EncodeInfo -> SettingsList -> (FrameHeader, Builder)
@@ -208,14 +208,14 @@ buildFramePayloadPing EncodeInfo{..} odata = (header, builder)
     builder = (odata :)
     header = FrameHeader 8 encodeFlags encodeStreamId
 
-buildFramePayloadGoAway :: EncodeInfo -> StreamId -> ErrorCodeId -> ByteString -> (FrameHeader, Builder)
+buildFramePayloadGoAway :: EncodeInfo -> StreamId -> ErrorCode -> ByteString -> (FrameHeader, Builder)
 buildFramePayloadGoAway EncodeInfo{..} sid e debug = (header, builder)
   where
     builder = (b8 :) . (debug :)
     len0 = 8
     b8 = unsafeCreate len0 $ \ptr -> do
         N.poke32 (fromIntegral sid)  ptr 0
-        N.poke32 (fromErrorCodeId e) ptr 4
+        N.poke32 (fromErrorCode e) ptr 4
     len = len0 + BS.length debug
     header = FrameHeader len encodeFlags encodeStreamId
 

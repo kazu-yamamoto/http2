@@ -44,7 +44,7 @@ run conf@Config{..} server = do
             return True
 
 -- connClose must not be called here since Run:fork calls it
-goaway :: Config -> ErrorCodeId -> ByteString -> IO ()
+goaway :: Config -> ErrorCode -> ByteString -> IO ()
 goaway Config{..} etype debugmsg = confSendAll bytestream
   where
     bytestream = goawayFrame 0 etype debugmsg

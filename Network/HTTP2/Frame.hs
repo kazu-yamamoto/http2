@@ -72,13 +72,11 @@ module Network.HTTP2.Frame (
   , maxWindowSize
   , isWindowOverflow
   -- * Error code
-  , ErrorCode
-  , ErrorCodeId(..)
-  , fromErrorCodeId
-  , toErrorCodeId
+  , ErrorCode(ErrorCode,NoError,ProtocolError,InternalError,FlowControlError,SettingsTimeout,StreamClosed,FrameSizeError,RefusedStream,Cancel,CompressionError,ConnectError,EnhanceYourCalm,InadequateSecurity,HTTP11Required)
+  , fromErrorCode
+  , toErrorCode
   -- * Error
   , HTTP2Error(..)
-  , errorCodeId
   -- * Predefined values
   , connectionPreface
   , connectionPrefaceLength

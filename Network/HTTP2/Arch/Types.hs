@@ -119,7 +119,7 @@ data OpenState =
 
 data ClosedCode = Finished
                 | Killed
-                | Reset ErrorCodeId
+                | Reset ErrorCode
                 | ResetByMe SomeException
                 deriving Show
 
