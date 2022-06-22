@@ -360,21 +360,22 @@ instance Read FrameType where
     readListPrec = readListPrecDefault
     readPrec = do
         Ident idnt <- lexP
-        case idnt of
-          "FrameData"         -> return FrameData
-          "FrameHeaders"      -> return FrameHeaders
-          "FramePriority"     -> return FramePriority
-          "FrameRSTStream"    -> return FrameRSTStream
-          "FrameSettings"     -> return FrameSettings
-          "FramePushPromise"  -> return FramePushPromise
-          "FramePing"         -> return FramePing
-          "FrameGoAway"       -> return FrameGoAway
-          "FrameWindowUpdate" -> return FrameWindowUpdate
-          "FrameContinuation" -> return FrameContinuation
-          "FrameType"         -> do
+        readFT idnt
+      where
+        readFT "FrameData"         = return FrameData
+        readFT "FrameHeaders"      = return FrameHeaders
+        readFT "FramePriority"     = return FramePriority
+        readFT "FrameRSTStream"    = return FrameRSTStream
+        readFT "FrameSettings"     = return FrameSettings
+        readFT "FramePushPromise"  = return FramePushPromise
+        readFT "FramePing"         = return FramePing
+        readFT "FrameGoAway"       = return FrameGoAway
+        readFT "FrameWindowUpdate" = return FrameWindowUpdate
+        readFT "FrameContinuation" = return FrameContinuation
+        readFT "FrameType"         = do
               Number ftyp <- lexP
               return $ FrameType $ fromIntegral $ fromJust $ L.numberToInteger ftyp
-          _                   -> error "Read for FrameType"
+        readFT _                   = error "Read for FrameType"
 
 ----------------------------------------------------------------
 
