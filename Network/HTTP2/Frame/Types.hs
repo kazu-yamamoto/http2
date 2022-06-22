@@ -277,28 +277,15 @@ recommendedConcurrency = 100
 ----------------------------------------------------------------
 
 -- | The type for weight in priority. Its values are from 1 to 256.
+--   Deprecated in RFC 9113.
 type Weight = Int
 
--- | Type for stream priority
+-- | Type for stream priority. Deprecated in RFC 9113 but provided for 'FrameHeaders'.
 data Priority = Priority {
     exclusive :: Bool
   , streamDependency :: StreamId
   , weight :: Weight
   } deriving (Show, Read, Eq)
-
--- | Default priority which depends on stream 0.
---
--- >>> defaultPriority
--- Priority {exclusive = False, streamDependency = 0, weight = 16}
-defaultPriority :: Priority
-defaultPriority = Priority False 0 16
-
--- | Highest priority which depends on stream 0.
---
--- >>> highestPriority
--- Priority {exclusive = False, streamDependency = 0, weight = 256}
-highestPriority :: Priority
-highestPriority = Priority False 0 256
 
 ----------------------------------------------------------------
 

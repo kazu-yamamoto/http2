@@ -28,8 +28,6 @@ module Network.HTTP2.Frame (
   -- * Priority
   , Priority(..)
   , Weight
-  , defaultPriority
-  , highestPriority
   -- * Stream identifier
   , StreamId
   , isControl
