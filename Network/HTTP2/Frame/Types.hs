@@ -32,49 +32,49 @@ fromErrorCode (ErrorCode w) = w
 toErrorCode :: Word32 -> ErrorCode
 toErrorCode = ErrorCode
 
--- | The type for error code. See <https://tools.ietf.org/html/rfc7540#section-7>.
+-- | The type for error code. See <https://www.rfc-editor.org/rfc/rfc9113#ErrorCodes>.
 
-pattern NoError :: ErrorCode
-pattern NoError            = ErrorCode 0x0
+pattern NoError            :: ErrorCode
+pattern NoError             = ErrorCode 0x0
 
-pattern ProtocolError :: ErrorCode
-pattern ProtocolError      = ErrorCode 0x1
+pattern ProtocolError      :: ErrorCode
+pattern ProtocolError       = ErrorCode 0x1
 
-pattern InternalError :: ErrorCode
-pattern InternalError      = ErrorCode 0x2
+pattern InternalError      :: ErrorCode
+pattern InternalError       = ErrorCode 0x2
 
-pattern FlowControlError :: ErrorCode
-pattern FlowControlError   = ErrorCode 0x3
+pattern FlowControlError   :: ErrorCode
+pattern FlowControlError    = ErrorCode 0x3
 
-pattern SettingsTimeout :: ErrorCode
-pattern SettingsTimeout    = ErrorCode 0x4
+pattern SettingsTimeout    :: ErrorCode
+pattern SettingsTimeout     = ErrorCode 0x4
 
-pattern StreamClosed :: ErrorCode
-pattern StreamClosed       = ErrorCode 0x5
+pattern StreamClosed       :: ErrorCode
+pattern StreamClosed        = ErrorCode 0x5
 
-pattern FrameSizeError :: ErrorCode
-pattern FrameSizeError     = ErrorCode 0x6
+pattern FrameSizeError     :: ErrorCode
+pattern FrameSizeError      = ErrorCode 0x6
 
-pattern RefusedStream :: ErrorCode
-pattern RefusedStream      = ErrorCode 0x7
+pattern RefusedStream      :: ErrorCode
+pattern RefusedStream       = ErrorCode 0x7
 
-pattern Cancel :: ErrorCode
-pattern Cancel             = ErrorCode 0x8
+pattern Cancel             :: ErrorCode
+pattern Cancel              = ErrorCode 0x8
 
-pattern CompressionError :: ErrorCode
-pattern CompressionError   = ErrorCode 0x9
+pattern CompressionError   :: ErrorCode
+pattern CompressionError    = ErrorCode 0x9
 
-pattern ConnectError :: ErrorCode
-pattern ConnectError       = ErrorCode 0xa
+pattern ConnectError       :: ErrorCode
+pattern ConnectError        = ErrorCode 0xa
 
-pattern EnhanceYourCalm :: ErrorCode
-pattern EnhanceYourCalm    = ErrorCode 0xb
+pattern EnhanceYourCalm    :: ErrorCode
+pattern EnhanceYourCalm     = ErrorCode 0xb
 
 pattern InadequateSecurity :: ErrorCode
-pattern InadequateSecurity = ErrorCode 0xc
+pattern InadequateSecurity  = ErrorCode 0xc
 
-pattern HTTP11Required :: ErrorCode
-pattern HTTP11Required     = ErrorCode 0xd
+pattern HTTP11Required     :: ErrorCode
+pattern HTTP11Required      = ErrorCode 0xd
 
 instance Show ErrorCode where
     show (ErrorCode 0x0) = "NoError"

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Framing in HTTP\/2(<https://tools.ietf.org/html/rfc7540>).
+-- | Framing in HTTP\/2(<https://www.rfc-editor.org/rfc/rfc9113>).
 module Network.HTTP2.Frame (
   -- * Frame
     Frame(..)

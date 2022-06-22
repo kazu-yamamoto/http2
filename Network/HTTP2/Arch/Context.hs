@@ -65,7 +65,7 @@ data Context = Context {
   , firstSettings      :: IORef Bool
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
-  -- | RFC 7540 says "Other frames (from any stream) MUST NOT
+  -- | RFC 9113 says "Other frames (from any stream) MUST NOT
   --   occur between the HEADERS frame and any CONTINUATION
   --   frames that might follow". This field is used to implement
   --   this requirement.
