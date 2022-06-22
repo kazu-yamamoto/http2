@@ -77,6 +77,7 @@ module Network.HTTP2.Frame (
   , toErrorCode
   -- * Error
   , HTTP2Error(..)
+  , ReasonPhrase
   -- * Predefined values
   , connectionPreface
   , connectionPrefaceLength
