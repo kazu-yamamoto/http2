@@ -34,7 +34,7 @@ import Network.HPACK.Types
 
 -- | An array to get 'HeaderValue' quickly.
 --   'getHeaderValue' should be used.
---   Internally, the key is 'Token' 'ix'.
+--   Internally, the key is 'tokenIx'.
 type ValueTable = Array Int (Maybe HeaderValue)
 
 -- | Accessing 'HeaderValue' with 'Token'.

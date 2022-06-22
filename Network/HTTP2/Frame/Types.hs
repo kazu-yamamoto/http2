@@ -292,6 +292,12 @@ data Priority = Priority {
 -- | The type for raw frame type.
 newtype FrameType = FrameType Word8 deriving (Eq, Ord, Ix)
 
+-- | Converting 'FrameType' to 'Word8'.
+--
+-- >>> fromFrameType FrameData
+-- 0
+-- >>> fromFrameType FrameContinuation
+-- 9
 fromFrameType :: FrameType -> Word8
 fromFrameType (FrameType x) = x
 
@@ -333,13 +339,6 @@ pattern FrameWindowUpdate  = FrameType 8
 
 pattern FrameContinuation :: FrameType
 pattern FrameContinuation  = FrameType 9
-
--- | Converting 'FrameTypeId' to 'FrameType'.
---
--- >>> fromFrameType FrameData
--- 0
--- >>> fromFrameType FrameContinuation
--- 9
 
 instance Show FrameType where
     show (FrameType 0) = "FrameData"
