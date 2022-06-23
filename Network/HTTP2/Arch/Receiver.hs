@@ -80,6 +80,13 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
           let frame = goawayFrame psid err $ Short.fromShort msg
           enqueueControl controlQ $ CGoaway frame
           E.throwIO e
+      | Just (StreamErrorIsSent err sid) <- E.fromException e = do
+          let frame = resetFrame err sid
+          enqueueControl controlQ $ CFrame frame
+          psid <- getPeerStreamID ctx
+          let frame' = goawayFrame psid err "treat a stream error as a connection error"
+          enqueueControl controlQ $ CGoaway frame'
+          E.throwIO e
       | otherwise = E.throwIO e
 
 ----------------------------------------------------------------
@@ -121,27 +128,11 @@ processFrame ctx recvN (FramePushPromise, header@FrameHeader{payloadLength})
                 insertCache method path strm $ roleInfo ctx
             _ -> return ()
       return True
-processFrame ctx@Context{..} recvN typhdr@(ftyp, header@FrameHeader{payloadLength}) = do
+processFrame ctx@Context{..} recvN typhdr@(ftyp, header) = do
     settings <- readIORef http2settings
     case checkFrameHeader settings typhdr of
-      Left h2err -> case h2err of
-          StreamErrorIsSent err sid -> do
-              resetStream err sid
-              void $ recvN payloadLength
-              return True
-          connErr -> E.throwIO connErr
-      Right _ -> do
-          ex <- E.try $ controlOrStream ctx recvN ftyp header
-          case ex of
-              Left (StreamErrorIsSent err sid) -> do
-                  resetStream err sid
-                  return True
-              Left connErr -> E.throwIO connErr
-              Right cont   -> return cont
-  where
-    resetStream err sid = do
-        let frame = resetFrame err sid
-        enqueueControl controlQ $ CFrame frame
+      Left h2err -> E.throwIO h2err
+      Right _    -> controlOrStream ctx recvN ftyp header
 
 ----------------------------------------------------------------
 
