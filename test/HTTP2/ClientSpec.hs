@@ -5,16 +5,13 @@ module HTTP2.ClientSpec where
 
 import Control.Concurrent
 import qualified Control.Exception as E
-import Control.Monad
+import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString)
-import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP.Types
 import Network.Run.TCP
-import Network.Socket
 import Test.Hspec
 
-import Network.HPACK
 import Network.HTTP2.Client
 import qualified Network.HTTP2.Server as S
 
@@ -24,13 +21,26 @@ port = "8080"
 host :: String
 host = "127.0.0.1"
 
+host' :: ByteString
+host' = C8.pack host
+
 spec :: Spec
 spec = do
     describe "server" $ do
-        it "receives an error in malformed cases" $
+        it "receives an error if scheme is missing" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
-                (runClient allocSimpleConfig)
+                runClient "" host' [] `shouldThrow` streamError
+
+        it "receives an error if authority is missing" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runClient "http" "" [] `shouldThrow` streamError
+
+        it "receives an error if authority and host are different" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runClient "http" host' [("Host","foo")] `shouldThrow` streamError
 
 runServer :: IO ()
 runServer = runTCPServer (Just host) port runHTTP2Server
@@ -47,35 +57,19 @@ responseHello = S.responseBuilder ok200 header body
     header = [("Content-Type", "text/plain")]
     body = byteString "Hello, world!\n"
 
-runClient :: (Socket -> BufferSize -> IO Config) -> IO ()
-runClient allocConfig =
-  runTCPClient host port $ runHTTP2Client
+runClient :: Scheme -> Authority -> RequestHeaders -> IO ()
+runClient sc au hd = runTCPClient host port $ runHTTP2Client
   where
-    auth = C8.pack host
-    cliconf = ClientConfig "" auth 20
-    runHTTP2Client s = E.bracket (allocConfig s 4096)
+    cliconf = ClientConfig sc au 20
+    runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
-                                 (\conf -> run cliconf conf client0 `shouldThrow` streamError)
+                                 (\conf -> run cliconf conf client)
+    client sendRequest = do
+        let req = requestNoBody methodGet "/" hd
+        sendRequest req $ \rsp -> do
+            responseStatus rsp `shouldBe` Just ok200
+            fmap statusMessage (responseStatus rsp) `shouldBe` Just "OK"
 
 streamError :: Selector HTTP2Error
 streamError (StreamErrorIsReceived _ _) = True
 streamError _                           = False
-
--- delay sending preface to be able to test if it is always sent first
-allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
-allocSlowPrefaceConfig s size = do
-  config <- allocSimpleConfig s size
-  pure config { confSendAll = slowPrefaceSend (confSendAll config) }
-  where
-    slowPrefaceSend :: (ByteString -> IO ()) -> ByteString -> IO ()
-    slowPrefaceSend orig chunk = do
-      when (C8.pack "PRI" `isPrefixOf` chunk) $ do
-        threadDelay 10000
-      orig chunk
-
-client0 :: Client ()
-client0 sendRequest = do
-    let req = requestNoBody methodGet "/" []
-    sendRequest req $ \rsp -> do
-        responseStatus rsp `shouldBe` Just ok200
-        fmap statusMessage (responseStatus rsp) `shouldBe` Just "OK"

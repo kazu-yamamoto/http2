@@ -89,7 +89,7 @@ checkRequestHeader reqvt
   | mPath       == Just ""      = False
   | isJust mConnection          = False
   | just mTE (/= "trailers")    = False
-  | otherwise                   = True
+  | otherwise                   = checkAuth mAuthority mHost
   where
     mStatus     = getHeaderValue tokenStatus reqvt
     mScheme     = getHeaderValue tokenScheme reqvt
@@ -97,6 +97,13 @@ checkRequestHeader reqvt
     mMethod     = getHeaderValue tokenMethod reqvt
     mConnection = getHeaderValue tokenConnection reqvt
     mTE         = getHeaderValue tokenTE reqvt
+    mAuthority  = getHeaderValue tokenAuthority reqvt
+    mHost       = getHeaderValue tokenHost reqvt
+
+checkAuth :: Maybe ByteString -> Maybe ByteString -> Bool
+checkAuth Nothing  Nothing           = False
+checkAuth (Just a) (Just h) | a /= h = False
+checkAuth _        _                 = True
 
 {-# INLINE just #-}
 just :: Maybe a -> (a -> Bool) -> Bool
