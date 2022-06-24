@@ -21,7 +21,7 @@ data CaseWire = CaseWire {
     wire_description :: String
   , wire_hex :: ByteString
   , wire_padding :: Maybe Pad
-  , wire_error :: Maybe [ErrorCodeId]
+  , wire_error :: Maybe [ErrorCode]
   } deriving (Show,Read)
 
 sourceToWire :: CaseSource -> CaseWire
@@ -51,5 +51,5 @@ wireToCase CaseWire { wire_error = Just e, ..} = Case {
     description = wire_description
   , wire = wire_hex
   , frame = Nothing
-  , err = Just $ fromErrorCodeId <$> e
+  , err = Just e
   }

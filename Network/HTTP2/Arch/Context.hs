@@ -2,9 +2,9 @@
 
 module Network.HTTP2.Arch.Context where
 
-import Control.Concurrent.STM
 import Data.IORef
 import Network.HTTP.Types (Method)
+import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK
@@ -65,7 +65,7 @@ data Context = Context {
   , firstSettings      :: IORef Bool
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
-  -- | RFC 7540 says "Other frames (from any stream) MUST NOT
+  -- | RFC 9113 says "Other frames (from any stream) MUST NOT
   --   occur between the HEADERS frame and any CONTINUATION
   --   frames that might follow". This field is used to implement
   --   this requirement.
@@ -170,7 +170,7 @@ closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
     atomicModifyIORef' concurrency (\x -> (x-1,()))
     setStreamState ctx strm (Closed cc) -- anyway
 
-openStream :: Context -> StreamId -> FrameTypeId -> IO Stream
+openStream :: Context -> StreamId -> FrameType -> IO Stream
 openStream ctx@Context{streamTable, http2settings} sid ftyp = do
     ws <- initialWindowSize <$> readIORef http2settings
     newstrm <- newStream sid $ fromIntegral ws

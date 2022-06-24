@@ -10,13 +10,13 @@ module Network.HTTP2.Arch.Sender (
   , runTrailersMaker
   ) where
 
-import Control.Concurrent.STM
-import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
 import Foreign.Ptr (plusPtr)
 import Network.ByteOrder
+import qualified UnliftIO.Exception as E
+import UnliftIO.STM
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toHeaderTable)
@@ -47,13 +47,13 @@ getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow
 waitStreamWindowSize :: Stream -> IO ()
 waitStreamWindowSize Stream{streamWindow} = atomically $ do
     w <- readTVar streamWindow
-    check (w > 0)
+    checkSTM (w > 0)
 
 {-# INLINE waitStreaming #-}
 waitStreaming :: TBQueue a -> IO ()
 waitStreaming tbq = atomically $ do
     isEmpty <- isEmptyTBQueue tbq
-    check (not isEmpty)
+    checkSTM (not isEmpty)
 
 data Switch = C Control
             | O (Output Stream)
@@ -62,16 +62,16 @@ data Switch = C Control
 frameSender :: Context -> Config -> Manager -> IO ()
 frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             Config{..}
-            mgr = loop 0 `E.catch` ignore
+            mgr = loop 0
   where
     dequeue off = do
         isEmpty <- isEmptyTQueue controlQ
         if isEmpty then do
             w <- readTVar connectionWindow
-            check (w > 0)
+            checkSTM (w > 0)
             emp <- isEmptyTQueue outputQ
             if emp then
-                if off /= 0 then return Flush else retry
+                if off /= 0 then return Flush else retrySTM
               else
                 O <$> readTQueue outputQ
           else
@@ -231,7 +231,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         flushN $ kvlen + frameHeaderLength
         -- Now off is 0
         (ths', kvlen') <- hpackEncodeHeaderLoop ctx bufHeaderPayload headerPayloadLim ths
-        when (ths == ths') $ E.throwIO $ ConnectionError CompressionError "cannot compress the header"
+        when (ths == ths') $ E.throwIO $ ConnectionErrorIsSent CompressionError sid "cannot compress the header"
         let flag = case ths' of
                 [] -> setEndHeader defaultFlags
                 _  -> defaultFlags
@@ -308,10 +308,6 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
         hinfo = FrameHeader len flag sid
-
-    {-# INLINE ignore #-}
-    ignore :: E.SomeException -> IO ()
-    ignore _ = return ()
 
 -- | Running trailers-maker.
 --

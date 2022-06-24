@@ -4,7 +4,6 @@ import qualified System.TimeManager as T
 
 import Imports
 import Network.HTTP2.Arch
-import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 
@@ -31,10 +30,7 @@ data PushPromise = PushPromise {
     -- | Accessor for response actually pushed from a server.
     , promiseResponse    :: Response
     -- | Accessor for response weight.
-    , promiseWeight      :: Weight
     }
-
-{-# DEPRECATED promiseWeight "Don't use this" #-}
 
 -- | Additional information.
 newtype Aux = Aux {

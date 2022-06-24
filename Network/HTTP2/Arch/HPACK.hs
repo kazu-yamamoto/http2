@@ -62,21 +62,21 @@ hpackEncodeHeaderLoop Context{..} buf siz hs =
 
 ----------------------------------------------------------------
 
-hpackDecodeHeader :: HeaderBlockFragment -> Context -> IO HeaderTable
-hpackDecodeHeader hdrblk ctx = do
-    tbl@(_,vt) <- hpackDecodeTrailer hdrblk ctx
+hpackDecodeHeader :: HeaderBlockFragment -> StreamId -> Context -> IO HeaderTable
+hpackDecodeHeader hdrblk sid ctx = do
+    tbl@(_,vt) <- hpackDecodeTrailer hdrblk sid ctx
     if isClient ctx || checkRequestHeader vt then
         return tbl
       else
-        E.throwIO $ ConnectionError ProtocolError "the header key is illegal"
+        E.throwIO $ StreamErrorIsSent ProtocolError sid
 
-hpackDecodeTrailer :: HeaderBlockFragment -> Context -> IO HeaderTable
-hpackDecodeTrailer hdrblk Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
+hpackDecodeTrailer :: HeaderBlockFragment -> StreamId -> Context -> IO HeaderTable
+hpackDecodeTrailer hdrblk sid Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
     handl IllegalHeaderName =
-        E.throwIO $ ConnectionError ProtocolError "the header key is illegal"
+        E.throwIO $ StreamErrorIsSent ProtocolError sid
     handl _ =
-        E.throwIO $ ConnectionError CompressionError "cannot decompress the header"
+        E.throwIO $ StreamErrorIsSent CompressionError sid
 
 {-# INLINE checkRequestHeader #-}
 checkRequestHeader :: ValueTable -> Bool
@@ -89,7 +89,7 @@ checkRequestHeader reqvt
   | mPath       == Just ""      = False
   | isJust mConnection          = False
   | just mTE (/= "trailers")    = False
-  | otherwise                   = True
+  | otherwise                   = checkAuth mAuthority mHost
   where
     mStatus     = getHeaderValue tokenStatus reqvt
     mScheme     = getHeaderValue tokenScheme reqvt
@@ -97,6 +97,13 @@ checkRequestHeader reqvt
     mMethod     = getHeaderValue tokenMethod reqvt
     mConnection = getHeaderValue tokenConnection reqvt
     mTE         = getHeaderValue tokenTE reqvt
+    mAuthority  = getHeaderValue tokenAuthority reqvt
+    mHost       = getHeaderValue tokenHost reqvt
+
+checkAuth :: Maybe ByteString -> Maybe ByteString -> Bool
+checkAuth Nothing  Nothing           = False
+checkAuth (Just a) (Just h) | a /= h = False
+checkAuth _        _                 = True
 
 {-# INLINE just #-}
 just :: Maybe a -> (a -> Bool) -> Bool

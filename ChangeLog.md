@@ -1,3 +1,13 @@
+## 4.0.0
+
+* Breaking change: `HTTP2Error` is redefined.
+* Breaking change: `FrameTypeId`, `SettingsKeyId` and `ErrorCodeId` are removed.
+  Use `FrameType`, `SettingsKey` and `ErrorCode` instead.
+* A client can receive a concrete `HTTP2Error`.
+* Catching up RFC 9113. Host: and :authority cannot disagree.
+* Breaking change: `Network.HTTP2` and `Network.HTTP2.Priority` are removed.
+* Breaking change: obsoleted stuff are removed.
+
 ## 3.0.3
 
 * Return correct status messages in HTTP2 client

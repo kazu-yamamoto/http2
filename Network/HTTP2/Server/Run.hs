@@ -3,8 +3,8 @@
 
 module Network.HTTP2.Server.Run where
 
-import Control.Concurrent (forkIO, killThread)
-import qualified Control.Exception as E
+import UnliftIO.Async (race_)
+import qualified UnliftIO.Exception as E
 
 import Imports
 import Network.HTTP2.Arch
@@ -31,14 +31,9 @@ run conf@Config{..} server = do
         -- If it is large, huge memory is consumed and many
         -- context switches happen.
         replicateM_ 3 $ spawnAction mgr
-        -- Receiver
-        tid <- forkIO $ frameReceiver ctx confReadN
-        -- Sender
-        -- frameSender is the main thread because it ensures to send
-        -- a goway frame.
-        frameSender ctx conf mgr `E.finally` do
-            stop mgr
-            killThread tid
+        let runReceiver = frameReceiver ctx confReadN
+            runSender = frameSender ctx conf mgr
+        race_ runReceiver runSender `E.finally` stop mgr
   where
     checkPreface = do
         preface <- confReadN connectionPrefaceLength
@@ -49,7 +44,7 @@ run conf@Config{..} server = do
             return True
 
 -- connClose must not be called here since Run:fork calls it
-goaway :: Config -> ErrorCodeId -> ByteString -> IO ()
+goaway :: Config -> ErrorCode -> ByteString -> IO ()
 goaway Config{..} etype debugmsg = confSendAll bytestream
   where
     bytestream = goawayFrame 0 etype debugmsg

@@ -2,13 +2,13 @@
 
 module Network.HTTP2.Arch.Types where
 
-import Control.Concurrent
-import Control.Concurrent.STM
-import Control.Exception (SomeException)
 import Data.ByteString.Builder (Builder)
 import Data.IORef
 import Data.IntMap.Strict (IntMap)
 import qualified Network.HTTP.Types as H
+import UnliftIO.Concurrent
+import UnliftIO.Exception (SomeException)
+import UnliftIO.STM
 
 import Imports
 import Network.HPACK
@@ -20,7 +20,7 @@ import Network.HTTP2.Frame
 -- | "http" or "https".
 type Scheme = ByteString
 
--- | For so-called "Host:" header.
+-- | Authority.
 type Authority = ByteString
 
 -- | Path.
@@ -119,7 +119,7 @@ data OpenState =
 
 data ClosedCode = Finished
                 | Killed
-                | Reset ErrorCodeId
+                | Reset ErrorCode
                 | ResetByMe SomeException
                 deriving Show
 

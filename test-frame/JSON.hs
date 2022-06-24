@@ -66,17 +66,23 @@ instance FromJSON StreamIdentifier where
     parseJSON x = StreamIdentifier <$> parseJSON x
 -}
 
-instance ToJSON ErrorCodeId where
-    toJSON e = toJSON $ fromErrorCodeId e
+instance ToJSON ErrorCode where
+    toJSON e = toJSON $ fromErrorCode e
 
-instance FromJSON ErrorCodeId where
-    parseJSON e = toErrorCodeId <$> parseJSON e
+instance FromJSON ErrorCode where
+    parseJSON e = toErrorCode <$> parseJSON e
+
+instance ToJSON FrameType where
+    toJSON e = toJSON $ fromFrameType e
+
+instance FromJSON FrameType where
+    parseJSON e = toFrameType <$> parseJSON e
 
 instance {-# OVERLAPPING #-} ToJSON SettingsList where
-    toJSON settings = toJSON $ map (first fromSettingsKeyId) settings
+    toJSON settings = toJSON $ map (first fromSettingsKey) settings
 
 instance {-# OVERLAPPING #-} FromJSON SettingsList where
-    parseJSON x = map (first (fromJust . toSettingsKeyId)) <$> parseJSON x
+    parseJSON x = map (first toSettingsKey) <$> parseJSON x
 
 instance ToJSON ByteString where
     toJSON bs = toJSON $ byteStringToText bs
@@ -134,10 +140,10 @@ instance ToJSON FramePayload where
 instance ToJSON FramePad where
     toJSON FramePad{fpFrame = Frame{..},..} = object [
         "length" .= payloadLength frameHeader
-      , "type" .= fromFrameTypeId (framePayloadToFrameTypeId framePayload)
-      , "flags" .= flags frameHeader
+      , "type"   .= framePayloadToFrameType framePayload
+      , "flags"  .= flags frameHeader
       , "stream_identifier" .= streamId frameHeader
-      , "frame_payload" .= (toJSON framePayload +++ padObj)
+      , "frame_payload"     .= (toJSON framePayload +++ padObj)
       ]
       where
         padObj = case toJSON fpPad of
@@ -166,10 +172,8 @@ instance FromJSON FramePad where
 parsePayloadPad :: FrameType -> Object -> Parser (FramePayload, Maybe Pad)
 parsePayloadPad ftyp o = do
     mpad <- (Pad <$>) <$> o .:? "padding"
-    payload <- parsePayload ftid o
+    payload <- parsePayload ftyp o
     return (payload, mpad)
-  where
-    ftid = toFrameTypeId ftyp
 
 priority :: Object -> Parser Priority
 priority o = Priority <$> o .: "exclusive"
@@ -185,7 +189,7 @@ mpriority o = do
         Nothing -> Nothing
         Just ex -> Just $ Priority ex (fromJust ms) (fromJust mw)
 
-parsePayload :: FrameTypeId -> Object -> Parser FramePayload
+parsePayload :: FrameType -> Object -> Parser FramePayload
 parsePayload FrameData o = DataFrame <$> o .: "data"
 parsePayload FrameHeaders o = do
     mpri <- mpriority o
@@ -202,7 +206,7 @@ parsePayload FrameGoAway o = GoAwayFrame <$> o .: "last_stream_id"
                                          <*> o .: "additional_debug_data"
 parsePayload FrameWindowUpdate o = WindowUpdateFrame <$> o .: "window_size_increment"
 parsePayload FrameContinuation o = ContinuationFrame <$> o .: "header_block_fragment"
-parsePayload (FrameUnknown typ) o = UnknownFrame typ <$> o .: "dummy"
+parsePayload ftyp o              = UnknownFrame ftyp <$> o .: "dummy"
 
 instance ToJSON Pad where
     toJSON (Pad padding) = object [

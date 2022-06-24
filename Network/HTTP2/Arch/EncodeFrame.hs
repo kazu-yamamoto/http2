@@ -6,13 +6,13 @@ import Imports
 
 ----------------------------------------------------------------
 
-goawayFrame :: StreamId -> ErrorCodeId -> ByteString -> ByteString
+goawayFrame :: StreamId -> ErrorCode -> ByteString -> ByteString
 goawayFrame sid etype debugmsg = encodeFrame einfo frame
   where
     einfo = encodeInfo id 0
     frame = GoAwayFrame sid etype debugmsg
 
-resetFrame :: ErrorCodeId -> StreamId -> ByteString
+resetFrame :: ErrorCode -> StreamId -> ByteString
 resetFrame etype sid = encodeFrame einfo frame
   where
     einfo = encodeInfo id sid

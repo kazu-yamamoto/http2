@@ -1,84 +1,14 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
-module Network.HTTP2.Frame.Types (
-  -- * Constant
-    frameHeaderLength
-  , maxPayloadLength
-  -- * SettingsList
-  , SettingsKeyId(..)
-  , checkSettingsList
-  , fromSettingsKeyId
-  , SettingsValue
-  , SettingsList
-  , toSettingsKeyId
-  -- * Settings
-  , Settings(..)
-  , defaultSettings
-  , updateSettings
-  -- * Error
-  , HTTP2Error(..)
-  , errorCodeId
-  -- * Error code
-  , ErrorCode
-  , ErrorCodeId(..)
-  , fromErrorCodeId
-  , toErrorCodeId
-  -- * Frame type
-  , FrameType
-  , minFrameType
-  , maxFrameType
-  , FrameTypeId(..)
-  , fromFrameTypeId
-  , toFrameTypeId
-  -- * Frame
-  , Frame(..)
-  , FrameHeader(..)
-  , FramePayload(..)
-  , framePayloadToFrameTypeId
-  , isPaddingDefined
-  -- * Stream identifier
-  , StreamId
-  , isControl
-  , isClientInitiated
-  , isServerInitiated
-  , isRequest
-  , isResponse
-  , testExclusive
-  , setExclusive
-  , clearExclusive
-  -- * Flags
-  , FrameFlags
-  , defaultFlags
-  , testEndStream
-  , testAck
-  , testEndHeader
-  , testPadded
-  , testPriority
-  , setEndStream
-  , setAck
-  , setEndHeader
-  , setPadded
-  , setPriority
-  -- * Window
-  , WindowSize
-  , defaultInitialWindowSize
-  , maxWindowSize
-  , isWindowOverflow
-  -- * Misc
-  , recommendedConcurrency
-  -- * Types
-  , HeaderBlockFragment
-  , Weight
-  , defaultWeight
-  , Priority(..)
-  , defaultPriority
-  , highestPriority
-  , Padding
-  ) where
+module Network.HTTP2.Frame.Types where
 
 import qualified Control.Exception as E
+import Data.Ix
 import Data.Typeable
+import Text.Read
+import qualified Text.Read.Lex as L
 
 import Imports
 
@@ -94,156 +24,181 @@ frameHeaderLength = 9
 ----------------------------------------------------------------
 
 -- | The type for raw error code.
-type ErrorCode = Word32
+newtype ErrorCode = ErrorCode Word32 deriving (Eq, Ord, Read)
 
--- | The type for error code. See <https://tools.ietf.org/html/rfc7540#section-7>.
-data ErrorCodeId = NoError
-                 | ProtocolError
-                 | InternalError
-                 | FlowControlError
-                 | SettingsTimeout
-                 | StreamClosed
-                 | FrameSizeError
-                 | RefusedStream
-                 | Cancel
-                 | CompressionError
-                 | ConnectError
-                 | EnhanceYourCalm
-                 | InadequateSecurity
-                 | HTTP11Required
-                   -- our extensions
-                 | UnknownErrorCode ErrorCode
-                 deriving (Show, Read, Eq, Ord)
+fromErrorCode :: ErrorCode -> Word32
+fromErrorCode (ErrorCode w) = w
 
--- | Converting 'ErrorCodeId' to 'ErrorCode'.
---
--- >>> fromErrorCodeId NoError
--- 0
--- >>> fromErrorCodeId InadequateSecurity
--- 12
-fromErrorCodeId :: ErrorCodeId -> ErrorCode
-fromErrorCodeId NoError              = 0x0
-fromErrorCodeId ProtocolError        = 0x1
-fromErrorCodeId InternalError        = 0x2
-fromErrorCodeId FlowControlError     = 0x3
-fromErrorCodeId SettingsTimeout      = 0x4
-fromErrorCodeId StreamClosed         = 0x5
-fromErrorCodeId FrameSizeError       = 0x6
-fromErrorCodeId RefusedStream        = 0x7
-fromErrorCodeId Cancel               = 0x8
-fromErrorCodeId CompressionError     = 0x9
-fromErrorCodeId ConnectError         = 0xa
-fromErrorCodeId EnhanceYourCalm      = 0xb
-fromErrorCodeId InadequateSecurity   = 0xc
-fromErrorCodeId HTTP11Required       = 0xd
-fromErrorCodeId (UnknownErrorCode w) = w
+toErrorCode :: Word32 -> ErrorCode
+toErrorCode = ErrorCode
 
--- | Converting 'ErrorCode' to 'ErrorCodeId'.
---
--- >>> toErrorCodeId 0
--- NoError
--- >>> toErrorCodeId 0xc
--- InadequateSecurity
--- >>> toErrorCodeId 0xe
--- UnknownErrorCode 14
-toErrorCodeId :: ErrorCode -> ErrorCodeId
-toErrorCodeId 0x0 = NoError
-toErrorCodeId 0x1 = ProtocolError
-toErrorCodeId 0x2 = InternalError
-toErrorCodeId 0x3 = FlowControlError
-toErrorCodeId 0x4 = SettingsTimeout
-toErrorCodeId 0x5 = StreamClosed
-toErrorCodeId 0x6 = FrameSizeError
-toErrorCodeId 0x7 = RefusedStream
-toErrorCodeId 0x8 = Cancel
-toErrorCodeId 0x9 = CompressionError
-toErrorCodeId 0xa = ConnectError
-toErrorCodeId 0xb = EnhanceYourCalm
-toErrorCodeId 0xc = InadequateSecurity
-toErrorCodeId 0xd = HTTP11Required
-toErrorCodeId w   = UnknownErrorCode w
+-- | The type for error code. See <https://www.rfc-editor.org/rfc/rfc9113#ErrorCodes>.
+
+pattern NoError            :: ErrorCode
+pattern NoError             = ErrorCode 0x0
+
+pattern ProtocolError      :: ErrorCode
+pattern ProtocolError       = ErrorCode 0x1
+
+pattern InternalError      :: ErrorCode
+pattern InternalError       = ErrorCode 0x2
+
+pattern FlowControlError   :: ErrorCode
+pattern FlowControlError    = ErrorCode 0x3
+
+pattern SettingsTimeout    :: ErrorCode
+pattern SettingsTimeout     = ErrorCode 0x4
+
+pattern StreamClosed       :: ErrorCode
+pattern StreamClosed        = ErrorCode 0x5
+
+pattern FrameSizeError     :: ErrorCode
+pattern FrameSizeError      = ErrorCode 0x6
+
+pattern RefusedStream      :: ErrorCode
+pattern RefusedStream       = ErrorCode 0x7
+
+pattern Cancel             :: ErrorCode
+pattern Cancel              = ErrorCode 0x8
+
+pattern CompressionError   :: ErrorCode
+pattern CompressionError    = ErrorCode 0x9
+
+pattern ConnectError       :: ErrorCode
+pattern ConnectError        = ErrorCode 0xa
+
+pattern EnhanceYourCalm    :: ErrorCode
+pattern EnhanceYourCalm     = ErrorCode 0xb
+
+pattern InadequateSecurity :: ErrorCode
+pattern InadequateSecurity  = ErrorCode 0xc
+
+pattern HTTP11Required     :: ErrorCode
+pattern HTTP11Required      = ErrorCode 0xd
+
+instance Show ErrorCode where
+    show (ErrorCode 0x0) = "NoError"
+    show (ErrorCode 0x1) = "ProtocolError"
+    show (ErrorCode 0x2) = "InternalError"
+    show (ErrorCode 0x3) = "FlowControlError"
+    show (ErrorCode 0x4) = "SettingsTimeout"
+    show (ErrorCode 0x5) = "StreamClosed"
+    show (ErrorCode 0x6) = "FrameSizeError"
+    show (ErrorCode 0x7) = "RefusedStream"
+    show (ErrorCode 0x8) = "Cancel"
+    show (ErrorCode 0x9) = "CompressionError"
+    show (ErrorCode 0xa) = "ConnectError"
+    show (ErrorCode 0xb) = "EnhanceYourCalm"
+    show (ErrorCode 0xc) = "InadequateSecurity"
+    show (ErrorCode 0xd) = "HTTP11Required"
+    show (ErrorCode   x) = "ErrorCode " ++ show x
 
 ----------------------------------------------------------------
 
+type ReasonPhrase = ShortByteString
+
 -- | The connection error or the stream error.
-data HTTP2Error = ConnectionError ErrorCodeId ByteString
-                | StreamError ErrorCodeId StreamId
-                deriving (Eq, Show, Typeable, Read)
+--   Stream errors are treated as connection errors since
+--   there are no good recovery ways.
+--   `ErrorCode` in connection errors should be the highest stream identifier
+--   but in this implementation it identifies the stream that
+--   caused this error.
+data HTTP2Error =
+    ConnectionIsClosed -- NoError
+  | ConnectionErrorIsReceived ErrorCode StreamId ReasonPhrase
+  | ConnectionErrorIsSent     ErrorCode StreamId ReasonPhrase
+  | StreamErrorIsReceived     ErrorCode StreamId
+  | StreamErrorIsSent         ErrorCode StreamId
+  | BadThingHappen E.SomeException
+  deriving (Show, Typeable)
 
 instance E.Exception HTTP2Error
-
--- | Obtaining 'ErrorCodeId' from 'HTTP2Error'.
-errorCodeId :: HTTP2Error -> ErrorCodeId
-errorCodeId (ConnectionError err _) = err
-errorCodeId (StreamError     err _) = err
 
 ----------------------------------------------------------------
 
 -- | The type for SETTINGS key.
-data SettingsKeyId = SettingsHeaderTableSize
-                   | SettingsEnablePush
-                   | SettingsMaxConcurrentStreams
-                   | SettingsInitialWindowSize
-                   | SettingsMaxFrameSize -- this means payload size
-                   | SettingsMaxHeaderBlockSize
-                   deriving (Show, Read, Eq, Ord, Enum, Bounded)
+newtype SettingsKey = SettingsKey Word16 deriving (Eq, Ord)
+
+fromSettingsKey :: SettingsKey -> Word16
+fromSettingsKey (SettingsKey x) = x
+
+toSettingsKey :: Word16 -> SettingsKey
+toSettingsKey = SettingsKey
+
+minSettingsKey :: SettingsKey
+minSettingsKey = SettingsKey 1
+
+maxSettingsKey :: SettingsKey
+maxSettingsKey = SettingsKey 6
+
+pattern SettingsHeaderTableSize      :: SettingsKey
+pattern SettingsHeaderTableSize       = SettingsKey 1
+
+pattern SettingsEnablePush           :: SettingsKey
+pattern SettingsEnablePush            = SettingsKey 2
+
+pattern SettingsMaxConcurrentStreams :: SettingsKey
+pattern SettingsMaxConcurrentStreams  = SettingsKey 3
+
+pattern SettingsInitialWindowSize    :: SettingsKey
+pattern SettingsInitialWindowSize     = SettingsKey 4
+
+pattern SettingsMaxFrameSize         :: SettingsKey
+pattern SettingsMaxFrameSize          = SettingsKey 5 -- this means payload size
+
+pattern SettingsMaxHeaderBlockSize   :: SettingsKey
+pattern SettingsMaxHeaderBlockSize    = SettingsKey 6
+
+instance Show SettingsKey where
+    show SettingsHeaderTableSize      = "SettingsHeaderTableSize"
+    show SettingsEnablePush           = "SettingsEnablePush"
+    show SettingsMaxConcurrentStreams = "SettingsMaxConcurrentStreams"
+    show SettingsInitialWindowSize    = "SettingsInitialWindowSize"
+    show SettingsMaxFrameSize         = "SettingsMaxFrameSize"
+    show SettingsMaxHeaderBlockSize   = "SettingsMaxHeaderBlockSize"
+    show (SettingsKey x)              = "SettingsKey " ++ show x
+
+instance Read SettingsKey where
+    readListPrec = readListPrecDefault
+    readPrec = do
+        Ident idnt <- lexP
+        readSK idnt
+      where
+        readSK "SettingsHeaderTableSize"      = return SettingsHeaderTableSize
+        readSK "SettingsEnablePush"           = return SettingsEnablePush
+        readSK "SettingsMaxConcurrentStreams" = return SettingsMaxConcurrentStreams
+        readSK "SettingsInitialWindowSize"    = return SettingsInitialWindowSize
+        readSK "SettingsMaxFrameSize"         = return SettingsMaxFrameSize
+        readSK "SettingsMaxHeaderBlockSize"   = return SettingsMaxHeaderBlockSize
+        readSK "SettingsKey"         = do
+              Number ftyp <- lexP
+              return $ SettingsKey $ fromIntegral $ fromJust $ L.numberToInteger ftyp
+        readSK _                   = error "Read for SettingsKey"
 
 -- | The type for raw SETTINGS value.
 type SettingsValue = Int -- Word32
 
--- | Converting 'SettingsKeyId' to raw value.
---
--- >>> fromSettingsKeyId SettingsHeaderTableSize
--- 1
--- >>> fromSettingsKeyId SettingsMaxHeaderBlockSize
--- 6
-fromSettingsKeyId :: SettingsKeyId -> Word16
-fromSettingsKeyId x = fromIntegral (fromEnum x) + 1
-
-minSettingsKeyId :: Word16
-minSettingsKeyId = fromIntegral $ fromEnum (minBound :: SettingsKeyId)
-
-maxSettingsKeyId :: Word16
-maxSettingsKeyId = fromIntegral $ fromEnum (maxBound :: SettingsKeyId)
-
--- | Converting raw value to 'SettingsKeyId'.
---
--- >>> toSettingsKeyId 0
--- Nothing
--- >>> toSettingsKeyId 1
--- Just SettingsHeaderTableSize
--- >>> toSettingsKeyId 6
--- Just SettingsMaxHeaderBlockSize
--- >>> toSettingsKeyId 7
--- Nothing
-toSettingsKeyId :: Word16 -> Maybe SettingsKeyId
-toSettingsKeyId x
-  | minSettingsKeyId <= n && n <= maxSettingsKeyId = Just . toEnum . fromIntegral $ n
-  | otherwise                                = Nothing
-  where
-    n = x - 1
-
 ----------------------------------------------------------------
 
 -- | Association list of SETTINGS.
-type SettingsList = [(SettingsKeyId,SettingsValue)]
+type SettingsList = [(SettingsKey,SettingsValue)]
 
 -- | Checking 'SettingsList' and reporting an error if any.
 --
 -- >>> checkSettingsList [(SettingsEnablePush,2)]
--- Just (ConnectionError ProtocolError "enable push must be 0 or 1")
+-- Just (ConnectionErrorIsSent ProtocolError "enable push must be 0 or 1")
 checkSettingsList :: SettingsList -> Maybe HTTP2Error
 checkSettingsList settings = case mapMaybe checkSettingsValue settings of
     []    -> Nothing
     (x:_) -> Just x
 
-checkSettingsValue :: (SettingsKeyId,SettingsValue) -> Maybe HTTP2Error
+checkSettingsValue :: (SettingsKey,SettingsValue) -> Maybe HTTP2Error
 checkSettingsValue (SettingsEnablePush,v)
-  | v /= 0 && v /= 1 = Just $ ConnectionError ProtocolError "enable push must be 0 or 1"
+  | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1"
 checkSettingsValue (SettingsInitialWindowSize,v)
-  | v > 2147483647   = Just $ ConnectionError FlowControlError "Window size must be less than or equal to 65535"
+  | v > 2147483647   = Just $ ConnectionErrorIsSent FlowControlError 0 "Window size must be less than or equal to 65535"
 checkSettingsValue (SettingsMaxFrameSize,v)
-  | v < 16384 || v > 16777215 = Just $ ConnectionError ProtocolError "Max frame size must be in between 16384 and 16777215"
+  | v < 16384 || v > 16777215 = Just $ ConnectionErrorIsSent ProtocolError 0 "Max frame size must be in between 16384 and 16777215"
 checkSettingsValue _ = Nothing
 
 ----------------------------------------------------------------
@@ -286,6 +241,7 @@ updateSettings settings kvs = foldl' update settings kvs
     update def (SettingsInitialWindowSize,x)    = def { initialWindowSize = x }
     update def (SettingsMaxFrameSize,x)         = def { maxFrameSize = x }
     update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderBlockSize = Just x }
+    update def _                                = def
 
 -- | The type for window size.
 type WindowSize = Int
@@ -326,103 +282,102 @@ recommendedConcurrency = 100
 ----------------------------------------------------------------
 
 -- | The type for weight in priority. Its values are from 1 to 256.
+--   Deprecated in RFC 9113.
 type Weight = Int
 
--- | Default weight.
---
--- >>> defaultWeight
--- 16
-defaultWeight :: Weight
-defaultWeight = 16
-{-# DEPRECATED defaultWeight "Don't use this" #-}
-
--- | Type for stream priority
+-- | Type for stream priority. Deprecated in RFC 9113 but provided for 'FrameHeaders'.
 data Priority = Priority {
     exclusive :: Bool
   , streamDependency :: StreamId
   , weight :: Weight
   } deriving (Show, Read, Eq)
 
--- | Default priority which depends on stream 0.
---
--- >>> defaultPriority
--- Priority {exclusive = False, streamDependency = 0, weight = 16}
-defaultPriority :: Priority
-defaultPriority = Priority False 0 defaultWeight
-
--- | Highest priority which depends on stream 0.
---
--- >>> highestPriority
--- Priority {exclusive = False, streamDependency = 0, weight = 256}
-highestPriority :: Priority
-highestPriority = Priority False 0 256
-
 ----------------------------------------------------------------
 
 -- | The type for raw frame type.
-type FrameType = Word8
+newtype FrameType = FrameType Word8 deriving (Eq, Ord, Ix)
+
+-- | Converting 'FrameType' to 'Word8'.
+--
+-- >>> fromFrameType FrameData
+-- 0
+-- >>> fromFrameType FrameContinuation
+-- 9
+fromFrameType :: FrameType -> Word8
+fromFrameType (FrameType x) = x
+
+toFrameType :: Word8 -> FrameType
+toFrameType = FrameType
 
 minFrameType :: FrameType
-minFrameType = 0
+minFrameType = FrameType 0
 
 maxFrameType :: FrameType
-maxFrameType = 9
+maxFrameType = FrameType 9
 
--- | The type for frame type.
-data FrameTypeId = FrameData
-                 | FrameHeaders
-                 | FramePriority
-                 | FrameRSTStream
-                 | FrameSettings
-                 | FramePushPromise
-                 | FramePing
-                 | FrameGoAway
-                 | FrameWindowUpdate
-                 | FrameContinuation
-                 | FrameUnknown FrameType
-                 deriving (Show, Eq, Ord)
+pattern FrameData         :: FrameType
+pattern FrameData          = FrameType 0
 
--- | Converting 'FrameTypeId' to 'FrameType'.
---
--- >>> fromFrameTypeId FrameData
--- 0
--- >>> fromFrameTypeId FrameContinuation
--- 9
--- >>> fromFrameTypeId (FrameUnknown 10)
--- 10
-fromFrameTypeId :: FrameTypeId -> FrameType
-fromFrameTypeId FrameData         = 0
-fromFrameTypeId FrameHeaders      = 1
-fromFrameTypeId FramePriority     = 2
-fromFrameTypeId FrameRSTStream    = 3
-fromFrameTypeId FrameSettings     = 4
-fromFrameTypeId FramePushPromise  = 5
-fromFrameTypeId FramePing         = 6
-fromFrameTypeId FrameGoAway       = 7
-fromFrameTypeId FrameWindowUpdate = 8
-fromFrameTypeId FrameContinuation = 9
-fromFrameTypeId (FrameUnknown x)  = x
+pattern FrameHeaders      :: FrameType
+pattern FrameHeaders       = FrameType 1
 
--- | Converting 'FrameType' to 'FrameTypeId'.
---
--- >>> toFrameTypeId 0
--- FrameData
--- >>> toFrameTypeId 9
--- FrameContinuation
--- >>> toFrameTypeId 10
--- FrameUnknown 10
-toFrameTypeId :: FrameType -> FrameTypeId
-toFrameTypeId  0 = FrameData
-toFrameTypeId  1 = FrameHeaders
-toFrameTypeId  2 = FramePriority
-toFrameTypeId  3 = FrameRSTStream
-toFrameTypeId  4 = FrameSettings
-toFrameTypeId  5 = FramePushPromise
-toFrameTypeId  6 = FramePing
-toFrameTypeId  7 = FrameGoAway
-toFrameTypeId  8 = FrameWindowUpdate
-toFrameTypeId  9 = FrameContinuation
-toFrameTypeId  x = FrameUnknown x
+pattern FramePriority     :: FrameType
+pattern FramePriority      = FrameType 2
+
+pattern FrameRSTStream    :: FrameType
+pattern FrameRSTStream     = FrameType 3
+
+pattern FrameSettings     :: FrameType
+pattern FrameSettings      = FrameType 4
+
+pattern FramePushPromise  :: FrameType
+pattern FramePushPromise   = FrameType 5
+
+pattern FramePing         :: FrameType
+pattern FramePing          = FrameType 6
+
+pattern FrameGoAway       :: FrameType
+pattern FrameGoAway        = FrameType 7
+
+pattern FrameWindowUpdate :: FrameType
+pattern FrameWindowUpdate  = FrameType 8
+
+pattern FrameContinuation :: FrameType
+pattern FrameContinuation  = FrameType 9
+
+instance Show FrameType where
+    show (FrameType 0) = "FrameData"
+    show (FrameType 1) = "FrameHeaders"
+    show (FrameType 2) = "FramePriority"
+    show (FrameType 3) = "FrameRSTStream"
+    show (FrameType 4) = "FrameSettings"
+    show (FrameType 5) = "FramePushPromise"
+    show (FrameType 6) = "FramePing"
+    show (FrameType 7) = "FrameGoAway"
+    show (FrameType 8) = "FrameWindowUpdate"
+    show (FrameType 9) = "FrameContinuation"
+    show (FrameType x) = "FrameType " ++ show x
+
+instance Read FrameType where
+    readListPrec = readListPrecDefault
+    readPrec = do
+        Ident idnt <- lexP
+        readFT idnt
+      where
+        readFT "FrameData"         = return FrameData
+        readFT "FrameHeaders"      = return FrameHeaders
+        readFT "FramePriority"     = return FramePriority
+        readFT "FrameRSTStream"    = return FrameRSTStream
+        readFT "FrameSettings"     = return FrameSettings
+        readFT "FramePushPromise"  = return FramePushPromise
+        readFT "FramePing"         = return FramePing
+        readFT "FrameGoAway"       = return FrameGoAway
+        readFT "FrameWindowUpdate" = return FrameWindowUpdate
+        readFT "FrameContinuation" = return FrameContinuation
+        readFT "FrameType"         = do
+              Number ftyp <- lexP
+              return $ FrameType $ fromIntegral $ fromJust $ L.numberToInteger ftyp
+        readFT _                   = error "Read for FrameType"
 
 ----------------------------------------------------------------
 
@@ -548,27 +503,6 @@ isServerInitiated :: StreamId -> Bool
 isServerInitiated 0 = False
 isServerInitiated n = even n
 
--- | Checking if the stream identifier for request.
---
--- >>> isRequest 0
--- False
--- >>> isRequest 1
--- True
-isRequest :: StreamId -> Bool
-isRequest = odd
-{-# DEPRECATED isRequest "Use isClientInitiated instead" #-}
-
--- | Checking if the stream identifier for response.
---
--- >>> isResponse 0
--- False
--- >>> isResponse 2
--- True
-isResponse :: StreamId -> Bool
-isResponse 0 = False
-isResponse n = even n
-{-# DEPRECATED isResponse "Use isServerInitiated instead" #-}
-
 -- | Checking if the exclusive flag is set.
 testExclusive :: StreamId -> Bool
 testExclusive n = n `testBit` 31
@@ -609,11 +543,11 @@ data FramePayload =
     DataFrame ByteString
   | HeadersFrame (Maybe Priority) HeaderBlockFragment
   | PriorityFrame Priority
-  | RSTStreamFrame ErrorCodeId
+  | RSTStreamFrame ErrorCode
   | SettingsFrame SettingsList
   | PushPromiseFrame StreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame StreamId ErrorCodeId ByteString
+  | GoAwayFrame {- the last -}StreamId ErrorCode ByteString
   | WindowUpdateFrame WindowSize
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameType ByteString
@@ -623,20 +557,20 @@ data FramePayload =
 
 -- | Getting 'FrameType' from 'FramePayload'.
 --
--- >>> framePayloadToFrameTypeId (DataFrame "body")
+-- >>> framePayloadToFrameType (DataFrame "body")
 -- FrameData
-framePayloadToFrameTypeId :: FramePayload -> FrameTypeId
-framePayloadToFrameTypeId DataFrame{}          = FrameData
-framePayloadToFrameTypeId HeadersFrame{}       = FrameHeaders
-framePayloadToFrameTypeId PriorityFrame{}      = FramePriority
-framePayloadToFrameTypeId RSTStreamFrame{}     = FrameRSTStream
-framePayloadToFrameTypeId SettingsFrame{}      = FrameSettings
-framePayloadToFrameTypeId PushPromiseFrame{}   = FramePushPromise
-framePayloadToFrameTypeId PingFrame{}          = FramePing
-framePayloadToFrameTypeId GoAwayFrame{}        = FrameGoAway
-framePayloadToFrameTypeId WindowUpdateFrame{}  = FrameWindowUpdate
-framePayloadToFrameTypeId ContinuationFrame{}  = FrameContinuation
-framePayloadToFrameTypeId (UnknownFrame w8 _)  = FrameUnknown w8
+framePayloadToFrameType :: FramePayload -> FrameType
+framePayloadToFrameType DataFrame{}          = FrameData
+framePayloadToFrameType HeadersFrame{}       = FrameHeaders
+framePayloadToFrameType PriorityFrame{}      = FramePriority
+framePayloadToFrameType RSTStreamFrame{}     = FrameRSTStream
+framePayloadToFrameType SettingsFrame{}      = FrameSettings
+framePayloadToFrameType PushPromiseFrame{}   = FramePushPromise
+framePayloadToFrameType PingFrame{}          = FramePing
+framePayloadToFrameType GoAwayFrame{}        = FrameGoAway
+framePayloadToFrameType WindowUpdateFrame{}  = FrameWindowUpdate
+framePayloadToFrameType ContinuationFrame{}  = FrameContinuation
+framePayloadToFrameType (UnknownFrame ft _)  = ft
 
 ----------------------------------------------------------------
 

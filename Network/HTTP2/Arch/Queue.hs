@@ -2,9 +2,9 @@
 
 module Network.HTTP2.Arch.Queue where
 
-import Control.Concurrent (forkIO)
-import Control.Concurrent.STM
-import Control.Exception (bracket)
+import UnliftIO.Concurrent (forkIO)
+import UnliftIO.Exception (bracket)
+import UnliftIO.STM
 
 import Imports
 import Network.HTTP2.Arch.Manager

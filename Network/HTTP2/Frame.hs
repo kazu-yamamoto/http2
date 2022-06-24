@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Framing in HTTP\/2(<https://tools.ietf.org/html/rfc7540>).
+-- | Framing in HTTP\/2(<https://www.rfc-editor.org/rfc/rfc9113>).
 module Network.HTTP2.Frame (
   -- * Frame
     Frame(..)
@@ -18,26 +18,21 @@ module Network.HTTP2.Frame (
   , EncodeInfo(..)
   , encodeInfo
   , module Network.HTTP2.Frame.Decode
-  -- * Frame type ID
-  , FrameTypeId(..)
-  , framePayloadToFrameTypeId
   -- * Frame type
-  , FrameType
-  , fromFrameTypeId
-  , toFrameTypeId
+  , FrameType(FrameType,FrameData,FrameHeaders,FramePriority,FrameRSTStream,FrameSettings,FramePushPromise,FramePing,FrameGoAway,FrameWindowUpdate,FrameContinuation)
+  , fromFrameType
+  , toFrameType
+  , minFrameType
+  , maxFrameType
+  , framePayloadToFrameType
   -- * Priority
   , Priority(..)
   , Weight
-  , defaultPriority
-  , highestPriority
-  , defaultWeight
   -- * Stream identifier
   , StreamId
   , isControl
   , isClientInitiated
   , isServerInitiated
-  , isRequest
-  , isResponse
   -- * Stream identifier related
   , testExclusive
   , setExclusive
@@ -57,10 +52,10 @@ module Network.HTTP2.Frame (
   , setPriority
   -- * SettingsList
   , SettingsList
-  , SettingsKeyId(..)
+  , SettingsKey(SettingsKey,SettingsHeaderTableSize,SettingsEnablePush,SettingsMaxConcurrentStreams,SettingsInitialWindowSize,SettingsMaxFrameSize,SettingsMaxHeaderBlockSize)
   , SettingsValue
-  , fromSettingsKeyId
-  , toSettingsKeyId
+  , fromSettingsKey
+  , toSettingsKey
   , checkSettingsList
   -- * Settings
   , Settings(..)
@@ -72,13 +67,12 @@ module Network.HTTP2.Frame (
   , maxWindowSize
   , isWindowOverflow
   -- * Error code
-  , ErrorCode
-  , ErrorCodeId(..)
-  , fromErrorCodeId
-  , toErrorCodeId
+  , ErrorCode(ErrorCode,NoError,ProtocolError,InternalError,FlowControlError,SettingsTimeout,StreamClosed,FrameSizeError,RefusedStream,Cancel,CompressionError,ConnectError,EnhanceYourCalm,InadequateSecurity,HTTP11Required)
+  , fromErrorCode
+  , toErrorCode
   -- * Error
   , HTTP2Error(..)
-  , errorCodeId
+  , ReasonPhrase
   -- * Predefined values
   , connectionPreface
   , connectionPrefaceLength

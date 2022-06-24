@@ -14,14 +14,14 @@ module Network.HTTP2.Arch.Manager (
   , timeoutClose
   ) where
 
-import Control.Concurrent
-import Control.Concurrent.STM
-import qualified Control.Exception as E
 import Data.Foldable
 import Data.IORef
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified System.TimeManager as T
+import UnliftIO.Concurrent
+import qualified UnliftIO.Exception as E
+import UnliftIO.STM
 
 import Imports
 
