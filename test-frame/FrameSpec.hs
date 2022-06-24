@@ -38,8 +38,8 @@ check file = do
                     Just errs -> do
                         let e = case h2err of
                               ConnectionIsClosed -> NoError
-                              ConnectionErrorIsReceived x _ -> x
-                              ConnectionErrorIsSent     x _ -> x
+                              ConnectionErrorIsReceived x _ _ -> x
+                              ConnectionErrorIsSent     x _ _ -> x
                               StreamErrorIsReceived     x _ -> x
                               StreamErrorIsSent         x _ -> x
                               _                             -> undefined

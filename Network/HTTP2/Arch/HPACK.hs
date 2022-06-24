@@ -62,21 +62,21 @@ hpackEncodeHeaderLoop Context{..} buf siz hs =
 
 ----------------------------------------------------------------
 
-hpackDecodeHeader :: HeaderBlockFragment -> Context -> IO HeaderTable
-hpackDecodeHeader hdrblk ctx = do
-    tbl@(_,vt) <- hpackDecodeTrailer hdrblk ctx
+hpackDecodeHeader :: HeaderBlockFragment -> StreamId -> Context -> IO HeaderTable
+hpackDecodeHeader hdrblk sid ctx = do
+    tbl@(_,vt) <- hpackDecodeTrailer hdrblk sid ctx
     if isClient ctx || checkRequestHeader vt then
         return tbl
       else
-        E.throwIO $ ConnectionErrorIsSent ProtocolError "the header key is illegal"
+        E.throwIO $ ConnectionErrorIsSent ProtocolError sid "the header key is illegal"
 
-hpackDecodeTrailer :: HeaderBlockFragment -> Context -> IO HeaderTable
-hpackDecodeTrailer hdrblk Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
+hpackDecodeTrailer :: HeaderBlockFragment -> StreamId -> Context -> IO HeaderTable
+hpackDecodeTrailer hdrblk sid Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
     handl IllegalHeaderName =
-        E.throwIO $ ConnectionErrorIsSent ProtocolError "the header key is illegal"
+        E.throwIO $ ConnectionErrorIsSent ProtocolError sid "the header key is illegal"
     handl _ =
-        E.throwIO $ ConnectionErrorIsSent CompressionError "cannot decompress the header"
+        E.throwIO $ ConnectionErrorIsSent CompressionError sid "cannot decompress the header"
 
 {-# INLINE checkRequestHeader #-}
 checkRequestHeader :: ValueTable -> Bool

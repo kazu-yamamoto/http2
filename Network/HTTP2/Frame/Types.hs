@@ -98,10 +98,15 @@ instance Show ErrorCode where
 type ReasonPhrase = ShortByteString
 
 -- | The connection error or the stream error.
+--   Stream errors are treated as connection errors since
+--   there are no good recovery ways.
+--   `ErrorCode` in connection errors should be the highest stream identifier
+--   but in this implementation it identifies the stream that
+--   caused this error.
 data HTTP2Error =
     ConnectionIsClosed -- NoError
-  | ConnectionErrorIsReceived ErrorCode ReasonPhrase
-  | ConnectionErrorIsSent     ErrorCode ReasonPhrase
+  | ConnectionErrorIsReceived ErrorCode StreamId ReasonPhrase
+  | ConnectionErrorIsSent     ErrorCode StreamId ReasonPhrase
   | StreamErrorIsReceived     ErrorCode StreamId
   | StreamErrorIsSent         ErrorCode StreamId
   | BadThingHappen E.SomeException
@@ -189,11 +194,11 @@ checkSettingsList settings = case mapMaybe checkSettingsValue settings of
 
 checkSettingsValue :: (SettingsKey,SettingsValue) -> Maybe HTTP2Error
 checkSettingsValue (SettingsEnablePush,v)
-  | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError "enable push must be 0 or 1"
+  | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1"
 checkSettingsValue (SettingsInitialWindowSize,v)
-  | v > 2147483647   = Just $ ConnectionErrorIsSent FlowControlError "Window size must be less than or equal to 65535"
+  | v > 2147483647   = Just $ ConnectionErrorIsSent FlowControlError 0 "Window size must be less than or equal to 65535"
 checkSettingsValue (SettingsMaxFrameSize,v)
-  | v < 16384 || v > 16777215 = Just $ ConnectionErrorIsSent ProtocolError "Max frame size must be in between 16384 and 16777215"
+  | v < 16384 || v > 16777215 = Just $ ConnectionErrorIsSent ProtocolError 0 "Max frame size must be in between 16384 and 16777215"
 checkSettingsValue _ = Nothing
 
 ----------------------------------------------------------------
@@ -542,7 +547,7 @@ data FramePayload =
   | SettingsFrame SettingsList
   | PushPromiseFrame StreamId HeaderBlockFragment
   | PingFrame ByteString
-  | GoAwayFrame StreamId ErrorCode ByteString
+  | GoAwayFrame {- the last -}StreamId ErrorCode ByteString
   | WindowUpdateFrame WindowSize
   | ContinuationFrame HeaderBlockFragment
   | UnknownFrame FrameType ByteString

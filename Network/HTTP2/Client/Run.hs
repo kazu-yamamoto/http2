@@ -34,7 +34,7 @@ run ClientConfig{..} conf@Config{..} client = do
     let runClient = client $ sendRequest ctx scheme authority
     ex <- race runBackgroundThreads runClient `E.finally` stop mgr
     case ex of
-      Left () -> E.throwIO $ ConnectionErrorIsSent ProtocolError "connection terminated"
+      Left () -> undefined -- never reach
       Right x -> return x
 
 sendRequest :: Context -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a

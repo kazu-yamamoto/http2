@@ -1,5 +1,5 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Frame.Decode (
   -- * Decoding
@@ -71,42 +71,42 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
 checkFrameHeader :: Settings
                  -> (FrameType, FrameHeader)
                  -> Either HTTP2Error (FrameType, FrameHeader)
-checkFrameHeader Settings {..} typfrm@(typ,FrameHeader {..})
+checkFrameHeader Settings {..} typfrm@(typ,FrameHeader{..})
   | payloadLength > maxFrameSize =
-      Left $ ConnectionErrorIsSent FrameSizeError "exceeds maximum frame size"
+      Left $ ConnectionErrorIsSent FrameSizeError streamId "exceeds maximum frame size"
   | typ `elem` nonZeroFrameTypes && isControl streamId =
-      Left $ ConnectionErrorIsSent ProtocolError "cannot used in control stream"
+      Left $ ConnectionErrorIsSent ProtocolError streamId "cannot used in control stream"
   | typ `elem` zeroFrameTypes && not (isControl streamId) =
-      Left $ ConnectionErrorIsSent ProtocolError "cannot used in non-zero stream"
+      Left $ ConnectionErrorIsSent ProtocolError streamId "cannot used in non-zero stream"
   | otherwise = checkType typ
   where
     checkType FrameHeaders
       | testPadded flags && payloadLength < 1 =
-        Left $ ConnectionErrorIsSent FrameSizeError "insufficient payload for Pad Length"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "insufficient payload for Pad Length"
       | testPriority flags && payloadLength < 5 =
-        Left $ ConnectionErrorIsSent FrameSizeError "insufficient payload for priority fields"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "insufficient payload for priority fields"
       | testPadded flags && testPriority flags && payloadLength < 6 =
-        Left $ ConnectionErrorIsSent FrameSizeError "insufficient payload for Pad Length and priority fields"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "insufficient payload for Pad Length and priority fields"
     checkType FramePriority | payloadLength /= 5 =
         Left $ StreamErrorIsSent FrameSizeError streamId
     checkType FrameRSTStream | payloadLength /= 4 =
-        Left $ ConnectionErrorIsSent FrameSizeError "payload length is not 4 in rst stream frame"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "payload length is not 4 in rst stream frame"
     checkType FrameSettings
       | payloadLength `mod` 6 /= 0 =
-        Left $ ConnectionErrorIsSent FrameSizeError "payload length is not multiple of 6 in settings frame"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "payload length is not multiple of 6 in settings frame"
       | testAck flags && payloadLength /= 0 =
-        Left $ ConnectionErrorIsSent FrameSizeError "payload length must be 0 if ack flag is set"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "payload length must be 0 if ack flag is set"
     checkType FramePushPromise
       | not enablePush =
-        Left $ ConnectionErrorIsSent ProtocolError "push not enabled" -- checkme
+        Left $ ConnectionErrorIsSent ProtocolError streamId "push not enabled" -- checkme
       | isClientInitiated streamId =
-        Left $ ConnectionErrorIsSent ProtocolError "push promise must be used with even stream identifier"
+        Left $ ConnectionErrorIsSent ProtocolError streamId "push promise must be used with even stream identifier"
     checkType FramePing | payloadLength /= 8 =
-        Left $ ConnectionErrorIsSent FrameSizeError "payload length is 8 in ping frame"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "payload length is 8 in ping frame"
     checkType FrameGoAway | payloadLength < 8 =
-        Left $ ConnectionErrorIsSent FrameSizeError "goaway body must be 8 bytes or larger"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "goaway body must be 8 bytes or larger"
     checkType FrameWindowUpdate | payloadLength /= 4 =
-        Left $ ConnectionErrorIsSent FrameSizeError "payload length is 4 in window update frame"
+        Left $ ConnectionErrorIsSent FrameSizeError streamId "payload length is 4 in window update frame"
     checkType _ = Right typfrm
 
 zeroFrameTypes :: [FrameType]
@@ -185,7 +185,7 @@ decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCode (N.word32 bs)
 -- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
 decodeSettingsFrame FrameHeader{..} (PS fptr off _)
-  | num > 10  = Left $ ConnectionErrorIsSent EnhanceYourCalm "Settings is too large"
+  | num > 10  = Left $ ConnectionErrorIsSent EnhanceYourCalm streamId "Settings is too large"
   | otherwise = Right $ SettingsFrame alist
   where
     num = payloadLength `div` 6
@@ -226,8 +226,8 @@ decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
 
 -- | Frame payload decoder for WINDOW_UPDATE frame.
 decodeWindowUpdateFrame :: FramePayloadDecoder
-decodeWindowUpdateFrame _ bs
-  | wsi == 0  = Left $ ConnectionErrorIsSent ProtocolError "window update must not be 0"
+decodeWindowUpdateFrame FrameHeader{..} bs
+  | wsi == 0  = Left $ ConnectionErrorIsSent ProtocolError streamId "window update must not be 0"
   | otherwise = Right $ WindowUpdateFrame wsi
   where
     wsi = fromIntegral (N.word32 bs `clearBit` 31)
@@ -244,7 +244,7 @@ decodeUnknownFrame typ _ bs = Right $ UnknownFrame typ bs
 checkFrameSize :: FramePayloadDecoder -> FramePayloadDecoder
 checkFrameSize func header@FrameHeader{..} body
   | payloadLength > BS.length body =
-      Left $ ConnectionErrorIsSent FrameSizeError "payload is too short"
+      Left $ ConnectionErrorIsSent FrameSizeError streamId "payload is too short"
   | otherwise = func header body
 
 -- | Helper function to pull off the padding if its there, and will
@@ -257,7 +257,7 @@ decodeWithPadding FrameHeader{..} bs body
                  padlen = intFromWord8 w8
                  bodylen = payloadLength - padlen - 1
              in if bodylen < 0 then
-                    Left $ ConnectionErrorIsSent ProtocolError "padding is not enough"
+                    Left $ ConnectionErrorIsSent ProtocolError streamId "padding is not enough"
                   else
                     Right . body $ BS.take bodylen rest
   | otherwise = Right $ body bs
