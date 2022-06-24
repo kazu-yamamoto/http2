@@ -29,7 +29,7 @@ run ClientConfig{..} conf@Config{..} client = do
     let runBackgroundThreads = do
             let runReceiver = frameReceiver ctx confReadN
                 runSender = frameSender ctx conf mgr
-            race_ runReceiver runSender
+            concurrently_ runReceiver runSender
     exchangeSettings conf ctx
     let runClient = client $ sendRequest ctx scheme authority
     ex <- race runBackgroundThreads runClient `E.finally` stop mgr
@@ -51,6 +51,7 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
                    | otherwise  = hdr1
               req' = req { outObjHeaders = hdr2 }
           sid <- getMyNewStreamId ctx
+          print hdr2
           newstrm <- openStream ctx sid FrameHeaders
           enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
           return newstrm

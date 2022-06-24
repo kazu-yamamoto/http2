@@ -73,6 +73,9 @@ module Network.HTTP2.Client (
   , FileSpec(..)
   , FileOffset
   , ByteCount
+  -- * Error
+  , HTTP2Error(..)
+  , ErrorCode(ErrorCode,NoError,ProtocolError,InternalError,FlowControlError,SettingsTimeout,StreamClosed,FrameSizeError,RefusedStream,Cancel,CompressionError,ConnectError,EnhanceYourCalm,InadequateSecurity,HTTP11Required)
   -- * RecvN
   , defaultReadN
   -- * Position read for files
@@ -89,8 +92,9 @@ import Network.HTTP.Types
 
 import Network.HPACK
 import Network.HTTP2.Arch
-import Network.HTTP2.Client.Types
 import Network.HTTP2.Client.Run
+import Network.HTTP2.Client.Types
+import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 

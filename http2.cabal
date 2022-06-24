@@ -150,7 +150,8 @@ Test-Suite spec
   HS-Source-Dirs:       test
   Ghc-Options:          -Wall
   Main-Is:              Spec.hs
-  Other-Modules:        HPACK.DecodeSpec
+  Other-Modules:        HTTP2.ClientSpec
+                        HPACK.DecodeSpec
                         HPACK.EncodeSpec
                         HPACK.HeaderBlock
                         HPACK.HuffmanSpec

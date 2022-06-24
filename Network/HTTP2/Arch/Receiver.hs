@@ -75,11 +75,12 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
             loop (n + 1)
 
     sendGoaway e
+      | Just ConnectionIsClosed  <- E.fromException e = E.throwIO ConnectionIsClosed
+      | Just (ConnectionErrorIsReceived _ _ _) <- E.fromException e =
+          E.throwIO e
       | Just (ConnectionErrorIsSent err sid msg) <- E.fromException e = do
           let frame = goawayFrame sid err $ Short.fromShort msg
           enqueueControl controlQ $ CGoaway frame
-      | Just (ConnectionErrorIsReceived _ _ _) <- E.fromException e =
-          E.throwIO e
       | Just (StreamErrorIsSent err sid) <- E.fromException e = do
           let frame = resetFrame err sid
           enqueueControl controlQ $ CFrame frame
@@ -90,7 +91,9 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
           let frame = goawayFrame sid err "treat a stream error as a connection error"
           enqueueControl controlQ $ CGoaway frame
           E.throwIO e
-      | otherwise = E.throwIO e
+      -- this never happens
+      | Just x@(BadThingHappen _) <- E.fromException e = E.throwIO x
+      | otherwise = E.throwIO $ BadThingHappen e
 
 ----------------------------------------------------------------
 
