@@ -67,7 +67,7 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
 -- | Checking a frame header and reporting an error if any.
 --
 -- >>> checkFrameHeader defaultSettings (FrameData,(FrameHeader 100 0 0))
--- Left (ConnectionErrorIsSent ProtocolError "cannot used in control stream")
+-- Left (ConnectionErrorIsSent ProtocolError 0 "cannot used in control stream")
 checkFrameHeader :: Settings
                  -> (FrameType, FrameHeader)
                  -> Either HTTP2Error (FrameType, FrameHeader)

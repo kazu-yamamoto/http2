@@ -186,7 +186,7 @@ type SettingsList = [(SettingsKey,SettingsValue)]
 -- | Checking 'SettingsList' and reporting an error if any.
 --
 -- >>> checkSettingsList [(SettingsEnablePush,2)]
--- Just (ConnectionErrorIsSent ProtocolError "enable push must be 0 or 1")
+-- Just (ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1")
 checkSettingsList :: SettingsList -> Maybe HTTP2Error
 checkSettingsList settings = case mapMaybe checkSettingsValue settings of
     []    -> Nothing
