@@ -254,6 +254,7 @@ Executable client
     Buildable:          False
   Main-Is:              client.hs
   Build-Depends:        base >= 4.9 && < 5
+                      , async
                       , bytestring
                       , http-types
                       , http2
