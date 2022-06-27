@@ -31,7 +31,11 @@ run ClientConfig{..} conf@Config{..} client = do
                 runSender = frameSender ctx conf mgr
             concurrently_ runReceiver runSender
     exchangeSettings conf ctx
-    let runClient = client $ sendRequest ctx scheme authority
+    let runClient = do
+            x <- client $ sendRequest ctx scheme authority
+            let frame = goawayFrame 0 NoError "graceful closing"
+            enqueueControl (controlQ ctx) $ CGoaway frame
+            return x
     ex <- race runBackgroundThreads runClient `E.finally` stop mgr
     case ex of
       Left () -> undefined -- never reach
