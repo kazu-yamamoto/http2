@@ -237,8 +237,9 @@ getStream' ctx@Context{..} ftyp streamId Nothing
             else
               E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "stream identifier must not decrease"
           else do -- consider the stream idle
-            when (ftyp `notElem` [FrameHeaders,FramePriority]) $
-                E.throwIO $ ConnectionErrorIsSent ProtocolError streamId $ "this frame is not allowed in an idle stream: " `Short.append` Short.toShort (C8.pack (show ftyp))
+            when (ftyp `notElem` [FrameHeaders,FramePriority]) $ do
+                let errmsg = Short.toShort ("this frame is not allowed in an idle stream: " `BS.append` (C8.pack (show ftyp)))
+                E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
             when (ftyp == FrameHeaders) $ do
                 setPeerStreamID ctx streamId
                 cnt <- readIORef concurrency
