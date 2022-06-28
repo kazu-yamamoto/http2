@@ -135,7 +135,7 @@ processFrame ctx recvN (FramePushPromise, header@FrameHeader{payloadLength,strea
 processFrame ctx@Context{..} recvN typhdr@(ftyp, header) = do
     settings <- readIORef http2settings
     case checkFrameHeader settings typhdr of
-      Left h2err -> E.throwIO h2err
+      Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
       Right _    -> controlOrStream ctx recvN ftyp header
 
 ----------------------------------------------------------------
@@ -310,9 +310,9 @@ control _ _ _ _ =
 ----------------------------------------------------------------
 
 {-# INLINE guardIt #-}
-guardIt :: Either HTTP2Error a -> IO a
+guardIt :: Either FrameDecodeError a -> IO a
 guardIt x = case x of
-    Left err    -> E.throwIO err
+    Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
     Right frame -> return frame
 
 

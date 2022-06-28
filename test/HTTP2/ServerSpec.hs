@@ -47,7 +47,7 @@ spec = do
             preface <- takeMVar prefaceVar
             preface `shouldBe` connectionPreface
 
-ignoreHTTP2Error :: HTTP2Error -> IO ()
+ignoreHTTP2Error :: C.HTTP2Error -> IO ()
 ignoreHTTP2Error _ = pure ()
 
 runServer :: IO ()

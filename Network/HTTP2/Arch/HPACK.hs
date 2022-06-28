@@ -18,6 +18,7 @@ import Imports
 import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP2.Arch.Context
+import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
 -- $setup

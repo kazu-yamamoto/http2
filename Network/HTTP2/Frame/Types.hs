@@ -4,9 +4,7 @@
 
 module Network.HTTP2.Frame.Types where
 
-import qualified Control.Exception as E
 import Data.Ix
-import Data.Typeable
 import Text.Read
 import qualified Text.Read.Lex as L
 
@@ -95,27 +93,6 @@ instance Show ErrorCode where
 
 ----------------------------------------------------------------
 
-type ReasonPhrase = ShortByteString
-
--- | The connection error or the stream error.
---   Stream errors are treated as connection errors since
---   there are no good recovery ways.
---   `ErrorCode` in connection errors should be the highest stream identifier
---   but in this implementation it identifies the stream that
---   caused this error.
-data HTTP2Error =
-    ConnectionIsClosed -- NoError
-  | ConnectionErrorIsReceived ErrorCode StreamId ReasonPhrase
-  | ConnectionErrorIsSent     ErrorCode StreamId ReasonPhrase
-  | StreamErrorIsReceived     ErrorCode StreamId
-  | StreamErrorIsSent         ErrorCode StreamId
-  | BadThingHappen E.SomeException
-  deriving (Show, Typeable)
-
-instance E.Exception HTTP2Error
-
-----------------------------------------------------------------
-
 -- | The type for SETTINGS key.
 newtype SettingsKey = SettingsKey Word16 deriving (Eq, Ord)
 
@@ -178,28 +155,8 @@ instance Read SettingsKey where
 -- | The type for raw SETTINGS value.
 type SettingsValue = Int -- Word32
 
-----------------------------------------------------------------
-
 -- | Association list of SETTINGS.
 type SettingsList = [(SettingsKey,SettingsValue)]
-
--- | Checking 'SettingsList' and reporting an error if any.
---
--- >>> checkSettingsList [(SettingsEnablePush,2)]
--- Just (ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1")
-checkSettingsList :: SettingsList -> Maybe HTTP2Error
-checkSettingsList settings = case mapMaybe checkSettingsValue settings of
-    []    -> Nothing
-    (x:_) -> Just x
-
-checkSettingsValue :: (SettingsKey,SettingsValue) -> Maybe HTTP2Error
-checkSettingsValue (SettingsEnablePush,v)
-  | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1"
-checkSettingsValue (SettingsInitialWindowSize,v)
-  | v > 2147483647   = Just $ ConnectionErrorIsSent FlowControlError 0 "Window size must be less than or equal to 65535"
-checkSettingsValue (SettingsMaxFrameSize,v)
-  | v < 16384 || v > 16777215 = Just $ ConnectionErrorIsSent ProtocolError 0 "Max frame size must be in between 16384 and 16777215"
-checkSettingsValue _ = Nothing
 
 ----------------------------------------------------------------
 

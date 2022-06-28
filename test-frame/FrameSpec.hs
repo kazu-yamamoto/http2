@@ -31,18 +31,13 @@ check file = do
             let bin = B16.decodeLenient $ wire tc
                 erc = decodeFrame defaultSettings bin
             case erc of
-                Left h2err -> case err tc of
+                Left fderr -> case err tc of
                     Nothing -> do
                         putStrLn file -- fixme
-                        print h2err
+                        print fderr
                     Just errs -> do
-                        let e = case h2err of
-                              ConnectionIsClosed -> NoError
-                              ConnectionErrorIsReceived x _ _ -> x
-                              ConnectionErrorIsSent     x _ _ -> x
-                              StreamErrorIsReceived     x _ -> x
-                              StreamErrorIsSent         x _ -> x
-                              _                             -> undefined
+                        let e = case fderr of
+                              FrameDecodeError x _ _ -> x
                         errs `shouldContain` [e]
                 Right frm -> do
                     case frame tc of

@@ -56,7 +56,6 @@ module Network.HTTP2.Frame (
   , SettingsValue
   , fromSettingsKey
   , toSettingsKey
-  , checkSettingsList
   -- * Settings
   , Settings(..)
   , defaultSettings
@@ -70,9 +69,6 @@ module Network.HTTP2.Frame (
   , ErrorCode(ErrorCode,NoError,ProtocolError,InternalError,FlowControlError,SettingsTimeout,StreamClosed,FrameSizeError,RefusedStream,Cancel,CompressionError,ConnectError,EnhanceYourCalm,InadequateSecurity,HTTP11Required)
   , fromErrorCode
   , toErrorCode
-  -- * Error
-  , HTTP2Error(..)
-  , ReasonPhrase
   -- * Predefined values
   , connectionPreface
   , connectionPrefaceLength
