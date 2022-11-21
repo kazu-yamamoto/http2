@@ -55,7 +55,6 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
                    | otherwise  = hdr1
               req' = req { outObjHeaders = hdr2 }
           sid <- getMyNewStreamId ctx
-          print hdr2
           newstrm <- openStream ctx sid FrameHeaders
           enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
           return newstrm
