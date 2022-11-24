@@ -1,401 +1,428 @@
-Name:                   http2
-Version:                4.0.0
-Author:                 Kazu Yamamoto <kazu@iij.ad.jp>
-Maintainer:             Kazu Yamamoto <kazu@iij.ad.jp>
-License:                BSD3
-License-File:           LICENSE
-Synopsis:               HTTP/2 library
-Description:            HTTP/2 library including frames, priority queues, HPACK, client and server.
-Homepage:               https://github.com/kazu-yamamoto/http2
-Category:               Network
-Cabal-Version:          >= 1.10
-Build-Type:             Simple
-Extra-Source-Files:     ChangeLog.md
-                        test/inputFile
-                        test-hpack/hpack-test-case/go-hpack/*.json
-                        test-hpack/hpack-test-case/haskell-http2-linear/*.json
-                        test-hpack/hpack-test-case/haskell-http2-linear-huffman/*.json
-                        test-hpack/hpack-test-case/haskell-http2-naive/*.json
-                        test-hpack/hpack-test-case/haskell-http2-naive-huffman/*.json
-                        test-hpack/hpack-test-case/haskell-http2-static/*.json
-                        test-hpack/hpack-test-case/haskell-http2-static-huffman/*.json
-                        test-hpack/hpack-test-case/nghttp2/*.json
-                        test-hpack/hpack-test-case/nghttp2-16384-4096/*.json
-                        test-hpack/hpack-test-case/nghttp2-change-table-size/*.json
-                        test-hpack/hpack-test-case/node-http2-hpack/*.json
-                        test-frame/http2-frame-test-case/continuation/*.json
-                        test-frame/http2-frame-test-case/data/*.json
-                        test-frame/http2-frame-test-case/error/*.json
-                        test-frame/http2-frame-test-case/goaway/*.json
-                        test-frame/http2-frame-test-case/headers/*.json
-                        test-frame/http2-frame-test-case/ping/*.json
-                        test-frame/http2-frame-test-case/priority/*.json
-                        test-frame/http2-frame-test-case/push_promise/*.json
-                        test-frame/http2-frame-test-case/rst_stream/*.json
-                        test-frame/http2-frame-test-case/settings/*.json
-                        test-frame/http2-frame-test-case/window_update/*.json
-                        bench-hpack/headers.hs
+cabal-version:      >=1.10
+name:               http2
+version:            4.0.0
+license:            BSD3
+license-file:       LICENSE
+maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>
+author:             Kazu Yamamoto <kazu@iij.ad.jp>
+homepage:           https://github.com/kazu-yamamoto/http2
+synopsis:           HTTP/2 library
+description:
+    HTTP/2 library including frames, priority queues, HPACK, client and server.
 
-----------------------------------------------------------------
+category:           Network
+build-type:         Simple
+extra-source-files:
+    ChangeLog.md
+    test/inputFile
+    test-hpack/hpack-test-case/go-hpack/*.json
+    test-hpack/hpack-test-case/haskell-http2-linear/*.json
+    test-hpack/hpack-test-case/haskell-http2-linear-huffman/*.json
+    test-hpack/hpack-test-case/haskell-http2-naive/*.json
+    test-hpack/hpack-test-case/haskell-http2-naive-huffman/*.json
+    test-hpack/hpack-test-case/haskell-http2-static/*.json
+    test-hpack/hpack-test-case/haskell-http2-static-huffman/*.json
+    test-hpack/hpack-test-case/nghttp2/*.json
+    test-hpack/hpack-test-case/nghttp2-16384-4096/*.json
+    test-hpack/hpack-test-case/nghttp2-change-table-size/*.json
+    test-hpack/hpack-test-case/node-http2-hpack/*.json
+    test-frame/http2-frame-test-case/continuation/*.json
+    test-frame/http2-frame-test-case/data/*.json
+    test-frame/http2-frame-test-case/error/*.json
+    test-frame/http2-frame-test-case/goaway/*.json
+    test-frame/http2-frame-test-case/headers/*.json
+    test-frame/http2-frame-test-case/ping/*.json
+    test-frame/http2-frame-test-case/priority/*.json
+    test-frame/http2-frame-test-case/push_promise/*.json
+    test-frame/http2-frame-test-case/rst_stream/*.json
+    test-frame/http2-frame-test-case/settings/*.json
+    test-frame/http2-frame-test-case/window_update/*.json
+    bench-hpack/headers.hs
 
-Source-Repository head
-  Type:                 git
-  Location:             git://github.com/kazu-yamamoto/http2
+source-repository head
+    type:     git
+    location: git://github.com/kazu-yamamoto/http2
 
-Flag devel
-  Description:          Development commands
-  Default:              False
+flag devel
+    description: Development commands
+    default:     False
 
-Flag h2spec
-  Description:          Development commands
-  Default:              False
+flag h2spec
+    description: Development commands
+    default:     False
 
-Flag doc
-  Description:          Doctest
-  Default:              False
+flag doc
+    description: Doctest
+    default:     False
 
-----------------------------------------------------------------
+library
+    exposed-modules:
+        Network.HPACK
+        Network.HPACK.Internal
+        Network.HPACK.Table
+        Network.HPACK.Token
+        Network.HTTP2.Client
+        Network.HTTP2.Client.Internal
+        Network.HTTP2.Frame
+        Network.HTTP2.Internal
+        Network.HTTP2.Server
+        Network.HTTP2.Server.Internal
 
-Library
-  Default-Language:     Haskell2010
-  GHC-Options:          -Wall
-  Exposed-Modules:      Network.HPACK
-                        Network.HPACK.Internal
-                        Network.HPACK.Table
-                        Network.HPACK.Token
-                        Network.HTTP2.Client
-                        Network.HTTP2.Client.Internal
-                        Network.HTTP2.Frame
-                        Network.HTTP2.Internal
-                        Network.HTTP2.Server
-                        Network.HTTP2.Server.Internal
-  Other-Modules:        Imports
-                        Network.HPACK.Builder
-                        Network.HTTP2.Client.Types
-                        Network.HTTP2.Client.Run
-                        Network.HPACK.HeaderBlock
-                        Network.HPACK.HeaderBlock.Decode
-                        Network.HPACK.HeaderBlock.Encode
-                        Network.HPACK.HeaderBlock.Integer
-                        Network.HPACK.Huffman
-                        Network.HPACK.Huffman.Bit
-                        Network.HPACK.Huffman.ByteString
-                        Network.HPACK.Huffman.Decode
-                        Network.HPACK.Huffman.Encode
-                        Network.HPACK.Huffman.Params
-                        Network.HPACK.Huffman.Table
-                        Network.HPACK.Huffman.Tree
-                        Network.HPACK.Table.Dynamic
-                        Network.HPACK.Table.Entry
-                        Network.HPACK.Table.RevIndex
-                        Network.HPACK.Table.Static
-                        Network.HPACK.Types
-                        Network.HTTP2.Arch
-                        Network.HTTP2.Arch.Cache
-                        Network.HTTP2.Arch.Config
-                        Network.HTTP2.Arch.Context
-                        Network.HTTP2.Arch.EncodeFrame
-                        Network.HTTP2.Arch.File
-                        Network.HTTP2.Arch.HPACK
-                        Network.HTTP2.Arch.Manager
-                        Network.HTTP2.Arch.Queue
-                        Network.HTTP2.Arch.Rate
-                        Network.HTTP2.Arch.ReadN
-                        Network.HTTP2.Arch.Receiver
-                        Network.HTTP2.Arch.Sender
-                        Network.HTTP2.Arch.Status
-                        Network.HTTP2.Arch.Stream
-                        Network.HTTP2.Arch.Types
-                        Network.HTTP2.Frame.Decode
-                        Network.HTTP2.Frame.Encode
-                        Network.HTTP2.Frame.Types
-                        Network.HTTP2.Server.Run
-                        Network.HTTP2.Server.Types
-                        Network.HTTP2.Server.Worker
-  Build-Depends:        base >= 4.9 && < 5
-                      , array
-                      , async
-                      , bytestring >= 0.10
-                      , case-insensitive
-                      , containers >= 0.5
-                      , http-types
-                      , network
-                      , network-byte-order >= 0.1.5
-                      , psqueues
-                      , stm
-                      , time-manager
-                      , unix-time
-                      , unliftio
-  Default-Extensions:   Strict StrictData
+    other-modules:
+        Imports
+        Network.HPACK.Builder
+        Network.HTTP2.Client.Types
+        Network.HTTP2.Client.Run
+        Network.HPACK.HeaderBlock
+        Network.HPACK.HeaderBlock.Decode
+        Network.HPACK.HeaderBlock.Encode
+        Network.HPACK.HeaderBlock.Integer
+        Network.HPACK.Huffman
+        Network.HPACK.Huffman.Bit
+        Network.HPACK.Huffman.ByteString
+        Network.HPACK.Huffman.Decode
+        Network.HPACK.Huffman.Encode
+        Network.HPACK.Huffman.Params
+        Network.HPACK.Huffman.Table
+        Network.HPACK.Huffman.Tree
+        Network.HPACK.Table.Dynamic
+        Network.HPACK.Table.Entry
+        Network.HPACK.Table.RevIndex
+        Network.HPACK.Table.Static
+        Network.HPACK.Types
+        Network.HTTP2.Arch
+        Network.HTTP2.Arch.Cache
+        Network.HTTP2.Arch.Config
+        Network.HTTP2.Arch.Context
+        Network.HTTP2.Arch.EncodeFrame
+        Network.HTTP2.Arch.File
+        Network.HTTP2.Arch.HPACK
+        Network.HTTP2.Arch.Manager
+        Network.HTTP2.Arch.Queue
+        Network.HTTP2.Arch.Rate
+        Network.HTTP2.Arch.ReadN
+        Network.HTTP2.Arch.Receiver
+        Network.HTTP2.Arch.Sender
+        Network.HTTP2.Arch.Status
+        Network.HTTP2.Arch.Stream
+        Network.HTTP2.Arch.Types
+        Network.HTTP2.Frame.Decode
+        Network.HTTP2.Frame.Encode
+        Network.HTTP2.Frame.Types
+        Network.HTTP2.Server.Run
+        Network.HTTP2.Server.Types
+        Network.HTTP2.Server.Worker
 
-----------------------------------------------------------------
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        array,
+        async,
+        bytestring >=0.10,
+        case-insensitive,
+        containers >=0.5,
+        http-types,
+        network,
+        network-byte-order >=0.1.5,
+        psqueues,
+        stm,
+        time-manager,
+        unix-time,
+        unliftio
 
-Test-Suite doctest
-  if flag(doc)
-    Buildable:          True
-  else
-    Buildable:          False
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test
-  Ghc-Options:          -Wall
-  Main-Is:              doctests.hs
-  Build-Depends:        base >= 4.9 && < 5
-                      , doctest >= 0.9.3
-  Default-Extensions:   Strict StrictData
+executable client
+    main-is:            client.hs
+    hs-source-dirs:     util
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall -threaded
+    build-depends:
+        base >=4.9 && <5,
+        async,
+        bytestring,
+        http-types,
+        http2,
+        network-run
 
-Test-Suite spec
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test
-  Ghc-Options:          -Wall
-  Main-Is:              Spec.hs
-  Other-Modules:        HTTP2.ClientSpec
-                        HPACK.DecodeSpec
-                        HPACK.EncodeSpec
-                        HPACK.HeaderBlock
-                        HPACK.HuffmanSpec
-                        HPACK.IntegerSpec
-                        HTTP2.FrameSpec
-                        HTTP2.ServerSpec
-  Build-Depends:        base >= 4.9 && < 5
-                      , async
-                      , base16-bytestring >= 1.0
-                      , bytestring
-                      , cryptonite
-                      , hspec >= 1.3
-                      , http-types
-                      , http2
-                      , network
-                      , network-run >= 0.1.0
-                      , typed-process
-  Default-Extensions:   Strict StrictData
-  Build-Tool-Depends:   hspec-discover:hspec-discover
+    if flag(devel)
 
+    else
+        buildable: False
 
-Test-Suite spec2
-  if flag(h2spec)
-    Buildable:          True
-  else
-    Buildable:          False
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test2
-  Ghc-Options:          -Wall
-  Main-Is:              Spec.hs
-  Other-Modules:        ServerSpec
-  Build-Depends:        base >= 4.9 && < 5
-                      , bytestring
-                      , hspec >= 1.3
-                      , http-types
-                      , http2
-                      , network-run >= 0.1.0
-                      , typed-process
-  Default-Extensions:   Strict StrictData
-  Build-Tool-Depends:   hspec-discover:hspec-discover
+executable server
+    main-is:            server.hs
+    hs-source-dirs:     util
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall -threaded
+    build-depends:
+        base >=4.9 && <5,
+        bytestring,
+        cryptonite,
+        http2,
+        http-types,
+        network-run
 
-Test-Suite hpack
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
-  Ghc-Options:          -Wall
-  Main-Is:              Spec.hs
-  Other-Modules:        HPACKDecode
-                        HPACKSpec
-                        JSON
-  Build-Depends:        base >= 4.9 && < 5
-                      , aeson >= 2
-                      , base16-bytestring >= 1.0
-                      , bytestring
-                      , directory
-                      , filepath
-                      , hspec >= 1.3
-                      , http2
-                      , text
-                      , unordered-containers
-                      , vector
-  Default-Extensions:   Strict StrictData
-  Build-Tool-Depends:   hspec-discover:hspec-discover
+    if flag(devel)
 
-Test-Suite frame
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-frame
-  GHC-Options:          -Wall
-  Main-Is:              Spec.hs
-  Other-Modules:        Case
-                        FrameSpec
-                        JSON
-  Build-Depends:        base >= 4.9 && < 5
-                      , Glob >= 0.9
-                      , aeson >= 2
-                      , aeson-pretty
-                      , base16-bytestring >= 1.0
-                      , bytestring
-                      , directory
-                      , filepath
-                      , hspec >= 1.3
-                      , http2
-                      , network-byte-order
-                      , text
-                      , unordered-containers
-  Default-Extensions:   Strict StrictData
-  Build-Tool-Depends:   hspec-discover:hspec-discover
+    else
+        buildable: False
 
-----------------------------------------------------------------
+executable hpack-encode
+    main-is:            hpack-encode.hs
+    hs-source-dirs:     test-hpack
+    other-modules:
+        HPACKEncode
+        JSON
 
-Executable client
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       util
-  GHC-Options:          -Wall -threaded
-  if flag(devel)
-    Buildable:          True
-  else
-    Buildable:          False
-  Main-Is:              client.hs
-  Build-Depends:        base >= 4.9 && < 5
-                      , async
-                      , bytestring
-                      , http-types
-                      , http2
-                      , network-run
-  Default-Extensions:   Strict StrictData
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        aeson >=2,
+        aeson-pretty,
+        array,
+        base16-bytestring >=1.0,
+        bytestring,
+        case-insensitive,
+        containers,
+        http2,
+        network-byte-order,
+        text,
+        unordered-containers,
+        vector,
+        word8
 
-Executable server
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       util
-  GHC-Options:          -Wall -threaded
-  if flag(devel)
-    Buildable:          True
-  else
-    Buildable:          False
-  Main-Is:              server.hs
-  Build-Depends:        base >= 4.9 && < 5
-                      , bytestring
-                      , cryptonite
-                      , http2
-                      , http-types
-                      , network-run
-  Default-Extensions:   Strict StrictData
+    if flag(devel)
 
-----------------------------------------------------------------
+    else
+        buildable: False
 
-Executable hpack-encode
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
-  GHC-Options:          -Wall
-  if flag(devel)
-    Buildable:          True
-  else
-    Buildable:          False
-  Main-Is:              hpack-encode.hs
-  Other-Modules:        HPACKEncode
-                        JSON
-  Build-Depends:        base >= 4.9 && < 5
-                      , aeson >= 2
-                      , aeson-pretty
-                      , array
-                      , base16-bytestring >= 1.0
-                      , bytestring
-                      , case-insensitive
-                      , containers
-                      , http2
-                      , network-byte-order
-                      , text
-                      , unordered-containers
-                      , vector
-                      , word8
-  Default-Extensions:   Strict StrictData
+executable hpack-debug
+    main-is:            hpack-debug.hs
+    hs-source-dirs:     test-hpack
+    other-modules:
+        HPACKDecode
+        JSON
 
-Executable hpack-debug
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
-  GHC-Options:          -Wall
-  if flag(devel)
-    Buildable:          True
-  else
-    Buildable:          False
-  Main-Is:              hpack-debug.hs
-  Other-Modules:        HPACKDecode
-                        JSON
-  Build-Depends:        base >= 4.9 && < 5
-                      , aeson >= 2
-                      , array
-                      , base16-bytestring >= 1.0
-                      , bytestring
-                      , case-insensitive
-                      , containers
-                      , http2
-                      , network-byte-order
-                      , text
-                      , unordered-containers
-                      , vector
-                      , word8
-  Default-Extensions:   Strict StrictData
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        aeson >=2,
+        array,
+        base16-bytestring >=1.0,
+        bytestring,
+        case-insensitive,
+        containers,
+        http2,
+        network-byte-order,
+        text,
+        unordered-containers,
+        vector,
+        word8
 
-Executable hpack-stat
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-hpack
-  GHC-Options:          -Wall
-  if flag(devel)
-    Buildable:          True
-  else
-    Buildable:          False
-  Main-Is:              hpack-stat.hs
-  Other-Modules:        JSON
-  Build-Depends:        base >= 4.9 && < 5
-                      , aeson >= 2
-                      , aeson-pretty
-                      , array
-                      , bytestring
-                      , case-insensitive
-                      , containers
-                      , directory
-                      , filepath
-                      , http2
-                      , network-byte-order
-                      , text
-                      , unordered-containers
-                      , vector
-                      , word8
-  Default-Extensions:   Strict StrictData
+    if flag(devel)
 
-Executable frame-encode
-  Default-Language:     Haskell2010
-  HS-Source-Dirs:       test-frame
-  GHC-Options:          -Wall
-  if flag(devel)
-    Buildable:          True
-  else
-    Buildable:          False
-  Main-Is:              frame-encode.hs
-  Other-Modules:        Case
-                        JSON
-  Build-Depends:        base >= 4.9 && < 5
-                      , aeson >= 2
-                      , aeson-pretty
-                      , base16-bytestring >= 1.0
-                      , bytestring
-                      , http2
-                      , text
-                      , unordered-containers
-  Default-Extensions:   Strict StrictData
+    else
+        buildable: False
 
-----------------------------------------------------------------
+executable hpack-stat
+    main-is:            hpack-stat.hs
+    hs-source-dirs:     test-hpack
+    other-modules:      JSON
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        aeson >=2,
+        aeson-pretty,
+        array,
+        bytestring,
+        case-insensitive,
+        containers,
+        directory,
+        filepath,
+        http2,
+        network-byte-order,
+        text,
+        unordered-containers,
+        vector,
+        word8
 
-Benchmark header-compression
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  Hs-Source-Dirs:       bench-hpack
-  Ghc-Options:          -Wall
-  Main-Is:              Main.hs
-  Build-Depends:        base
-                      , array
-                      , bytestring
-                      , case-insensitive
-                      , containers
-                      , gauge
-                      , network-byte-order
-                      , stm
-                      , http2
-  Default-Extensions:   Strict StrictData
+    if flag(devel)
+
+    else
+        buildable: False
+
+executable frame-encode
+    main-is:            frame-encode.hs
+    hs-source-dirs:     test-frame
+    other-modules:
+        Case
+        JSON
+
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        aeson >=2,
+        aeson-pretty,
+        base16-bytestring >=1.0,
+        bytestring,
+        http2,
+        text,
+        unordered-containers
+
+    if flag(devel)
+
+    else
+        buildable: False
+
+test-suite doctest
+    type:               exitcode-stdio-1.0
+    main-is:            doctests.hs
+    hs-source-dirs:     test
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        doctest >=0.9.3
+
+    if flag(doc)
+
+    else
+        buildable: False
+
+test-suite spec
+    type:               exitcode-stdio-1.0
+    main-is:            Spec.hs
+    build-tool-depends: hspec-discover:hspec-discover
+    hs-source-dirs:     test
+    other-modules:
+        HTTP2.ClientSpec
+        HPACK.DecodeSpec
+        HPACK.EncodeSpec
+        HPACK.HeaderBlock
+        HPACK.HuffmanSpec
+        HPACK.IntegerSpec
+        HTTP2.FrameSpec
+        HTTP2.ServerSpec
+
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        async,
+        base16-bytestring >=1.0,
+        bytestring,
+        cryptonite,
+        hspec >=1.3,
+        http-types,
+        http2,
+        network,
+        network-run >=0.1.0,
+        typed-process
+
+test-suite spec2
+    type:               exitcode-stdio-1.0
+    main-is:            Spec.hs
+    build-tool-depends: hspec-discover:hspec-discover
+    hs-source-dirs:     test2
+    other-modules:      ServerSpec
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        bytestring,
+        hspec >=1.3,
+        http-types,
+        http2,
+        network-run >=0.1.0,
+        typed-process
+
+    if flag(h2spec)
+
+    else
+        buildable: False
+
+test-suite hpack
+    type:               exitcode-stdio-1.0
+    main-is:            Spec.hs
+    build-tool-depends: hspec-discover:hspec-discover
+    hs-source-dirs:     test-hpack
+    other-modules:
+        HPACKDecode
+        HPACKSpec
+        JSON
+
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        aeson >=2,
+        base16-bytestring >=1.0,
+        bytestring,
+        directory,
+        filepath,
+        hspec >=1.3,
+        http2,
+        text,
+        unordered-containers,
+        vector
+
+test-suite frame
+    type:               exitcode-stdio-1.0
+    main-is:            Spec.hs
+    build-tool-depends: hspec-discover:hspec-discover
+    hs-source-dirs:     test-frame
+    other-modules:
+        Case
+        FrameSpec
+        JSON
+
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base >=4.9 && <5,
+        Glob >=0.9,
+        aeson >=2,
+        aeson-pretty,
+        base16-bytestring >=1.0,
+        bytestring,
+        directory,
+        filepath,
+        hspec >=1.3,
+        http2,
+        network-byte-order,
+        text,
+        unordered-containers
+
+benchmark header-compression
+    type:               exitcode-stdio-1.0
+    main-is:            Main.hs
+    hs-source-dirs:     bench-hpack
+    default-language:   Haskell2010
+    default-extensions: Strict StrictData
+    ghc-options:        -Wall
+    build-depends:
+        base,
+        array,
+        bytestring,
+        case-insensitive,
+        containers,
+        gauge,
+        network-byte-order,
+        stm,
+        http2
