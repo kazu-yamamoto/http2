@@ -75,6 +75,10 @@ module Network.HTTP2.Frame (
   , frameHeaderLength
   , maxPayloadLength
   , recommendedConcurrency
+  -- * Deprecated
+  , ErrorCodeId
+  , SettingsKeyId
+  , FrameTypeId
   ) where
 
 import qualified Data.ByteString as BS

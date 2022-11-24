@@ -549,3 +549,13 @@ isPaddingDefined GoAwayFrame{}       = False
 isPaddingDefined WindowUpdateFrame{} = False
 isPaddingDefined ContinuationFrame{} = False
 isPaddingDefined UnknownFrame{}      = False
+
+----------------------------------------------------------------
+-- Deprecated
+
+type ErrorCodeId   = ErrorCode
+type SettingsKeyId = SettingsKey
+type FrameTypeId   = FrameType
+{- DEPRECATED ErrorCodeId   "Use ErrorCode instead" -}
+{- DEPRECATED SettingsKeyId "Use SettingsKey instead" -}
+{- DEPRECATED FrameTypeId   "Use FrameType instead" -}
