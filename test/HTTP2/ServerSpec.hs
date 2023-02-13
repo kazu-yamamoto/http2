@@ -133,7 +133,7 @@ responseEcho req = setResponseTrailersMaker h2rsp maker
       where
         loop = do
             bs <- getRequestBodyChunk req
-            unless (B.null bs) $ do
+            when (bs /= "") $ do
                 void $ write $ byteString bs
                 loop
     maker = trailersMaker (CH.hashInit :: Context SHA1)
@@ -197,7 +197,7 @@ client3 sendRequest = do
     sendRequest req $ \rsp -> do
         let comsumeBody = do
                 bs <- C.getResponseBodyChunk rsp
-                unless (B.null bs) comsumeBody
+                when (bs /= "") comsumeBody
         comsumeBody
         mt <- C.getResponseTrailers rsp
         firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
@@ -206,19 +206,18 @@ client3 sendRequest = do
 
 client3' :: C.Client ()
 client3' sendRequest = do
-    let req0 = C.requestStreaming methodPost "/echo" [] $ \sendChunk flush -> do
+    let req0 = C.requestStreaming methodPost "/echo" [] $ \write _flush -> do
             let sendFile h = do
                     bs <- B.hGet h 1024
                     when (bs /= "") $ do
-                        sendChunk $ byteString bs
+                        write $ byteString bs
                         sendFile h
             withFile "test/inputFile" ReadMode sendFile
-            flush
         req = C.setRequestTrailersMaker req0 maker
     sendRequest req $ \rsp -> do
         let comsumeBody = do
                 bs <- C.getResponseBodyChunk rsp
-                unless (B.null bs) comsumeBody
+                when (bs /= "") comsumeBody
         comsumeBody
         mt <- C.getResponseTrailers rsp
         firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
