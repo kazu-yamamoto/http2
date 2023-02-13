@@ -7,6 +7,7 @@ import Data.IORef (writeIORef)
 import UnliftIO.Async
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
+import UnliftIO.STM
 
 import Imports
 import Network.HTTP2.Arch
@@ -56,7 +57,16 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
               req' = req { outObjHeaders = hdr2 }
           sid <- getMyNewStreamId ctx
           newstrm <- openStream ctx sid FrameHeaders
-          enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
+          case outObjBody req of
+            OutBodyStreaming strmbdy -> do
+                tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+                enqueueOutput outputQ $ Output newstrm req' OObj (Just tbq) (return ())
+                void $ forkIO $ do
+                    let push b = atomically $ writeTBQueue tbq (StreamingBuilder b)
+                        flush  = atomically $ writeTBQueue tbq StreamingFlush
+                    strmbdy push flush
+                    atomically $ writeTBQueue tbq StreamingFinished
+            _ -> enqueueOutput outputQ $ Output newstrm req' OObj Nothing (return ())
           return newstrm
       Just strm0 -> return strm0
     rsp <- takeMVar $ streamInput strm
