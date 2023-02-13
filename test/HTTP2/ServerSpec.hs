@@ -19,6 +19,7 @@ import Network.Run.TCP
 import Network.Socket
 import Network.Socket.ByteString
 import Test.Hspec
+import System.IO
 
 import Network.HPACK
 import qualified Network.HTTP2.Client as C
@@ -156,7 +157,7 @@ runClient allocConfig =
                                  freeSimpleConfig
                                  (\conf -> C.run cliconf conf client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
-    clients = [client0,client1,client2,client3,client4,client5]
+    clients = [client0,client1,client2,client3,client3',client4,client5]
 
 -- delay sending preface to be able to test if it is always sent first
 allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
@@ -192,6 +193,27 @@ client2 sendRequest = do
 client3 :: C.Client ()
 client3 sendRequest = do
     let req0 = C.requestFile methodPost "/echo" [] $ FileSpec "test/inputFile" 0 1012731
+        req = C.setRequestTrailersMaker req0 maker
+    sendRequest req $ \rsp -> do
+        let comsumeBody = do
+                bs <- C.getResponseBodyChunk rsp
+                unless (B.null bs) comsumeBody
+        comsumeBody
+        mt <- C.getResponseTrailers rsp
+        firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
+  where
+    !maker = trailersMaker (CH.hashInit :: Context SHA1)
+
+client3' :: C.Client ()
+client3' sendRequest = do
+    let req0 = C.requestStreaming methodPost "/echo" [] $ \sendChunk flush -> do
+            let sendFile h = do
+                    bs <- B.hGet h 1024
+                    when (bs /= "") $ do
+                        sendChunk $ byteString bs
+                        sendFile h
+            withFile "test/inputFile" ReadMode sendFile
+            flush
         req = C.setRequestTrailersMaker req0 maker
     sendRequest req $ \rsp -> do
         let comsumeBody = do
