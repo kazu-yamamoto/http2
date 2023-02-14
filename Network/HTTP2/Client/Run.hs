@@ -94,7 +94,6 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
       Just strm0 -> return strm0
     rsp <- takeMVar $ streamInput strm
     processResponse $ Response rsp
- where
 
 exchangeSettings :: Config -> Context -> IO ()
 exchangeSettings Config{..} Context{..} = do
