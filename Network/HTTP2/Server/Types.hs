@@ -29,7 +29,6 @@ data PushPromise = PushPromise {
       promiseRequestPath :: ByteString
     -- | Accessor for response actually pushed from a server.
     , promiseResponse    :: Response
-    -- | Accessor for response weight.
     }
 
 -- | Additional information.
