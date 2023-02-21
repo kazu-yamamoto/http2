@@ -73,6 +73,7 @@ data Context = Context {
   , myStreamId         :: IORef StreamId
   , peerStreamId       :: IORef StreamId
   , outputQ            :: TQueue (Output Stream)
+  , outputQStreamID    :: TVar StreamId
   , controlQ           :: TQueue Control
   , encodeDynamicTable :: DynamicTable
   , decodeDynamicTable :: DynamicTable
@@ -96,6 +97,7 @@ newContext rinfo =
                <*> newIORef sid0
                <*> newIORef 0
                <*> newTQueueIO
+               <*> newTVarIO sid0
                <*> newTQueueIO
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
