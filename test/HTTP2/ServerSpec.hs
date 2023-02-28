@@ -22,6 +22,7 @@ import Test.Hspec
 import System.IO
 
 import Network.HPACK
+import Network.HPACK.Token
 import qualified Network.HTTP2.Client as C
 import Network.HTTP2.Server
 import Network.HTTP2.Frame
@@ -126,10 +127,11 @@ responseEcho req = setResponseTrailersMaker h2rsp maker
   where
     h2rsp = responseStreaming ok200 header streamingBody
     header = [("Content-Type", "text/plain")]
+    mhx = getHeaderValue (toToken "X-Tag") (snd (requestHeaders req))
     streamingBody write _flush = do
         loop
         mt <- getRequestTrailers req
-        firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
+        firstTrailerValue <$> mt `shouldBe` mhx
       where
         loop = do
             bs <- getRequestBodyChunk req
@@ -157,7 +159,7 @@ runClient allocConfig =
                                  freeSimpleConfig
                                  (\conf -> C.run cliconf conf client)
     client sendRequest = mapConcurrently_ ($ sendRequest) clients
-    clients = [client0,client1,client2,client3,client3',client4,client5]
+    clients = [client0,client1,client2,client3,client3',client3'',client4,client5]
 
 -- delay sending preface to be able to test if it is always sent first
 allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
@@ -192,7 +194,8 @@ client2 sendRequest = do
 
 client3 :: C.Client ()
 client3 sendRequest = do
-    let req0 = C.requestFile methodPost "/echo" [] $ FileSpec "test/inputFile" 0 1012731
+    let hx = "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
+        req0 = C.requestFile methodPost "/echo" [("X-Tag",hx)] $ FileSpec "test/inputFile" 0 1012731
         req = C.setRequestTrailersMaker req0 maker
     sendRequest req $ \rsp -> do
         let comsumeBody = do
@@ -200,13 +203,14 @@ client3 sendRequest = do
                 when (bs /= "") comsumeBody
         comsumeBody
         mt <- C.getResponseTrailers rsp
-        firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
+        firstTrailerValue <$> mt `shouldBe` Just hx
   where
     !maker = trailersMaker (CH.hashInit :: Context SHA1)
 
 client3' :: C.Client ()
 client3' sendRequest = do
-    let req0 = C.requestStreaming methodPost "/echo" [] $ \write _flush -> do
+    let hx = "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
+        req0 = C.requestStreaming methodPost "/echo" [("X-Tag",hx)] $ \write _flush -> do
             let sendFile h = do
                     bs <- B.hGet h 1024
                     when (bs /= "") $ do
@@ -220,7 +224,27 @@ client3' sendRequest = do
                 when (bs /= "") comsumeBody
         comsumeBody
         mt <- C.getResponseTrailers rsp
-        firstTrailerValue <$> mt `shouldBe` Just "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
+        firstTrailerValue <$> mt `shouldBe` Just hx
+  where
+    !maker = trailersMaker (CH.hashInit :: Context SHA1)
+
+client3'' :: C.Client ()
+client3'' sendRequest = do
+    let hx = "7c6fdd184c40329a0fd00e50a02f2fd105f54916"
+        req0 = C.requestStreaming methodPost "/echo" [("X-Tag", hx)] $ \write _flush -> do
+          let chunk = C8.replicate 16384 'c'
+              tag = C8.replicate 16 't'
+          -- I don't think 9 is important here, this is just what I have, the client hangs on receiving the last one
+          replicateM_ 9 $ write $ byteString chunk
+          write $ byteString tag
+        req = C.setRequestTrailersMaker req0 maker
+    sendRequest req $ \rsp -> do
+        let comsumeBody = do
+                bs <- C.getResponseBodyChunk rsp
+                when (bs /= "") comsumeBody
+        comsumeBody
+        mt <- C.getResponseTrailers rsp
+        firstTrailerValue <$> mt `shouldBe` Just hx
   where
     !maker = trailersMaker (CH.hashInit :: Context SHA1)
 
