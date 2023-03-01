@@ -55,7 +55,7 @@ ignoreHTTP2Error _ = pure ()
 runServer :: IO ()
 runServer = runTCPServer (Just host) port runHTTP2Server
   where
-    runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
+    runHTTP2Server s = E.bracket (allocSimpleConfig s 32768)
                                  freeSimpleConfig
                                  (`run` server)
 
@@ -230,9 +230,9 @@ client3' sendRequest = do
 
 client3'' :: C.Client ()
 client3'' sendRequest = do
-    let hx = "7c6fdd184c40329a0fd00e50a02f2fd105f54916"
+    let hx = "59f82dfddc0adf5bdf7494b8704f203a67e25d4a"
         req0 = C.requestStreaming methodPost "/echo" [("X-Tag", hx)] $ \write _flush -> do
-          let chunk = C8.replicate 16384 'c'
+          let chunk = C8.replicate (16384 * 2) 'c'
               tag = C8.replicate 16 't'
           -- I don't think 9 is important here, this is just what I have, the client hangs on receiving the last one
           replicateM_ 9 $ write $ byteString chunk
