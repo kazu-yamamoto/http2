@@ -445,7 +445,7 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
 
 stream FrameRSTStream header@FrameHeader{streamId} bs ctx@Context{..} _ strm = do
     enqueueControl controlQ CFinish
-    RSTStreamFrame err <- guardIt $ decoderstStreamFrame header bs
+    RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
     closed ctx strm cc
     E.throwIO $ StreamErrorIsReceived err streamId
