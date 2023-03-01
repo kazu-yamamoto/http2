@@ -13,7 +13,7 @@ module Network.HTTP2.Frame.Decode (
   , decodeDataFrame
   , decodeHeadersFrame
   , decodePriorityFrame
-  , decoderstStreamFrame
+  , decodeRSTStreamFrame
   , decodeSettingsFrame
   , decodePushPromiseFrame
   , decodePingFrame
@@ -143,7 +143,7 @@ payloadDecoders = listArray (minFrameType, maxFrameType)
     [ decodeDataFrame
     , decodeHeadersFrame
     , decodePriorityFrame
-    , decoderstStreamFrame
+    , decodeRSTStreamFrame
     , decodeSettingsFrame
     , decodePushPromiseFrame
     , decodePingFrame
@@ -185,8 +185,8 @@ decodePriorityFrame :: FramePayloadDecoder
 decodePriorityFrame _ bs = Right $ PriorityFrame $ priority bs
 
 -- | Frame payload decoder for RST_STREAM frame.
-decoderstStreamFrame :: FramePayloadDecoder
-decoderstStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCode (N.word32 bs)
+decodeRSTStreamFrame :: FramePayloadDecoder
+decodeRSTStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCode (N.word32 bs)
 
 -- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
