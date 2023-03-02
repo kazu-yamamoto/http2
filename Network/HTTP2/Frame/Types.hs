@@ -176,11 +176,11 @@ data Settings = Settings {
 -- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Nothing}
 defaultSettings :: Settings
 defaultSettings = Settings {
-    headerTableSize = 4096
+    headerTableSize = 4096 -- defaultDynamicTableSize
   , enablePush = True
   , maxConcurrentStreams = Nothing
-  , initialWindowSize = defaultInitialWindowSize
-  , maxFrameSize = 16384
+  , initialWindowSize = defaultWindowSize
+  , maxFrameSize = defaultPayloadLength
   , maxHeaderBlockSize = Nothing
   }
 
@@ -205,10 +205,10 @@ type WindowSize = Int
 
 -- | The default initial window size.
 --
--- >>> defaultInitialWindowSize
+-- >>> defaultWindowSize
 -- 65535
-defaultInitialWindowSize :: WindowSize
-defaultInitialWindowSize = 65535
+defaultWindowSize :: WindowSize
+defaultWindowSize = 65535
 
 -- | The maximum window size.
 --
@@ -338,12 +338,19 @@ instance Read FrameType where
 
 ----------------------------------------------------------------
 
--- | The maximum length of HTTP/2 payload.
+-- | The maximum payload length of HTTP/2 payload.
 --
 -- >>> maxPayloadLength
--- 16384
+-- 16777215
 maxPayloadLength :: Int
-maxPayloadLength = 2^(14::Int)
+maxPayloadLength = 2^(24::Int) - 1
+
+-- | The default payload length of HTTP/2 payload.
+--
+-- >>> defaultPayloadLength
+-- 16384
+defaultPayloadLength :: Int
+defaultPayloadLength = 2^(14::Int)
 
 ----------------------------------------------------------------
 -- Flags

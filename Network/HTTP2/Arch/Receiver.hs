@@ -20,6 +20,7 @@ import UnliftIO.STM
 import Imports hiding (delete, insert)
 import Network.HPACK
 import Network.HPACK.Token
+import Network.HTTP2.Arch.Config
 import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
 import Network.HTTP2.Arch.HPACK
@@ -51,15 +52,18 @@ emptyFrameRateLimit = 4
 
 ----------------------------------------------------------------
 
-initialFrame :: ByteString
-initialFrame = settingsFrame id [(SettingsMaxConcurrentStreams,maxConcurrency)]
+initialFrame :: Config -> ByteString
+initialFrame Config{..} = settingsFrame id alist
+  where
+    len = confBufferSize - frameHeaderLength
+    payloadLength = max defaultPayloadLength len
+    alist = [(SettingsMaxFrameSize,payloadLength)
+            ,(SettingsMaxConcurrentStreams,maxConcurrency)]
 
 ----------------------------------------------------------------
 
-type RecvN = Int -> IO ByteString
-
-frameReceiver :: Context -> RecvN -> IO ()
-frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
+frameReceiver :: Context -> Config -> IO ()
+frameReceiver ctx@Context{..} conf@Config{..} = loop 0 `E.catch` sendGoaway
   where
     loop :: Int -> IO ()
     loop n
@@ -67,11 +71,11 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
           yield
           loop 0
       | otherwise = do
-        hd <- recvN frameHeaderLength
+        hd <- confReadN frameHeaderLength
         if BS.null hd then
             enqueueControl controlQ $ CFinish ConnectionIsClosed
           else do
-            processFrame ctx recvN $ decodeFrameHeader hd
+            processFrame ctx conf $ decodeFrameHeader hd
             loop (n + 1)
 
     sendGoaway se
@@ -101,25 +105,25 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
 
 ----------------------------------------------------------------
 
-processFrame :: Context -> RecvN -> (FrameType, FrameHeader) -> IO ()
-processFrame ctx _recvN (fid, FrameHeader{streamId})
+processFrame :: Context -> Config -> (FrameType, FrameHeader) -> IO ()
+processFrame ctx _conf (fid, FrameHeader{streamId})
   | isServer ctx &&
     isServerInitiated streamId &&
     (fid `notElem` [FramePriority,FrameRSTStream,FrameWindowUpdate]) =
     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "stream id should be odd"
 
-processFrame Context{..} recvN (ftyp, FrameHeader{payloadLength,streamId})
+processFrame Context{..} Config{..} (ftyp, FrameHeader{payloadLength,streamId})
   | ftyp > maxFrameType = do
     mx <- readIORef continued
     case mx of
         Nothing -> do
             -- ignoring unknown frame
-            void $ recvN payloadLength
+            void $ confReadN payloadLength
         Just _  -> E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "unknown frame"
-processFrame ctx recvN (FramePushPromise, header@FrameHeader{payloadLength,streamId})
+processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength,streamId})
   | isServer ctx = E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
   | otherwise = do
-      pl <- recvN payloadLength
+      pl <- confReadN payloadLength
       PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header pl
       unless (isServerInitiated sid) $
           E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "wrong sid for push promise"
@@ -136,23 +140,23 @@ processFrame ctx recvN (FramePushPromise, header@FrameHeader{payloadLength,strea
                 strm <- openStream ctx sid FramePushPromise
                 insertCache method path strm $ roleInfo ctx
             _ -> return ()
-processFrame ctx@Context{..} recvN typhdr@(ftyp, header) = do
+processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     settings <- readIORef http2settings
     case checkFrameHeader settings typhdr of
       Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
-      Right _    -> controlOrStream ctx recvN ftyp header
+      Right _    -> controlOrStream ctx conf ftyp header
 
 ----------------------------------------------------------------
 
-controlOrStream :: Context -> RecvN -> FrameType -> FrameHeader -> IO ()
-controlOrStream ctx@Context{..} recvN ftyp header@FrameHeader{streamId, payloadLength}
+controlOrStream :: Context -> Config -> FrameType -> FrameHeader -> IO ()
+controlOrStream ctx@Context{..} conf@Config{..} ftyp header@FrameHeader{streamId, payloadLength}
   | isControl streamId = do
-      pl <- recvN payloadLength
-      control ftyp header pl ctx
+      pl <- confReadN payloadLength
+      control ftyp header pl ctx conf
   | otherwise = do
       checkContinued
       mstrm <- getStream ctx ftyp streamId
-      pl <- recvN payloadLength
+      pl <- confReadN payloadLength
       case mstrm of
         Just strm -> do
             state0 <- readStreamState strm
@@ -256,10 +260,10 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 
 type Payload = ByteString
 
-control :: FrameType -> FrameHeader -> Payload -> Context -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2settings, controlQ, firstSettings, streamTable, settingsRate} = do
-    SettingsFrame alist <- guardIt $ decodeSettingsFrame header bs
-    traverse_ E.throwIO $ checkSettingsList alist
+control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
+control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2settings, controlQ, firstSettings, streamTable, settingsRate} conf = do
+    SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
+    traverse_ E.throwIO $ checkSettingsList peerAlist
     -- HTTP/2 Setting from a browser
     unless (testAck flags) $ do
         -- Settings Flood - CVE-2019-9515
@@ -268,19 +272,19 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2setting
             E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many settings"
           else do
             oldws <- initialWindowSize <$> readIORef http2settings
-            modifyIORef' http2settings $ \old -> updateSettings old alist
+            modifyIORef' http2settings $ \old -> updateSettings old peerAlist
             newws <- initialWindowSize <$> readIORef http2settings
             let diff = newws - oldws
             when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
             let frame = settingsFrame setAck []
             sent <- readIORef firstSettings
             let setframe
-                  | sent      = CSettings               frame alist
-                  | otherwise = CSettings0 initialFrame frame alist
+                  | sent      = CSettings                      frame peerAlist
+                  | otherwise = CSettings0 (initialFrame conf) frame peerAlist
             unless sent $ writeIORef firstSettings True
             enqueueControl controlQ setframe
 
-control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} =
+control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
     unless (testAck flags) $ do
         -- Ping Flood - CVE-2019-9512
         rate <- getRate pingRate
@@ -290,14 +294,14 @@ control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} =
             let frame = pingFrame bs
             enqueueControl controlQ $ CFrame frame
 
-control FrameGoAway header bs _ = do
+control FrameGoAway header bs _ _ = do
     GoAwayFrame sid err msg <- guardIt $ decodeGoAwayFrame header bs
     if err == NoError then
         E.throwIO ConnectionIsClosed
       else
         E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 
-control FrameWindowUpdate header@FrameHeader{streamId} bs Context{connectionWindow} = do
+control FrameWindowUpdate header@FrameHeader{streamId} bs Context{connectionWindow} _ = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     w <- atomically $ do
       w0 <- readTVar connectionWindow
@@ -306,7 +310,7 @@ control FrameWindowUpdate header@FrameHeader{streamId} bs Context{connectionWind
       return w1
     when (isWindowOverflow w) $ E.throwIO $ ConnectionErrorIsSent FlowControlError streamId "control window should be less than 2^31"
 
-control _ _ _ _ =
+control _ _ _ _ _ =
     -- must not reach here
     return ()
 

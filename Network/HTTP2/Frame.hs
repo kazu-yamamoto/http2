@@ -60,9 +60,12 @@ module Network.HTTP2.Frame (
   , Settings(..)
   , defaultSettings
   , updateSettings
+  -- * Payload length
+  , defaultPayloadLength
+  , maxPayloadLength
   -- * Window
   , WindowSize
-  , defaultInitialWindowSize
+  , defaultWindowSize
   , maxWindowSize
   , isWindowOverflow
   -- * Error code
@@ -73,7 +76,6 @@ module Network.HTTP2.Frame (
   , connectionPreface
   , connectionPrefaceLength
   , frameHeaderLength
-  , maxPayloadLength
   , recommendedConcurrency
   -- * Deprecated
   , ErrorCodeId
