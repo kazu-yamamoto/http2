@@ -69,31 +69,35 @@ frameReceiver ctx@Context{..} recvN = loop 0 `E.catch` sendGoaway
       | otherwise = do
         hd <- recvN frameHeaderLength
         if BS.null hd then
-            enqueueControl controlQ CFinish
+            enqueueControl controlQ $ CFinish ConnectionIsClosed
           else do
             processFrame ctx recvN $ decodeFrameHeader hd
             loop (n + 1)
 
-    sendGoaway e
-      | Just ConnectionIsClosed  <- E.fromException e = E.throwIO ConnectionIsClosed
-      | Just (ConnectionErrorIsReceived _ _ _) <- E.fromException e =
-          E.throwIO e
-      | Just (ConnectionErrorIsSent err sid msg) <- E.fromException e = do
+    sendGoaway se
+      | Just e@ConnectionIsClosed  <- E.fromException se =
+          enqueueControl controlQ $ CFinish e
+      | Just e@(ConnectionErrorIsReceived _ _ _) <- E.fromException se =
+          enqueueControl controlQ $ CFinish e
+      | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do
           let frame = goawayFrame sid err $ Short.fromShort msg
           enqueueControl controlQ $ CGoaway frame
-      | Just (StreamErrorIsSent err sid) <- E.fromException e = do
+          enqueueControl controlQ $ CFinish e
+      | Just e@(StreamErrorIsSent err sid) <- E.fromException se = do
           let frame = resetFrame err sid
           enqueueControl controlQ $ CFrame frame
           let frame' = goawayFrame sid err "treat a stream error as a connection error"
           enqueueControl controlQ $ CGoaway frame'
-          E.throwIO e
-      | Just (StreamErrorIsReceived err sid) <- E.fromException e = do
+          enqueueControl controlQ $ CFinish e
+      | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
           let frame = goawayFrame sid err "treat a stream error as a connection error"
           enqueueControl controlQ $ CGoaway frame
-          E.throwIO e
+          enqueueControl controlQ $ CFinish e
       -- this never happens
-      | Just x@(BadThingHappen _) <- E.fromException e = E.throwIO x
-      | otherwise = E.throwIO $ BadThingHappen e
+      | Just e@(BadThingHappen _) <- E.fromException se =
+          enqueueControl controlQ $ CFinish e
+      | otherwise =
+          enqueueControl controlQ $ CFinish $ BadThingHappen se
 
 ----------------------------------------------------------------
 
@@ -286,8 +290,7 @@ control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} =
             let frame = pingFrame bs
             enqueueControl controlQ $ CFrame frame
 
-control FrameGoAway header bs Context{controlQ} = do
-    enqueueControl controlQ CFinish
+control FrameGoAway header bs _ = do
     GoAwayFrame sid err msg <- guardIt $ decodeGoAwayFrame header bs
     if err == NoError then
         E.throwIO ConnectionIsClosed
@@ -443,8 +446,7 @@ stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow
     when (isWindowOverflow w) $ E.throwIO $ StreamErrorIsSent FlowControlError streamId
     return s
 
-stream FrameRSTStream header@FrameHeader{streamId} bs ctx@Context{..} _ strm = do
-    enqueueControl controlQ CFinish
+stream FrameRSTStream header@FrameHeader{streamId} bs ctx _ strm = do
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
     closed ctx strm cc

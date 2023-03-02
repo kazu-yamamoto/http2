@@ -186,7 +186,7 @@ data Next = Next BytesFilled (Maybe DynaNext)
 
 ----------------------------------------------------------------
 
-data Control = CFinish
+data Control = CFinish    HTTP2Error
              | CGoaway    ByteString
              | CFrame     ByteString
              | CSettings  ByteString SettingsList

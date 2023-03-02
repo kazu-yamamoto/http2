@@ -94,9 +94,9 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                       | otherwise        -> loop off'
             Flush -> flushN off >> loop 0
 
-    control CFinish         _ = return (-1)
-    control (CGoaway frame) _ = confSendAll frame >> return (-1)
-    control (CFrame frame)  _ = confSendAll frame >> return 0
+    control (CFinish     e) _ = E.throwIO e
+    control (CGoaway frame) _ = confSendAll frame >> return 0
+    control (CFrame  frame) _ = confSendAll frame >> return 0
     control (CSettings frame alist) _ = do
         confSendAll frame
         setLimit alist
