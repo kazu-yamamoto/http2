@@ -101,7 +101,7 @@ newContext rinfo =
                <*> newTQueueIO
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
-               <*> newTVarIO defaultInitialWindowSize
+               <*> newTVarIO defaultWindowSize
                <*> newRate
                <*> newRate
                <*> newRate

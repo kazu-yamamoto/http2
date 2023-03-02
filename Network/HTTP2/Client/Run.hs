@@ -29,8 +29,8 @@ run ClientConfig{..} conf@Config{..} client = do
     ctx <- newContext clientInfo
     mgr <- start confTimeoutManager
     let runBackgroundThreads = do
-            let runReceiver = frameReceiver ctx confReadN
-                runSender = frameSender ctx conf mgr
+            let runReceiver = frameReceiver ctx conf
+                runSender   = frameSender   ctx conf mgr
             concurrently_ runReceiver runSender
     exchangeSettings conf ctx
     let runClient = do
@@ -96,9 +96,10 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
     processResponse $ Response rsp
 
 exchangeSettings :: Config -> Context -> IO ()
-exchangeSettings Config{..} Context{..} = do
+exchangeSettings conf@Config{..} Context{..} = do
     confSendAll connectionPreface
-    let setframe = CSettings initialFrame [] -- fixme alist
+    let initFrame = initialFrame conf
+        setframe = CSettings initFrame [] -- fixme peerAlist
     writeIORef firstSettings True
     enqueueControl controlQ setframe
 

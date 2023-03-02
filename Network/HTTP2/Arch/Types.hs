@@ -186,7 +186,7 @@ data Next = Next BytesFilled (Maybe DynaNext)
 
 ----------------------------------------------------------------
 
-data Control = CFinish
+data Control = CFinish    HTTP2Error
              | CGoaway    ByteString
              | CFrame     ByteString
              | CSettings  ByteString SettingsList
@@ -234,7 +234,7 @@ checkSettingsValue :: (SettingsKey,SettingsValue) -> Maybe HTTP2Error
 checkSettingsValue (SettingsEnablePush,v)
   | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1"
 checkSettingsValue (SettingsInitialWindowSize,v)
-  | v > 2147483647   = Just $ ConnectionErrorIsSent FlowControlError 0 "Window size must be less than or equal to 65535"
+  | v > maxWindowSize = Just $ ConnectionErrorIsSent FlowControlError 0 "Window size must be less than or equal to 65535"
 checkSettingsValue (SettingsMaxFrameSize,v)
-  | v < 16384 || v > 16777215 = Just $ ConnectionErrorIsSent ProtocolError 0 "Max frame size must be in between 16384 and 16777215"
+  | v < defaultPayloadLength || v > maxPayloadLength = Just $ ConnectionErrorIsSent ProtocolError 0 "Max frame size must be in between 16384 and 16777215"
 checkSettingsValue _ = Nothing

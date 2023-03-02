@@ -31,8 +31,8 @@ run conf@Config{..} server = do
         -- If it is large, huge memory is consumed and many
         -- context switches happen.
         replicateM_ 3 $ spawnAction mgr
-        let runReceiver = frameReceiver ctx confReadN
-            runSender = frameSender ctx conf mgr
+        let runReceiver = frameReceiver ctx conf
+            runSender   = frameSender   ctx conf mgr
         race_ runReceiver runSender `E.finally` stop mgr
   where
     checkPreface = do
