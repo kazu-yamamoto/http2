@@ -19,7 +19,7 @@ import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports
-import Network.HPACK (setLimitForEncoding, toHeaderTable)
+import Network.HPACK (setLimitForEncoding, toHeaderTable, TokenHeaderList)
 import Network.HTTP2.Arch.Config
 import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
@@ -64,21 +64,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             Config{..}
             mgr = loop 0
   where
-    dequeue off = do
-        isEmpty <- isEmptyTQueue controlQ
-        if isEmpty then do
-            w <- readTVar connectionWindow
-            checkSTM (w > 0)
-            emp <- isEmptyTQueue outputQ
-            if emp then
-                if off /= 0 then return Flush else retrySTM
-              else
-                O <$> readTQueue outputQ
-          else
-            C <$> readTQueue controlQ
-
-    hardLimit = confBufferSize - 512
-
+    ----------------------------------------------------------------
+    loop :: Offset -> IO ()
     loop off = do
         x <- atomically $ dequeue off
         case x of
@@ -94,6 +81,31 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                       | otherwise        -> loop off'
             Flush -> flushN off >> loop 0
 
+    hardLimit :: BufferSize
+    hardLimit = confBufferSize - 512
+
+    {-# INLINE flushN #-}
+    -- Flush the connection buffer to the socket, where the first 'n' bytes of
+    -- the buffer are filled.
+    flushN :: Offset -> IO ()
+    flushN n = bufferIO confWriteBuffer n confSendAll
+
+    dequeue :: Offset -> STM Switch
+    dequeue off = do
+        isEmpty <- isEmptyTQueue controlQ
+        if isEmpty then do
+            w <- readTVar connectionWindow
+            checkSTM (w > 0)
+            emp <- isEmptyTQueue outputQ
+            if emp then
+                if off /= 0 then return Flush else retrySTM
+              else
+                O <$> readTQueue outputQ
+          else
+            C <$> readTQueue controlQ
+
+    ----------------------------------------------------------------
+    control :: Control -> Offset -> IO Offset
     control (CFinish     e) _ = E.throwIO e
     control (CGoaway frame) _ = confSendAll frame >> return 0
     control (CFrame  frame) _ = confSendAll frame >> return 0
@@ -110,10 +122,13 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         return off'
 
     {-# INLINE setLimit #-}
+    setLimit :: SettingsList -> IO ()
     setLimit alist = case lookup SettingsHeaderTableSize alist of
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
+    ----------------------------------------------------------------
+    output :: Output Stream -> Offset -> WindowSize -> IO Offset
     output out@(Output strm OutObj{} (ONext curr tlrmkr) _ sentinel) off0 lim = do
         -- Data frame payload
         let payloadOff = off0 + frameHeaderLength
@@ -167,7 +182,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     output _ _ _ = undefined -- never reach
 
-    outputOrEnqueueAgain :: Output Stream -> Int -> IO Int
+    ----------------------------------------------------------------
+    outputOrEnqueueAgain :: Output Stream -> Offset -> IO Offset
     outputOrEnqueueAgain out@(Output strm _ otyp _ _) off = E.handle resetStream $ do
         state <- readStreamState strm
         if isHalfClosedLocal state then
@@ -204,12 +220,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             enqueueControl controlQ $ CFrame rst
             return off
 
-    {-# INLINE flushN #-}
-    -- Flush the connection buffer to the socket, where the first 'n' bytes of
-    -- the buffer are filled.
-    flushN :: Int -> IO ()
-    flushN n = bufferIO confWriteBuffer n confSendAll
-
+    ----------------------------------------------------------------
+    headerContinue :: StreamId -> TokenHeaderList -> Bool -> Offset -> IO Int
     headerContinue sid ths endOfStream off = do
         let offkv = off + frameHeaderLength
         let bufkv = confWriteBuffer `plusPtr` offkv
@@ -223,9 +235,12 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FrameHeaders kvlen sid flag buf
         continue sid kvlen hs
 
+    bufHeaderPayload :: Buffer
     bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
+    headerPayloadLim :: BufferSize
     headerPayloadLim = confBufferSize - frameHeaderLength
 
+    continue :: StreamId -> Offset -> TokenHeaderList -> IO Int
     continue _   kvlen [] = return kvlen
     continue sid kvlen ths = do
         flushN $ kvlen + frameHeaderLength
@@ -241,6 +256,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     {-# INLINE sendHeadersIfNecessary #-}
     -- Send headers if there is not room for a 1-byte data frame, and return
     -- the offset of the next frame's first header byte.
+
+    sendHeadersIfNecessary :: Offset -> IO Offset
     sendHeadersIfNecessary off
       -- True if the connection buffer has room for a 1-byte data frame.
       | off + frameHeaderLength < confBufferSize = return off
@@ -248,6 +265,15 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
           flushN off
           return 0
 
+    ----------------------------------------------------------------
+    fillDataHeaderEnqueueNext :: Stream
+                              -> Offset
+                              -> Int
+                              -> Maybe DynaNext
+                              -> (Maybe ByteString -> IO NextTrailersMaker)
+                              -> IO ()
+                              -> Output Stream
+                              -> IO Offset
     fillDataHeaderEnqueueNext strm@Stream{streamWindow,streamNumber}
                    off datPayloadLen Nothing tlrmkr tell _ = do
         let buf  = confWriteBuffer `plusPtr` off
@@ -290,6 +316,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         enqueueOutput outputQ out'
         return off'
 
+    ----------------------------------------------------------------
+    pushPromise :: StreamId -> StreamId -> TokenHeaderList -> Offset -> IO Int
     pushPromise pid sid ths off = do
         let offsid = off + frameHeaderLength -- checkme
             bufsid = confWriteBuffer `plusPtr` offsid
@@ -304,10 +332,16 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FramePushPromise len pid flag buf
         return len
 
+    ----------------------------------------------------------------
     {-# INLINE fillFrameHeader #-}
+    fillFrameHeader :: FrameType -> Int -> StreamId -> FrameFlags -> Buffer -> IO ()
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
-        hinfo = FrameHeader len flag sid
+        hinfo = FrameHeader {
+            payloadLength = len
+          , flags         = flag
+          , streamId      = sid
+          }
 
 -- | Running trailers-maker.
 --
