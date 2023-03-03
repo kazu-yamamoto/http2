@@ -367,8 +367,8 @@ fillFileBodyGetNext pread start bytecount refresh buf siz lim = do
 fillStreamBodyGetNext :: IO (Maybe StreamingChunk) -> DynaNext
 fillStreamBodyGetNext takeQ buf siz lim = do
     let room = min siz lim
-    (leftover, cont, len) <- runStreamBuilder buf room takeQ
-    return $ nextForStream takeQ leftover cont len
+    (cont, len, leftover) <- runStreamBuilder buf room takeQ
+    return $ nextForStream cont len leftover takeQ
 
 ----------------------------------------------------------------
 
@@ -404,30 +404,30 @@ nextForBuilder len (B.Chunk bs writer)
 ----------------------------------------------------------------
 
 runStreamBuilder :: Buffer -> BufferSize -> IO (Maybe StreamingChunk)
-                 -> IO (Leftover, Bool, BytesFilled)
+                 -> IO (Bool, BytesFilled, Leftover)
 runStreamBuilder buf0 room0 takeQ = loop buf0 room0 0
   where
     loop buf room total = do
         mbuilder <- takeQ
         case mbuilder of
-            Nothing      -> return (LZero, True, total)
+            Nothing      -> return (True, total, LZero)
             Just (StreamingBuilder builder) -> do
                 (len, signal) <- B.runBuilder builder buf room
                 let total' = total + len
                 case signal of
                     B.Done -> loop (buf `plusPtr` len) (room - len) total'
-                    B.More  _ writer  -> return (LOne writer, True, total')
-                    B.Chunk bs writer -> return (LTwo bs writer, True, total')
-            Just StreamingFlush       -> return (LZero, True, total)
-            Just StreamingFinished    -> return (LZero, False, total)
+                    B.More  _ writer  -> return (True,  total', LOne writer)
+                    B.Chunk bs writer -> return (True,  total', LTwo bs writer)
+            Just StreamingFlush       -> return (True,  total,  LZero)
+            Just StreamingFinished    -> return (False, total,  LZero)
 
 fillBufStream :: Leftover -> IO (Maybe StreamingChunk) -> DynaNext
 fillBufStream leftover0 takeQ buf0 siz0 lim0 = do
     let room0 = min siz0 lim0
     case leftover0 of
         LZero -> do
-            (leftover, cont, len) <- runStreamBuilder buf0 room0 takeQ
-            getNext leftover cont len
+            (cont, len, leftover) <- runStreamBuilder buf0 room0 takeQ
+            getNext cont len leftover
         LOne writer -> write writer buf0 room0 0
         LTwo bs writer
           | BS.length bs <= room0 -> do
@@ -437,28 +437,33 @@ fillBufStream leftover0 takeQ buf0 siz0 lim0 = do
           | otherwise -> do
               let (bs1,bs2) = BS.splitAt room0 bs
               void $ copy buf0 bs1
-              getNext (LTwo bs2 writer) True room0
+              getNext True room0 $ LTwo bs2 writer
   where
-    getNext l b r = return $ nextForStream takeQ l b r
+    getNext :: Bool -> BytesFilled -> Leftover -> IO Next
+    getNext cont r l = return $ nextForStream cont r l takeQ
+
+    write :: (Buffer -> BufferSize -> IO (Int, B.Next))
+          -> Buffer -> BufferSize -> Int
+          -> IO Next
     write writer1 buf room sofar = do
         (len, signal) <- writer1 buf room
         case signal of
             B.Done -> do
-                (leftover, cont, extra) <- runStreamBuilder (buf `plusPtr` len) (room - len) takeQ
+                (cont, extra, leftover) <- runStreamBuilder (buf `plusPtr` len) (room - len) takeQ
                 let total = sofar + len + extra
-                getNext leftover cont total
+                getNext cont total leftover
             B.More  _ writer -> do
                 let total = sofar + len
-                getNext (LOne writer) True total
+                getNext True total $ LOne writer
             B.Chunk bs writer -> do
                 let total = sofar + len
-                getNext (LTwo bs writer) True total
+                getNext True total $ LTwo bs writer
 
-nextForStream :: IO (Maybe StreamingChunk)
-              -> Leftover -> Bool -> BytesFilled
+nextForStream :: Bool -> BytesFilled
+              -> Leftover -> IO (Maybe StreamingChunk)
               -> Next
-nextForStream _ _ False len = Next len Nothing
-nextForStream takeQ leftOrZero True len =
+nextForStream False len _          _     = Next len Nothing
+nextForStream True  len leftOrZero takeQ =
     Next len $ Just (fillBufStream leftOrZero takeQ)
 
 ----------------------------------------------------------------
