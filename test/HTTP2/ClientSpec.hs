@@ -26,7 +26,7 @@ host' = C8.pack host
 
 spec :: Spec
 spec = do
-    describe "server" $ do
+    describe "client" $ do
         it "receives an error if scheme is missing" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
