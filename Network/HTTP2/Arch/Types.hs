@@ -182,7 +182,9 @@ type DynaNext = Buffer -> BufferSize -> WindowSize -> IO Next
 
 type BytesFilled = Int
 
-data Next = Next BytesFilled (Maybe DynaNext)
+data Next = Next BytesFilled      -- payload length
+                 Bool             -- require flushing
+                 (Maybe DynaNext)
 
 ----------------------------------------------------------------
 
