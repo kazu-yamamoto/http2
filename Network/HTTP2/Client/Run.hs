@@ -34,7 +34,7 @@ run ClientConfig{..} conf@Config{..} client = do
             concurrently_ runReceiver runSender
     exchangeSettings conf ctx
     let runClient = do
-            x <- client $ sendRequest ctx scheme authority
+            x <- client $ sendRequest ctx mgr scheme authority
             let frame = goawayFrame 0 NoError "graceful closing"
             enqueueControl (controlQ ctx) $ CGoaway frame
             return x
@@ -43,8 +43,8 @@ run ClientConfig{..} conf@Config{..} client = do
       Left () -> undefined -- never reach
       Right x -> return x
 
-sendRequest :: Context -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
-sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
+sendRequest :: Context -> Manager -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
+sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
     -- Checking push promises
     let hdr0 = outObjHeaders req
         method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr0
@@ -72,7 +72,9 @@ sendRequest ctx@Context{..} scheme auth (Request req) processResponse = do
             OutBodyStreaming strmbdy -> do
                 tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
                 tbqNonMmpty <- newTVarIO False
-                void $ forkIO $ do
+                let setup = addMyId mgr
+                let teardown _ = deleteMyId mgr
+                E.bracket setup teardown $ \_ -> void $ forkIO $ do
                     let push b = atomically $ do
                             writeTBQueue tbq (StreamingBuilder b)
                             writeTVar tbqNonMmpty True
