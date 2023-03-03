@@ -19,7 +19,7 @@ import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports
-import Network.HPACK (setLimitForEncoding, toHeaderTable)
+import Network.HPACK (setLimitForEncoding, toHeaderTable, TokenHeaderList)
 import Network.HTTP2.Arch.Config
 import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
@@ -64,21 +64,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             Config{..}
             mgr = loop 0
   where
-    dequeue off = do
-        isEmpty <- isEmptyTQueue controlQ
-        if isEmpty then do
-            w <- readTVar connectionWindow
-            checkSTM (w > 0)
-            emp <- isEmptyTQueue outputQ
-            if emp then
-                if off /= 0 then return Flush else retrySTM
-              else
-                O <$> readTQueue outputQ
-          else
-            C <$> readTQueue controlQ
-
-    hardLimit = confBufferSize - 512
-
+    ----------------------------------------------------------------
+    loop :: Offset -> IO ()
     loop off = do
         x <- atomically $ dequeue off
         case x of
@@ -94,6 +81,31 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                       | otherwise        -> loop off'
             Flush -> flushN off >> loop 0
 
+    hardLimit :: BufferSize
+    hardLimit = confBufferSize - 512
+
+    {-# INLINE flushN #-}
+    -- Flush the connection buffer to the socket, where the first 'n' bytes of
+    -- the buffer are filled.
+    flushN :: Offset -> IO ()
+    flushN n = bufferIO confWriteBuffer n confSendAll
+
+    dequeue :: Offset -> STM Switch
+    dequeue off = do
+        isEmpty <- isEmptyTQueue controlQ
+        if isEmpty then do
+            w <- readTVar connectionWindow
+            checkSTM (w > 0)
+            emp <- isEmptyTQueue outputQ
+            if emp then
+                if off /= 0 then return Flush else retrySTM
+              else
+                O <$> readTQueue outputQ
+          else
+            C <$> readTQueue controlQ
+
+    ----------------------------------------------------------------
+    control :: Control -> Offset -> IO Offset
     control (CFinish     e) _ = E.throwIO e
     control (CGoaway frame) _ = confSendAll frame >> return 0
     control (CFrame  frame) _ = confSendAll frame >> return 0
@@ -110,18 +122,21 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         return off'
 
     {-# INLINE setLimit #-}
+    setLimit :: SettingsList -> IO ()
     setLimit alist = case lookup SettingsHeaderTableSize alist of
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
+    ----------------------------------------------------------------
+    output :: Output Stream -> Offset -> WindowSize -> IO Offset
     output out@(Output strm OutObj{} (ONext curr tlrmkr) _ sentinel) off0 lim = do
         -- Data frame payload
         let payloadOff = off0 + frameHeaderLength
             datBuf     = confWriteBuffer `plusPtr` payloadOff
             datBufSiz  = confBufferSize - payloadOff
-        Next datPayloadLen mnext <- curr datBuf datBufSiz lim -- checkme
+        Next datPayloadLen reqflush mnext <- curr datBuf datBufSiz lim -- checkme
         NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-        fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out
+        fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out reqflush
 
     output out@(Output strm (OutObj hdr body tlrmkr) OObj mtbq _) off0 lim = do
         -- Header frame and Continuation frame
@@ -167,7 +182,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
 
     output _ _ _ = undefined -- never reach
 
-    outputOrEnqueueAgain :: Output Stream -> Int -> IO Int
+    ----------------------------------------------------------------
+    outputOrEnqueueAgain :: Output Stream -> Offset -> IO Offset
     outputOrEnqueueAgain out@(Output strm _ otyp _ _) off = E.handle resetStream $ do
         state <- readStreamState strm
         if isHalfClosedLocal state then
@@ -204,12 +220,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             enqueueControl controlQ $ CFrame rst
             return off
 
-    {-# INLINE flushN #-}
-    -- Flush the connection buffer to the socket, where the first 'n' bytes of
-    -- the buffer are filled.
-    flushN :: Int -> IO ()
-    flushN n = bufferIO confWriteBuffer n confSendAll
-
+    ----------------------------------------------------------------
+    headerContinue :: StreamId -> TokenHeaderList -> Bool -> Offset -> IO Int
     headerContinue sid ths endOfStream off = do
         let offkv = off + frameHeaderLength
         let bufkv = confWriteBuffer `plusPtr` offkv
@@ -223,9 +235,12 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FrameHeaders kvlen sid flag buf
         continue sid kvlen hs
 
+    bufHeaderPayload :: Buffer
     bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
+    headerPayloadLim :: BufferSize
     headerPayloadLim = confBufferSize - frameHeaderLength
 
+    continue :: StreamId -> Offset -> TokenHeaderList -> IO Int
     continue _   kvlen [] = return kvlen
     continue sid kvlen ths = do
         flushN $ kvlen + frameHeaderLength
@@ -241,6 +256,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     {-# INLINE sendHeadersIfNecessary #-}
     -- Send headers if there is not room for a 1-byte data frame, and return
     -- the offset of the next frame's first header byte.
+
+    sendHeadersIfNecessary :: Offset -> IO Offset
     sendHeadersIfNecessary off
       -- True if the connection buffer has room for a 1-byte data frame.
       | off + frameHeaderLength < confBufferSize = return off
@@ -248,8 +265,18 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
           flushN off
           return 0
 
+    ----------------------------------------------------------------
+    fillDataHeaderEnqueueNext :: Stream
+                              -> Offset
+                              -> Int
+                              -> Maybe DynaNext
+                              -> (Maybe ByteString -> IO NextTrailersMaker)
+                              -> IO ()
+                              -> Output Stream
+                              -> Bool
+                              -> IO Offset
     fillDataHeaderEnqueueNext strm@Stream{streamWindow,streamNumber}
-                   off datPayloadLen Nothing tlrmkr tell _ = do
+                   off datPayloadLen Nothing tlrmkr tell _ reqflush = do
         let buf  = confWriteBuffer `plusPtr` off
             off' = off + frameHeaderLength + datPayloadLen
         (mtrailers, flag) <- do
@@ -264,7 +291,11 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         when (isServer ctx) $ halfClosedLocal ctx strm Finished
         atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
-        return off''
+        if reqflush then do
+            flushN off''
+            return 0
+          else
+            return off''
       where
         handleTrailers Nothing off0 = return off0
         handleTrailers (Just trailers) off0 = do
@@ -273,13 +304,17 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
 
     fillDataHeaderEnqueueNext _
-                   off 0 (Just next) tlrmkr _ out = do
+                   off 0 (Just next) tlrmkr _ out reqflush = do
         let out' = out { outputType = ONext next tlrmkr }
         enqueueOutput outputQ out'
-        return off
+        if reqflush then do
+            flushN off
+            return 0
+          else
+            return off
 
     fillDataHeaderEnqueueNext Stream{streamWindow,streamNumber}
-                   off datPayloadLen (Just next) tlrmkr _ out = do
+                   off datPayloadLen (Just next) tlrmkr _ out reqflush = do
         let buf  = confWriteBuffer `plusPtr` off
             off' = off + frameHeaderLength + datPayloadLen
             flag  = defaultFlags
@@ -288,8 +323,14 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
         let out' = out { outputType = ONext next tlrmkr }
         enqueueOutput outputQ out'
-        return off'
+        if reqflush then do
+            flushN off'
+            return 0
+          else
+            return off'
 
+    ----------------------------------------------------------------
+    pushPromise :: StreamId -> StreamId -> TokenHeaderList -> Offset -> IO Int
     pushPromise pid sid ths off = do
         let offsid = off + frameHeaderLength -- checkme
             bufsid = confWriteBuffer `plusPtr` offsid
@@ -304,10 +345,16 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         fillFrameHeader FramePushPromise len pid flag buf
         return len
 
+    ----------------------------------------------------------------
     {-# INLINE fillFrameHeader #-}
+    fillFrameHeader :: FrameType -> Int -> StreamId -> FrameFlags -> Buffer -> IO ()
     fillFrameHeader ftyp len sid flag buf = encodeFrameHeaderBuf ftyp hinfo buf
       where
-        hinfo = FrameHeader len flag sid
+        hinfo = FrameHeader {
+            payloadLength = len
+          , flags         = flag
+          , streamId      = sid
+          }
 
 -- | Running trailers-maker.
 --
@@ -333,8 +380,8 @@ fillFileBodyGetNext pread start bytecount refresh buf siz lim = do
 fillStreamBodyGetNext :: IO (Maybe StreamingChunk) -> DynaNext
 fillStreamBodyGetNext takeQ buf siz lim = do
     let room = min siz lim
-    (leftover, cont, len) <- runStreamBuilder buf room takeQ
-    return $ nextForStream takeQ leftover cont len
+    (cont, len, reqflush, leftover) <- runStreamBuilder buf room takeQ
+    return $ nextForStream cont len reqflush leftover takeQ
 
 ----------------------------------------------------------------
 
@@ -361,39 +408,42 @@ fillBufBuilder leftover buf0 siz0 lim = do
 
 nextForBuilder :: BytesFilled -> B.Next -> Next
 nextForBuilder len B.Done
-    = Next len Nothing
+    = Next len True Nothing -- let's flush
 nextForBuilder len (B.More _ writer)
-    = Next len $ Just (fillBufBuilder (LOne writer))
+    = Next len False $ Just (fillBufBuilder (LOne writer))
 nextForBuilder len (B.Chunk bs writer)
-    = Next len $ Just (fillBufBuilder (LTwo bs writer))
+    = Next len False $ Just (fillBufBuilder (LTwo bs writer))
 
 ----------------------------------------------------------------
 
 runStreamBuilder :: Buffer -> BufferSize -> IO (Maybe StreamingChunk)
-                 -> IO (Leftover, Bool, BytesFilled)
+                 -> IO (Bool  -- continue
+                       ,BytesFilled
+                       ,Bool  -- require flusing
+                       ,Leftover)
 runStreamBuilder buf0 room0 takeQ = loop buf0 room0 0
   where
     loop buf room total = do
         mbuilder <- takeQ
         case mbuilder of
-            Nothing      -> return (LZero, True, total)
+            Nothing      -> return (True, total, False, LZero)
             Just (StreamingBuilder builder) -> do
                 (len, signal) <- B.runBuilder builder buf room
                 let total' = total + len
                 case signal of
                     B.Done -> loop (buf `plusPtr` len) (room - len) total'
-                    B.More  _ writer  -> return (LOne writer, True, total')
-                    B.Chunk bs writer -> return (LTwo bs writer, True, total')
-            Just StreamingFlush       -> return (LZero, True, total)
-            Just StreamingFinished    -> return (LZero, False, total)
+                    B.More  _ writer  -> return (True,  total', False, LOne writer)
+                    B.Chunk bs writer -> return (True,  total', False, LTwo bs writer)
+            Just StreamingFlush       -> return (True,  total,  True,  LZero)
+            Just StreamingFinished    -> return (False, total,  True,  LZero)
 
 fillBufStream :: Leftover -> IO (Maybe StreamingChunk) -> DynaNext
 fillBufStream leftover0 takeQ buf0 siz0 lim0 = do
     let room0 = min siz0 lim0
     case leftover0 of
         LZero -> do
-            (leftover, cont, len) <- runStreamBuilder buf0 room0 takeQ
-            getNext leftover cont len
+            (cont, len, reqflush, leftover) <- runStreamBuilder buf0 room0 takeQ
+            getNext cont len reqflush leftover
         LOne writer -> write writer buf0 room0 0
         LTwo bs writer
           | BS.length bs <= room0 -> do
@@ -403,29 +453,34 @@ fillBufStream leftover0 takeQ buf0 siz0 lim0 = do
           | otherwise -> do
               let (bs1,bs2) = BS.splitAt room0 bs
               void $ copy buf0 bs1
-              getNext (LTwo bs2 writer) True room0
+              getNext True room0 False $ LTwo bs2 writer
   where
-    getNext l b r = return $ nextForStream takeQ l b r
+    getNext :: Bool -> BytesFilled -> Bool -> Leftover -> IO Next
+    getNext cont len reqflush l = return $ nextForStream cont len reqflush l takeQ
+
+    write :: (Buffer -> BufferSize -> IO (Int, B.Next))
+          -> Buffer -> BufferSize -> Int
+          -> IO Next
     write writer1 buf room sofar = do
         (len, signal) <- writer1 buf room
         case signal of
             B.Done -> do
-                (leftover, cont, extra) <- runStreamBuilder (buf `plusPtr` len) (room - len) takeQ
+                (cont, extra, reqflush, leftover) <- runStreamBuilder (buf `plusPtr` len) (room - len) takeQ
                 let total = sofar + len + extra
-                getNext leftover cont total
+                getNext cont total reqflush leftover
             B.More  _ writer -> do
                 let total = sofar + len
-                getNext (LOne writer) True total
+                getNext True total False $ LOne writer
             B.Chunk bs writer -> do
                 let total = sofar + len
-                getNext (LTwo bs writer) True total
+                getNext True total False $ LTwo bs writer
 
-nextForStream :: IO (Maybe StreamingChunk)
-              -> Leftover -> Bool -> BytesFilled
+nextForStream :: Bool -> BytesFilled -> Bool
+              -> Leftover -> IO (Maybe StreamingChunk)
               -> Next
-nextForStream _ _ False len = Next len Nothing
-nextForStream takeQ leftOrZero True len =
-    Next len $ Just (fillBufStream leftOrZero takeQ)
+nextForStream False len reqflush _          _     = Next len reqflush Nothing
+nextForStream True  len reqflush leftOrZero takeQ =
+    Next len reqflush $ Just (fillBufStream leftOrZero takeQ)
 
 ----------------------------------------------------------------
 
@@ -438,10 +493,10 @@ fillBufFile pread start bytes refresh buf siz lim = do
     return $ nextForFile len' pread (start + len) (bytes - len) refresh
 
 nextForFile :: BytesFilled -> PositionRead -> FileOffset -> ByteCount -> IO () -> Next
-nextForFile 0   _  _     _     _       = Next 0   Nothing
-nextForFile len _  _     0     _       = Next len Nothing
+nextForFile 0   _  _     _     _       = Next 0   True  Nothing -- let's flush
+nextForFile len _  _     0     _       = Next len False Nothing
 nextForFile len pread start bytes refresh =
-    Next len $ Just (fillBufFile pread start bytes refresh)
+    Next len False $ Just $ fillBufFile pread start bytes refresh
 
 {-# INLINE mini #-}
 mini :: Int -> Int64 -> Int64
