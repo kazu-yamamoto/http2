@@ -88,6 +88,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
     flushN :: Offset -> IO ()
+    flushN 0 = return ()
     flushN n = bufferIO confWriteBuffer n confSendAll
 
     dequeue :: Offset -> STM Switch
@@ -145,8 +146,8 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 OutBodyNone -> True
                 _           -> False
         (ths,_) <- toHeaderTable $ fixHeaders hdr
-        kvlen <- headerContinue sid ths endOfStream off0
-        off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
+        off' <- headerContinue sid ths endOfStream off0
+        off <- sendHeadersIfNecessary off'
         case body of
             OutBodyNone -> do
                 -- halfClosedLocal calls closed which removes
@@ -221,37 +222,41 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             return off
 
     ----------------------------------------------------------------
-    headerContinue :: StreamId -> TokenHeaderList -> Bool -> Offset -> IO Int
-    headerContinue sid ths endOfStream off = do
-        let offkv = off + frameHeaderLength
+    headerContinue :: StreamId -> TokenHeaderList -> Bool -> Offset -> IO Offset
+    headerContinue sid ths0 endOfStream off0 = do
+        let offkv = off0 + frameHeaderLength
         let bufkv = confWriteBuffer `plusPtr` offkv
             limkv = confBufferSize - offkv
-        (hs,kvlen) <- hpackEncodeHeader ctx bufkv limkv ths
-        let flag0 = case hs of
-                [] -> setEndHeader defaultFlags
-                _  -> defaultFlags
-            flag = if endOfStream then setEndStream flag0 else flag0
-        let buf = confWriteBuffer `plusPtr` off
-        fillFrameHeader FrameHeaders kvlen sid flag buf
-        continue sid kvlen hs
+        (ths,kvlen) <- hpackEncodeHeader ctx bufkv limkv ths0
+        if kvlen == 0 then
+            continue off0 ths FrameHeaders
+          else do
+            let flag = getFlag ths
+                buf = confWriteBuffer `plusPtr` off0
+                off = offkv + kvlen
+            fillFrameHeader FrameHeaders kvlen sid flag buf
+            continue off ths FrameContinuation
+      where
+        eos = if endOfStream then setEndStream else id
+        getFlag [] = eos $ setEndHeader defaultFlags
+        getFlag _  = eos $ defaultFlags
+
+        continue :: Offset -> TokenHeaderList -> FrameType -> IO Offset
+        continue off [] _ = return off
+        continue off ths ft = do
+            flushN off
+            -- Now off is 0
+            (ths', kvlen') <- hpackEncodeHeaderLoop ctx bufHeaderPayload headerPayloadLim ths
+            when (ths == ths') $ E.throwIO $ ConnectionErrorIsSent CompressionError sid "cannot compress the header"
+            let flag = getFlag ths'
+                off' = frameHeaderLength + kvlen'
+            fillFrameHeader ft kvlen' sid flag confWriteBuffer
+            continue off' ths' FrameContinuation
 
     bufHeaderPayload :: Buffer
     bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
     headerPayloadLim :: BufferSize
     headerPayloadLim = confBufferSize - frameHeaderLength
-
-    continue :: StreamId -> Offset -> TokenHeaderList -> IO Int
-    continue _   kvlen [] = return kvlen
-    continue sid kvlen ths = do
-        flushN $ kvlen + frameHeaderLength
-        -- Now off is 0
-        (ths', kvlen') <- hpackEncodeHeaderLoop ctx bufHeaderPayload headerPayloadLim ths
-        when (ths == ths') $ E.throwIO $ ConnectionErrorIsSent CompressionError sid "cannot compress the header"
-        let flag = case ths' of
-                [] -> setEndHeader defaultFlags
-                _  -> defaultFlags
-        fillFrameHeader FrameContinuation kvlen' sid flag confWriteBuffer
-        continue sid kvlen' ths'
 
     {-# INLINE sendHeadersIfNecessary #-}
     -- Send headers if there is not room for a 1-byte data frame, and return
@@ -300,8 +305,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         handleTrailers Nothing off0 = return off0
         handleTrailers (Just trailers) off0 = do
             (ths,_) <- toHeaderTable trailers
-            kvlen <- headerContinue streamNumber ths True off0
-            sendHeadersIfNecessary $ off0 + frameHeaderLength + kvlen
+            headerContinue streamNumber ths True off0
 
     fillDataHeaderEnqueueNext _
                    off 0 (Just next) tlrmkr _ out reqflush = do
