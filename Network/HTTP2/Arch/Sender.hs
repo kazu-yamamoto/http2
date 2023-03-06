@@ -240,7 +240,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     headerPayloadLim :: BufferSize
     headerPayloadLim = confBufferSize - frameHeaderLength
 
-    continue :: StreamId -> Offset -> TokenHeaderList -> IO Int
+    continue :: StreamId -> Int -> TokenHeaderList -> IO Int
     continue _   kvlen [] = return kvlen
     continue sid kvlen ths = do
         flushN $ kvlen + frameHeaderLength
