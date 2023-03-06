@@ -88,6 +88,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
     flushN :: Offset -> IO ()
+    flushN 0 = return ()
     flushN n = bufferIO confWriteBuffer n confSendAll
 
     dequeue :: Offset -> STM Switch
