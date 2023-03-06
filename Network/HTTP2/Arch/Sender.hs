@@ -1,6 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.HTTP2.Arch.Sender (
     frameSender
@@ -59,10 +60,15 @@ data Switch = C Control
             | O (Output Stream)
             | Flush
 
+wrapException :: E.SomeException -> IO ()
+wrapException se
+  | Just (e :: HTTP2Error) <- E.fromException se = E.throwIO e
+  | otherwise = E.throwIO $ BadThingHappen se
+
 frameSender :: Context -> Config -> Manager -> IO ()
 frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             Config{..}
-            mgr = loop 0
+            mgr = loop 0 `E.catch` wrapException
   where
     ----------------------------------------------------------------
     loop :: Offset -> IO ()
