@@ -189,10 +189,7 @@ data Next = Next BytesFilled      -- payload length
 ----------------------------------------------------------------
 
 data Control = CFinish    HTTP2Error
-             | CGoaway    ByteString
-             | CFrame     ByteString
-             | CSettings  ByteString SettingsList
-             | CSettings0 ByteString ByteString SettingsList
+             | CFrames (Maybe SettingsList) [ByteString]
 
 ----------------------------------------------------------------
 

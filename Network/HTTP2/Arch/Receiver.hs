@@ -85,17 +85,17 @@ frameReceiver ctx@Context{..} conf@Config{..} = loop 0 `E.catch` sendGoaway
           enqueueControl controlQ $ CFinish e
       | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do
           let frame = goawayFrame sid err $ Short.fromShort msg
-          enqueueControl controlQ $ CGoaway frame
+          enqueueControl controlQ $ CFrames Nothing [frame]
           enqueueControl controlQ $ CFinish e
       | Just e@(StreamErrorIsSent err sid) <- E.fromException se = do
           let frame = resetFrame err sid
-          enqueueControl controlQ $ CFrame frame
+          enqueueControl controlQ $ CFrames Nothing [frame]
           let frame' = goawayFrame sid err "treat a stream error as a connection error"
-          enqueueControl controlQ $ CGoaway frame'
+          enqueueControl controlQ $ CFrames Nothing [frame']
           enqueueControl controlQ $ CFinish e
       | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
           let frame = goawayFrame sid err "treat a stream error as a connection error"
-          enqueueControl controlQ $ CGoaway frame
+          enqueueControl controlQ $ CFrames Nothing [frame]
           enqueueControl controlQ $ CFinish e
       -- this never happens
       | Just e@(BadThingHappen _) <- E.fromException se =
@@ -279,8 +279,8 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2setting
             let frame = settingsFrame setAck []
             sent <- readIORef firstSettings
             let setframe
-                  | sent      = CSettings                      frame peerAlist
-                  | otherwise = CSettings0 (initialFrame conf) frame peerAlist
+                  | sent      = CFrames (Just peerAlist) [frame]
+                  | otherwise = CFrames (Just peerAlist) [initialFrame conf, frame]
             unless sent $ writeIORef firstSettings True
             enqueueControl controlQ setframe
 
@@ -292,7 +292,7 @@ control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
             E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many ping"
           else do
             let frame = pingFrame bs
-            enqueueControl controlQ $ CFrame frame
+            enqueueControl controlQ $ CFrames Nothing [frame]
 
 control FrameGoAway header bs _ _ = do
     GoAwayFrame sid err msg <- guardIt $ decodeGoAwayFrame header bs
@@ -378,7 +378,7 @@ stream FrameData
        _ = do
     when (payloadLength /= 0) $ do
         let frame = windowUpdateFrame 0 payloadLength
-        enqueueControl controlQ $ CFrame frame
+        enqueueControl controlQ $ CFrames Nothing [frame]
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -484,11 +484,10 @@ mkSource update q = Source update q <$> newIORef "" <*> newIORef False
 
 updateWindow :: TQueue Control -> StreamId -> Int -> IO ()
 updateWindow _        _   0   = return ()
-updateWindow controlQ sid len = enqueueControl controlQ $ CFrame frame
+updateWindow controlQ sid len = enqueueControl controlQ $ CFrames Nothing [frame1, frame2]
   where
     frame1 = windowUpdateFrame 0 len
     frame2 = windowUpdateFrame sid len
-    frame = frame1 `BS.append` frame2
 
 readSource :: Source -> IO ByteString
 readSource (Source update q refBS refEOF) = do
