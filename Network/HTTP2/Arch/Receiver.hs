@@ -6,7 +6,7 @@
 module Network.HTTP2.Arch.Receiver (
     frameReceiver
   , maxConcurrency
-  , initialFrame
+  , initialFrames
   ) where
 
 import qualified Data.ByteString as BS
@@ -52,13 +52,16 @@ emptyFrameRateLimit = 4
 
 ----------------------------------------------------------------
 
-initialFrame :: Config -> ByteString
-initialFrame Config{..} = settingsFrame id alist
+initialFrames :: Config -> [ByteString]
+initialFrames Config{..} = [frame1,frame2]
   where
     len = confBufferSize - frameHeaderLength
     payloadLength = max defaultPayloadLength len
     alist = [(SettingsMaxFrameSize,payloadLength)
-            ,(SettingsMaxConcurrentStreams,maxConcurrency)]
+            ,(SettingsMaxConcurrentStreams,maxConcurrency)
+            ,(SettingsInitialWindowSize,maxWindowSize)]
+    frame1 = settingsFrame id alist
+    frame2 = windowUpdateFrame 0 (maxWindowSize - defaultWindowSize)
 
 ----------------------------------------------------------------
 
@@ -280,7 +283,8 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2setting
             sent <- readIORef firstSettings
             let setframe
                   | sent      = CFrames (Just peerAlist) [frame]
-                  | otherwise = CFrames (Just peerAlist) [initialFrame conf, frame]
+                  -- server side
+                  | otherwise = CFrames (Just peerAlist) (initialFrames conf ++ [frame])
             unless sent $ writeIORef firstSettings True
             enqueueControl controlQ setframe
 

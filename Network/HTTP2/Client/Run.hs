@@ -99,6 +99,6 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
 
 exchangeSettings :: Config -> Context -> IO ()
 exchangeSettings conf Context{..} = do
-    let initFrame = initialFrame conf
+    let initFrames = initialFrames conf
     writeIORef firstSettings True
-    enqueueControl controlQ $ CFrames Nothing [connectionPreface, initFrame]
+    enqueueControl controlQ $ CFrames Nothing (connectionPreface:initFrames)
