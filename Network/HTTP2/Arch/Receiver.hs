@@ -205,7 +205,8 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
     tlr <- newIORef Nothing
     q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
-    bodySource <- mkSource (updateWindow controlQ streamId) q
+    incref <- newIORef 0
+    bodySource <- mkSource q $ updateWindow controlQ streamId incref
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then do
         let si = toServerInfo roleInfo
@@ -378,11 +379,9 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ 
 stream FrameData
        FrameHeader{flags,payloadLength}
        _bs
-       Context{controlQ} s@(HalfClosedLocal _)
+       ctx s@(HalfClosedLocal _)
        _ = do
-    when (payloadLength /= 0) $ do
-        let frame = windowUpdateFrame 0 payloadLength
-        enqueueControl controlQ $ CFrames Nothing [frame]
+    connectionWindowIncrement ctx payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -392,8 +391,9 @@ stream FrameData
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
+       ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
+    connectionWindowIncrement ctx payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -483,15 +483,20 @@ data Source = Source (Int -> IO ())
                      (IORef ByteString)
                      (IORef Bool)
 
-mkSource :: (Int -> IO ()) -> TQueue ByteString -> IO Source
-mkSource update q = Source update q <$> newIORef "" <*> newIORef False
+mkSource :: TQueue ByteString -> (Int -> IO ()) -> IO Source
+mkSource q update = Source update q <$> newIORef "" <*> newIORef False
 
-updateWindow :: TQueue Control -> StreamId -> Int -> IO ()
-updateWindow _        _   0   = return ()
-updateWindow controlQ sid len = enqueueControl controlQ $ CFrames Nothing [frame1, frame2]
-  where
-    frame1 = windowUpdateFrame 0 len
-    frame2 = windowUpdateFrame sid len
+updateWindow :: TQueue Control -> StreamId -> IORef Int -> Int -> IO ()
+updateWindow _ _        _   0   = return ()
+updateWindow controlQ sid incref len = do
+    w0 <- readIORef incref
+    let w1 = w0 + len
+    if w1 >= defaultWindowSize then do -- fixme
+        let frame = windowUpdateFrame sid w1
+        enqueueControl controlQ $ CFrames Nothing [frame]
+        writeIORef incref 0
+      else
+        writeIORef incref w1
 
 readSource :: Source -> IO ByteString
 readSource (Source update q refBS refEOF) = do
@@ -513,3 +518,16 @@ readSource (Source update q refBS refEOF) = do
           else do
             writeIORef refBS ""
             return bs0
+
+----------------------------------------------------------------
+
+connectionWindowIncrement :: Context -> Int -> IO ()
+connectionWindowIncrement Context{..} len = do
+    w0 <- readIORef connectionInc
+    let w1 = w0 + len
+    if w1 >= defaultWindowSize then do -- fixme
+        let frame = windowUpdateFrame 0 w1
+        enqueueControl controlQ $ CFrames Nothing [frame]
+        writeIORef connectionInc 0
+      else
+        writeIORef connectionInc w1
