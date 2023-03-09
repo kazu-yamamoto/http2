@@ -62,6 +62,7 @@ data Context = Context {
   , roleInfo           :: RoleInfo
   -- Settings
   , myFirstSettings    :: IORef Bool
+  , myPendingAlist     :: IORef (Maybe SettingsList)
   , mySettings         :: IORef Settings
   , peerSettings       :: IORef Settings
   , streamTable        :: StreamTable
@@ -93,6 +94,7 @@ newContext :: RoleInfo -> IO Context
 newContext rinfo =
     Context rl rinfo
                <$> newIORef False
+               <*> newIORef Nothing
                <*> newIORef defaultSettings
                <*> newIORef defaultSettings
                <*> newStreamTable

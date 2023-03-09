@@ -273,34 +273,42 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{mySettings,peerSettings, controlQ, myFirstSettings, streamTable, settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSettings,myPendingAlist,mySettings,peerSettings,controlQ,streamTable,settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
-    -- HTTP/2 Setting from a browser
-    unless (testAck flags) $ do
+    if testAck flags then do
+        when (peerAlist /= []) $
+            E.throwIO $ ConnectionErrorIsSent FrameSizeError streamId "ack settings has a body"
+        mAlist <- readIORef myPendingAlist
+        case mAlist of
+          Nothing      -> return () -- fixme
+          Just myAlist -> do
+              modifyIORef' mySettings $ \old -> updateSettings old myAlist
+              writeIORef myPendingAlist Nothing
+      else do
         -- Settings Flood - CVE-2019-9515
         rate <- getRate settingsRate
-        if rate > settingsRateLimit then
+        when (rate > settingsRateLimit) $
             E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many settings"
+        -- FIXME: should be handled in Sender?
+        oldws <- initialWindowSize <$> readIORef peerSettings
+        modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
+        newws <- initialWindowSize <$> readIORef peerSettings
+        let diff = newws - oldws
+        when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+        let ack = settingsFrame setAck []
+        sent <- readIORef myFirstSettings
+        if sent then do
+            let setframe = CFrames (Just peerAlist) [ack]
+            enqueueControl controlQ setframe
           else do
-            oldws <- initialWindowSize <$> readIORef peerSettings
-            modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
-            newws <- initialWindowSize <$> readIORef peerSettings
-            let diff = newws - oldws
-            when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
-            let ack = settingsFrame setAck []
-            sent <- readIORef myFirstSettings
-            if sent then do
-                let setframe = CFrames (Just peerAlist) [ack]
-                enqueueControl controlQ setframe
-              else do
-                -- Server side only
-                let myAlist = myInitialAlist conf
-                modifyIORef' mySettings $ \old -> updateSettings old myAlist
-                let frames = initialFrames myAlist ++ [ack]
-                    setframe = CFrames (Just peerAlist) frames
-                writeIORef myFirstSettings True
-                enqueueControl controlQ setframe
+            -- Server side only
+            writeIORef myFirstSettings True
+            let myAlist = myInitialAlist conf
+            writeIORef myPendingAlist $ Just myAlist
+            let frames = initialFrames myAlist ++ [ack]
+                setframe = CFrames (Just peerAlist) frames
+            enqueueControl controlQ setframe
 
 control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
     unless (testAck flags) $ do
