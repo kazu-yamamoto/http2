@@ -78,9 +78,9 @@ data Context = Context {
   , encodeDynamicTable :: DynamicTable
   , decodeDynamicTable :: DynamicTable
   -- the connection window for sending data
-  , connectionWindow   :: TVar WindowSize
+  , txConnectionWindow :: TVar WindowSize
   -- window update for receiving data
-  , connectionInc      :: IORef Int
+  , rxConnectionInc    :: IORef Int
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate

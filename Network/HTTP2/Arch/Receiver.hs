@@ -306,12 +306,12 @@ control FrameGoAway header bs _ _ = do
       else
         E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 
-control FrameWindowUpdate header@FrameHeader{streamId} bs Context{connectionWindow} _ = do
+control FrameWindowUpdate header@FrameHeader{streamId} bs Context{txConnectionWindow} _ = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     w <- atomically $ do
-      w0 <- readTVar connectionWindow
+      w0 <- readTVar txConnectionWindow
       let w1 = w0 + n
-      writeTVar connectionWindow w1
+      writeTVar txConnectionWindow w1
       return w1
     when (isWindowOverflow w) $ E.throwIO $ ConnectionErrorIsSent FlowControlError streamId "control window should be less than 2^31"
 
@@ -381,7 +381,7 @@ stream FrameData
        _bs
        ctx s@(HalfClosedLocal _)
        _ = do
-    connectionWindowIncrement ctx payloadLength
+    rxConnectionWindowIncrement ctx payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -393,7 +393,7 @@ stream FrameData
        bs
        ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
-    connectionWindowIncrement ctx payloadLength
+    rxConnectionWindowIncrement ctx payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -521,13 +521,13 @@ readSource (Source update q refBS refEOF) = do
 
 ----------------------------------------------------------------
 
-connectionWindowIncrement :: Context -> Int -> IO ()
-connectionWindowIncrement Context{..} len = do
-    w0 <- readIORef connectionInc
+rxConnectionWindowIncrement :: Context -> Int -> IO ()
+rxConnectionWindowIncrement Context{..} len = do
+    w0 <- readIORef rxConnectionInc
     let w1 = w0 + len
     if w1 >= defaultWindowSize then do -- fixme
         let frame = windowUpdateFrame 0 w1
         enqueueControl controlQ $ CFrames Nothing [frame]
-        writeIORef connectionInc 0
+        writeIORef rxConnectionInc 0
       else
-        writeIORef connectionInc w1
+        writeIORef rxConnectionInc w1

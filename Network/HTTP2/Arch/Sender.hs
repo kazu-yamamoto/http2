@@ -66,7 +66,7 @@ wrapException se
   | otherwise = E.throwIO $ BadThingHappen se
 
 frameSender :: Context -> Config -> Manager -> IO ()
-frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
+frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable}
             Config{..}
             mgr = loop 0 `E.catch` wrapException
   where
@@ -101,7 +101,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
     dequeue off = do
         isEmpty <- isEmptyTQueue controlQ
         if isEmpty then do
-            w <- readTVar connectionWindow
+            w <- readTVar txConnectionWindow
             checkSTM (w > 0)
             emp <- isEmptyTQueue outputQ
             if emp then
@@ -216,7 +216,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
                 forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out mgr
                 return off
               else do
-                cws <- readTVarIO connectionWindow -- not 0
+                cws <- readTVarIO txConnectionWindow -- not 0
                 let lim = min cws sws
                 output out off lim
         resetStream e = do
@@ -298,7 +298,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         off'' <- handleTrailers mtrailers off'
         void tell
         when (isServer ctx) $ halfClosedLocal ctx strm Finished
-        atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
+        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
         if reqflush then do
             flushN off''
@@ -327,7 +327,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             off' = off + frameHeaderLength + datPayloadLen
             flag  = defaultFlags
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
-        atomically $ modifyTVar' connectionWindow (subtract datPayloadLen)
+        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
         atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
         let out' = out { outputType = ONext next tlrmkr }
         enqueueOutput outputQ out'
