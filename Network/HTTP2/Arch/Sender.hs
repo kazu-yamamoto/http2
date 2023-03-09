@@ -124,11 +124,11 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable}
         flushN off
         case ms of
           Nothing    -> return ()
-          Just alist -> setLimit alist
+          Just alist -> setHPACK alist
 
-    {-# INLINE setLimit #-}
-    setLimit :: SettingsList -> IO ()
-    setLimit alist = case lookup SettingsHeaderTableSize alist of
+    {-# INLINE setHPACK #-}
+    setHPACK :: SettingsList -> IO ()
+    setHPACK alist = case lookup SettingsHeaderTableSize alist of
         Nothing  -> return ()
         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
