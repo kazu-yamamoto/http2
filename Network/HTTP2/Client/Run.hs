@@ -36,7 +36,7 @@ run ClientConfig{..} conf@Config{..} client = do
     let runClient = do
             x <- client $ sendRequest ctx mgr scheme authority
             let frame = goawayFrame 0 NoError "graceful closing"
-            enqueueControl (controlQ ctx) $ CGoaway frame
+            enqueueControl (controlQ ctx) $ CFrames Nothing [frame]
             return x
     ex <- race runBackgroundThreads runClient `E.finally` stop mgr
     case ex of
@@ -98,10 +98,7 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
     processResponse $ Response rsp
 
 exchangeSettings :: Config -> Context -> IO ()
-exchangeSettings conf@Config{..} Context{..} = do
-    confSendAll connectionPreface
-    let initFrame = initialFrame conf
-        setframe = CSettings initFrame [] -- fixme peerAlist
+exchangeSettings conf Context{..} = do
+    let initFrames = initialFrames conf
     writeIORef firstSettings True
-    enqueueControl controlQ setframe
-
+    enqueueControl controlQ $ CFrames Nothing (connectionPreface:initFrames)

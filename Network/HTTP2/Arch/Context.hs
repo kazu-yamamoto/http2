@@ -77,8 +77,10 @@ data Context = Context {
   , controlQ           :: TQueue Control
   , encodeDynamicTable :: DynamicTable
   , decodeDynamicTable :: DynamicTable
-  -- the connection window for data from a server to a browser.
+  -- the connection window for sending data
   , connectionWindow   :: TVar WindowSize
+  -- window update for receiving data
+  , connectionInc      :: IORef Int
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate
@@ -102,6 +104,7 @@ newContext rinfo =
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
                <*> newTVarIO defaultWindowSize
+               <*> newIORef 0
                <*> newRate
                <*> newRate
                <*> newRate

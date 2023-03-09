@@ -41,8 +41,8 @@ fromContext ctx@Context{..} = WorkerConf {
   , writeOutputQ = enqueueOutput outputQ
   , workerCleanup = \strm -> do
         closed ctx strm Killed
-        let frame = resetFrame InternalError (streamNumber strm)
-        enqueueControl controlQ $ CFrame frame
+        let frame = resetFrame InternalError $ streamNumber strm
+        enqueueControl controlQ $ CFrames Nothing [frame]
   , isPushable = enablePush <$> readIORef http2settings
   , insertStream = insert streamTable
   , makePushStream = \pstrm _ -> do

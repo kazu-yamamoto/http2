@@ -6,7 +6,7 @@
 module Network.HTTP2.Arch.Receiver (
     frameReceiver
   , maxConcurrency
-  , initialFrame
+  , initialFrames
   ) where
 
 import qualified Data.ByteString as BS
@@ -52,13 +52,16 @@ emptyFrameRateLimit = 4
 
 ----------------------------------------------------------------
 
-initialFrame :: Config -> ByteString
-initialFrame Config{..} = settingsFrame id alist
+initialFrames :: Config -> [ByteString]
+initialFrames Config{..} = [frame1,frame2]
   where
     len = confBufferSize - frameHeaderLength
     payloadLength = max defaultPayloadLength len
     alist = [(SettingsMaxFrameSize,payloadLength)
-            ,(SettingsMaxConcurrentStreams,maxConcurrency)]
+            ,(SettingsMaxConcurrentStreams,maxConcurrency)
+            ,(SettingsInitialWindowSize,maxWindowSize)]
+    frame1 = settingsFrame id alist
+    frame2 = windowUpdateFrame 0 (maxWindowSize - defaultWindowSize)
 
 ----------------------------------------------------------------
 
@@ -85,17 +88,17 @@ frameReceiver ctx@Context{..} conf@Config{..} = loop 0 `E.catch` sendGoaway
           enqueueControl controlQ $ CFinish e
       | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do
           let frame = goawayFrame sid err $ Short.fromShort msg
-          enqueueControl controlQ $ CGoaway frame
+          enqueueControl controlQ $ CFrames Nothing [frame]
           enqueueControl controlQ $ CFinish e
       | Just e@(StreamErrorIsSent err sid) <- E.fromException se = do
           let frame = resetFrame err sid
-          enqueueControl controlQ $ CFrame frame
+          enqueueControl controlQ $ CFrames Nothing [frame]
           let frame' = goawayFrame sid err "treat a stream error as a connection error"
-          enqueueControl controlQ $ CGoaway frame'
+          enqueueControl controlQ $ CFrames Nothing [frame']
           enqueueControl controlQ $ CFinish e
       | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
           let frame = goawayFrame sid err "treat a stream error as a connection error"
-          enqueueControl controlQ $ CGoaway frame
+          enqueueControl controlQ $ CFrames Nothing [frame]
           enqueueControl controlQ $ CFinish e
       -- this never happens
       | Just e@(BadThingHappen _) <- E.fromException se =
@@ -202,7 +205,8 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
     tlr <- newIORef Nothing
     q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
-    bodySource <- mkSource (updateWindow controlQ streamId) q
+    incref <- newIORef 0
+    bodySource <- mkSource q $ updateWindow controlQ streamId incref
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then do
         let si = toServerInfo roleInfo
@@ -279,8 +283,9 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2setting
             let frame = settingsFrame setAck []
             sent <- readIORef firstSettings
             let setframe
-                  | sent      = CSettings                      frame peerAlist
-                  | otherwise = CSettings0 (initialFrame conf) frame peerAlist
+                  | sent      = CFrames (Just peerAlist) [frame]
+                  -- server side
+                  | otherwise = CFrames (Just peerAlist) (initialFrames conf ++ [frame])
             unless sent $ writeIORef firstSettings True
             enqueueControl controlQ setframe
 
@@ -292,7 +297,7 @@ control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
             E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many ping"
           else do
             let frame = pingFrame bs
-            enqueueControl controlQ $ CFrame frame
+            enqueueControl controlQ $ CFrames Nothing [frame]
 
 control FrameGoAway header bs _ _ = do
     GoAwayFrame sid err msg <- guardIt $ decodeGoAwayFrame header bs
@@ -374,11 +379,9 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ 
 stream FrameData
        FrameHeader{flags,payloadLength}
        _bs
-       Context{controlQ} s@(HalfClosedLocal _)
+       ctx s@(HalfClosedLocal _)
        _ = do
-    when (payloadLength /= 0) $ do
-        let frame = windowUpdateFrame 0 payloadLength
-        enqueueControl controlQ $ CFrame frame
+    connectionWindowIncrement ctx payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -388,8 +391,9 @@ stream FrameData
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
+       ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
+    connectionWindowIncrement ctx payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -479,16 +483,20 @@ data Source = Source (Int -> IO ())
                      (IORef ByteString)
                      (IORef Bool)
 
-mkSource :: (Int -> IO ()) -> TQueue ByteString -> IO Source
-mkSource update q = Source update q <$> newIORef "" <*> newIORef False
+mkSource :: TQueue ByteString -> (Int -> IO ()) -> IO Source
+mkSource q update = Source update q <$> newIORef "" <*> newIORef False
 
-updateWindow :: TQueue Control -> StreamId -> Int -> IO ()
-updateWindow _        _   0   = return ()
-updateWindow controlQ sid len = enqueueControl controlQ $ CFrame frame
-  where
-    frame1 = windowUpdateFrame 0 len
-    frame2 = windowUpdateFrame sid len
-    frame = frame1 `BS.append` frame2
+updateWindow :: TQueue Control -> StreamId -> IORef Int -> Int -> IO ()
+updateWindow _ _        _   0   = return ()
+updateWindow controlQ sid incref len = do
+    w0 <- readIORef incref
+    let w1 = w0 + len
+    if w1 >= defaultWindowSize then do -- fixme
+        let frame = windowUpdateFrame sid w1
+        enqueueControl controlQ $ CFrames Nothing [frame]
+        writeIORef incref 0
+      else
+        writeIORef incref w1
 
 readSource :: Source -> IO ByteString
 readSource (Source update q refBS refEOF) = do
@@ -510,3 +518,16 @@ readSource (Source update q refBS refEOF) = do
           else do
             writeIORef refBS ""
             return bs0
+
+----------------------------------------------------------------
+
+connectionWindowIncrement :: Context -> Int -> IO ()
+connectionWindowIncrement Context{..} len = do
+    w0 <- readIORef connectionInc
+    let w1 = w0 + len
+    if w1 >= defaultWindowSize then do -- fixme
+        let frame = windowUpdateFrame 0 w1
+        enqueueControl controlQ $ CFrames Nothing [frame]
+        writeIORef connectionInc 0
+      else
+        writeIORef connectionInc w1

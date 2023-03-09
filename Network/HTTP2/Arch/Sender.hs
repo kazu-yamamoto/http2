@@ -14,7 +14,7 @@ module Network.HTTP2.Arch.Sender (
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
-import Foreign.Ptr (plusPtr)
+import Foreign.Ptr (plusPtr, minusPtr)
 import Network.ByteOrder
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
@@ -76,9 +76,9 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         x <- atomically $ dequeue off
         case x of
             C ctl -> do
-                when (off /= 0) $ flushN off
-                off' <- control ctl off
-                when (off' >= 0) $ loop off'
+                flushN off
+                control ctl
+                loop 0
             O out -> do
                 off' <- outputOrEnqueueAgain out off
                 case off' of
@@ -112,21 +112,19 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
             C <$> readTQueue controlQ
 
     ----------------------------------------------------------------
-    control :: Control -> Offset -> IO Offset
-    control (CFinish     e) _ = E.throwIO e
-    control (CGoaway frame) _ = confSendAll frame >> return 0
-    control (CFrame  frame) _ = confSendAll frame >> return 0
-    control (CSettings frame alist) _ = do
-        confSendAll frame
-        setLimit alist
-        return 0
-    control (CSettings0 frame1 frame2 alist) off = do -- off == 0, just in case
-        let buf = confWriteBuffer `plusPtr` off
-            off' = off + BS.length frame1 + BS.length frame2
-        buf' <- copy buf frame1
-        void $ copy buf' frame2
-        setLimit alist
-        return off'
+    copyAll []     buf = return buf
+    copyAll (x:xs) buf = copy buf x >>= copyAll xs
+
+    -- called with off == 0
+    control :: Control -> IO ()
+    control (CFinish     e) = E.throwIO e
+    control (CFrames ms xs) = do
+        buf <- copyAll xs confWriteBuffer
+        let off = buf `minusPtr` confWriteBuffer
+        flushN off
+        case ms of
+          Nothing    -> return ()
+          Just alist -> setLimit alist
 
     {-# INLINE setLimit #-}
     setLimit :: SettingsList -> IO ()
@@ -224,7 +222,7 @@ frameSender ctx@Context{outputQ,controlQ,connectionWindow,encodeDynamicTable}
         resetStream e = do
             closed ctx strm (ResetByMe e)
             let rst = resetFrame InternalError $ streamNumber strm
-            enqueueControl controlQ $ CFrame rst
+            enqueueControl controlQ $ CFrames Nothing [rst]
             return off
 
     ----------------------------------------------------------------
