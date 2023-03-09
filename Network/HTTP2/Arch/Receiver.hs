@@ -273,7 +273,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSettings,myPendingAlist,mySettings,peerSettings,controlQ,streamTable,settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSettings,myPendingAlist,mySettings,controlQ,settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     if testAck flags then do
@@ -290,12 +290,6 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSetti
         rate <- getRate settingsRate
         when (rate > settingsRateLimit) $
             E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many settings"
-        -- FIXME: should be handled in Sender?
-        oldws <- initialWindowSize <$> readIORef peerSettings
-        modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
-        newws <- initialWindowSize <$> readIORef peerSettings
-        let diff = newws - oldws
-        when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
         let ack = settingsFrame setAck []
         sent <- readIORef myFirstSettings
         if sent then do

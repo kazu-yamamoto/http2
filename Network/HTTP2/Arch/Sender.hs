@@ -14,6 +14,7 @@ module Network.HTTP2.Arch.Sender (
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
+import Data.IORef (readIORef, modifyIORef')
 import Foreign.Ptr (plusPtr, minusPtr)
 import Network.ByteOrder
 import qualified UnliftIO.Exception as E
@@ -66,7 +67,7 @@ wrapException se
   | otherwise = E.throwIO $ BadThingHappen se
 
 frameSender :: Context -> Config -> Manager -> IO ()
-frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable}
+frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,peerSettings,streamTable}
             Config{..}
             mgr = loop 0 `E.catch` wrapException
   where
@@ -124,13 +125,15 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable}
         flushN off
         case ms of
           Nothing    -> return ()
-          Just alist -> setHPACK alist
-
-    {-# INLINE setHPACK #-}
-    setHPACK :: SettingsList -> IO ()
-    setHPACK alist = case lookup SettingsHeaderTableSize alist of
-        Nothing  -> return ()
-        Just siz -> setLimitForEncoding siz encodeDynamicTable
+          Just peerAlist -> do
+              oldws <- initialWindowSize <$> readIORef peerSettings
+              modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
+              newws <- initialWindowSize <$> readIORef peerSettings
+              let diff = newws - oldws
+              when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+              case lookup SettingsHeaderTableSize peerAlist of
+                Nothing  -> return ()
+                Just siz -> setLimitForEncoding siz encodeDynamicTable
 
     ----------------------------------------------------------------
     output :: Output Stream -> Offset -> WindowSize -> IO Offset
