@@ -13,9 +13,13 @@ import Network.HTTP2.Arch.ReadN
 
 -- | HTTP/2 configuration.
 data Config = Config {
-    -- confWriteBuffer is used only by frameSender.
+    -- | This is used only by frameSender.
     -- This MUST be freed after frameSender is terminated.
       confWriteBuffer :: Buffer
+    -- | The size of the write buffer.
+    --   We assume that the read buffer is the same size.
+    --   So, this value is announced via SETTINGS_MAX_FRAME_SIZE
+    --   to the peer.
     , confBufferSize  :: BufferSize
     , confSendAll     :: ByteString -> IO ()
     , confReadN       :: Int -> IO ByteString

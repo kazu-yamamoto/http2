@@ -60,9 +60,10 @@ lookupCache _ _ _ = error "lookupCache"
 data Context = Context {
     role               :: Role
   , roleInfo           :: RoleInfo
-  -- HTTP/2 settings received from a browser
-  , peerSettings       :: IORef Settings
+  -- Settings
   , myFirstSettings    :: IORef Bool
+  , mySettings         :: IORef Settings
+  , peerSettings       :: IORef Settings
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
   -- | RFC 9113 says "Other frames (from any stream) MUST NOT
@@ -91,8 +92,9 @@ data Context = Context {
 newContext :: RoleInfo -> IO Context
 newContext rinfo =
     Context rl rinfo
-               <$> newIORef defaultSettings
-               <*> newIORef False
+               <$> newIORef False
+               <*> newIORef defaultSettings
+               <*> newIORef defaultSettings
                <*> newStreamTable
                <*> newIORef 0
                <*> newIORef Nothing

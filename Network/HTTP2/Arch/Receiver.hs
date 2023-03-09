@@ -6,6 +6,7 @@
 module Network.HTTP2.Arch.Receiver (
     frameReceiver
   , maxConcurrency
+  , myInitialAlist
   , initialFrames
   ) where
 
@@ -52,16 +53,23 @@ emptyFrameRateLimit = 4
 
 ----------------------------------------------------------------
 
-initialFrames :: Config -> [ByteString]
-initialFrames Config{..} = [frame1,frame2]
+initialFrames :: SettingsList -> [ByteString]
+initialFrames alist = [frame1,frame2]
   where
-    len = confBufferSize - frameHeaderLength
-    payloadLength = max defaultPayloadLength len
-    alist = [(SettingsMaxFrameSize,payloadLength)
-            ,(SettingsMaxConcurrentStreams,maxConcurrency)
-            ,(SettingsInitialWindowSize,maxWindowSize)]
     frame1 = settingsFrame id alist
     frame2 = windowUpdateFrame 0 (maxWindowSize - defaultWindowSize)
+
+myInitialAlist :: Config -> SettingsList
+myInitialAlist Config{..} =
+    -- | confBufferSize is the size of the write buffer.
+    --   But we assume that the size of the read buffer is the same size.
+    --   So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
+    [(SettingsMaxFrameSize,payloadLen)
+    ,(SettingsMaxConcurrentStreams,maxConcurrency)
+    ,(SettingsInitialWindowSize,maxWindowSize)]
+  where
+    len = confBufferSize - frameHeaderLength
+    payloadLen = max defaultPayloadLength len
 
 ----------------------------------------------------------------
 
@@ -265,7 +273,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{peerSettings, controlQ, myFirstSettings, streamTable, settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs Context{mySettings,peerSettings, controlQ, myFirstSettings, streamTable, settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     -- HTTP/2 Setting from a browser
@@ -280,14 +288,19 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{peerSettings
             newws <- initialWindowSize <$> readIORef peerSettings
             let diff = newws - oldws
             when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
-            let frame = settingsFrame setAck []
+            let ack = settingsFrame setAck []
             sent <- readIORef myFirstSettings
-            let setframe
-                  | sent      = CFrames (Just peerAlist) [frame]
-                  -- server side
-                  | otherwise = CFrames (Just peerAlist) (initialFrames conf ++ [frame])
-            unless sent $ writeIORef myFirstSettings True
-            enqueueControl controlQ setframe
+            if sent then do
+                let setframe = CFrames (Just peerAlist) [ack]
+                enqueueControl controlQ setframe
+              else do
+                -- Server side only
+                let myAlist = myInitialAlist conf
+                modifyIORef' mySettings $ \old -> updateSettings old myAlist
+                let frames = initialFrames myAlist ++ [ack]
+                    setframe = CFrames (Just peerAlist) frames
+                writeIORef myFirstSettings True
+                enqueueControl controlQ setframe
 
 control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
     unless (testAck flags) $ do
