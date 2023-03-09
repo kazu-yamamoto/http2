@@ -265,7 +265,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{peerSettings, controlQ, firstSettings, streamTable, settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs Context{peerSettings, controlQ, myFirstSettings, streamTable, settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     -- HTTP/2 Setting from a browser
@@ -281,12 +281,12 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{peerSettings
             let diff = newws - oldws
             when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
             let frame = settingsFrame setAck []
-            sent <- readIORef firstSettings
+            sent <- readIORef myFirstSettings
             let setframe
                   | sent      = CFrames (Just peerAlist) [frame]
                   -- server side
                   | otherwise = CFrames (Just peerAlist) (initialFrames conf ++ [frame])
-            unless sent $ writeIORef firstSettings True
+            unless sent $ writeIORef myFirstSettings True
             enqueueControl controlQ setframe
 
 control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =

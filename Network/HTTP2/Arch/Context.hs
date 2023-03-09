@@ -62,7 +62,7 @@ data Context = Context {
   , roleInfo           :: RoleInfo
   -- HTTP/2 settings received from a browser
   , peerSettings       :: IORef Settings
-  , firstSettings      :: IORef Bool
+  , myFirstSettings    :: IORef Bool
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
   -- | RFC 9113 says "Other frames (from any stream) MUST NOT
