@@ -152,7 +152,7 @@ processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength,
                 insertCache method path strm $ roleInfo ctx
             _ -> return ()
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
-    settings <- readIORef peerSettings
+    settings <- readIORef mySettings
     case checkFrameHeader settings typhdr of
       Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
       Right _    -> controlOrStream ctx conf ftyp header
