@@ -61,7 +61,7 @@ data Context = Context {
     role               :: Role
   , roleInfo           :: RoleInfo
   -- HTTP/2 settings received from a browser
-  , http2settings      :: IORef Settings
+  , peerSettings       :: IORef Settings
   , firstSettings      :: IORef Bool
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
@@ -176,8 +176,8 @@ closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
     setStreamState ctx strm (Closed cc) -- anyway
 
 openStream :: Context -> StreamId -> FrameType -> IO Stream
-openStream ctx@Context{streamTable, http2settings} sid ftyp = do
-    ws <- initialWindowSize <$> readIORef http2settings
+openStream ctx@Context{streamTable, peerSettings} sid ftyp = do
+    ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newStream sid $ fromIntegral ws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
     insert streamTable sid newstrm

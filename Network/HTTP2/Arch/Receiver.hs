@@ -144,7 +144,7 @@ processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength,
                 insertCache method path strm $ roleInfo ctx
             _ -> return ()
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
-    settings <- readIORef http2settings
+    settings <- readIORef peerSettings
     case checkFrameHeader settings typhdr of
       Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
       Right _    -> controlOrStream ctx conf ftyp header
@@ -265,7 +265,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2settings, controlQ, firstSettings, streamTable, settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs Context{peerSettings, controlQ, firstSettings, streamTable, settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     -- HTTP/2 Setting from a browser
@@ -275,9 +275,9 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2setting
         if rate > settingsRateLimit then
             E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many settings"
           else do
-            oldws <- initialWindowSize <$> readIORef http2settings
-            modifyIORef' http2settings $ \old -> updateSettings old peerAlist
-            newws <- initialWindowSize <$> readIORef http2settings
+            oldws <- initialWindowSize <$> readIORef peerSettings
+            modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
+            newws <- initialWindowSize <$> readIORef peerSettings
             let diff = newws - oldws
             when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
             let frame = settingsFrame setAck []
