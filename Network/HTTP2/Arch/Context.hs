@@ -74,6 +74,7 @@ data Context = Context {
   , continued          :: IORef (Maybe StreamId)
   , myStreamId         :: IORef StreamId
   , peerStreamId       :: IORef StreamId
+  , outputBufferLimit  :: IORef Int
   , outputQ            :: TQueue (Output Stream)
   , outputQStreamID    :: TVar StreamId
   , controlQ           :: TQueue Control
@@ -90,8 +91,8 @@ data Context = Context {
 
 ----------------------------------------------------------------
 
-newContext :: RoleInfo -> IO Context
-newContext rinfo =
+newContext :: RoleInfo -> BufferSize -> IO Context
+newContext rinfo siz =
     Context rl rinfo
                <$> newIORef False
                <*> newIORef Nothing
@@ -102,6 +103,7 @@ newContext rinfo =
                <*> newIORef Nothing
                <*> newIORef sid0
                <*> newIORef 0
+               <*> newIORef buflim
                <*> newTQueueIO
                <*> newTVarIO sid0
                <*> newTQueueIO
@@ -118,6 +120,9 @@ newContext rinfo =
        _     -> Server
      sid0 | rl == Client = 1
           | otherwise    = 2
+     dlim = defaultPayloadLength + frameHeaderLength
+     buflim | siz >= dlim = dlim
+            | otherwise   = siz
 
 ----------------------------------------------------------------
 

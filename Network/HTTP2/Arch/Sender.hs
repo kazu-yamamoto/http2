@@ -14,7 +14,7 @@ module Network.HTTP2.Arch.Sender (
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
-import Data.IORef (readIORef, modifyIORef')
+import Data.IORef (readIORef, writeIORef, modifyIORef')
 import Foreign.Ptr (plusPtr, minusPtr)
 import Network.ByteOrder
 import qualified UnliftIO.Exception as E
@@ -67,7 +67,7 @@ wrapException se
   | otherwise = E.throwIO $ BadThingHappen se
 
 frameSender :: Context -> Config -> Manager -> IO ()
-frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,peerSettings,streamTable}
+frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,peerSettings,streamTable,outputBufferLimit}
             Config{..}
             mgr = loop 0 `E.catch` wrapException
   where
@@ -87,14 +87,13 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
     flushN n = bufferIO confWriteBuffer n confSendAll
 
     flushIfNecessary :: Offset -> IO Offset
-    flushIfNecessary off
-      | off <= hardLimit = return off
-      | otherwise = do
-          flushN off
-          return 0
-
-    hardLimit :: BufferSize
-    hardLimit = confBufferSize - 512
+    flushIfNecessary off = do
+        buflim <- readIORef outputBufferLimit
+        if off <= buflim - 512 then
+            return off
+          else do
+            flushN off
+            return 0
 
     dequeue :: Offset -> STM Switch
     dequeue off = do
@@ -129,6 +128,13 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
               newws <- initialWindowSize <$> readIORef peerSettings
               let diff = newws - oldws
               when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+              case lookup SettingsMaxFrameSize peerAlist of
+                Nothing -> return ()
+                Just payloadLen -> do
+                    let dlim = payloadLen + frameHeaderLength
+                        buflim | confBufferSize >= dlim = dlim
+                               | otherwise              = confBufferSize
+                    writeIORef outputBufferLimit buflim
               case lookup SettingsHeaderTableSize peerAlist of
                 Nothing  -> return ()
                 Just siz -> setLimitForEncoding siz encodeDynamicTable
@@ -137,9 +143,10 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
     output :: Output Stream -> Offset -> WindowSize -> IO Offset
     output out@(Output strm OutObj{} (ONext curr tlrmkr) _ sentinel) off0 lim = do
         -- Data frame payload
+        buflim <- readIORef outputBufferLimit
         let payloadOff = off0 + frameHeaderLength
             datBuf     = confWriteBuffer `plusPtr` payloadOff
-            datBufSiz  = confBufferSize - payloadOff
+            datBufSiz  = buflim - payloadOff
         Next datPayloadLen reqflush mnext <- curr datBuf datBufSiz lim -- checkme
         NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
         fillDataHeaderEnqueueNext strm off0 datPayloadLen mnext tlrmkr' sentinel out reqflush
@@ -229,9 +236,10 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
     ----------------------------------------------------------------
     headerContinue :: StreamId -> TokenHeaderList -> Bool -> Offset -> IO Offset
     headerContinue sid ths0 endOfStream off0 = do
+        buflim <- readIORef outputBufferLimit
         let offkv = off0 + frameHeaderLength
-        let bufkv = confWriteBuffer `plusPtr` offkv
-            limkv = confBufferSize - offkv
+            bufkv = confWriteBuffer `plusPtr` offkv
+            limkv = buflim - offkv
         (ths,kvlen) <- hpackEncodeHeader ctx bufkv limkv ths0
         if kvlen == 0 then
             continue off0 ths FrameHeaders
@@ -251,17 +259,16 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
         continue off ths ft = do
             flushN off
             -- Now off is 0
+            buflim <- readIORef outputBufferLimit
+            let bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
+
+                headerPayloadLim = buflim - frameHeaderLength
             (ths', kvlen') <- hpackEncodeHeaderLoop ctx bufHeaderPayload headerPayloadLim ths
             when (ths == ths') $ E.throwIO $ ConnectionErrorIsSent CompressionError sid "cannot compress the header"
             let flag = getFlag ths'
                 off' = frameHeaderLength + kvlen'
             fillFrameHeader ft kvlen' sid flag confWriteBuffer
             continue off' ths' FrameContinuation
-
-    bufHeaderPayload :: Buffer
-    bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
-    headerPayloadLim :: BufferSize
-    headerPayloadLim = confBufferSize - frameHeaderLength
 
     ----------------------------------------------------------------
     fillDataHeaderEnqueueNext :: Stream
