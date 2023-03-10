@@ -60,9 +60,11 @@ lookupCache _ _ _ = error "lookupCache"
 data Context = Context {
     role               :: Role
   , roleInfo           :: RoleInfo
-  -- HTTP/2 settings received from a browser
-  , http2settings      :: IORef Settings
-  , firstSettings      :: IORef Bool
+  -- Settings
+  , myFirstSettings    :: IORef Bool
+  , myPendingAlist     :: IORef (Maybe SettingsList)
+  , mySettings         :: IORef Settings
+  , peerSettings       :: IORef Settings
   , streamTable        :: StreamTable
   , concurrency        :: IORef Int
   -- | RFC 9113 says "Other frames (from any stream) MUST NOT
@@ -72,15 +74,16 @@ data Context = Context {
   , continued          :: IORef (Maybe StreamId)
   , myStreamId         :: IORef StreamId
   , peerStreamId       :: IORef StreamId
+  , outputBufferLimit  :: IORef Int
   , outputQ            :: TQueue (Output Stream)
   , outputQStreamID    :: TVar StreamId
   , controlQ           :: TQueue Control
   , encodeDynamicTable :: DynamicTable
   , decodeDynamicTable :: DynamicTable
   -- the connection window for sending data
-  , connectionWindow   :: TVar WindowSize
+  , txConnectionWindow :: TVar WindowSize
   -- window update for receiving data
-  , connectionInc      :: IORef Int
+  , rxConnectionInc    :: IORef Int
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate
@@ -88,16 +91,19 @@ data Context = Context {
 
 ----------------------------------------------------------------
 
-newContext :: RoleInfo -> IO Context
-newContext rinfo =
+newContext :: RoleInfo -> BufferSize -> IO Context
+newContext rinfo siz =
     Context rl rinfo
-               <$> newIORef defaultSettings
-               <*> newIORef False
+               <$> newIORef False
+               <*> newIORef Nothing
+               <*> newIORef defaultSettings
+               <*> newIORef defaultSettings
                <*> newStreamTable
                <*> newIORef 0
                <*> newIORef Nothing
                <*> newIORef sid0
                <*> newIORef 0
+               <*> newIORef buflim
                <*> newTQueueIO
                <*> newTVarIO sid0
                <*> newTQueueIO
@@ -114,6 +120,9 @@ newContext rinfo =
        _     -> Server
      sid0 | rl == Client = 1
           | otherwise    = 2
+     dlim = defaultPayloadLength + frameHeaderLength
+     buflim | siz >= dlim = dlim
+            | otherwise   = siz
 
 ----------------------------------------------------------------
 
@@ -176,8 +185,8 @@ closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
     setStreamState ctx strm (Closed cc) -- anyway
 
 openStream :: Context -> StreamId -> FrameType -> IO Stream
-openStream ctx@Context{streamTable, http2settings} sid ftyp = do
-    ws <- initialWindowSize <$> readIORef http2settings
+openStream ctx@Context{streamTable, peerSettings} sid ftyp = do
+    ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newStream sid $ fromIntegral ws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
     insert streamTable sid newstrm

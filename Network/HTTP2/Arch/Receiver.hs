@@ -6,6 +6,7 @@
 module Network.HTTP2.Arch.Receiver (
     frameReceiver
   , maxConcurrency
+  , myInitialAlist
   , initialFrames
   ) where
 
@@ -52,16 +53,23 @@ emptyFrameRateLimit = 4
 
 ----------------------------------------------------------------
 
-initialFrames :: Config -> [ByteString]
-initialFrames Config{..} = [frame1,frame2]
+initialFrames :: SettingsList -> [ByteString]
+initialFrames alist = [frame1,frame2]
   where
-    len = confBufferSize - frameHeaderLength
-    payloadLength = max defaultPayloadLength len
-    alist = [(SettingsMaxFrameSize,payloadLength)
-            ,(SettingsMaxConcurrentStreams,maxConcurrency)
-            ,(SettingsInitialWindowSize,maxWindowSize)]
     frame1 = settingsFrame id alist
     frame2 = windowUpdateFrame 0 (maxWindowSize - defaultWindowSize)
+
+myInitialAlist :: Config -> SettingsList
+myInitialAlist Config{..} =
+    -- | confBufferSize is the size of the write buffer.
+    --   But we assume that the size of the read buffer is the same size.
+    --   So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
+    [(SettingsMaxFrameSize,payloadLen)
+    ,(SettingsMaxConcurrentStreams,maxConcurrency)
+    ,(SettingsInitialWindowSize,maxWindowSize)]
+  where
+    len = confBufferSize - frameHeaderLength
+    payloadLen = max defaultPayloadLength len
 
 ----------------------------------------------------------------
 
@@ -144,7 +152,7 @@ processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength,
                 insertCache method path strm $ roleInfo ctx
             _ -> return ()
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
-    settings <- readIORef http2settings
+    settings <- readIORef mySettings
     case checkFrameHeader settings typhdr of
       Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
       Right _    -> controlOrStream ctx conf ftyp header
@@ -265,28 +273,35 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{http2settings, controlQ, firstSettings, streamTable, settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSettings,myPendingAlist,mySettings,controlQ,settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
-    -- HTTP/2 Setting from a browser
-    unless (testAck flags) $ do
+    if testAck flags then do
+        when (peerAlist /= []) $
+            E.throwIO $ ConnectionErrorIsSent FrameSizeError streamId "ack settings has a body"
+        mAlist <- readIORef myPendingAlist
+        case mAlist of
+          Nothing      -> return () -- fixme
+          Just myAlist -> do
+              modifyIORef' mySettings $ \old -> updateSettings old myAlist
+              writeIORef myPendingAlist Nothing
+      else do
         -- Settings Flood - CVE-2019-9515
         rate <- getRate settingsRate
-        if rate > settingsRateLimit then
+        when (rate > settingsRateLimit) $
             E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many settings"
+        let ack = settingsFrame setAck []
+        sent <- readIORef myFirstSettings
+        if sent then do
+            let setframe = CFrames (Just peerAlist) [ack]
+            enqueueControl controlQ setframe
           else do
-            oldws <- initialWindowSize <$> readIORef http2settings
-            modifyIORef' http2settings $ \old -> updateSettings old peerAlist
-            newws <- initialWindowSize <$> readIORef http2settings
-            let diff = newws - oldws
-            when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
-            let frame = settingsFrame setAck []
-            sent <- readIORef firstSettings
-            let setframe
-                  | sent      = CFrames (Just peerAlist) [frame]
-                  -- server side
-                  | otherwise = CFrames (Just peerAlist) (initialFrames conf ++ [frame])
-            unless sent $ writeIORef firstSettings True
+            -- Server side only
+            writeIORef myFirstSettings True
+            let myAlist = myInitialAlist conf
+            writeIORef myPendingAlist $ Just myAlist
+            let frames = initialFrames myAlist ++ [ack]
+                setframe = CFrames (Just peerAlist) frames
             enqueueControl controlQ setframe
 
 control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
@@ -306,12 +321,12 @@ control FrameGoAway header bs _ _ = do
       else
         E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 
-control FrameWindowUpdate header@FrameHeader{streamId} bs Context{connectionWindow} _ = do
+control FrameWindowUpdate header@FrameHeader{streamId} bs Context{txConnectionWindow} _ = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     w <- atomically $ do
-      w0 <- readTVar connectionWindow
+      w0 <- readTVar txConnectionWindow
       let w1 = w0 + n
-      writeTVar connectionWindow w1
+      writeTVar txConnectionWindow w1
       return w1
     when (isWindowOverflow w) $ E.throwIO $ ConnectionErrorIsSent FlowControlError streamId "control window should be less than 2^31"
 
@@ -381,7 +396,7 @@ stream FrameData
        _bs
        ctx s@(HalfClosedLocal _)
        _ = do
-    connectionWindowIncrement ctx payloadLength
+    rxConnectionWindowIncrement ctx payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -393,7 +408,7 @@ stream FrameData
        bs
        ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
-    connectionWindowIncrement ctx payloadLength
+    rxConnectionWindowIncrement ctx payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -521,13 +536,13 @@ readSource (Source update q refBS refEOF) = do
 
 ----------------------------------------------------------------
 
-connectionWindowIncrement :: Context -> Int -> IO ()
-connectionWindowIncrement Context{..} len = do
-    w0 <- readIORef connectionInc
+rxConnectionWindowIncrement :: Context -> Int -> IO ()
+rxConnectionWindowIncrement Context{..} len = do
+    w0 <- readIORef rxConnectionInc
     let w1 = w0 + len
     if w1 >= defaultWindowSize then do -- fixme
         let frame = windowUpdateFrame 0 w1
         enqueueControl controlQ $ CFrames Nothing [frame]
-        writeIORef connectionInc 0
+        writeIORef rxConnectionInc 0
       else
-        writeIORef connectionInc w1
+        writeIORef rxConnectionInc w1

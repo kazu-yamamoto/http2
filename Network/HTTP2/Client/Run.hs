@@ -26,7 +26,7 @@ data ClientConfig = ClientConfig {
 run :: ClientConfig -> Config -> Client a -> IO a
 run ClientConfig{..} conf@Config{..} client = do
     clientInfo <- newClientInfo scheme authority cacheLimit
-    ctx <- newContext clientInfo
+    ctx <- newContext clientInfo confBufferSize
     mgr <- start confTimeoutManager
     let runBackgroundThreads = do
             let runReceiver = frameReceiver ctx conf
@@ -99,6 +99,9 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
 
 exchangeSettings :: Config -> Context -> IO ()
 exchangeSettings conf Context{..} = do
-    let initFrames = initialFrames conf
-    writeIORef firstSettings True
-    enqueueControl controlQ $ CFrames Nothing (connectionPreface:initFrames)
+    writeIORef myFirstSettings True
+    let myAlist = myInitialAlist conf
+    writeIORef myPendingAlist $ Just myAlist
+    let frames = initialFrames myAlist
+        setframe = CFrames Nothing (connectionPreface:frames)
+    enqueueControl controlQ setframe
