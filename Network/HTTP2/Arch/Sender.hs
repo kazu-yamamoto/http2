@@ -76,27 +76,25 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
     loop off = do
         x <- atomically $ dequeue off
         case x of
-            C ctl -> do
-                flushN off
-                control ctl
-                loop 0
-            O out -> do
-                off' <- outputOrEnqueueAgain out off
-                case off' of
-                    0                    -> loop 0
-                    _ | off' > hardLimit -> flushN off' >> loop 0
-                      | otherwise        -> loop off'
+            C ctl -> flushN off >> control ctl >> loop 0
+            O out -> outputOrEnqueueAgain out off >>= flushIfNecessary >>= loop
             Flush -> flushN off >> loop 0
 
-    hardLimit :: BufferSize
-    hardLimit = confBufferSize - 512
-
-    {-# INLINE flushN #-}
     -- Flush the connection buffer to the socket, where the first 'n' bytes of
     -- the buffer are filled.
     flushN :: Offset -> IO ()
     flushN 0 = return ()
     flushN n = bufferIO confWriteBuffer n confSendAll
+
+    flushIfNecessary :: Offset -> IO Offset
+    flushIfNecessary off
+      | off <= hardLimit = return off
+      | otherwise = do
+          flushN off
+          return 0
+
+    hardLimit :: BufferSize
+    hardLimit = confBufferSize - 512
 
     dequeue :: Offset -> STM Switch
     dequeue off = do
@@ -154,7 +152,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
                 _           -> False
         (ths,_) <- toHeaderTable $ fixHeaders hdr
         off' <- headerContinue sid ths endOfStream off0
-        off <- sendHeadersIfNecessary off'
+        off <- flushIfNecessary off'
         case body of
             OutBodyNone -> do
                 -- halfClosedLocal calls closed which removes
@@ -185,7 +183,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
         -- Frame id should be associated stream id from the client.
         let sid = streamNumber strm
         len <- pushPromise pid sid ths off0
-        off <- sendHeadersIfNecessary $ off0 + frameHeaderLength + len
+        off <- flushIfNecessary $ off0 + frameHeaderLength + len
         output out{outputType=OObj} off lim
 
     output _ _ _ = undefined -- never reach
@@ -264,18 +262,6 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
     bufHeaderPayload = confWriteBuffer `plusPtr` frameHeaderLength
     headerPayloadLim :: BufferSize
     headerPayloadLim = confBufferSize - frameHeaderLength
-
-    {-# INLINE sendHeadersIfNecessary #-}
-    -- Send headers if there is not room for a 1-byte data frame, and return
-    -- the offset of the next frame's first header byte.
-
-    sendHeadersIfNecessary :: Offset -> IO Offset
-    sendHeadersIfNecessary off
-      -- True if the connection buffer has room for a 1-byte data frame.
-      | off + frameHeaderLength < confBufferSize = return off
-      | otherwise = do
-          flushN off
-          return 0
 
     ----------------------------------------------------------------
     fillDataHeaderEnqueueNext :: Stream
