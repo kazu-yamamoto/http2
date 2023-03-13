@@ -107,6 +107,7 @@ newContext rinfo siz =
                <*> newTQueueIO
                <*> newTVarIO sid0
                <*> newTQueueIO
+               -- My SETTINGS_HEADER_TABLE_SIZE
                <*> newDynamicTableForEncoding defaultDynamicTableSize
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
                <*> newTVarIO defaultWindowSize

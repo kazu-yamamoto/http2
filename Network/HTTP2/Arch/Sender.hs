@@ -123,11 +123,13 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
         case ms of
           Nothing    -> return ()
           Just peerAlist -> do
+              -- Peer SETTINGS_INITIAL_WINDOW_SIZE
               oldws <- initialWindowSize <$> readIORef peerSettings
               modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
               newws <- initialWindowSize <$> readIORef peerSettings
               let diff = newws - oldws
               when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+              -- Peer SETTINGS_MAX_FRAME_SIZE
               case lookup SettingsMaxFrameSize peerAlist of
                 Nothing -> return ()
                 Just payloadLen -> do
@@ -135,6 +137,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
                         buflim | confBufferSize >= dlim = dlim
                                | otherwise              = confBufferSize
                     writeIORef outputBufferLimit buflim
+              -- Peer SETTINGS_HEADER_TABLE_SIZE
               case lookup SettingsHeaderTableSize peerAlist of
                 Nothing  -> return ()
                 Just siz -> setLimitForEncoding siz encodeDynamicTable

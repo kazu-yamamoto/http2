@@ -167,13 +167,13 @@ data Settings = Settings {
   , maxConcurrentStreams :: Maybe Int
   , initialWindowSize :: WindowSize
   , maxFrameSize :: Int
-  , maxHeaderBlockSize :: Maybe Int
+  , maxHeaderListSize :: Maybe Int
   } deriving (Show)
 
 -- | The default settings.
 --
 -- >>> defaultSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Nothing}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing}
 defaultSettings :: Settings
 defaultSettings = Settings {
     headerTableSize = 4096 -- defaultDynamicTableSize
@@ -181,13 +181,13 @@ defaultSettings = Settings {
   , maxConcurrentStreams = Nothing
   , initialWindowSize = defaultWindowSize
   , maxFrameSize = defaultPayloadLength
-  , maxHeaderBlockSize = Nothing
+  , maxHeaderListSize = Nothing
   }
 
 -- | Updating settings.
 --
 -- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
--- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderBlockSize = Just 200}
+-- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Just 200}
 updateSettings :: Settings -> SettingsList -> Settings
 updateSettings settings kvs = foldl' update settings kvs
   where
@@ -197,7 +197,7 @@ updateSettings settings kvs = foldl' update settings kvs
     update def (SettingsMaxConcurrentStreams,x) = def { maxConcurrentStreams = Just x }
     update def (SettingsInitialWindowSize,x)    = def { initialWindowSize = x }
     update def (SettingsMaxFrameSize,x)         = def { maxFrameSize = x }
-    update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderBlockSize = Just x }
+    update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderListSize = Just x }
     update def _                                = def
 
 -- | The type for window size.

@@ -152,6 +152,8 @@ processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength,
                 insertCache method path strm $ roleInfo ctx
             _ -> return ()
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
+    -- My SETTINGS_MAX_FRAME_SIZE
+    -- My SETTINGS_ENABLE_PUSH
     settings <- readIORef mySettings
     case checkFrameHeader settings typhdr of
       Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
@@ -264,7 +266,12 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                 setPeerStreamID ctx streamId
                 cnt <- readIORef concurrency
                 -- Checking the limitation of concurrency
-                when (cnt >= maxConcurrency) $ E.throwIO $ StreamErrorIsSent RefusedStream streamId
+                -- My SETTINGS_MAX_CONCURRENT_STREAMS
+                mMaxConc <- maxConcurrentStreams <$> readIORef mySettings
+                case mMaxConc of
+                  Nothing      -> return ()
+                  Just maxConc ->  when (cnt >= maxConc) $
+                    E.throwIO $ StreamErrorIsSent RefusedStream streamId
             Just <$> openStream ctx streamId ftyp
   | otherwise = undefined -- never reach
 
