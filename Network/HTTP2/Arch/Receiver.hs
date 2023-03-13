@@ -264,7 +264,12 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                 setPeerStreamID ctx streamId
                 cnt <- readIORef concurrency
                 -- Checking the limitation of concurrency
-                when (cnt >= maxConcurrency) $ E.throwIO $ StreamErrorIsSent RefusedStream streamId
+                -- My SETTINGS_MAX_CONCURRENT_STREAMS
+                mMaxConc <- maxConcurrentStreams <$> readIORef mySettings
+                case mMaxConc of
+                  Nothing      -> return ()
+                  Just maxConc ->  when (cnt >= maxConc) $
+                    E.throwIO $ StreamErrorIsSent RefusedStream streamId
             Just <$> openStream ctx streamId ftyp
   | otherwise = undefined -- never reach
 
