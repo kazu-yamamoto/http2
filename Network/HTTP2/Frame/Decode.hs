@@ -77,7 +77,7 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
 checkFrameHeader :: Settings
                  -> (FrameType, FrameHeader)
                  -> Either FrameDecodeError (FrameType, FrameHeader)
-checkFrameHeader Settings {..} typfrm@(typ,FrameHeader{..})
+checkFrameHeader Settings{..} typfrm@(typ,FrameHeader{..})
   | payloadLength > maxFrameSize =
       Left $ FrameDecodeError FrameSizeError streamId "exceeds maximum frame size"
   | typ `elem` nonZeroFrameTypes && isControl streamId =
