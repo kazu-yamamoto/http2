@@ -152,6 +152,8 @@ processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength,
                 insertCache method path strm $ roleInfo ctx
             _ -> return ()
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
+    -- My SETTINGS_MAX_FRAME_SIZE
+    -- My SETTINGS_ENABLE_PUSH
     settings <- readIORef mySettings
     case checkFrameHeader settings typhdr of
       Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
