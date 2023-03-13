@@ -43,8 +43,10 @@ fromContext ctx@Context{..} = WorkerConf {
         closed ctx strm Killed
         let frame = resetFrame InternalError $ streamNumber strm
         enqueueControl controlQ $ CFrames Nothing [frame]
+  -- Peer SETTINGS_ENABLE_PUSH
   , isPushable = enablePush <$> readIORef peerSettings
   , insertStream = insert streamTable
+  -- Peer SETTINGS_INITIAL_WINDOW_SIZE
   , makePushStream = \pstrm _ -> do
         ws <- initialWindowSize <$> readIORef peerSettings
         sid <- getMyNewStreamId ctx
