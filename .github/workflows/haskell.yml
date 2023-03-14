@@ -53,3 +53,7 @@ jobs:
       run: cabal build --enable-tests --disable-benchmarks all
     - name: Run tests
       run: cabal test all
+    - name: Run doctest
+      run: |
+        cabal install doctest --overwrite-policy=always
+        cabal repl --build-depends=QuickCheck --with-ghc=doctest
