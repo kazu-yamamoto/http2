@@ -61,9 +61,9 @@ initialFrames alist = [frame1,frame2]
 
 myInitialAlist :: Config -> SettingsList
 myInitialAlist Config{..} =
-    -- | confBufferSize is the size of the write buffer.
-    --   But we assume that the size of the read buffer is the same size.
-    --   So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
+    -- confBufferSize is the size of the write buffer.
+    -- But we assume that the size of the read buffer is the same size.
+    -- So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
     [(SettingsMaxFrameSize,payloadLen)
     ,(SettingsMaxConcurrentStreams,maxConcurrency)
     ,(SettingsInitialWindowSize,maxWindowSize)]
