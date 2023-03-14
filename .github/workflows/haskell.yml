@@ -48,7 +48,6 @@ jobs:
       run: cabal test all
 
     - name: Run doctest
-      if: ${{ runner.os == "ubuntu-latest" }}
       run: |
         cabal install doctest --overwrite-policy=always
         cabal repl --build-depends=QuickCheck --with-ghc=doctest
