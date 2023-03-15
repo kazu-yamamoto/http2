@@ -169,9 +169,11 @@ worker wc@WorkerConf{..} mgr server = do
               | Just ThreadKilled    <- E.fromException e -> return False
               -- killed by the local timeout manager
               | Just T.TimeoutThread <- E.fromException e -> do
+                  print e
                   cleanup sinfo
                   return True
               | otherwise -> do
+                  print e
                   cleanup sinfo
                   return True
         cont2 <- getThreadContinue tcont
