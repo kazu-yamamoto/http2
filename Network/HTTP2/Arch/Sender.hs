@@ -232,6 +232,8 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
                 output out off lim
         resetStream e = do
             closed ctx strm (ResetByMe e)
+            putStrLn $ if isServer ctx then "SERVER" else "CLIENT"
+            putStrLn "XXXX Sender"
             let rst = resetFrame InternalError $ streamNumber strm
             enqueueControl controlQ $ CFrames Nothing [rst]
             return off

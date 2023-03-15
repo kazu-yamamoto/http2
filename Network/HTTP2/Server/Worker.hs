@@ -42,6 +42,7 @@ fromContext ctx@Context{..} = WorkerConf {
   , workerCleanup = \strm -> do
         closed ctx strm Killed
         let frame = resetFrame InternalError $ streamNumber strm
+        putStrLn "YYYY Worker"
         enqueueControl controlQ $ CFrames Nothing [frame]
   -- Peer SETTINGS_ENABLE_PUSH
   , isPushable = enablePush <$> readIORef peerSettings
