@@ -1,14 +1,14 @@
 ## 4.1.0
 
 * Implementing streaming from the client side.
-  [#41](ttps://github.com/kazu-yamamoto/http2/pull/41)
+  [#41](https://github.com/kazu-yamamoto/http2/pull/41)
 * Making use of SettingsMaxFrameSize
-  [#44](ttps://github.com/kazu-yamamoto/http2/pull/44)
-  [#57](ttps://github.com/kazu-yamamoto/http2/pull/57)
+  [#44](https://github.com/kazu-yamamoto/http2/pull/44)
+  [#57](https://github.com/kazu-yamamoto/http2/pull/57)
 * Disabling flow control
-  [#55](ttps://github.com/kazu-yamamoto/http2/pull/55)
+  [#55](https://github.com/kazu-yamamoto/http2/pull/55)
 * Fixing buffer overrun by trailers
-  [#52](ttps://github.com/kazu-yamamoto/http2/pull/52)
+  [#52](https://github.com/kazu-yamamoto/http2/pull/52)
 * Proper use of settings
 * Breaking change: the data structure of `Next` was changed.
   The `http3` package is influenced.
