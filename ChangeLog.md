@@ -1,3 +1,18 @@
+## 4.1.0
+
+* Implementing streaming from the client side.
+  [#41](ttps://github.com/kazu-yamamoto/http2/pull/41)
+* Making use of SettingsMaxFrameSize
+  [#44](ttps://github.com/kazu-yamamoto/http2/pull/44)
+  [#57](ttps://github.com/kazu-yamamoto/http2/pull/57)
+* Disabling flow control
+  [#55](ttps://github.com/kazu-yamamoto/http2/pull/55)
+* Fixing buffer overrun by trailers
+  [#52](ttps://github.com/kazu-yamamoto/http2/pull/52)
+* Proper use of settings
+* Breaking change: the data structure of `Next` was changed.
+  The `http3` package is influenced.
+
 ## 4.0.0
 
 * Breaking change: `HTTP2Error` is redefined.
@@ -11,18 +26,18 @@
 ## 3.0.3
 
 * Return correct status messages in HTTP2 client
-  (#31)[https://github.com/kazu-yamamoto/http2/pull/31]
+  [#31](https://github.com/kazu-yamamoto/http2/pull/31)
 * Follow changes in Aeson 2
-  (#32)[https://github.com/kazu-yamamoto/http2/pull/32]
+  [#32](https://github.com/kazu-yamamoto/http2/pull/32)
 * Make sure connection preface is always sent first
-  (#33)[https://github.com/kazu-yamamoto/http2/pull/33]
+  [#33](https://github.com/kazu-yamamoto/http2/pull/33)
 * Avoid empty data
-  (#34)[https://github.com/kazu-yamamoto/http2/pull/34]
+  [#34](https://github.com/kazu-yamamoto/http2/pull/34)
 
 ## 3.0.2
 
 * Skip inserting entries that do not fit in the encoding table
-  (#28)[https://github.com/kazu-yamamoto/http2/pull/28]
+  [#28](https://github.com/kazu-yamamoto/http2/pull/28)
 
 ## 3.0.1
 
