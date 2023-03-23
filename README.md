@@ -11,6 +11,7 @@ This package covers:
 
 Technical/blog articles:
 
+- [Developing network related libraries in Haskell in 2022FY](https://kazu-yamamoto.hatenablog.jp/entry/2023/03/23/134317)
 - [Implementing HTTP/3 in Haskell](https://kazu-yamamoto.hatenablog.jp/entry/2020/06/09/155236) (2020-06-09 blog)
 - [HTTP/2 server library in Haskell](https://kazu-yamamoto.hatenablog.jp/entry/2019/06/21/124224) (2019/06/21 blog)
 - [Exploring HTTP/2 Header Compression](https://www.mew.org/~kazu/doc/paper/hpack-2017.pdf), CFI 2017
