@@ -231,7 +231,7 @@ decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
 decodeWindowUpdateFrame :: FramePayloadDecoder
 decodeWindowUpdateFrame FrameHeader{..} bs
   | wsi == 0  = Left $ FrameDecodeError ProtocolError streamId "window update must not be 0"
-  | otherwise = Right $ WindowUpdateFrame wsi
+  | otherwise = Right $ WindowUpdateFrame $ WindowSize wsi
   where
     wsi = fromIntegral (N.word32 bs `clearBit` 31)
 

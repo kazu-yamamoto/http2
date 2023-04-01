@@ -125,7 +125,7 @@ instance ToJSON FramePayload where
       , "error_code" .= e
       , "additional_debug_data" .= debug
       ]
-    toJSON (WindowUpdateFrame size) = object [
+    toJSON (WindowUpdateFrame (WindowSize size)) = object [
         "window_size_increment" .= size
       ]
     toJSON (ContinuationFrame hdr) = object [
@@ -204,7 +204,7 @@ parsePayload FramePing o = PingFrame <$> o .: "opaque_data"
 parsePayload FrameGoAway o = GoAwayFrame <$> o .: "last_stream_id"
                                          <*> o .: "error_code"
                                          <*> o .: "additional_debug_data"
-parsePayload FrameWindowUpdate o = WindowUpdateFrame <$> o .: "window_size_increment"
+parsePayload FrameWindowUpdate o = WindowUpdateFrame . WindowSize <$> o .: "window_size_increment"
 parsePayload FrameContinuation o = ContinuationFrame <$> o .: "header_block_fragment"
 parsePayload ftyp o              = UnknownFrame ftyp <$> o .: "dummy"
 

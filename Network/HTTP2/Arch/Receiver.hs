@@ -66,7 +66,7 @@ myInitialAlist Config{..} =
     -- So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
     [(SettingsMaxFrameSize,payloadLen)
     ,(SettingsMaxConcurrentStreams,maxConcurrency)
-    ,(SettingsInitialWindowSize,maxWindowSize)]
+    ,(SettingsInitialWindowSize, fromWindowSize maxWindowSize)]
   where
     len = confBufferSize - frameHeaderLength
     payloadLen = max defaultPayloadLength len
@@ -215,7 +215,7 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
     tlr <- newIORef Nothing
     q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
-    incref <- newIORef 0
+    incref <- newIORef $ WindowSize 0
     bodySource <- mkSource q $ updateWindow controlQ streamId incref
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then do
@@ -403,7 +403,7 @@ stream FrameData
        _bs
        ctx s@(HalfClosedLocal _)
        _ = do
-    rxConnectionWindowIncrement ctx payloadLength
+    rxConnectionWindowIncrement ctx $ toWindowSize payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -415,7 +415,7 @@ stream FrameData
        bs
        ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
-    rxConnectionWindowIncrement ctx payloadLength
+    rxConnectionWindowIncrement ctx $ toWindowSize payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -500,16 +500,16 @@ stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent ProtocolE
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
-data Source = Source (Int -> IO ())
+data Source = Source (WindowSize -> IO ())
                      (TQueue ByteString)
                      (IORef ByteString)
                      (IORef Bool)
 
-mkSource :: TQueue ByteString -> (Int -> IO ()) -> IO Source
+mkSource :: TQueue ByteString -> (WindowSize -> IO ()) -> IO Source
 mkSource q update = Source update q <$> newIORef "" <*> newIORef False
 
-updateWindow :: TQueue Control -> StreamId -> IORef Int -> Int -> IO ()
-updateWindow _ _        _   0   = return ()
+updateWindow :: TQueue Control -> StreamId -> IORef WindowSize -> WindowSize -> IO ()
+updateWindow _ _        _   (WindowSize 0)   = return ()
 updateWindow controlQ sid incref len = do
     w0 <- readIORef incref
     let w1 = w0 + len
@@ -528,7 +528,7 @@ readSource (Source update q refBS refEOF) = do
       else do
         bs <- readBS
         let len = BS.length bs
-        update len
+        update $ toWindowSize len
         return bs
   where
     readBS = do
@@ -543,7 +543,7 @@ readSource (Source update q refBS refEOF) = do
 
 ----------------------------------------------------------------
 
-rxConnectionWindowIncrement :: Context -> Int -> IO ()
+rxConnectionWindowIncrement :: Context -> WindowSize -> IO ()
 rxConnectionWindowIncrement Context{..} len = do
     w0 <- readIORef rxConnectionInc
     let w1 = w0 + len

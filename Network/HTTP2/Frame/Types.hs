@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -195,27 +196,35 @@ updateSettings settings kvs = foldl' update settings kvs
     -- fixme: x should be 0 or 1
     update def (SettingsEnablePush,x)           = def { enablePush = x > 0 }
     update def (SettingsMaxConcurrentStreams,x) = def { maxConcurrentStreams = Just x }
-    update def (SettingsInitialWindowSize,x)    = def { initialWindowSize = x }
+    update def (SettingsInitialWindowSize,x)    = def { initialWindowSize = WindowSize (fromIntegral x) }
     update def (SettingsMaxFrameSize,x)         = def { maxFrameSize = x }
     update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderListSize = Just x }
     update def _                                = def
 
 -- | The type for window size.
-type WindowSize = Int
+newtype WindowSize = WindowSize Word deriving (Eq, Ord, Show, Read, Num)
+-- Even on 32 bit architecture, 'Word' is safe since max window size
+-- is 2^31 - 1.
+
+fromWindowSize :: WindowSize -> Int
+fromWindowSize (WindowSize w) = fromIntegral w
+
+toWindowSize :: Int -> WindowSize
+toWindowSize w = WindowSize $ fromIntegral w
 
 -- | The default initial window size.
 --
 -- >>> defaultWindowSize
 -- 65535
 defaultWindowSize :: WindowSize
-defaultWindowSize = 65535
+defaultWindowSize = WindowSize 65535
 
 -- | The maximum window size.
 --
 -- >>> maxWindowSize
 -- 2147483647
 maxWindowSize :: WindowSize
-maxWindowSize = 2147483647
+maxWindowSize = WindowSize 2147483647
 
 -- | Checking if a window size exceeds the maximum window size.
 --
@@ -226,7 +235,7 @@ maxWindowSize = 2147483647
 -- >>> isWindowOverflow (maxWindowSize + 1)
 -- True
 isWindowOverflow :: WindowSize -> Bool
-isWindowOverflow w = testBit w 31
+isWindowOverflow (WindowSize w) = testBit w 31
 
 
 -- | Default concurrency.

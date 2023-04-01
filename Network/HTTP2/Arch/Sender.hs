@@ -297,8 +297,9 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
         off'' <- handleTrailers mtrailers off'
         void tell
         when (isServer ctx) $ halfClosedLocal ctx strm Finished
-        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
-        atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
+        let decrease = (subtract (fromIntegral datPayloadLen))
+        atomically $ modifyTVar' txConnectionWindow decrease
+        atomically $ modifyTVar' streamWindow       decrease
         if reqflush then do
             flushN off''
             return 0
@@ -326,8 +327,9 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
             off' = off + frameHeaderLength + datPayloadLen
             flag  = defaultFlags
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
-        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
-        atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
+        let decrease = (subtract (fromIntegral datPayloadLen))
+        atomically $ modifyTVar' txConnectionWindow decrease
+        atomically $ modifyTVar' streamWindow decrease
         let out' = out { outputType = ONext next tlrmkr }
         enqueueOutput outputQ out'
         if reqflush then do
@@ -373,20 +375,20 @@ runTrailersMaker tlrmkr buf siz = bufferIO buf siz $ \bs -> tlrmkr (Just bs)
 
 fillBuilderBodyGetNext :: Builder -> DynaNext
 fillBuilderBodyGetNext bb buf siz lim = do
-    let room = min siz lim
+    let room = min siz $ fromWindowSize lim
     (len, signal) <- B.runBuilder bb buf room
     return $ nextForBuilder len signal
 
 fillFileBodyGetNext :: PositionRead -> FileOffset -> ByteCount -> IO () -> DynaNext
 fillFileBodyGetNext pread start bytecount refresh buf siz lim = do
-    let room = min siz lim
+    let room = min siz $ fromWindowSize lim
     len <- pread start (mini room bytecount) buf
     let len' = fromIntegral len
     return $ nextForFile len' pread (start + len) (bytecount - len) refresh
 
 fillStreamBodyGetNext :: IO (Maybe StreamingChunk) -> DynaNext
 fillStreamBodyGetNext takeQ buf siz lim = do
-    let room = min siz lim
+    let room = min siz $ fromWindowSize lim
     (cont, len, reqflush, leftover) <- runStreamBuilder buf room takeQ
     return $ nextForStream cont len reqflush leftover takeQ
 
@@ -394,7 +396,7 @@ fillStreamBodyGetNext takeQ buf siz lim = do
 
 fillBufBuilder :: Leftover -> DynaNext
 fillBufBuilder leftover buf0 siz0 lim = do
-    let room = min siz0 lim
+    let room = min siz0 $ fromWindowSize lim
     case leftover of
         LZero -> error "fillBufBuilder: LZero"
         LOne writer -> do
@@ -446,7 +448,7 @@ runStreamBuilder buf0 room0 takeQ = loop buf0 room0 0
 
 fillBufStream :: Leftover -> IO (Maybe StreamingChunk) -> DynaNext
 fillBufStream leftover0 takeQ buf0 siz0 lim0 = do
-    let room0 = min siz0 lim0
+    let room0 = min siz0 $ fromWindowSize lim0
     case leftover0 of
         LZero -> do
             (cont, len, reqflush, leftover) <- runStreamBuilder buf0 room0 takeQ
@@ -493,7 +495,7 @@ nextForStream True  len reqflush leftOrZero takeQ =
 
 fillBufFile :: PositionRead -> FileOffset -> ByteCount -> IO () -> DynaNext
 fillBufFile pread start bytes refresh buf siz lim = do
-    let room = min siz lim
+    let room = min siz $ fromWindowSize lim
     len <- pread start (mini room bytes) buf
     refresh
     let len' = fromIntegral len

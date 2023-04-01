@@ -64,7 +64,9 @@ module Network.HTTP2.Frame (
   , defaultPayloadLength
   , maxPayloadLength
   -- * Window
-  , WindowSize
+  , WindowSize(..)
+  , fromWindowSize
+  , toWindowSize
   , defaultWindowSize
   , maxWindowSize
   , isWindowOverflow

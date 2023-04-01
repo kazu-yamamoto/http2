@@ -233,7 +233,8 @@ checkSettingsValue :: (SettingsKey,SettingsValue) -> Maybe HTTP2Error
 checkSettingsValue (SettingsEnablePush,v)
   | v /= 0 && v /= 1 = Just $ ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1"
 checkSettingsValue (SettingsInitialWindowSize,v)
-  | v > maxWindowSize = Just $ ConnectionErrorIsSent FlowControlError 0 "Window size must be less than or equal to 65535"
+  | v > fromWindowSize maxWindowSize =
+    Just $ ConnectionErrorIsSent FlowControlError 0 "Window size must be less than or equal to 65535"
 checkSettingsValue (SettingsMaxFrameSize,v)
   | v < defaultPayloadLength || v > maxPayloadLength = Just $ ConnectionErrorIsSent ProtocolError 0 "Max frame size must be in between 16384 and 16777215"
 checkSettingsValue _ = Nothing
