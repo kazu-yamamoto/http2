@@ -174,7 +174,7 @@ data Settings = Settings {
 -- | The default settings.
 --
 -- >>> defaultSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = WindowSize 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing}
 defaultSettings :: Settings
 defaultSettings = Settings {
     headerTableSize = 4096 -- defaultDynamicTableSize
@@ -188,7 +188,7 @@ defaultSettings = Settings {
 -- | Updating settings.
 --
 -- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
--- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Just 200}
+-- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = WindowSize 65535, maxFrameSize = 16384, maxHeaderListSize = Just 200}
 updateSettings :: Settings -> SettingsList -> Settings
 updateSettings settings kvs = foldl' update settings kvs
   where
@@ -215,14 +215,14 @@ toWindowSize w = WindowSize $ fromIntegral w
 -- | The default initial window size.
 --
 -- >>> defaultWindowSize
--- 65535
+-- WindowSize 65535
 defaultWindowSize :: WindowSize
 defaultWindowSize = WindowSize 65535
 
 -- | The maximum window size.
 --
 -- >>> maxWindowSize
--- 2147483647
+-- WindowSize 2147483647
 maxWindowSize :: WindowSize
 maxWindowSize = WindowSize 2147483647
 
