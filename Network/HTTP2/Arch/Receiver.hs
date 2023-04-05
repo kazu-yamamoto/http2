@@ -191,7 +191,7 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
     q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
     incref <- newIORef 0
-    bodySource <- mkSource q $ updateWindow controlQ streamId incref
+    bodySource <- mkSource q $ informWindowUpdate controlQ streamId incref
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then do
         let si = toServerInfo roleInfo
@@ -371,7 +371,7 @@ stream FrameData
        _bs
        ctx s@(HalfClosedLocal _)
        _ = do
-    rxConnectionWindowIncrement ctx payloadLength
+    informConnectionWindowUpdate ctx payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -383,7 +383,7 @@ stream FrameData
        bs
        ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
-    rxConnectionWindowIncrement ctx payloadLength
+    informConnectionWindowUpdate ctx payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -470,29 +470,17 @@ data Source = Source (Int -> IO ())
                      (IORef Bool)
 
 mkSource :: TQueue ByteString -> (Int -> IO ()) -> IO Source
-mkSource q update = Source update q <$> newIORef "" <*> newIORef False
-
-updateWindow :: TQueue Control -> StreamId -> IORef Int -> Int -> IO ()
-updateWindow _ _        _   0   = return ()
-updateWindow controlQ sid incref len = do
-    w0 <- readIORef incref
-    let w1 = w0 + len
-    if w1 >= defaultWindowSize then do -- fixme
-        let frame = windowUpdateFrame sid w1
-        enqueueControl controlQ $ CFrames Nothing [frame]
-        writeIORef incref 0
-      else
-        writeIORef incref w1
+mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
 
 readSource :: Source -> IO ByteString
-readSource (Source update q refBS refEOF) = do
+readSource (Source inform q refBS refEOF) = do
     eof <- readIORef refEOF
     if eof then
         return ""
       else do
         bs <- readBS
         let len = BS.length bs
-        update len
+        inform len
         return bs
   where
     readBS = do
@@ -504,16 +492,3 @@ readSource (Source update q refBS refEOF) = do
           else do
             writeIORef refBS ""
             return bs0
-
-----------------------------------------------------------------
-
-rxConnectionWindowIncrement :: Context -> Int -> IO ()
-rxConnectionWindowIncrement Context{..} len = do
-    w0 <- readIORef rxConnectionInc
-    let w1 = w0 + len
-    if w1 >= defaultWindowSize then do -- fixme
-        let frame = windowUpdateFrame 0 w1
-        enqueueControl controlQ $ CFrames Nothing [frame]
-        writeIORef rxConnectionInc 0
-      else
-        writeIORef rxConnectionInc w1
