@@ -14,7 +14,7 @@ module Network.HTTP2.Arch.Sender (
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
-import Data.IORef (readIORef, writeIORef, modifyIORef')
+import Data.IORef (readIORef, writeIORef)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Network.ByteOrder
 import qualified UnliftIO.Exception as E
@@ -58,7 +58,7 @@ wrapException se
   | otherwise = E.throwIO $ BadThingHappen se
 
 frameSender :: Context -> Config -> Manager -> IO ()
-frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,peerSettings,streamTable,outputBufferLimit}
+frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
             Config{..}
             mgr = loop 0 `E.catch` wrapException
   where
@@ -114,11 +114,7 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,peerSettings,streamT
           Nothing    -> return ()
           Just peerAlist -> do
               -- Peer SETTINGS_INITIAL_WINDOW_SIZE
-              oldws <- initialWindowSize <$> readIORef peerSettings
-              modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
-              newws <- initialWindowSize <$> readIORef peerSettings
-              let diff = newws - oldws
-              when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+              updatePeerSettings ctx peerAlist
               -- Peer SETTINGS_MAX_FRAME_SIZE
               case lookup SettingsMaxFrameSize peerAlist of
                 Nothing -> return ()
