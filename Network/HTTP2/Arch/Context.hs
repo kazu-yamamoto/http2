@@ -83,7 +83,7 @@ data Context = Context {
   -- the connection window for sending data
   , txConnectionWindow :: TVar WindowSize
   -- window update for receiving data
-  , rxConnectionInc    :: IORef Int
+  , rxConnectionInc    :: IORef WindowSize -- this is diff
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate
