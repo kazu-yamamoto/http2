@@ -31,6 +31,7 @@ import Network.HTTP2.Arch.Manager hiding (start)
 import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
+import Network.HTTP2.Arch.Window
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
@@ -40,16 +41,6 @@ data Leftover = LZero
               | LTwo ByteString B.BufferWriter
 
 ----------------------------------------------------------------
-
-{-# INLINE getStreamWindowSize #-}
-getStreamWindowSize :: Stream -> IO WindowSize
-getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow
-
-{-# INLINE waitStreamWindowSize #-}
-waitStreamWindowSize :: Stream -> IO ()
-waitStreamWindowSize Stream{streamWindow} = atomically $ do
-    w <- readTVar streamWindow
-    checkSTM (w > 0)
 
 {-# INLINE waitStreaming #-}
 waitStreaming :: TBQueue a -> IO ()
@@ -67,7 +58,7 @@ wrapException se
   | otherwise = E.throwIO $ BadThingHappen se
 
 frameSender :: Context -> Config -> Manager -> IO ()
-frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,peerSettings,streamTable,outputBufferLimit}
+frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,peerSettings,streamTable,outputBufferLimit}
             Config{..}
             mgr = loop 0 `E.catch` wrapException
   where
@@ -99,8 +90,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
     dequeue off = do
         isEmpty <- isEmptyTQueue controlQ
         if isEmpty then do
-            w <- readTVar txConnectionWindow
-            checkSTM (w > 0)
+            waitConnectionWindowSize ctx
             emp <- isEmptyTQueue outputQ
             if emp then
                 if off /= 0 then return Flush else retrySTM
@@ -227,7 +217,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
                 forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out mgr
                 return off
               else do
-                cws <- readTVarIO txConnectionWindow -- not 0
+                cws <- getConnectionWindowSize ctx -- not 0
                 let lim = min cws sws
                 output out off lim
         resetStream e = do
@@ -283,7 +273,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
                               -> Output Stream
                               -> Bool
                               -> IO Offset
-    fillDataHeaderEnqueueNext strm@Stream{streamWindow,streamNumber}
+    fillDataHeaderEnqueueNext strm@Stream{streamNumber}
                    off datPayloadLen Nothing tlrmkr tell _ reqflush = do
         let buf  = confWriteBuffer `plusPtr` off
             off' = off + frameHeaderLength + datPayloadLen
@@ -297,8 +287,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
         off'' <- handleTrailers mtrailers off'
         void tell
         when (isServer ctx) $ halfClosedLocal ctx strm Finished
-        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
-        atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
+        decreaseWindowSize ctx strm datPayloadLen
         if reqflush then do
             flushN off''
             return 0
@@ -320,14 +309,13 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
           else
             return off
 
-    fillDataHeaderEnqueueNext Stream{streamWindow,streamNumber}
+    fillDataHeaderEnqueueNext strm@Stream{streamNumber}
                    off datPayloadLen (Just next) tlrmkr _ out reqflush = do
         let buf  = confWriteBuffer `plusPtr` off
             off' = off + frameHeaderLength + datPayloadLen
             flag  = defaultFlags
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
-        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
-        atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
+        decreaseWindowSize ctx strm datPayloadLen
         let out' = out { outputType = ONext next tlrmkr }
         enqueueOutput outputQ out'
         if reqflush then do

@@ -29,6 +29,7 @@ import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
+import Network.HTTP2.Arch.Window
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
@@ -328,13 +329,9 @@ control FrameGoAway header bs _ _ = do
       else
         E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 
-control FrameWindowUpdate header@FrameHeader{streamId} bs Context{txConnectionWindow} _ = do
+control FrameWindowUpdate header@FrameHeader{streamId} bs ctx _ = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- atomically $ do
-      w0 <- readTVar txConnectionWindow
-      let w1 = w0 + n
-      writeTVar txConnectionWindow w1
-      return w1
+    w <- increaseConnectionWindowSize ctx n
     when (isWindowOverflow w) $ E.throwIO $ ConnectionErrorIsSent FlowControlError streamId "control window should be less than 2^31"
 
 control _ _ _ _ _ =
@@ -466,13 +463,9 @@ stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued
           else
             return $ Open $ Continued rfrags' siz' n' endOfStream
 
-stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
+stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s strm = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- atomically $ do
-      w0 <- readTVar streamWindow
-      let w1 = w0 + n
-      writeTVar streamWindow w1
-      return w1
+    w <- increaseStreamWindowSize strm n
     when (isWindowOverflow w) $ E.throwIO $ StreamErrorIsSent FlowControlError streamId
     return s
 
