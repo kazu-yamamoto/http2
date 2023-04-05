@@ -14,7 +14,7 @@ module Network.HTTP2.Arch.Sender (
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
-import Data.IORef (readIORef, writeIORef, modifyIORef')
+import Data.IORef (readIORef, writeIORef)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Network.ByteOrder
 import qualified UnliftIO.Exception as E
@@ -31,6 +31,7 @@ import Network.HTTP2.Arch.Manager hiding (start)
 import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
+import Network.HTTP2.Arch.Window
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
@@ -40,16 +41,6 @@ data Leftover = LZero
               | LTwo ByteString B.BufferWriter
 
 ----------------------------------------------------------------
-
-{-# INLINE getStreamWindowSize #-}
-getStreamWindowSize :: Stream -> IO WindowSize
-getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow
-
-{-# INLINE waitStreamWindowSize #-}
-waitStreamWindowSize :: Stream -> IO ()
-waitStreamWindowSize Stream{streamWindow} = atomically $ do
-    w <- readTVar streamWindow
-    checkSTM (w > 0)
 
 {-# INLINE waitStreaming #-}
 waitStreaming :: TBQueue a -> IO ()
@@ -67,7 +58,7 @@ wrapException se
   | otherwise = E.throwIO $ BadThingHappen se
 
 frameSender :: Context -> Config -> Manager -> IO ()
-frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,peerSettings,streamTable,outputBufferLimit}
+frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
             Config{..}
             mgr = loop 0 `E.catch` wrapException
   where
@@ -99,8 +90,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
     dequeue off = do
         isEmpty <- isEmptyTQueue controlQ
         if isEmpty then do
-            w <- readTVar txConnectionWindow
-            checkSTM (w > 0)
+            waitConnectionWindowSize ctx
             emp <- isEmptyTQueue outputQ
             if emp then
                 if off /= 0 then return Flush else retrySTM
@@ -124,11 +114,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
           Nothing    -> return ()
           Just peerAlist -> do
               -- Peer SETTINGS_INITIAL_WINDOW_SIZE
-              oldws <- initialWindowSize <$> readIORef peerSettings
-              modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
-              newws <- initialWindowSize <$> readIORef peerSettings
-              let diff = newws - oldws
-              when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+              updatePeerSettings ctx peerAlist
               -- Peer SETTINGS_MAX_FRAME_SIZE
               case lookup SettingsMaxFrameSize peerAlist of
                 Nothing -> return ()
@@ -227,7 +213,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
                 forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out mgr
                 return off
               else do
-                cws <- readTVarIO txConnectionWindow -- not 0
+                cws <- getConnectionWindowSize ctx -- not 0
                 let lim = min cws sws
                 output out off lim
         resetStream e = do
@@ -283,7 +269,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
                               -> Output Stream
                               -> Bool
                               -> IO Offset
-    fillDataHeaderEnqueueNext strm@Stream{streamWindow,streamNumber}
+    fillDataHeaderEnqueueNext strm@Stream{streamNumber}
                    off datPayloadLen Nothing tlrmkr tell _ reqflush = do
         let buf  = confWriteBuffer `plusPtr` off
             off' = off + frameHeaderLength + datPayloadLen
@@ -297,8 +283,7 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
         off'' <- handleTrailers mtrailers off'
         void tell
         when (isServer ctx) $ halfClosedLocal ctx strm Finished
-        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
-        atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
+        decreaseWindowSize ctx strm datPayloadLen
         if reqflush then do
             flushN off''
             return 0
@@ -320,14 +305,13 @@ frameSender ctx@Context{outputQ,controlQ,txConnectionWindow,encodeDynamicTable,p
           else
             return off
 
-    fillDataHeaderEnqueueNext Stream{streamWindow,streamNumber}
+    fillDataHeaderEnqueueNext strm@Stream{streamNumber}
                    off datPayloadLen (Just next) tlrmkr _ out reqflush = do
         let buf  = confWriteBuffer `plusPtr` off
             off' = off + frameHeaderLength + datPayloadLen
             flag  = defaultFlags
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
-        atomically $ modifyTVar' txConnectionWindow (subtract datPayloadLen)
-        atomically $ modifyTVar' streamWindow (subtract datPayloadLen)
+        decreaseWindowSize ctx strm datPayloadLen
         let out' = out { outputType = ONext next tlrmkr }
         enqueueOutput outputQ out'
         if reqflush then do

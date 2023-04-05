@@ -4,7 +4,6 @@
 module Network.HTTP2.Client.Run where
 
 import Control.Concurrent.STM (check)
-import Data.IORef (writeIORef)
 import UnliftIO.Async
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
@@ -98,10 +97,7 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
     processResponse $ Response rsp
 
 exchangeSettings :: Config -> Context -> IO ()
-exchangeSettings conf Context{..} = do
-    writeIORef myFirstSettings True
-    let myAlist = myInitialAlist conf
-    writeIORef myPendingAlist $ Just myAlist
-    let frames = initialFrames myAlist
-        setframe = CFrames Nothing (connectionPreface:frames)
+exchangeSettings conf ctx@Context{..} = do
+    frames <- updateMySettings conf ctx
+    let setframe = CFrames Nothing (connectionPreface:frames)
     enqueueControl controlQ setframe

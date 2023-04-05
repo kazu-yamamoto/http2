@@ -83,7 +83,7 @@ data Context = Context {
   -- the connection window for sending data
   , txConnectionWindow :: TVar WindowSize
   -- window update for receiving data
-  , rxConnectionInc    :: IORef Int
+  , rxConnectionInc    :: IORef WindowSize -- this is diff
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate
@@ -188,7 +188,7 @@ closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
 openStream :: Context -> StreamId -> FrameType -> IO Stream
 openStream ctx@Context{streamTable, peerSettings} sid ftyp = do
     ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newStream sid $ fromIntegral ws
+    newstrm <- newStream sid ws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
     insert streamTable sid newstrm
     return newstrm

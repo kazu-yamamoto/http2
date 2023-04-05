@@ -5,9 +5,6 @@
 
 module Network.HTTP2.Arch.Receiver (
     frameReceiver
-  , maxConcurrency
-  , myInitialAlist
-  , initialFrames
   ) where
 
 import qualified Data.ByteString as BS
@@ -29,12 +26,10 @@ import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
+import Network.HTTP2.Arch.Window
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
-
-maxConcurrency :: Int
-maxConcurrency = recommendedConcurrency
 
 continuationLimit :: Int
 continuationLimit = 10
@@ -50,26 +45,6 @@ settingsRateLimit = 4
 
 emptyFrameRateLimit :: Int
 emptyFrameRateLimit = 4
-
-----------------------------------------------------------------
-
-initialFrames :: SettingsList -> [ByteString]
-initialFrames alist = [frame1,frame2]
-  where
-    frame1 = settingsFrame id alist
-    frame2 = windowUpdateFrame 0 (maxWindowSize - defaultWindowSize)
-
-myInitialAlist :: Config -> SettingsList
-myInitialAlist Config{..} =
-    -- confBufferSize is the size of the write buffer.
-    -- But we assume that the size of the read buffer is the same size.
-    -- So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
-    [(SettingsMaxFrameSize,payloadLen)
-    ,(SettingsMaxConcurrentStreams,maxConcurrency)
-    ,(SettingsInitialWindowSize,maxWindowSize)]
-  where
-    len = confBufferSize - frameHeaderLength
-    payloadLen = max defaultPayloadLength len
 
 ----------------------------------------------------------------
 
@@ -216,7 +191,7 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
     q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
     incref <- newIORef 0
-    bodySource <- mkSource q $ updateWindow controlQ streamId incref
+    bodySource <- mkSource q $ informWindowUpdate controlQ streamId incref
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then do
         let si = toServerInfo roleInfo
@@ -280,7 +255,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSettings,myPendingAlist,mySettings,controlQ,settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs ctx@Context{myFirstSettings,myPendingAlist,mySettings,controlQ,settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     if testAck flags then do
@@ -304,11 +279,8 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSetti
             enqueueControl controlQ setframe
           else do
             -- Server side only
-            writeIORef myFirstSettings True
-            let myAlist = myInitialAlist conf
-            writeIORef myPendingAlist $ Just myAlist
-            let frames = initialFrames myAlist ++ [ack]
-                setframe = CFrames (Just peerAlist) frames
+            frames <- updateMySettings conf ctx
+            let setframe = CFrames (Just peerAlist) (frames ++ [ack])
             enqueueControl controlQ setframe
 
 control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
@@ -328,13 +300,9 @@ control FrameGoAway header bs _ _ = do
       else
         E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 
-control FrameWindowUpdate header@FrameHeader{streamId} bs Context{txConnectionWindow} _ = do
+control FrameWindowUpdate header@FrameHeader{streamId} bs ctx _ = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- atomically $ do
-      w0 <- readTVar txConnectionWindow
-      let w1 = w0 + n
-      writeTVar txConnectionWindow w1
-      return w1
+    w <- increaseConnectionWindowSize ctx n
     when (isWindowOverflow w) $ E.throwIO $ ConnectionErrorIsSent FlowControlError streamId "control window should be less than 2^31"
 
 control _ _ _ _ _ =
@@ -403,7 +371,7 @@ stream FrameData
        _bs
        ctx s@(HalfClosedLocal _)
        _ = do
-    rxConnectionWindowIncrement ctx payloadLength
+    informConnectionWindowUpdate ctx payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -415,7 +383,7 @@ stream FrameData
        bs
        ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
-    rxConnectionWindowIncrement ctx payloadLength
+    informConnectionWindowUpdate ctx payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -466,13 +434,9 @@ stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued
           else
             return $ Open $ Continued rfrags' siz' n' endOfStream
 
-stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s Stream{streamWindow} = do
+stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s strm = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- atomically $ do
-      w0 <- readTVar streamWindow
-      let w1 = w0 + n
-      writeTVar streamWindow w1
-      return w1
+    w <- increaseStreamWindowSize strm n
     when (isWindowOverflow w) $ E.throwIO $ StreamErrorIsSent FlowControlError streamId
     return s
 
@@ -506,29 +470,17 @@ data Source = Source (Int -> IO ())
                      (IORef Bool)
 
 mkSource :: TQueue ByteString -> (Int -> IO ()) -> IO Source
-mkSource q update = Source update q <$> newIORef "" <*> newIORef False
-
-updateWindow :: TQueue Control -> StreamId -> IORef Int -> Int -> IO ()
-updateWindow _ _        _   0   = return ()
-updateWindow controlQ sid incref len = do
-    w0 <- readIORef incref
-    let w1 = w0 + len
-    if w1 >= defaultWindowSize then do -- fixme
-        let frame = windowUpdateFrame sid w1
-        enqueueControl controlQ $ CFrames Nothing [frame]
-        writeIORef incref 0
-      else
-        writeIORef incref w1
+mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
 
 readSource :: Source -> IO ByteString
-readSource (Source update q refBS refEOF) = do
+readSource (Source inform q refBS refEOF) = do
     eof <- readIORef refEOF
     if eof then
         return ""
       else do
         bs <- readBS
         let len = BS.length bs
-        update len
+        inform len
         return bs
   where
     readBS = do
@@ -540,16 +492,3 @@ readSource (Source update q refBS refEOF) = do
           else do
             writeIORef refBS ""
             return bs0
-
-----------------------------------------------------------------
-
-rxConnectionWindowIncrement :: Context -> Int -> IO ()
-rxConnectionWindowIncrement Context{..} len = do
-    w0 <- readIORef rxConnectionInc
-    let w1 = w0 + len
-    if w1 >= defaultWindowSize then do -- fixme
-        let frame = windowUpdateFrame 0 w1
-        enqueueControl controlQ $ CFrames Nothing [frame]
-        writeIORef rxConnectionInc 0
-      else
-        writeIORef rxConnectionInc w1
