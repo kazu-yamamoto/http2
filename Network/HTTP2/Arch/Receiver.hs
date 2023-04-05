@@ -5,9 +5,6 @@
 
 module Network.HTTP2.Arch.Receiver (
     frameReceiver
-  , maxConcurrency
-  , myInitialAlist
-  , initialFrames
   ) where
 
 import qualified Data.ByteString as BS
@@ -34,9 +31,6 @@ import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 
-maxConcurrency :: Int
-maxConcurrency = recommendedConcurrency
-
 continuationLimit :: Int
 continuationLimit = 10
 
@@ -51,26 +45,6 @@ settingsRateLimit = 4
 
 emptyFrameRateLimit :: Int
 emptyFrameRateLimit = 4
-
-----------------------------------------------------------------
-
-initialFrames :: SettingsList -> [ByteString]
-initialFrames alist = [frame1,frame2]
-  where
-    frame1 = settingsFrame id alist
-    frame2 = windowUpdateFrame 0 (maxWindowSize - defaultWindowSize)
-
-myInitialAlist :: Config -> SettingsList
-myInitialAlist Config{..} =
-    -- confBufferSize is the size of the write buffer.
-    -- But we assume that the size of the read buffer is the same size.
-    -- So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
-    [(SettingsMaxFrameSize,payloadLen)
-    ,(SettingsMaxConcurrentStreams,maxConcurrency)
-    ,(SettingsInitialWindowSize,maxWindowSize)]
-  where
-    len = confBufferSize - frameHeaderLength
-    payloadLen = max defaultPayloadLength len
 
 ----------------------------------------------------------------
 
@@ -281,7 +255,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSettings,myPendingAlist,mySettings,controlQ,settingsRate} conf = do
+control FrameSettings header@FrameHeader{flags,streamId} bs ctx@Context{myFirstSettings,myPendingAlist,mySettings,controlQ,settingsRate} conf = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     if testAck flags then do
@@ -305,11 +279,8 @@ control FrameSettings header@FrameHeader{flags,streamId} bs Context{myFirstSetti
             enqueueControl controlQ setframe
           else do
             -- Server side only
-            writeIORef myFirstSettings True
-            let myAlist = myInitialAlist conf
-            writeIORef myPendingAlist $ Just myAlist
-            let frames = initialFrames myAlist ++ [ack]
-                setframe = CFrames (Just peerAlist) frames
+            frames <- updateMySettings conf ctx
+            let setframe = CFrames (Just peerAlist) (frames ++ [ack])
             enqueueControl controlQ setframe
 
 control FramePing FrameHeader{flags,streamId} bs Context{controlQ,pingRate} _ =
