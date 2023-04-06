@@ -75,6 +75,12 @@ waitConnectionWindowSize Context{txConnectionWindow} = do
 
 ----------------------------------------------------------------
 
+-- max: 2,147,483,647 (2^31-1) is too large.
+-- def:        65,535 (2^16-1) it too small.
+--          1,048,575 (2^20-1)
+properWindowSize :: WindowSize
+properWindowSize = 1048575
+
 updateMySettings :: Config -> Context -> IO [ByteString]
 updateMySettings Config{..} Context{myFirstSettings,myPendingAlist} = do
     writeIORef myFirstSettings True
@@ -90,10 +96,10 @@ updateMySettings Config{..} Context{myFirstSettings,myPendingAlist} = do
         [(SettingsMaxFrameSize,payloadLen)
         ,(SettingsMaxConcurrentStreams,recommendedConcurrency)
         -- Initial window size for streams
-        ,(SettingsInitialWindowSize,maxWindowSize)]
+        ,(SettingsInitialWindowSize,properWindowSize)]
     frame1 = settingsFrame id myInitialAlist
         -- Initial window update for connection
-    frame2 = windowUpdateFrame 0 (maxWindowSize - defaultWindowSize)
+    frame2 = windowUpdateFrame 0 (properWindowSize - defaultWindowSize)
     frames = [frame1,frame2]
 
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
