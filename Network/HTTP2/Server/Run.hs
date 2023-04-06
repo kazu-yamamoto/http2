@@ -3,7 +3,7 @@
 
 module Network.HTTP2.Server.Run where
 
-import UnliftIO.Async (race_)
+import UnliftIO.Async (concurrently_)
 import qualified UnliftIO.Exception as E
 
 import Imports
@@ -33,7 +33,7 @@ run conf@Config{..} server = do
         replicateM_ 3 $ spawnAction mgr
         let runReceiver = frameReceiver ctx conf
             runSender   = frameSender   ctx conf mgr
-        race_ runReceiver runSender `E.finally` stop mgr
+        concurrently_ runReceiver runSender `E.finally` stop mgr
   where
     checkPreface = do
         preface <- confReadN connectionPrefaceLength
