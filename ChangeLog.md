@@ -1,3 +1,9 @@
+## 4.1.1
+
+* Fixing memory-blow-up due to no flow control.
+  [#62][https://github.com/kazu-yamamoto/http2/issues/62]
+  [#66][https://github.com/kazu-yamamoto/http2/issues/66]
+
 ## 4.1.0
 
 * Implementing streaming from the client side.
