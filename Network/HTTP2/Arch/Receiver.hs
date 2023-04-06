@@ -76,7 +76,7 @@ frameReceiver ctx@Context{..} conf@Config{..} = loop 0 `E.catch` sendGoaway
       | Just e@(StreamErrorIsSent err sid) <- E.fromException se = do
           let frame = resetFrame err sid
           enqueueControl controlQ $ CFrames Nothing [frame]
-          let frame' = goawayFrame sid err "treat a stream error as a connection error"
+          let frame' = goawayFrame sid err "closing a connection after sending a stream error"
           enqueueControl controlQ $ CFrames Nothing [frame']
           enqueueControl controlQ $ CFinish e
       | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
