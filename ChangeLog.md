@@ -1,3 +1,9 @@
+## 4.1.2
+
+* Removing the race of frameSender and frameReceiver in the server side.
+  This fixes the loss of RST_Stream and TLS bad MAC error.
+  [#67][https://github.com/kazu-yamamoto/http2/pull/67]
+
 ## 4.1.1
 
 * Fixing memory-blow-up due to no flow control.
