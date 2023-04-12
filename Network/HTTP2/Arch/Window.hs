@@ -15,6 +15,22 @@ import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
+getStreamWindowSize :: Stream -> IO WindowSize
+getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow
+
+getConnectionWindowSize :: Context -> IO WindowSize
+getConnectionWindowSize Context{txConnectionWindow} = readTVarIO txConnectionWindow
+
+waitStreamWindowSize :: Stream -> IO ()
+waitStreamWindowSize Stream{streamWindow} = atomically $ do
+    w <- readTVar streamWindow
+    checkSTM (w > 0)
+
+waitConnectionWindowSize :: Context -> STM ()
+waitConnectionWindowSize Context{txConnectionWindow} = do
+    w <- readTVar txConnectionWindow
+    checkSTM (w > 0)
+
 ----------------------------------------------------------------
 -- Receiving window update
 
@@ -32,13 +48,13 @@ increaseConnectionWindowSize Context{txConnectionWindow} n = atomically $ do
     writeTVar txConnectionWindow w1
     return w1
 
-----------------------------------------------------------------
--- Sending window update
-
 decreaseWindowSize :: Context -> Stream -> WindowSize -> IO ()
 decreaseWindowSize Context{txConnectionWindow} Stream{streamWindow} siz = do
     atomically $ modifyTVar' txConnectionWindow (subtract siz)
     atomically $ modifyTVar' streamWindow (subtract siz)
+
+----------------------------------------------------------------
+-- Sending window update
 
 informWindowUpdate :: TQueue Control -> StreamId -> IORef Int -> Int -> IO ()
 informWindowUpdate _        _   _      0   = return ()
@@ -56,22 +72,6 @@ informWindowUpdate controlQ sid incref len = do
 informConnectionWindowUpdate :: Context -> Int -> IO ()
 informConnectionWindowUpdate Context{..} =
     informWindowUpdate controlQ 0 rxConnectionInc
-
-getStreamWindowSize :: Stream -> IO WindowSize
-getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow
-
-getConnectionWindowSize :: Context -> IO WindowSize
-getConnectionWindowSize Context{txConnectionWindow} = readTVarIO txConnectionWindow
-
-waitStreamWindowSize :: Stream -> IO ()
-waitStreamWindowSize Stream{streamWindow} = atomically $ do
-    w <- readTVar streamWindow
-    checkSTM (w > 0)
-
-waitConnectionWindowSize :: Context -> STM ()
-waitConnectionWindowSize Context{txConnectionWindow} = do
-    w <- readTVar txConnectionWindow
-    checkSTM (w > 0)
 
 ----------------------------------------------------------------
 
