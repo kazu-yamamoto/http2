@@ -184,14 +184,14 @@ processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInp
       else
         putMVar streamInput inpObj
     return False
-processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
+processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} _streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     q <- newTQueueIO
     setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
     incref <- newIORef 0
-    bodySource <- mkSource q $ informWindowUpdate controlQ streamId incref
+    bodySource <- mkSource q $ informWindowUpdate ctx strm incref
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx then do
         let si = toServerInfo roleInfo
@@ -300,10 +300,9 @@ control FrameGoAway header bs _ _ = do
       else
         E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 
-control FrameWindowUpdate header@FrameHeader{streamId} bs ctx _ = do
+control FrameWindowUpdate header bs ctx _ = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- increaseConnectionWindowSize ctx n
-    when (isWindowOverflow w) $ E.throwIO $ ConnectionErrorIsSent FlowControlError streamId "control window should be less than 2^31"
+    increaseConnectionWindowSize ctx n
 
 control _ _ _ _ _ =
     -- must not reach here
@@ -367,11 +366,10 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ 
 
 -- ignore data-frame except for flow-control when we're done locally
 stream FrameData
-       FrameHeader{flags,payloadLength}
+       FrameHeader{flags}
        _bs
-       ctx s@(HalfClosedLocal _)
+       _ctx s@(HalfClosedLocal _)
        _ = do
-    informConnectionWindowUpdate ctx payloadLength
     let endOfStream = testEndStream flags
     if endOfStream then do
         return HalfClosedRemote
@@ -383,7 +381,6 @@ stream FrameData
        bs
        ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
-    informConnectionWindowUpdate ctx payloadLength
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
     let len = len0 + payloadLength
@@ -434,12 +431,9 @@ stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued
           else
             return $ Open $ Continued rfrags' siz' n' endOfStream
 
-stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s strm = do
+stream FrameWindowUpdate header bs _ s strm = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
-    w <- increaseStreamWindowSize strm n
-    when (isWindowOverflow w) $ do
-        let msg = fromString ("window update for " ++ show streamId ++ " is overflow")
-        E.throwIO $ StreamErrorIsSent FlowControlError streamId msg
+    increaseStreamWindowSize strm n
     return s
 
 stream FrameRSTStream header@FrameHeader{streamId} bs ctx _ strm = do
