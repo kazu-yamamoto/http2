@@ -73,10 +73,10 @@ frameReceiver ctx@Context{..} conf@Config{..} = loop 0 `E.catch` sendGoaway
           let frame = goawayFrame sid err $ Short.fromShort msg
           enqueueControl controlQ $ CFrames Nothing [frame]
           enqueueControl controlQ $ CFinish e
-      | Just e@(StreamErrorIsSent err sid) <- E.fromException se = do
+      | Just e@(StreamErrorIsSent err sid msg) <- E.fromException se = do
           let frame = resetFrame err sid
           enqueueControl controlQ $ CFrames Nothing [frame]
-          let frame' = goawayFrame sid err "closing a connection after sending a stream error"
+          let frame' = goawayFrame sid err $ Short.fromShort msg
           enqueueControl controlQ $ CFrames Nothing [frame']
           enqueueControl controlQ $ CFinish e
       | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
@@ -174,7 +174,7 @@ controlOrStream ctx@Context{..} conf@Config{..} ftyp header@FrameHeader{streamId
 processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
 processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
-    when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId
+    when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId "no body but content-length is not zero"
     halfClosedRemote ctx strm
     tlr <- newIORef Nothing
     let inpObj = InpObj tbl (Just 0) (return "") tlr
@@ -245,8 +245,8 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                 mMaxConc <- maxConcurrentStreams <$> readIORef mySettings
                 case mMaxConc of
                   Nothing      -> return ()
-                  Just maxConc ->  when (cnt >= maxConc) $
-                    E.throwIO $ StreamErrorIsSent RefusedStream streamId
+                  Just maxConc -> when (cnt >= maxConc) $
+                    E.throwIO $ StreamErrorIsSent RefusedStream streamId "exceeds max concurrent"
             Just <$> openStream ctx streamId ftyp
   | otherwise = undefined -- never reach
 
@@ -321,7 +321,7 @@ guardIt x = case x of
 {-# INLINE checkPriority #-}
 checkPriority :: Priority -> StreamId -> IO ()
 checkPriority p me
-  | dep == me = E.throwIO $ StreamErrorIsSent ProtocolError me
+  | dep == me = E.throwIO $ StreamErrorIsSent ProtocolError me "priority depends on itself"
   | otherwise = return ()
   where
     dep = streamDependency p
@@ -400,7 +400,7 @@ stream FrameData
     if endOfStream then do
         case mcl of
             Nothing -> return ()
-            Just cl -> when (cl /= len) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId
+            Just cl -> when (cl /= len) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId "actual body length is not the same as content-length"
         -- no trailers
         atomically $ writeTQueue q ""
         return HalfClosedRemote
@@ -437,7 +437,9 @@ stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued
 stream FrameWindowUpdate header@FrameHeader{streamId} bs _ s strm = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     w <- increaseStreamWindowSize strm n
-    when (isWindowOverflow w) $ E.throwIO $ StreamErrorIsSent FlowControlError streamId
+    when (isWindowOverflow w) $ do
+        let msg = fromString ("window update for " ++ show streamId ++ " is overflow")
+        E.throwIO $ StreamErrorIsSent FlowControlError streamId msg
     return s
 
 stream FrameRSTStream header@FrameHeader{streamId} bs ctx _ strm = do
@@ -458,8 +460,8 @@ stream FrameContinuation FrameHeader{streamId} _ _ _ _ = E.throwIO $ ConnectionE
 stream _ FrameHeader{streamId} _ _ (Open Continued{}) _ = E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "an illegal frame follows header/continuation frames"
 -- Ignore frames to streams we have just reset, per section 5.1.
 stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st
-stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent StreamClosed streamId
-stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent ProtocolError streamId
+stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent StreamClosed streamId $ fromString ("illegal data frame for " ++ show streamId)
+stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent ProtocolError streamId $ fromString ("illegal frame for " ++ show streamId)
 
 ----------------------------------------------------------------
 

@@ -212,7 +212,7 @@ data HTTP2Error =
   | ConnectionErrorIsReceived ErrorCode StreamId ReasonPhrase
   | ConnectionErrorIsSent     ErrorCode StreamId ReasonPhrase
   | StreamErrorIsReceived     ErrorCode StreamId
-  | StreamErrorIsSent         ErrorCode StreamId
+  | StreamErrorIsSent         ErrorCode StreamId ReasonPhrase
   | BadThingHappen E.SomeException
   deriving (Show, Typeable)
 
