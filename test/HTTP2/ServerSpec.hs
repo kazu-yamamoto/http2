@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RankNTypes #-}
 
 module HTTP2.ServerSpec where
 
@@ -158,8 +159,18 @@ runClient allocConfig =
     runHTTP2Client s = E.bracket (allocConfig s 4096)
                                  freeSimpleConfig
                                  (\conf -> C.run cliconf conf client)
-    client sendRequest = mapConcurrently_ ($ sendRequest) clients
-    clients = [client0,client1,client2,client3,client3',client3'',client4,client5]
+
+    client :: C.Client ()
+    client sendRequest = mapConcurrently_ id $ [
+          client0   sendRequest
+        , client1   sendRequest
+        , client2   sendRequest
+        , client3   sendRequest
+        , client3'  sendRequest
+        , client3'' sendRequest
+        , client4   sendRequest
+        , client5   sendRequest
+        ]
 
 -- delay sending preface to be able to test if it is always sent first
 allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
