@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 module Network.HTTP2.Client.Types where
 
 import Network.HTTP2.Arch
@@ -5,7 +7,7 @@ import Network.HTTP2.Arch
 ----------------------------------------------------------------
 
 -- | Client type.
-type Client a = (Request -> (Response -> IO a) -> IO a) -> IO a
+type Client a = (forall b. Request -> (Response -> IO b) -> IO b) -> IO a
 
 -- | Request from client.
 newtype Request = Request OutObj deriving (Show)
