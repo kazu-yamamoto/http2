@@ -63,7 +63,8 @@ runClient sc au hd = runTCPClient host port $ runHTTP2Client
     cliconf = ClientConfig sc au 20
     runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
                                  freeSimpleConfig
-                                 (\conf -> run cliconf conf client)
+                                 (\conf -> run cliconf conf $ \sendRequest ->
+                                   client sendRequest)
     client sendRequest = do
         let req = requestNoBody methodGet "/" hd
         sendRequest req $ \rsp -> do
