@@ -379,7 +379,7 @@ stream FrameData
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       ctx@Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
+       Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
        _ = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
