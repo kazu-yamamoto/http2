@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RankNTypes #-}
 
 module HTTP2.ServerSpec where
 
@@ -10,8 +11,8 @@ import Control.Monad
 import Crypto.Hash (Context, SHA1) -- cryptonite
 import qualified Crypto.Hash as CH
 import qualified Data.ByteString as B
+import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString, Builder)
-import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
 import Network.HTTP.Types
@@ -158,8 +159,18 @@ runClient allocConfig =
     runHTTP2Client s = E.bracket (allocConfig s 4096)
                                  freeSimpleConfig
                                  (\conf -> C.run cliconf conf client)
-    client sendRequest = mapConcurrently_ ($ sendRequest) clients
-    clients = [client0,client1,client2,client3,client3',client3'',client4,client5]
+
+    client :: C.Client ()
+    client sendRequest = foldr1 concurrently_ $ [
+          client0   sendRequest
+        , client1   sendRequest
+        , client2   sendRequest
+        , client3   sendRequest
+        , client3'  sendRequest
+        , client3'' sendRequest
+        , client4   sendRequest
+        , client5   sendRequest
+        ]
 
 -- delay sending preface to be able to test if it is always sent first
 allocSlowPrefaceConfig :: Socket -> BufferSize -> IO Config
@@ -169,7 +180,7 @@ allocSlowPrefaceConfig s size = do
   where
     slowPrefaceSend :: (ByteString -> IO ()) -> ByteString -> IO ()
     slowPrefaceSend orig chunk = do
-      when (C8.pack "PRI" `isPrefixOf` chunk) $ do
+      when (C8.pack "PRI" `C8.isPrefixOf` chunk) $ do
         threadDelay 10000
       orig chunk
 
