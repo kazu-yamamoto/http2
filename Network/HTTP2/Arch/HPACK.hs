@@ -69,15 +69,16 @@ hpackDecodeHeader hdrblk sid ctx = do
     if isClient ctx || checkRequestHeader vt then
         return tbl
       else
-        E.throwIO $ StreamErrorIsSent ProtocolError sid
+        E.throwIO $ StreamErrorIsSent ProtocolError sid "illegal header"
 
 hpackDecodeTrailer :: HeaderBlockFragment -> StreamId -> Context -> IO HeaderTable
 hpackDecodeTrailer hdrblk sid Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
     handl IllegalHeaderName =
-        E.throwIO $ StreamErrorIsSent ProtocolError sid
-    handl _ =
-        E.throwIO $ StreamErrorIsSent CompressionError sid
+        E.throwIO $ StreamErrorIsSent ProtocolError sid "illegal trailer"
+    handl e = do
+        let msg = fromString $ show e
+        E.throwIO $ StreamErrorIsSent CompressionError sid msg
 
 {-# INLINE checkRequestHeader #-}
 checkRequestHeader :: ValueTable -> Bool

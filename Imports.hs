@@ -8,10 +8,11 @@ module Imports (
   , module Data.List
   , module Data.Foldable
   , module Data.Int
+  , module Data.Maybe
   , module Data.Monoid
   , module Data.Ord
+  , module Data.String
   , module Data.Word
-  , module Data.Maybe
   , module Numeric
   , GCBuffer
   , withForeignPtr
@@ -29,6 +30,7 @@ import Data.Int
 import Data.List
 import Data.Maybe
 import Data.Monoid
+import Data.String
 import Data.Ord
 import Data.Word
 import Foreign.ForeignPtr
