@@ -11,8 +11,8 @@ import Control.Monad
 import Crypto.Hash (Context, SHA1) -- cryptonite
 import qualified Crypto.Hash as CH
 import qualified Data.ByteString as B
+import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString, Builder)
-import Data.ByteString.Char8
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
 import Network.HTTP.Types
@@ -161,7 +161,7 @@ runClient allocConfig =
                                  (\conf -> C.run cliconf conf client)
 
     client :: C.Client ()
-    client sendRequest = mapConcurrently_ id $ [
+    client sendRequest = foldr1 concurrently_ $ [
           client0   sendRequest
         , client1   sendRequest
         , client2   sendRequest
@@ -180,7 +180,7 @@ allocSlowPrefaceConfig s size = do
   where
     slowPrefaceSend :: (ByteString -> IO ()) -> ByteString -> IO ()
     slowPrefaceSend orig chunk = do
-      when (C8.pack "PRI" `isPrefixOf` chunk) $ do
+      when (C8.pack "PRI" `C8.isPrefixOf` chunk) $ do
         threadDelay 10000
       orig chunk
 
