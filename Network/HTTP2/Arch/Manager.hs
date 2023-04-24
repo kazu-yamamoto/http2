@@ -8,12 +8,13 @@ module Network.HTTP2.Arch.Manager (
   , setAction
   , stop
   , spawnAction
-  , addMyId
+  , forkManaged
   , deleteMyId
   , timeoutKillThread
   , timeoutClose
   ) where
 
+import Control.Exception
 import Data.Foldable
 import Data.IORef
 import Data.Set (Set)
@@ -77,13 +78,34 @@ stop (Manager q _ _) = atomically $ writeTQueue q Stop
 spawnAction :: Manager -> IO ()
 spawnAction (Manager q _ _) = atomically $ writeTQueue q Spawn
 
+----------------------------------------------------------------
+
+-- | Fork managed thread
+--
+-- This guarantees that the thread ID is added to the manager's queue before
+-- the thread starts, and is removed again when the thread terminates
+-- (normally or abnormally).
+forkManaged :: Manager -> IO () -> IO ()
+forkManaged mgr io =
+    void $ mask_ $ forkIOWithUnmask $ \unmask -> do
+      addMyId mgr
+      r <- unmask io `onException` deleteMyId mgr
+      deleteMyId mgr
+      return r
+
 -- | Adding my thread id to the kill-thread list on stopping.
+--
+-- This is not part of the public API; see 'forkManaged' instead.
 addMyId :: Manager -> IO ()
 addMyId (Manager q _ _) = do
     tid <- myThreadId
     atomically $ writeTQueue q $ Add tid
 
 -- | Deleting my thread id from the kill-thread list on stopping.
+--
+-- This is /only/ necessary when you want to remove the thread's ID from
+-- the manager /before/ the thread terminates (thereby assuming responsibility
+-- for thread cleanup yourself).
 deleteMyId :: Manager -> IO ()
 deleteMyId (Manager q _ _) = do
     tid <- myThreadId

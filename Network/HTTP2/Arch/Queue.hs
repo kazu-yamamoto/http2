@@ -2,23 +2,17 @@
 
 module Network.HTTP2.Arch.Queue where
 
-import UnliftIO.Concurrent (forkIO)
-import UnliftIO.Exception (bracket)
 import UnliftIO.STM
 
-import Imports
 import Network.HTTP2.Arch.Manager
 import Network.HTTP2.Arch.Types
 
 {-# INLINE forkAndEnqueueWhenReady #-}
 forkAndEnqueueWhenReady :: IO () -> TQueue (Output Stream) -> Output Stream -> Manager -> IO ()
-forkAndEnqueueWhenReady wait outQ out mgr = bracket setup teardown $ \_ ->
-    void . forkIO $ do
+forkAndEnqueueWhenReady wait outQ out mgr =
+    forkManaged mgr $ do
         wait
         enqueueOutput outQ out
-  where
-    setup = addMyId mgr
-    teardown _ = deleteMyId mgr
 
 {-# INLINE enqueueOutput #-}
 enqueueOutput :: TQueue (Output Stream) -> Output Stream -> IO ()
