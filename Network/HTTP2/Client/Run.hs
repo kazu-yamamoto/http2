@@ -72,9 +72,7 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
             OutBodyStreaming strmbdy -> do
                 tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
                 tbqNonMmpty <- newTVarIO False
-                let setup = addMyId mgr
-                let teardown _ = deleteMyId mgr
-                E.bracket setup teardown $ \_ -> void $ forkIO $ do
+                forkManaged mgr $ do
                     let push b = atomically $ do
                             writeTBQueue tbq (StreamingBuilder b)
                             writeTVar tbqNonMmpty True
