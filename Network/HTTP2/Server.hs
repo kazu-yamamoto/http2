@@ -163,7 +163,7 @@ responseBuilder st hdr builder = Response $ OutObj hdr' (OutBodyBuilder builder)
 
 -- | Creating response with streaming.
 responseStreaming :: H.Status -> H.ResponseHeaders
-                  -> ((Builder -> IO ()) -> IO () -> IO ())
+                  -> ((forall a. IO a -> IO a) -> (Builder -> IO ()) -> IO () -> IO ())
                   -> Response
 responseStreaming st hdr strmbdy = Response $ OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
   where

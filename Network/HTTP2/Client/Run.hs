@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Client.Run where
@@ -72,12 +71,12 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
             OutBodyStreaming strmbdy -> do
                 tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
                 tbqNonMmpty <- newTVarIO False
-                forkManaged mgr $ do
+                forkManaged mgr $ \unmask -> do
                     let push b = atomically $ do
                             writeTBQueue tbq (StreamingBuilder b)
                             writeTVar tbqNonMmpty True
                         flush  = atomically $ writeTBQueue tbq StreamingFlush
-                    strmbdy push flush
+                    strmbdy unmask push flush
                     atomically $ writeTBQueue tbq StreamingFinished
                 atomically $ do
                     sidOK <- readTVar outputQStreamID

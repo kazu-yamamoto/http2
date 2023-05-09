@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.HTTP2.Server.Worker (
     worker
@@ -104,16 +105,18 @@ pushStream WorkerConf{..} pstrm reqvt pps0
 -- | This function is passed to workers.
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response :: WorkerConf a -> Manager -> T.Handle -> ThreadContinue -> a -> Request -> Response -> [PushPromise] -> IO ()
-response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
-  OutBodyNone -> do
+response ::
+     (forall b. IO b -> IO b)  -- ^ Unmask
+  -> WorkerConf a -> Manager -> T.Handle -> ThreadContinue -> a -> Request -> Response -> [PushPromise] -> IO ()
+response unmask wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = case outObjBody rsp of
+  OutBodyNone -> unmask $ do
       setThreadContinue tconf True
       writeOutputQ $ Output strm rsp OObj Nothing (return ())
-  OutBodyBuilder _ -> do
+  OutBodyBuilder _ -> unmask $ do
       otyp <- pushStream wc strm reqvt pps
       setThreadContinue tconf True
       writeOutputQ $ Output strm rsp otyp Nothing (return ())
-  OutBodyFile _ -> do
+  OutBodyFile _ -> unmask $ do
       otyp <- pushStream wc strm reqvt pps
       setThreadContinue tconf True
       writeOutputQ $ Output strm rsp otyp Nothing (return ())
@@ -137,7 +140,7 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
             atomically $ writeTBQueue tbq (StreamingBuilder b)
             T.resume th
           flush  = atomically $ writeTBQueue tbq StreamingFlush
-      strmbdy push flush
+      strmbdy unmask push flush
       atomically $ writeTBQueue tbq StreamingFinished
       -- Remove the thread's ID from the manager's queue, to ensure the that the
       -- manager will not terminate it before we are done. (The thread ID was
@@ -147,13 +150,14 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
     (_,reqvt) = inpObjHeaders req
 
 -- | Worker for server applications.
-worker :: WorkerConf a -> Manager -> Server -> Action
-worker wc@WorkerConf{..} mgr server = do
+worker :: forall a. WorkerConf a -> Manager -> Server -> Action
+worker wc@WorkerConf{..} mgr server = Action $ \unmask -> do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
-    timeoutKillThread mgr $ go sinfo tcont
+    timeoutKillThread mgr $ go unmask sinfo tcont
   where
-    go sinfo tcont th = do
+    go :: (forall b. IO b -> IO b) -> StreamInfo a -> ThreadContinue -> T.Handle -> IO ()
+    go unmask sinfo tcont th = do
         setThreadContinue tcont True
         ex <- E.trySyncOrAsync $ do
             T.pause th
@@ -163,7 +167,7 @@ worker wc@WorkerConf{..} mgr server = do
             T.resume th
             T.tickle th
             let aux = Aux th
-            server (Request req') aux $ response wc mgr th tcont strm (Request req')
+            server (Request req') aux $ response unmask wc mgr th tcont strm (Request req')
         cont1 <- case ex of
             Right () -> return True
             Left e@(SomeException _)
@@ -178,7 +182,7 @@ worker wc@WorkerConf{..} mgr server = do
                   return True
         cont2 <- getThreadContinue tcont
         clearStreamInfo sinfo
-        when (cont1 && cont2) $ go sinfo tcont th
+        when (cont1 && cont2) $ go unmask sinfo tcont th
     pauseRequestBody req th = req { inpObjBody = readBody' }
       where
         readBody = inpObjBody req

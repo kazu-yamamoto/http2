@@ -112,8 +112,8 @@ responseInfinite :: Response
 responseInfinite = responseStreaming ok200 header body
   where
     header = [("Content-Type", "text/plain")]
-    body :: (Builder -> IO ()) -> IO () -> IO ()
-    body write flush = do
+    body :: (forall a. IO a -> IO a) -> (Builder -> IO ()) -> IO () -> IO ()
+    body unmask write flush = unmask $ do
       let go n = write (byteString (C8.pack (show n)) `mappend` "\n") *> flush *> go (succ n)
       go (0 :: Int)
 
@@ -129,7 +129,9 @@ responseEcho req = setResponseTrailersMaker h2rsp maker
     h2rsp = responseStreaming ok200 header streamingBody
     header = [("Content-Type", "text/plain")]
     mhx = getHeaderValue (toToken "X-Tag") (snd (requestHeaders req))
-    streamingBody write _flush = do
+
+    streamingBody :: (forall b. IO b -> IO b) -> (Builder -> IO a) -> IO () -> IO ()
+    streamingBody unmask write _flush = unmask $ do
         loop
         mt <- getRequestTrailers req
         firstTrailerValue <$> mt `shouldBe` mhx
@@ -221,7 +223,7 @@ client3 sendRequest = do
 client3' :: C.Client ()
 client3' sendRequest = do
     let hx = "b0870457df2b8cae06a88657a198d9b52f8e2b0a"
-        req0 = C.requestStreaming methodPost "/echo" [("X-Tag",hx)] $ \write _flush -> do
+        req0 = C.requestStreaming methodPost "/echo" [("X-Tag",hx)] $ \unmask write _flush -> unmask $ do
             let sendFile h = do
                     bs <- B.hGet h 1024
                     when (bs /= "") $ do
@@ -242,7 +244,7 @@ client3' sendRequest = do
 client3'' :: C.Client ()
 client3'' sendRequest = do
     let hx = "59f82dfddc0adf5bdf7494b8704f203a67e25d4a"
-        req0 = C.requestStreaming methodPost "/echo" [("X-Tag", hx)] $ \write _flush -> do
+        req0 = C.requestStreaming methodPost "/echo" [("X-Tag", hx)] $ \unmask write _flush -> unmask $ do
           let chunk = C8.replicate (16384 * 2) 'c'
               tag = C8.replicate 16 't'
           -- I don't think 9 is important here, this is just what I have, the client hangs on receiving the last one

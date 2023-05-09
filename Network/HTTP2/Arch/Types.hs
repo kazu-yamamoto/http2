@@ -33,8 +33,8 @@ type Path = ByteString
 type InpBody = IO ByteString
 
 data OutBody = OutBodyNone
-             -- | Streaming body takes a write action and a flush action.
-             | OutBodyStreaming ((Builder -> IO ()) -> IO () -> IO ())
+             -- | Streaming body takes an unmask function, a write action and a flush action.
+             | OutBodyStreaming ((forall a. IO a -> IO a) -> (Builder -> IO ()) -> IO () -> IO ())
              | OutBodyBuilder Builder
              | OutBodyFile FileSpec
 

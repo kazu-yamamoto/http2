@@ -123,7 +123,7 @@ requestBuilder m p hdr builder = Request $ OutObj hdr' (OutBodyBuilder builder) 
 
 -- | Creating request with streaming.
 requestStreaming :: Method -> Path -> RequestHeaders
-                 -> ((Builder -> IO ()) -> IO () -> IO ())
+                 -> ((forall a. IO a -> IO a) -> (Builder -> IO ()) -> IO () -> IO ())
                  -> Request
 requestStreaming m p hdr strmbdy = Request $ OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
   where

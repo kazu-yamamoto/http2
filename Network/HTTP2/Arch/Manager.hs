@@ -3,7 +3,7 @@
 --   worker threads.
 module Network.HTTP2.Arch.Manager (
     Manager
-  , Action
+  , Action(..)
   , start
   , setAction
   , stop
@@ -29,10 +29,10 @@ import Imports
 ----------------------------------------------------------------
 
 -- | Action to be spawned by the manager.
-type Action = IO ()
+newtype Action = Action { runAction :: (forall a. IO a -> IO a) -> IO () }
 
 noAction :: Action
-noAction = return ()
+noAction = Action $ \_unmask -> return ()
 
 data Command = Stop | Spawn | Add ThreadId | Delete ThreadId
 
@@ -50,6 +50,7 @@ start timmgr = do
     void $ forkIO $ go q Set.empty ref
     return $ Manager q ref timmgr
   where
+    go :: TQueue Command -> Set ThreadId -> IORef Action -> IO ()
     go q tset0 ref = do
         x <- atomically $ readTQueue q
         case x of
@@ -62,7 +63,7 @@ start timmgr = do
       where
         next tset = do
             action <- readIORef ref
-            newtid <- forkIO action
+            newtid <- mask_ $ forkIOWithUnmask $ \unmask -> runAction action unmask
             let tset' = add newtid tset
             go q tset' ref
 
@@ -85,11 +86,11 @@ spawnAction (Manager q _ _) = atomically $ writeTQueue q Spawn
 -- This guarantees that the thread ID is added to the manager's queue before
 -- the thread starts, and is removed again when the thread terminates
 -- (normally or abnormally).
-forkManaged :: Manager -> IO () -> IO ()
+forkManaged :: Manager -> ((forall a. IO a -> IO a) -> IO ()) -> IO ()
 forkManaged mgr io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> do
       addMyId mgr
-      r <- unmask io `onException` deleteMyId mgr
+      r <- io unmask `onException` deleteMyId mgr
       deleteMyId mgr
       return r
 
@@ -130,7 +131,7 @@ kill set = traverse_ killThread set
 timeoutKillThread :: Manager -> (T.Handle -> IO ()) -> IO ()
 timeoutKillThread (Manager _ _ tmgr) action = E.bracket register T.cancel action
   where
-    register = T.registerKillThread tmgr noAction
+    register = T.registerKillThread tmgr (return ())
 
 -- | Registering closer for a resource and
 --   returning a timer refresher.

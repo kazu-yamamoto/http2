@@ -111,7 +111,7 @@ library
         Network.HTTP2.Server.Worker
 
     default-language:   Haskell2010
-    default-extensions: Strict StrictData
+    default-extensions: Strict StrictData RankNTypes
     ghc-options:        -Wall
     build-depends:
         base >=4.9 && <5,
