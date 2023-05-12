@@ -215,6 +215,11 @@ processState HalfClosedRemote ctx strm _streamId = do
     return False
 
 -- Transition (process5)
+processState (Closed cc) ctx strm _streamId = do
+    closed ctx strm cc
+    return False
+
+-- Transition (process6)
 processState s ctx strm _streamId = do
     -- Idle, Open Body, Closed
     setStreamState ctx strm s
@@ -452,12 +457,26 @@ stream FrameWindowUpdate header bs _ s strm = do
     increaseStreamWindowSize strm n
     return s
 
--- (Not a true transition: throws an exception)
-stream FrameRSTStream header@FrameHeader{streamId} bs ctx _ strm = do
+-- Transition (stream6)
+stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
-    closed ctx strm cc
-    E.throwIO $ StreamErrorIsReceived err streamId
+
+    -- The spec mandates (section 8.1):
+    --
+    -- > When this is true, a server MAY request that the client abort
+    -- > transmission of a request without error by sending a RST_STREAM with an
+    -- > error code of NO_ERROR after sending a complete response (i.e., a frame
+    -- > with the END_STREAM flag).
+    --
+    -- We check the first part ("after sending a complete response") by checking
+    -- the current stream state.
+    case (s, err) of
+      (HalfClosedRemote, NoError) ->
+        return (Closed cc)
+      _otherwise -> do
+        closed ctx strm cc
+        E.throwIO $ StreamErrorIsReceived err streamId
 
 -- (No state transition)
 stream FramePriority header bs _ s Stream{streamNumber} = do

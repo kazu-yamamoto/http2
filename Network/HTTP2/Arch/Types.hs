@@ -159,18 +159,18 @@ function 'processState'.
 >           | (process1)          | (process2)
 >           |                     |
 >  [HalfClosedRemote] <--\   [Open Body] <----------------------\
->                        |        |                             |
->                        |        +---------------\             |
->                        |        |               |             |
->                        |     HEADERS           DATA           |
->                        |        |               |             |
->                        |        | (stream2)     | (stream4)   |
->                        |        |               |             |
->                        |   END_STREAM?      END_STREAM?       |
->                        |        |               |             |
->                        |        | yes      yes / \ no         |
->                        \--------+-------------/   \-----------/
->                         (process4)                 (process5)
+>           |             |        |                             |
+>           |             |        +---------------\             |
+>       RST_STREAM        |        |               |             |
+>           |             |     HEADERS           DATA           |
+>           | (stream6)   |        |               |             |
+>           |             |        | (stream2)     | (stream4)   |
+>           | (process5)  |        |               |             |
+>           |             |   END_STREAM?      END_STREAM?       |
+>        [Closed]         |        |               |             |
+>                         |        | yes      yes / \ no         |
+>                         \--------+-------------/   \-----------/
+>                          (process4)                 (process6)
 
 Notes:
 
