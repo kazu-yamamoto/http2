@@ -105,6 +105,82 @@ data FileSpec = FileSpec FilePath FileOffset ByteCount deriving (Eq, Show)
 
 ----------------------------------------------------------------
 
+{-
+
+== Stream state
+
+The stream state is stored in the 'streamState' field (an @IORef@) of a
+'Stream'. The main place where the stream state is updated is in
+'controlOrStream', which does something like this:
+
+> state0 <- readStreamState strm
+> state1 <- stream .. state0 ..
+> processState .. state1 ..
+
+where 'processState' updates the @IORef@, based on 'state1' (the state computed
+by 'stream') and the /current/ state of the stream; for simplicity, we will
+assume here that this must equal 'state0' (it might not, if a concurrent thread
+changed the stream state).
+
+The diagram below summarizes the stream state transitions on the client side,
+omitting error cases (which result in exceptions being thrown). Each transition
+is labelled with the relevant case in either the function 'stream' or the
+function 'processState'.
+
+>                        [Open JustOpened]
+>                               |
+>                               |
+>                            HEADERS
+>                               |
+>                               | (stream1)
+>                               |
+>                          END_HEADERS?
+>                               |
+>                        ______/ \______
+>                       /   yes   no    \
+>                      |                |
+>                      |         [Open Continued] <--\
+>                      |                |            |
+>                      |           CONTINUATION      |
+>                      |                |            |
+>                      |                | (stream5)  |
+>                      |                |            |
+>                      |           END_HEADERS?      |
+>                      |                |            |
+>                      v           yes / \ no        |
+>                 END_STREAM? <-------/   \-----------/
+>                      |                   (process3)
+>                      |
+>            _________/ \_________
+>           /      yes   no       \
+>           |                     |
+>      [Open NoBody]        [Open HasBody]
+>           |                     |
+>           | (process1)          | (process2)
+>           |                     |
+>  [HalfClosedRemote] <--\   [Open Body] <----------------------\
+>           |             |        |                             |
+>           |             |        +---------------\             |
+>       RST_STREAM        |        |               |             |
+>           |             |     HEADERS           DATA           |
+>           | (stream6)   |        |               |             |
+>           |             |        | (stream2)     | (stream4)   |
+>           | (process5)  |        |               |             |
+>           |             |   END_STREAM?      END_STREAM?       |
+>        [Closed]         |        |               |             |
+>                         |        | yes      yes / \ no         |
+>                         \--------+-------------/   \-----------/
+>                          (process4)                 (process6)
+
+Notes:
+
+- The 'HalfClosedLocal' state is not used on the client side.
+- Indeed, unless an exception is thrown, even the 'Closed' stream state is not
+  used in the client; when the @IORef@ is collected, it is typically in
+  'HalfClosedRemote' state.
+
+-}
+
 data OpenState =
     JustOpened
   | Continued [HeaderBlockFragment]
