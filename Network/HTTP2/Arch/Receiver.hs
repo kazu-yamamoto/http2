@@ -172,6 +172,8 @@ controlOrStream ctx@Context{..} conf@Config{..} ftyp header@FrameHeader{streamId
 ----------------------------------------------------------------
 
 processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
+
+-- Transition (process1)
 processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId "no body but content-length is not zero"
@@ -184,6 +186,8 @@ processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInp
       else
         putMVar streamInput inpObj
     return False
+
+-- Transition (process2)
 processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} _streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
@@ -199,12 +203,23 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
       else
         putMVar streamInput inpObj
     return False
+
+-- Transition (process3)
 processState s@(Open Continued{}) ctx strm _streamId = do
     setStreamState ctx strm s
     return True
+
+-- Transition (process4)
 processState HalfClosedRemote ctx strm _streamId = do
     halfClosedRemote ctx strm
     return False
+
+-- Transition (process5)
+processState (Closed cc) ctx strm _streamId = do
+    closed ctx strm cc
+    return False
+
+-- Transition (process6)
 processState s ctx strm _streamId = do
     -- Idle, Open Body, Closed
     setStreamState ctx strm s
@@ -326,6 +341,8 @@ checkPriority p me
     dep = streamDependency p
 
 stream :: FrameType -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
+
+-- Transition (stream1)
 stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx s@(Open JustOpened) Stream{streamNumber} = do
     HeadersFrame mp frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
@@ -351,6 +368,7 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx s@(Open JustOpened
             let siz = BS.length frag
             return $ Open $ Continued [frag] siz 1 endOfStream
 
+-- Transition (stream2)
 stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
@@ -376,6 +394,7 @@ stream FrameData
       else
         return s
 
+-- Transition (stream4)
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
@@ -404,6 +423,7 @@ stream FrameData
       else
         return s
 
+-- Transition (stream5)
 stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued rfrags siz n endOfStream)) _ = do
     let endOfHeader = testEndHeader flags
     if frag == "" && not endOfHeader then do
@@ -431,17 +451,34 @@ stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued
           else
             return $ Open $ Continued rfrags' siz' n' endOfStream
 
+-- (No state transition)
 stream FrameWindowUpdate header bs _ s strm = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     increaseStreamWindowSize strm n
     return s
 
-stream FrameRSTStream header@FrameHeader{streamId} bs ctx _ strm = do
+-- Transition (stream6)
+stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
-    closed ctx strm cc
-    E.throwIO $ StreamErrorIsReceived err streamId
 
+    -- The spec mandates (section 8.1):
+    --
+    -- > When this is true, a server MAY request that the client abort
+    -- > transmission of a request without error by sending a RST_STREAM with an
+    -- > error code of NO_ERROR after sending a complete response (i.e., a frame
+    -- > with the END_STREAM flag).
+    --
+    -- We check the first part ("after sending a complete response") by checking
+    -- the current stream state.
+    case (s, err) of
+      (HalfClosedRemote, NoError) ->
+        return (Closed cc)
+      _otherwise -> do
+        closed ctx strm cc
+        E.throwIO $ StreamErrorIsReceived err streamId
+
+-- (No state transition)
 stream FramePriority header bs _ s Stream{streamNumber} = do
     -- ignore
     -- Resource Loop - CVE-2019-9513
