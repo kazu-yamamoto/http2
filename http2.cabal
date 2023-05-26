@@ -299,7 +299,7 @@ test-suite spec
 
     default-language:   Haskell2010
     default-extensions: Strict StrictData
-    ghc-options:        -Wall
+    ghc-options:        -Wall -threaded
     build-depends:
         base >=4.9 && <5,
         async,
@@ -321,7 +321,7 @@ test-suite spec2
     other-modules:      ServerSpec
     default-language:   Haskell2010
     default-extensions: Strict StrictData
-    ghc-options:        -Wall
+    ghc-options:        -Wall -threaded
     build-depends:
         base >=4.9 && <5,
         bytestring,
