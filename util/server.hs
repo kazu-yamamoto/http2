@@ -14,10 +14,11 @@ import qualified Data.ByteString.Char8 as C8
 import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP.Types
-import Network.HTTP2.Server
 import Network.Run.TCP -- network-run
 import System.Environment
 import System.Exit
+
+import Network.HTTP2.Server
 
 main :: IO ()
 main = do

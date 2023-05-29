@@ -4,9 +4,12 @@ module Main where
 
 import Control.Concurrent.Async
 import qualified Control.Exception as E
+import Control.Monad
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP.Types
 import Network.Run.TCP (runTCPClient) -- network-run
+import System.Environment
+import System.Exit
 
 import Network.HTTP2.Client
 
@@ -14,7 +17,13 @@ serverName :: String
 serverName = "127.0.0.1"
 
 main :: IO ()
-main = runTCPClient serverName "80" $ runHTTP2Client serverName
+main = do
+    args <- getArgs
+    when (length args /= 2) $ do
+        putStrLn "client <addr> <port>"
+        exitFailure
+    let [host,port] = args
+    runTCPClient serverName port $ runHTTP2Client host
   where
     cliconf host = ClientConfig "http" (C8.pack host) 20
     runHTTP2Client host s = E.bracket (allocSimpleConfig s 4096)
