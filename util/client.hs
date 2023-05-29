@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Main where
 
@@ -14,12 +15,13 @@ serverName :: String
 serverName = "127.0.0.1"
 
 main :: IO ()
-main = runTCPClient serverName "80" $ runHTTP2Client serverName
+main = runTCPClient serverName "8080" $ runHTTP2Client serverName
   where
     cliconf host = ClientConfig "http" (C8.pack host) 20
     runHTTP2Client host s = E.bracket (allocSimpleConfig s 4096)
                                       freeSimpleConfig
                                       (\conf -> run (cliconf host) conf client)
+    client :: Client ()
     client sendRequest = do
         let req0 = requestNoBody methodGet "/" []
             client0 = sendRequest req0 $ \rsp -> do
