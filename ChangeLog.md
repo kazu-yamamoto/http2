@@ -1,3 +1,7 @@
+## 4.1.3
+
+* Using crypton instead of cryptonite.
+
 ## 4.1.2
 
 * Removing the race of frameSender and frameReceiver in the server side.
