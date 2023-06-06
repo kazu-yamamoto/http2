@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               http2
-version:            4.1.2
+version:            4.1.3
 license:            BSD3
 license-file:       LICENSE
 maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>
@@ -157,7 +157,7 @@ executable server
     build-depends:
         base >=4.9 && <5,
         bytestring,
-        cryptonite,
+        crypton,
         http2,
         http-types,
         network-run
@@ -305,7 +305,7 @@ test-suite spec
         async,
         base16-bytestring >=1.0,
         bytestring,
-        cryptonite,
+        crypton,
         hspec >=1.3,
         http-types,
         http2,
