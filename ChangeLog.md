@@ -1,3 +1,10 @@
+## 4.1.4
+
+* Handle RST_STREAM/NO_ERROR
+  [#78](https://github.com/kazu-yamamoto/http2/issues/78)
+* Fixing thread leak with forkManaged
+  [#74](https://github.com/kazu-yamamoto/http2/issues/74)
+
 ## 4.1.3
 
 * Using crypton instead of cryptonite.
