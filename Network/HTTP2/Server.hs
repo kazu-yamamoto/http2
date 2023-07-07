@@ -15,7 +15,7 @@
 -- > import Network.HTTP2.Server
 -- >
 -- > main :: IO ()
--- > main = runTCPServer Nothing "80" $ \s _peer -> runHTTP2Server s
+-- > main = runTCPServer Nothing "80" runHTTP2Server
 -- >   where
 -- >     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
 -- >                                  freeSimpleConfig
