@@ -24,8 +24,11 @@ module Network.HTTP2.Internal (
   , defaultTrailersMaker
   , NextTrailersMaker(..)
   , runTrailersMaker
-  )  where
+  -- * Exceptions
+  , KilledByHttp2ThreadPoolManager(..)
+  ) where
 
 import Network.HTTP2.Arch.File
-import Network.HTTP2.Arch.Types
+import Network.HTTP2.Arch.Manager
 import Network.HTTP2.Arch.Sender
+import Network.HTTP2.Arch.Types
