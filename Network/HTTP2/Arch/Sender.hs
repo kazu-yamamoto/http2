@@ -167,12 +167,10 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
                 let next = fillBuilderBodyGetNext builder
                     out' = out { outputType = ONext next tlrmkr }
                 output out' off lim
-            OutBodyStreaming _ -> do
-                let tbq = fromJust mtbq
-                    takeQ = atomically $ tryReadTBQueue tbq
-                    next = fillStreamBodyGetNext takeQ
-                    out' = out { outputType = ONext next tlrmkr }
-                output out' off lim
+            OutBodyStreaming _ ->
+                output (setNextForStreaming mtbq tlrmkr out) off lim
+            OutBodyStreamingUnmask _ ->
+                output (setNextForStreaming mtbq tlrmkr out) off lim
 
     output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
         -- Creating a push promise header
@@ -183,6 +181,14 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
         output out{outputType=OObj} off lim
 
     output _ _ _ = undefined -- never reach
+
+    ----------------------------------------------------------------
+    setNextForStreaming :: Maybe (TBQueue StreamingChunk) -> TrailersMaker -> Output Stream -> Output Stream
+    setNextForStreaming mtbq tlrmkr out =
+        let tbq = fromJust mtbq
+            takeQ = atomically $ tryReadTBQueue tbq
+            next = fillStreamBodyGetNext takeQ
+        in out { outputType = ONext next tlrmkr }
 
     ----------------------------------------------------------------
     outputOrEnqueueAgain :: Output Stream -> Offset -> IO Offset

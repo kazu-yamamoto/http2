@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Network.HTTP2.Arch.Types where
 
@@ -35,6 +36,20 @@ type InpBody = IO ByteString
 data OutBody = OutBodyNone
              -- | Streaming body takes a write action and a flush action.
              | OutBodyStreaming ((Builder -> IO ()) -> IO () -> IO ())
+             -- | Like 'OutBodyStreaming', but with a callback to unmask expections
+             --
+             -- This is used in the client: we spawn the new thread for the request body
+             -- with exceptions masked, and provide the body of 'OutBodyStreamingUnmask'
+             -- with a callback to unmask them again (typically after installing an exception
+             -- handler).
+             --
+             -- We do /NOT/ support this in the server, as here the scope of the thread
+             -- that is spawned for the server is the entire handler, not just the response
+             -- streaming body.
+             --
+             -- TODO: The analogous change for the server-side would be to provide a similar
+             -- @unmask@ callback as the first argument in the 'Server' type alias.
+             | OutBodyStreamingUnmask ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ())
              | OutBodyBuilder Builder
              | OutBodyFile FileSpec
 
