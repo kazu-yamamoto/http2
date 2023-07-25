@@ -9,7 +9,6 @@ module Network.HTTP2.Server.Worker (
   , fromContext
   ) where
 
-import Control.Exception (AsyncException(..))
 import Data.IORef
 import qualified Network.HTTP.Types as H
 import qualified System.TimeManager as T
@@ -170,7 +169,7 @@ worker wc@WorkerConf{..} mgr server = do
             Right () -> return True
             Left e@(SomeException _)
               -- killed by the local worker manager
-              | Just ThreadKilled    <- E.fromException e -> return False
+              | Just KilledByHttp2ThreadPoolManager{} <- E.fromException e -> return False
               -- killed by the local timeout manager
               | Just T.TimeoutThread <- E.fromException e -> do
                   cleanup sinfo
