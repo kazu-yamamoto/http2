@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+
 -- | A thread pool manager.
 --   The manager has responsibility to spawn and kill
 --   worker threads.
@@ -9,6 +11,7 @@ module Network.HTTP2.Arch.Manager (
   , stop
   , spawnAction
   , forkManaged
+  , forkManagedUnmask
   , deleteMyId
   , timeoutKillThread
   , timeoutClose
@@ -88,9 +91,14 @@ spawnAction (Manager q _ _) = atomically $ writeTQueue q Spawn
 -- (normally or abnormally).
 forkManaged :: Manager -> IO () -> IO ()
 forkManaged mgr io =
+    forkManagedUnmask mgr $ \unmask -> unmask io
+
+-- | Like 'forkManaged', but run action with exceptions masked
+forkManagedUnmask :: Manager -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
+forkManagedUnmask mgr io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> do
       addMyId mgr
-      r <- unmask io `onException` deleteMyId mgr
+      r <- io unmask `onException` deleteMyId mgr
       deleteMyId mgr
       return r
 

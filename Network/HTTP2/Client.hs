@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- | HTTP\/2 client library.
 --
@@ -58,6 +59,7 @@ module Network.HTTP2.Client (
   , requestNoBody
   , requestFile
   , requestStreaming
+  , requestStreamingUnmask
   , requestBuilder
   -- ** Trailers maker
   , TrailersMaker
@@ -129,6 +131,13 @@ requestStreaming m p hdr strmbdy = Request $ OutObj hdr' (OutBodyStreaming strmb
   where
     hdr' = addHeaders m p hdr
 
+-- | Like 'requestStreaming', but run the action with exceptions masked
+requestStreamingUnmask :: Method -> Path -> RequestHeaders
+                       -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ())
+                       -> Request
+requestStreamingUnmask m p hdr strmbdy = Request $ OutObj hdr' (OutBodyStreamingUnmask strmbdy) defaultTrailersMaker
+  where
+    hdr' = addHeaders m p hdr
 
 addHeaders :: Method -> Path -> RequestHeaders -> RequestHeaders
 addHeaders m p hdr = (":method", m) : (":path", p) : hdr
