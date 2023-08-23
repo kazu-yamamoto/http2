@@ -163,20 +163,8 @@ halfClosedRemote ctx stream@Stream{streamState} = do
     traverse_ (closed ctx stream) closingCode
   where
     closeHalf :: StreamState -> (StreamState, Maybe ClosedCode)
-    closeHalf x@(Closed _)         = (x, Nothing)
-    closeHalf (HalfClosedLocal cc) = (Closed cc, Just cc)
-    closeHalf _                    = (HalfClosedRemote, Nothing)
-
-halfClosedLocal :: Context -> Stream -> ClosedCode -> IO ()
-halfClosedLocal ctx stream@Stream{streamState} cc = do
-    shouldFinalize <- atomicModifyIORef streamState closeHalf
-    when shouldFinalize $
-        closed ctx stream cc
-  where
-    closeHalf :: StreamState -> (StreamState, Bool)
-    closeHalf x@(Closed _)     = (x, False)
-    closeHalf HalfClosedRemote = (Closed cc, True)
-    closeHalf _                = (HalfClosedLocal cc, False)
+    closeHalf x@(Closed _) = (x, Nothing)
+    closeHalf _            = (HalfClosedRemote, Nothing)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
 closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do

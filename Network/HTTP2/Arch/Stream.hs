@@ -27,11 +27,6 @@ isHalfClosedRemote HalfClosedRemote = True
 isHalfClosedRemote (Closed _)       = True
 isHalfClosedRemote _                = False
 
-isHalfClosedLocal :: StreamState -> Bool
-isHalfClosedLocal (HalfClosedLocal _) = True
-isHalfClosedLocal (Closed _)       = True
-isHalfClosedLocal _                = False
-
 isClosed :: StreamState -> Bool
 isClosed Closed{} = True
 isClosed _        = False

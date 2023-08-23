@@ -382,18 +382,6 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ 
         -- we don't support continuation here.
         E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "continuation in trailer is not supported"
 
--- ignore data-frame except for flow-control when we're done locally
-stream FrameData
-       FrameHeader{flags}
-       _bs
-       _ctx s@(HalfClosedLocal _)
-       _ = do
-    let endOfStream = testEndStream flags
-    if endOfStream then do
-        return HalfClosedRemote
-      else
-        return s
-
 -- Transition (stream4)
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}

@@ -222,17 +222,15 @@ data StreamState =
     Idle
   | Open OpenState
   | HalfClosedRemote
-  | HalfClosedLocal ClosedCode
   | Closed ClosedCode
   | Reserved
 
 instance Show StreamState where
-    show Idle                = "Idle"
-    show Open{}              = "Open"
-    show HalfClosedRemote    = "HalfClosedRemote"
-    show (HalfClosedLocal e) = "HalfClosedLocal: " ++ show e
-    show (Closed e)          = "Closed: " ++ show e
-    show Reserved            = "Reserved"
+    show Idle             = "Idle"
+    show Open{}           = "Open"
+    show HalfClosedRemote = "HalfClosedRemote"
+    show (Closed e)       = "Closed: " ++ show e
+    show Reserved         = "Reserved"
 
 ----------------------------------------------------------------
 

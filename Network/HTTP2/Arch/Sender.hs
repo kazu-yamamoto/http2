@@ -29,7 +29,6 @@ import Network.HTTP2.Arch.File
 import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Manager hiding (start)
 import Network.HTTP2.Arch.Queue
-import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Arch.Window
 import Network.HTTP2.Frame
@@ -151,9 +150,6 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
         off <- flushIfNecessary off'
         case body of
             OutBodyNone -> do
-                -- halfClosedLocal calls closed which removes
-                -- the stream from stream table.
-                when (isServer ctx) $ halfClosedLocal ctx strm Finished
                 return off
             OutBodyFile (FileSpec path fileoff bytecount) -> do
                 (pread, sentinel') <- confPositionReadMaker path
@@ -193,17 +189,14 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
     ----------------------------------------------------------------
     outputOrEnqueueAgain :: Output Stream -> Offset -> IO Offset
     outputOrEnqueueAgain out@(Output strm _ otyp _ _) off = E.handle resetStream $ do
-        state <- readStreamState strm
-        if isHalfClosedLocal state then
-            return off
-          else case otyp of
-                 OWait wait -> do
-                     -- Checking if all push are done.
-                     forkAndEnqueueWhenReady wait outputQ out{outputType=OObj} mgr
-                     return off
-                 _ -> case mtbq of
-                        Just tbq -> checkStreaming tbq
-                        _        -> checkStreamWindowSize
+        case otyp of
+          OWait wait -> do
+              -- Checking if all push are done.
+              forkAndEnqueueWhenReady wait outputQ out{outputType=OObj} mgr
+              return off
+          _ -> case mtbq of
+                 Just tbq -> checkStreaming tbq
+                 _        -> checkStreamWindowSize
       where
         mtbq = outputStrmQ out
         checkStreaming tbq = do
@@ -288,7 +281,6 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
         off'' <- handleTrailers mtrailers off'
         void tell
-        when (isServer ctx) $ halfClosedLocal ctx strm Finished
         decreaseWindowSize ctx strm datPayloadLen
         if reqflush then do
             flushN off''
