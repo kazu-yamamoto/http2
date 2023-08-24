@@ -8,7 +8,7 @@ module Network.HTTP2.Arch.Manager (
   , Action
   , start
   , setAction
-  , stop
+  , stopAfter
   , spawnAction
   , forkManaged
   , forkManagedUnmask
@@ -38,7 +38,7 @@ type Action = IO ()
 noAction :: Action
 noAction = return ()
 
-data Command = Stop | Spawn | Add ThreadId | Delete ThreadId
+data Command = Stop (Maybe SomeException) | Spawn | Add ThreadId | Delete ThreadId
 
 -- | Manager to manage the thread pool and the timer.
 data Manager = Manager (TQueue Command) (IORef Action) T.Manager
@@ -57,7 +57,7 @@ start timmgr = do
     go q tset0 ref = do
         x <- atomically $ readTQueue q
         case x of
-            Stop          -> kill tset0
+            Stop err      -> kill tset0 err
             Spawn         -> next tset0
             Add    newtid -> let tset = add newtid tset0
                              in go q tset ref
@@ -75,8 +75,12 @@ setAction :: Manager -> Action -> IO ()
 setAction (Manager _ ref _) action = writeIORef ref action
 
 -- | Stopping the manager.
-stop :: Manager -> IO ()
-stop (Manager q _ _) = atomically $ writeTQueue q Stop
+stopAfter :: Manager -> IO a -> (Either SomeException a -> IO b) -> IO b
+stopAfter (Manager q _ _) action cleanup = do
+   mask $ \unmask -> do
+     ma <- try $ unmask action
+     atomically $ writeTQueue q $ Stop (either Just (const Nothing) ma)
+     cleanup ma
 
 -- | Spawning the action.
 spawnAction :: Manager -> IO ()
@@ -132,8 +136,8 @@ del tid set = set'
   where
     set' = Set.delete tid set
 
-kill :: Set ThreadId -> IO ()
-kill set = traverse_ (\tid -> E.throwTo tid KilledByHttp2ThreadPoolManager) set
+kill :: Set ThreadId -> Maybe SomeException -> IO ()
+kill set err = traverse_ (\tid -> E.throwTo tid $ KilledByHttp2ThreadPoolManager err) set
 
 -- | Killing the IO action of the second argument on timeout.
 timeoutKillThread :: Manager -> (T.Handle -> IO ()) -> IO ()
@@ -148,7 +152,7 @@ timeoutClose (Manager _ _ tmgr) closer = do
     th <- T.register tmgr closer
     return $ T.tickle th
 
-data KilledByHttp2ThreadPoolManager = KilledByHttp2ThreadPoolManager
+data KilledByHttp2ThreadPoolManager = KilledByHttp2ThreadPoolManager (Maybe SomeException)
   deriving Show
 
 instance Exception KilledByHttp2ThreadPoolManager where
