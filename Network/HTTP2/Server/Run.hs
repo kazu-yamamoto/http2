@@ -34,6 +34,7 @@ run conf@Config{..} server = do
         let runReceiver = frameReceiver ctx conf
             runSender   = frameSender   ctx conf mgr
         stopAfter mgr (concurrently_ runReceiver runSender) $ \res -> do
+          closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
           case res of
             Left err ->
               throwIO err

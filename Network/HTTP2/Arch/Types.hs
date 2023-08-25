@@ -204,7 +204,7 @@ data OpenState =
               Bool -- End of stream
   | NoBody HeaderTable
   | HasBody HeaderTable
-  | Body (TQueue ByteString)
+  | Body (TQueue (Either SomeException ByteString))
          (Maybe Int) -- received Content-Length
                      -- compared the body length for error checking
          (IORef Int) -- actual body length
