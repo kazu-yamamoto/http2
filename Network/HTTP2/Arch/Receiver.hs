@@ -376,7 +376,7 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ 
     if endOfStream then do
         tbl <- hpackDecodeTrailer frag streamId ctx
         writeIORef tlr (Just tbl)
-        atomically $ writeTQueue q ""
+        atomically $ writeTQueue q $ Right ""
         return HalfClosedRemote
       else
         -- we don't support continuation here.
@@ -412,13 +412,13 @@ stream FrameData
                 E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many empty data"
       else do
         writeIORef bodyLength len
-        atomically $ writeTQueue q body
+        atomically $ writeTQueue q $ Right body
     if endOfStream then do
         case mcl of
             Nothing -> return ()
             Just cl -> when (cl /= len) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId "actual body length is not the same as content-length"
         -- no trailers
-        atomically $ writeTQueue q ""
+        atomically $ writeTQueue q $ Right ""
         return HalfClosedRemote
       else
         return s
@@ -498,11 +498,11 @@ stream _ FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent ProtocolE
 
 -- | Type for input streaming.
 data Source = Source (Int -> IO ())
-                     (TQueue ByteString)
+                     (TQueue (Either E.SomeException ByteString))
                      (IORef ByteString)
                      (IORef Bool)
 
-mkSource :: TQueue ByteString -> (Int -> IO ()) -> IO Source
+mkSource :: TQueue (Either E.SomeException ByteString) -> (Int -> IO ()) -> IO Source
 mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
 
 readSource :: Source -> IO ByteString
@@ -516,12 +516,18 @@ readSource (Source inform q refBS refEOF) = do
         inform len
         return bs
   where
+    readBS :: IO ByteString
     readBS = do
         bs0 <- readIORef refBS
         if bs0 == "" then do
-            bs <- atomically $ readTQueue q
-            when (bs == "") $ writeIORef refEOF True
-            return bs
+            mBS <- atomically $ readTQueue q
+            case mBS of
+              Left err -> do
+                writeIORef refEOF True
+                E.throwIO err
+              Right bs -> do
+                when (bs == "") $ writeIORef refEOF True
+                return bs
           else do
             writeIORef refBS ""
             return bs0

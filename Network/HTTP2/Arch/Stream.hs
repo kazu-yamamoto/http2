@@ -2,6 +2,7 @@
 
 module Network.HTTP2.Arch.Stream where
 
+import Control.Exception
 import Data.IORef
 import qualified Data.IntMap.Strict as M
 import UnliftIO.Concurrent
@@ -75,3 +76,21 @@ updateAllStreamWindow :: (WindowSize -> WindowSize) -> StreamTable -> IO ()
 updateAllStreamWindow adst (StreamTable ref) = do
     strms <- M.elems <$> readIORef ref
     forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
+
+closeAllStreams :: StreamTable -> Maybe SomeException -> IO ()
+closeAllStreams (StreamTable ref) mErr' = do
+    strms <- atomicModifyIORef' ref $ \m -> (M.empty, m)
+    forM_ strms $ \strm -> do
+      st <- readStreamState strm
+      case st of
+        Open (Body q _ _ _) ->
+          atomically $ writeTQueue q $ maybe (Right mempty) Left mErr
+        _otherwise ->
+          return ()
+  where
+    mErr :: Maybe SomeException
+    mErr = case mErr' of
+             Just err | Just ConnectionIsClosed <- fromException err ->
+               Nothing
+             _otherwise ->
+               mErr'
