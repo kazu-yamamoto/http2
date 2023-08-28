@@ -40,6 +40,7 @@ run ClientConfig{..} conf@Config{..} client = do
             enqueueControl (controlQ ctx) $ CFrames Nothing [frame]
             return x
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
+      closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
       case res of
         Left err ->
           throwIO err
