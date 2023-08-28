@@ -5,9 +5,9 @@
 module Network.HTTP2.Client.Run where
 
 import Control.Concurrent.STM (check)
+import Control.Exception
 import UnliftIO.Async
 import UnliftIO.Concurrent
-import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports
@@ -39,10 +39,14 @@ run ClientConfig{..} conf@Config{..} client = do
             let frame = goawayFrame 0 NoError "graceful closing"
             enqueueControl (controlQ ctx) $ CFrames Nothing [frame]
             return x
-    ex <- race runBackgroundThreads runClient `E.finally` stop mgr
-    case ex of
-      Left () -> undefined -- never reach
-      Right x -> return x
+    stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
+      case res of
+        Left err ->
+          throwIO err
+        Right (Left ()) ->
+          undefined -- never reach
+        Right (Right x) ->
+          return x
 
 sendRequest :: Context -> Manager -> Scheme -> Authority -> Request -> (Response -> IO a) -> IO a
 sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
