@@ -66,7 +66,7 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
           -- when its 'Output' is enqueued into 'outputQ'.
           -- Otherwise, it would be re-enqueue because of empty
           -- resulting in out-of-order.
-          -- To implement this, 'tbqNonMmpty' is used.
+          -- To implement this, 'tbqNonEmpty' is used.
           let hdr1 | scheme /= "" = (":scheme", scheme) : hdr0
                    | otherwise    = hdr0
               hdr2 | auth /= "" = (":authority", auth) : hdr1
@@ -92,17 +92,17 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
     stream :: OutObj -> StreamId -> Stream -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ()) -> IO ()
     stream req' sid newstrm strmbdy = do
         tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-        tbqNonMmpty <- newTVarIO False
+        tbqNonEmpty <- newTVarIO False
         forkManagedUnmask mgr $ \unmask -> do
             let push b = atomically $ do
                     writeTBQueue tbq (StreamingBuilder b)
-                    writeTVar tbqNonMmpty True
+                    writeTVar tbqNonEmpty True
                 flush  = atomically $ writeTBQueue tbq StreamingFlush
             strmbdy unmask push flush
             atomically $ writeTBQueue tbq StreamingFinished
         atomically $ do
             sidOK <- readTVar outputQStreamID
-            ready <- readTVar tbqNonMmpty
+            ready <- readTVar tbqNonEmpty
             check (sidOK == sid && ready)
             writeTVar outputQStreamID (sid + 2)
             writeTQueue outputQ $ Output newstrm req' OObj (Just tbq) (return ())
