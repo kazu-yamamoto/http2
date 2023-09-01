@@ -26,9 +26,9 @@ data Config = Config {
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: T.Manager
     -- | This is copied into 'Aux', if exist, on server.
-    , confMySockAddr     :: Maybe SockAddr
+    , confMySockAddr     :: SockAddr
     -- | This is copied into 'Aux', if exist, on server.
-    , confPeerSockAddr   :: Maybe SockAddr
+    , confPeerSockAddr   :: SockAddr
     }
 
 -- | Making simple configuration whose IO is not efficient.
@@ -47,8 +47,8 @@ allocSimpleConfig s bufsiz = do
           , confReadN = defaultReadN s ref
           , confPositionReadMaker = defaultPositionReadMaker
           , confTimeoutManager = timmgr
-          , confMySockAddr   = Just mysa
-          , confPeerSockAddr = Just peersa
+          , confMySockAddr   = mysa
+          , confPeerSockAddr = peersa
           }
     return config
 

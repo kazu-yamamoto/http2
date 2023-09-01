@@ -33,8 +33,8 @@ data WorkerConf a = WorkerConf {
   , isPushable     :: IO Bool
   , insertStream   :: StreamId -> a -> IO ()
   , makePushStream :: a -> PushPromise -> IO (StreamId, StreamId, a)
-  , mySockAddr     :: Maybe SockAddr
-  , peerSockAddr   :: Maybe SockAddr
+  , mySockAddr     :: SockAddr
+  , peerSockAddr   :: SockAddr
   }
 
 fromContext :: Context -> WorkerConf Stream

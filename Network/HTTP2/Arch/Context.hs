@@ -88,13 +88,13 @@ data Context = Context {
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate
-  , mySockAddr         :: Maybe SockAddr
-  , peerSockAddr       :: Maybe SockAddr
+  , mySockAddr         :: SockAddr
+  , peerSockAddr       :: SockAddr
   }
 
 ----------------------------------------------------------------
 
-newContext :: RoleInfo -> BufferSize -> Maybe SockAddr -> Maybe SockAddr -> IO Context
+newContext :: RoleInfo -> BufferSize -> SockAddr -> SockAddr -> IO Context
 newContext rinfo siz mysa peersa =
     Context rl rinfo
                <$> newIORef False

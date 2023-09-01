@@ -37,7 +37,7 @@ data Aux = Aux {
     -- | Time handle for the worker processing this request and response.
     auxTimeHandle  :: T.Handle
     -- | Local socket address copied from 'Config'.
-  , auxMySockAddr  :: Maybe SockAddr
+  , auxMySockAddr   :: SockAddr
     -- | Remove socket address copied from 'Config'.
-  , auxPeerSockAddr :: Maybe SockAddr
+  , auxPeerSockAddr :: SockAddr
   }
