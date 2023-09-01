@@ -11,6 +11,7 @@ module Network.HTTP2.Server.Worker (
 
 import Data.IORef
 import qualified Network.HTTP.Types as H
+import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 import UnliftIO.Exception (SomeException(..))
 import qualified UnliftIO.Exception as E
@@ -32,6 +33,8 @@ data WorkerConf a = WorkerConf {
   , isPushable     :: IO Bool
   , insertStream   :: StreamId -> a -> IO ()
   , makePushStream :: a -> PushPromise -> IO (StreamId, StreamId, a)
+  , mySockAddr     :: Maybe SockAddr
+  , peerSockAddr   :: Maybe SockAddr
   }
 
 fromContext :: Context -> WorkerConf Stream
@@ -52,6 +55,8 @@ fromContext ctx@Context{..} = WorkerConf {
         newstrm <- newPushStream sid ws
         let pid = streamNumber pstrm
         return (pid, sid, newstrm)
+  , mySockAddr = mySockAddr
+  , peerSockAddr = peerSockAddr
   }
 
 ----------------------------------------------------------------
@@ -163,7 +168,7 @@ worker wc@WorkerConf{..} mgr server = do
             setStreamInfo sinfo strm
             T.resume th
             T.tickle th
-            let aux = Aux th
+            let aux = Aux th mySockAddr peerSockAddr
             server (Request req') aux $ response wc mgr th tcont strm (Request req')
         cont1 <- case ex of
             Right () -> return True

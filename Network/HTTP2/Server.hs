@@ -49,6 +49,8 @@ module Network.HTTP2.Server (
   -- * Aux
   , Aux
   , auxTimeHandle
+  , auxMySockAddr
+  , auxPeerSockAddr
   -- * Response
   , Response
   -- ** Creating response

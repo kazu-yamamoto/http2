@@ -25,6 +25,10 @@ data Config = Config {
     , confReadN       :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: T.Manager
+    -- | This is copied into 'Aux', if exist, on server.
+    , confMySockAddr     :: Maybe SockAddr
+    -- | This is copied into 'Aux', if exist, on server.
+    , confPeerSockAddr   :: Maybe SockAddr
     }
 
 -- | Making simple configuration whose IO is not efficient.
@@ -34,6 +38,8 @@ allocSimpleConfig s bufsiz = do
     buf <- mallocBytes bufsiz
     ref <- newIORef Nothing
     timmgr <- T.initialize $ 30 * 1000000
+    mysa <- getSocketName s
+    peersa <- getPeerName s
     let config = Config {
             confWriteBuffer = buf
           , confBufferSize = bufsiz
@@ -41,6 +47,8 @@ allocSimpleConfig s bufsiz = do
           , confReadN = defaultReadN s ref
           , confPositionReadMaker = defaultPositionReadMaker
           , confTimeoutManager = timmgr
+          , confMySockAddr   = Just mysa
+          , confPeerSockAddr = Just peersa
           }
     return config
 
