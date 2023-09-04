@@ -20,7 +20,7 @@ run conf@Config{..} server = do
     ok <- checkPreface
     when ok $ do
         serverInfo <- newServerInfo
-        ctx <- newContext serverInfo confBufferSize
+        ctx <- newContext serverInfo confBufferSize confMySockAddr confPeerSockAddr
         -- Workers, worker manager and timer manager
         mgr <- start confTimeoutManager
         let wc = fromContext ctx

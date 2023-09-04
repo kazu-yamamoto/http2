@@ -1,5 +1,6 @@
 module Network.HTTP2.Server.Types where
 
+import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 
 import Imports
@@ -32,7 +33,11 @@ data PushPromise = PushPromise {
     }
 
 -- | Additional information.
-newtype Aux = Aux {
+data Aux = Aux {
     -- | Time handle for the worker processing this request and response.
-    auxTimeHandle :: T.Handle
+    auxTimeHandle  :: T.Handle
+    -- | Local socket address copied from 'Config'.
+  , auxMySockAddr   :: SockAddr
+    -- | Remove socket address copied from 'Config'.
+  , auxPeerSockAddr :: SockAddr
   }

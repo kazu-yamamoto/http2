@@ -4,6 +4,7 @@ module Network.HTTP2.Arch.Context where
 
 import Data.IORef
 import Network.HTTP.Types (Method)
+import Network.Socket (SockAddr)
 import UnliftIO.STM
 
 import Imports hiding (insert)
@@ -87,12 +88,14 @@ data Context = Context {
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate
+  , mySockAddr         :: SockAddr
+  , peerSockAddr       :: SockAddr
   }
 
 ----------------------------------------------------------------
 
-newContext :: RoleInfo -> BufferSize -> IO Context
-newContext rinfo siz =
+newContext :: RoleInfo -> BufferSize -> SockAddr -> SockAddr -> IO Context
+newContext rinfo siz mysa peersa =
     Context rl rinfo
                <$> newIORef False
                <*> newIORef Nothing
@@ -115,6 +118,8 @@ newContext rinfo siz =
                <*> newRate
                <*> newRate
                <*> newRate
+               <*> return mysa
+               <*> return peersa
    where
      rl = case rinfo of
        RIC{} -> Client

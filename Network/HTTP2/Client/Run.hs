@@ -27,7 +27,7 @@ data ClientConfig = ClientConfig {
 run :: ClientConfig -> Config -> Client a -> IO a
 run ClientConfig{..} conf@Config{..} client = do
     clientInfo <- newClientInfo scheme authority cacheLimit
-    ctx <- newContext clientInfo confBufferSize
+    ctx <- newContext clientInfo confBufferSize confMySockAddr confPeerSockAddr
     mgr <- start confTimeoutManager
     let runBackgroundThreads = do
             let runReceiver = frameReceiver ctx conf
