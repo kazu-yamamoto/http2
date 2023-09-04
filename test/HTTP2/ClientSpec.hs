@@ -10,13 +10,17 @@ import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP.Types
 import Network.Run.TCP
+import System.IO.Unsafe (unsafePerformIO)
+import System.Random
 import Test.Hspec
 
 import Network.HTTP2.Client
 import qualified Network.HTTP2.Server as S
 
 port :: String
-port = "8080"
+port = show $ unsafePerformIO (randomPort <$> getStdGen)
+  where
+    randomPort = fst . randomR (43124 :: Int, 44320)
 
 host :: String
 host = "127.0.0.1"

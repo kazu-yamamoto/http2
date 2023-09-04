@@ -288,12 +288,12 @@ test-suite spec
     build-tool-depends: hspec-discover:hspec-discover
     hs-source-dirs:     test
     other-modules:
-        HTTP2.ClientSpec
         HPACK.DecodeSpec
         HPACK.EncodeSpec
         HPACK.HeaderBlock
         HPACK.HuffmanSpec
         HPACK.IntegerSpec
+        HTTP2.ClientSpec
         HTTP2.FrameSpec
         HTTP2.ServerSpec
 
@@ -311,6 +311,7 @@ test-suite spec
         http2,
         network,
         network-run >=0.1.0,
+        random,
         typed-process
 
 test-suite spec2

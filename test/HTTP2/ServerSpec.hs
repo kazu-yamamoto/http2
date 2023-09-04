@@ -10,8 +10,8 @@ import qualified Control.Exception as E
 import Control.Monad
 import Crypto.Hash (Context, SHA1) -- cryptonite
 import qualified Crypto.Hash as CH
-import qualified Data.ByteString as B
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as B
 import Data.ByteString.Builder (byteString, Builder)
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
@@ -19,8 +19,10 @@ import Network.HTTP.Types
 import Network.Run.TCP
 import Network.Socket
 import Network.Socket.ByteString
-import Test.Hspec
 import System.IO
+import System.IO.Unsafe (unsafePerformIO)
+import System.Random
+import Test.Hspec
 
 import Network.HPACK
 import Network.HPACK.Token
@@ -29,7 +31,9 @@ import Network.HTTP2.Server
 import Network.HTTP2.Frame
 
 port :: String
-port = "8080"
+port = show $ unsafePerformIO (randomPort <$> getStdGen)
+  where
+    randomPort = fst . randomR (43124 :: Int, 44320)
 
 host :: String
 host = "127.0.0.1"
