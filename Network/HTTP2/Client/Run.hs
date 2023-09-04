@@ -76,9 +76,9 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
           newstrm <- openStream ctx sid FrameHeaders
           case outObjBody req of
             OutBodyStreaming strmbdy ->
-                stream req' sid newstrm $ \unmask push flush -> unmask $ strmbdy push flush
+                streaming req' sid newstrm $ \unmask push flush -> unmask $ strmbdy push flush
             OutBodyStreamingUnmask strmbdy ->
-                stream req' sid newstrm strmbdy
+                streaming req' sid newstrm strmbdy
             _ -> atomically $ do
                 sidOK <- readTVar outputQStreamID
                 check (sidOK == sid)
@@ -89,8 +89,8 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
     rsp <- takeMVar $ streamInput strm
     processResponse $ Response rsp
   where
-    stream :: OutObj -> StreamId -> Stream -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ()) -> IO ()
-    stream req' sid newstrm strmbdy = do
+    streaming :: OutObj -> StreamId -> Stream -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ()) -> IO ()
+    streaming req' sid newstrm strmbdy = do
         tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
         tbqNonEmpty <- newTVarIO False
         forkManagedUnmask mgr $ \unmask -> do
