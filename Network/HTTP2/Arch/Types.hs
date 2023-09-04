@@ -278,8 +278,9 @@ data Next = Next BytesFilled      -- payload length
 
 ----------------------------------------------------------------
 
-data Control = CFinish    HTTP2Error
+data Control = CFinish HTTP2Error
              | CFrames (Maybe SettingsList) [ByteString]
+             | CGoaway ByteString (MVar ())
 
 ----------------------------------------------------------------
 
@@ -304,6 +305,7 @@ data HTTP2Error =
   | StreamErrorIsReceived     ErrorCode StreamId
   | StreamErrorIsSent         ErrorCode StreamId ReasonPhrase
   | BadThingHappen E.SomeException
+  | GoAwayIsSent
   deriving (Show, Typeable)
 
 instance E.Exception HTTP2Error

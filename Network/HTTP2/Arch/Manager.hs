@@ -16,6 +16,9 @@ module Network.HTTP2.Arch.Manager (
   , timeoutKillThread
   , timeoutClose
   , KilledByHttp2ThreadPoolManager(..)
+  , incCounter
+  , decCounter
+  , waitCounter0
   ) where
 
 import Control.Exception
@@ -41,7 +44,7 @@ noAction = return ()
 data Command = Stop (Maybe SomeException) | Spawn | Add ThreadId | Delete ThreadId
 
 -- | Manager to manage the thread pool and the timer.
-data Manager = Manager (TQueue Command) (IORef Action) T.Manager
+data Manager = Manager (TQueue Command) (IORef Action) (TVar Int) T.Manager
 
 -- | Starting a thread pool manager.
 --   Its action is initially set to 'return ()' and should be set
@@ -51,8 +54,9 @@ start :: T.Manager -> IO Manager
 start timmgr = do
     q <- newTQueueIO
     ref <- newIORef noAction
+    cnt <- newTVarIO 0
     void $ forkIO $ go q Set.empty ref
-    return $ Manager q ref timmgr
+    return $ Manager q ref cnt timmgr
   where
     go q tset0 ref = do
         x <- atomically $ readTQueue q
@@ -72,11 +76,11 @@ start timmgr = do
 
 -- | Setting the action to be spawned.
 setAction :: Manager -> Action -> IO ()
-setAction (Manager _ ref _) action = writeIORef ref action
+setAction (Manager _ ref _ _) action = writeIORef ref action
 
 -- | Stopping the manager.
 stopAfter :: Manager -> IO a -> (Either SomeException a -> IO b) -> IO b
-stopAfter (Manager q _ _) action cleanup = do
+stopAfter (Manager q _ _ _) action cleanup = do
    mask $ \unmask -> do
      ma <- try $ unmask action
      atomically $ writeTQueue q $ Stop (either Just (const Nothing) ma)
@@ -84,7 +88,7 @@ stopAfter (Manager q _ _) action cleanup = do
 
 -- | Spawning the action.
 spawnAction :: Manager -> IO ()
-spawnAction (Manager q _ _) = atomically $ writeTQueue q Spawn
+spawnAction (Manager q _ _ _) = atomically $ writeTQueue q Spawn
 
 ----------------------------------------------------------------
 
@@ -110,7 +114,7 @@ forkManagedUnmask mgr io =
 --
 -- This is not part of the public API; see 'forkManaged' instead.
 addMyId :: Manager -> IO ()
-addMyId (Manager q _ _) = do
+addMyId (Manager q _ _ _) = do
     tid <- myThreadId
     atomically $ writeTQueue q $ Add tid
 
@@ -120,7 +124,7 @@ addMyId (Manager q _ _) = do
 -- the manager /before/ the thread terminates (thereby assuming responsibility
 -- for thread cleanup yourself).
 deleteMyId :: Manager -> IO ()
-deleteMyId (Manager q _ _) = do
+deleteMyId (Manager q _ _ _) = do
     tid <- myThreadId
     atomically $ writeTQueue q $ Delete tid
 
@@ -141,14 +145,14 @@ kill set err = traverse_ (\tid -> E.throwTo tid $ KilledByHttp2ThreadPoolManager
 
 -- | Killing the IO action of the second argument on timeout.
 timeoutKillThread :: Manager -> (T.Handle -> IO ()) -> IO ()
-timeoutKillThread (Manager _ _ tmgr) action = E.bracket register T.cancel action
+timeoutKillThread (Manager _ _ _ tmgr) action = E.bracket register T.cancel action
   where
     register = T.registerKillThread tmgr noAction
 
 -- | Registering closer for a resource and
 --   returning a timer refresher.
 timeoutClose :: Manager -> IO () -> IO (IO ())
-timeoutClose (Manager _ _ tmgr) closer = do
+timeoutClose (Manager _ _ _ tmgr) closer = do
     th <- T.register tmgr closer
     return $ T.tickle th
 
@@ -159,3 +163,15 @@ instance Exception KilledByHttp2ThreadPoolManager where
   toException   = asyncExceptionToException
   fromException = asyncExceptionFromException
 
+----------------------------------------------------------------
+
+incCounter :: Manager -> IO ()
+incCounter (Manager _ _ cnt _) = atomically $ modifyTVar' cnt (+1)
+
+decCounter :: Manager -> IO ()
+decCounter (Manager _ _ cnt _) = atomically $ modifyTVar' cnt (subtract 1)
+
+waitCounter0 :: Manager -> IO ()
+waitCounter0 (Manager _ _ cnt _) = atomically $ do
+    n <- readTVar cnt
+    checkSTM (n < 1)

@@ -11,6 +11,7 @@ module Network.HTTP2.Arch.Sender (
   , runTrailersMaker
   ) where
 
+import Control.Concurrent.MVar (putMVar)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
@@ -106,6 +107,12 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
     -- called with off == 0
     control :: Control -> IO ()
     control (CFinish     e) = E.throwIO e
+    control (CGoaway bs mvar) = do
+        buf <- copyAll [bs] confWriteBuffer
+        let off = buf `minusPtr` confWriteBuffer
+        flushN off
+        putMVar mvar ()
+        E.throwIO GoAwayIsSent
     control (CFrames ms xs) = do
         buf <- copyAll xs confWriteBuffer
         let off = buf `minusPtr` confWriteBuffer
