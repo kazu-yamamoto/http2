@@ -160,7 +160,7 @@ setStreamState _ Stream{streamState} val = writeIORef streamState val
 opened :: Context -> Stream -> IO ()
 opened ctx@Context{concurrency} strm = do
     atomicModifyIORef' concurrency (\x -> (x+1,()))
-    setStreamState ctx strm (Open JustOpened)
+    setStreamState ctx strm (Open Nothing JustOpened)
 
 halfClosedRemote :: Context -> Stream -> IO ()
 halfClosedRemote ctx stream@Stream{streamState} = do
@@ -168,9 +168,9 @@ halfClosedRemote ctx stream@Stream{streamState} = do
     traverse_ (closed ctx stream) closingCode
   where
     closeHalf :: StreamState -> (StreamState, Maybe ClosedCode)
-    closeHalf x@(Closed _)         = (x, Nothing)
-    closeHalf (HalfClosedLocal cc) = (Closed cc, Just cc)
-    closeHalf _                    = (HalfClosedRemote, Nothing)
+    closeHalf x@(Closed _)       = (x, Nothing)
+    closeHalf (Open (Just cc) _) = (Closed cc, Just cc)
+    closeHalf _                  = (HalfClosedRemote, Nothing)
 
 halfClosedLocal :: Context -> Stream -> ClosedCode -> IO ()
 halfClosedLocal ctx stream@Stream{streamState} cc = do
@@ -181,7 +181,8 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
     closeHalf :: StreamState -> (StreamState, Bool)
     closeHalf x@(Closed _)     = (x, False)
     closeHalf HalfClosedRemote = (Closed cc, True)
-    closeHalf _                = (HalfClosedLocal cc, False)
+    closeHalf (Open Nothing o) = (Open (Just cc) o, False)
+    closeHalf _                = (Open (Just cc) JustOpened, False)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
 closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do

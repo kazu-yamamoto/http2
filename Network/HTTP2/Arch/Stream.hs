@@ -28,9 +28,9 @@ isHalfClosedRemote (Closed _)       = True
 isHalfClosedRemote _                = False
 
 isHalfClosedLocal :: StreamState -> Bool
-isHalfClosedLocal (HalfClosedLocal _) = True
-isHalfClosedLocal (Closed _)       = True
-isHalfClosedLocal _                = False
+isHalfClosedLocal (Open (Just _) _) = True
+isHalfClosedLocal (Closed _)        = True
+isHalfClosedLocal _                 = False
 
 isClosed :: StreamState -> Bool
 isClosed Closed{} = True
@@ -83,7 +83,7 @@ closeAllStreams (StreamTable ref) mErr' = do
     forM_ strms $ \strm -> do
       st <- readStreamState strm
       case st of
-        Open (Body q _ _ _) ->
+        Open _ (Body q _ _ _) ->
           atomically $ writeTQueue q $ maybe (Right mempty) Left mErr
         _otherwise ->
           return ()

@@ -174,7 +174,7 @@ controlOrStream ctx@Context{..} conf@Config{..} ftyp header@FrameHeader{streamId
 processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
 
 -- Transition (process1)
-processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
+processState (Open _ (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     when (just mcl (/= (0 :: Int))) $ E.throwIO $ StreamErrorIsSent ProtocolError streamId "no body but content-length is not zero"
     halfClosedRemote ctx strm
@@ -188,12 +188,12 @@ processState (Open (NoBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInp
     return False
 
 -- Transition (process2)
-processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} _streamId = do
+processState (Open hcl (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamInput} _streamId = do
     let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     q <- newTQueueIO
-    setStreamState ctx strm $ Open (Body q mcl bodyLength tlr)
+    setStreamState ctx strm $ Open hcl (Body q mcl bodyLength tlr)
     incref <- newIORef 0
     bodySource <- mkSource q $ informWindowUpdate ctx strm incref
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
@@ -205,7 +205,7 @@ processState (Open (HasBody tbl@(_,reqvt))) ctx@Context{..} strm@Stream{streamIn
     return False
 
 -- Transition (process3)
-processState s@(Open Continued{}) ctx strm _streamId = do
+processState s@(Open _ Continued{}) ctx strm _streamId = do
     setStreamState ctx strm s
     return True
 
@@ -343,7 +343,7 @@ checkPriority p me
 stream :: FrameType -> FrameHeader -> ByteString -> Context -> StreamState -> Stream -> IO StreamState
 
 -- Transition (stream1)
-stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx s@(Open JustOpened) Stream{streamNumber} = do
+stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx s@(Open hcl JustOpened) Stream{streamNumber} = do
     HeadersFrame mp frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
         endOfHeader = testEndHeader flags
@@ -361,15 +361,15 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx s@(Open JustOpened
         if endOfHeader then do
             tbl <- hpackDecodeHeader frag streamId ctx
             return $ if endOfStream then
-                        Open (NoBody tbl)
+                        Open hcl (NoBody tbl)
                        else
-                        Open (HasBody tbl)
+                        Open hcl (HasBody tbl)
           else do
             let siz = BS.length frag
-            return $ Open $ Continued [frag] siz 1 endOfStream
+            return $ Open hcl $ Continued [frag] siz 1 endOfStream
 
 -- Transition (stream2)
-stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ tlr)) _ = do
+stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open _ (Body q _ _ tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
     -- checking frag == "" is not necessary
@@ -382,23 +382,11 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx (Open (Body q _ _ 
         -- we don't support continuation here.
         E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "continuation in trailer is not supported"
 
--- ignore data-frame except for flow-control when we're done locally
-stream FrameData
-       FrameHeader{flags}
-       _bs
-       _ctx s@(HalfClosedLocal _)
-       _ = do
-    let endOfStream = testEndStream flags
-    if endOfStream then do
-        return HalfClosedRemote
-      else
-        return s
-
 -- Transition (stream4)
 stream FrameData
        header@FrameHeader{flags,payloadLength,streamId}
        bs
-       Context{emptyFrameRate} s@(Open (Body q mcl bodyLength _))
+       Context{emptyFrameRate} s@(Open _ (Body q mcl bodyLength _))
        _ = do
     DataFrame body <- guardIt $ decodeDataFrame header bs
     len0 <- readIORef bodyLength
@@ -424,7 +412,7 @@ stream FrameData
         return s
 
 -- Transition (stream5)
-stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued rfrags siz n endOfStream)) _ = do
+stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open hcl (Continued rfrags siz n endOfStream)) _ = do
     let endOfHeader = testEndHeader flags
     if frag == "" && not endOfHeader then do
         -- Empty Frame Flooding - CVE-2019-9518
@@ -445,11 +433,11 @@ stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open (Continued
             let hdrblk = BS.concat $ reverse rfrags'
             tbl <- hpackDecodeHeader hdrblk streamId ctx
             return $ if endOfStream then
-                        Open (NoBody tbl)
+                        Open hcl (NoBody tbl)
                        else
-                        Open (HasBody tbl)
+                        Open hcl (HasBody tbl)
           else
-            return $ Open $ Continued rfrags' siz' n' endOfStream
+            return $ Open hcl $ Continued rfrags' siz' n' endOfStream
 
 -- (No state transition)
 stream FrameWindowUpdate header bs _ s strm = do
@@ -488,7 +476,7 @@ stream FramePriority header bs _ s Stream{streamNumber} = do
 
 -- this ordering is important
 stream FrameContinuation FrameHeader{streamId} _ _ _ _ = E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "continue frame cannot come here"
-stream _ FrameHeader{streamId} _ _ (Open Continued{}) _ = E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "an illegal frame follows header/continuation frames"
+stream _ FrameHeader{streamId} _ _ (Open _ Continued{}) _ = E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "an illegal frame follows header/continuation frames"
 -- Ignore frames to streams we have just reset, per section 5.1.
 stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st
 stream FrameData FrameHeader{streamId} _ _ _ _ = E.throwIO $ StreamErrorIsSent StreamClosed streamId $ fromString ("illegal data frame for " ++ show streamId)
