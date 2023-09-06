@@ -361,6 +361,7 @@ stream FrameHeaders header@FrameHeader{flags,streamId} bs ctx s@(Open hcl JustOp
         if endOfHeader then do
             tbl <- hpackDecodeHeader frag streamId ctx
             return $ if endOfStream then
+                       -- turned into HalfClosedRemote in processState
                         Open hcl (NoBody tbl)
                        else
                         Open hcl (HasBody tbl)
@@ -433,6 +434,7 @@ stream FrameContinuation FrameHeader{flags,streamId} frag ctx s@(Open hcl (Conti
             let hdrblk = BS.concat $ reverse rfrags'
             tbl <- hpackDecodeHeader hdrblk streamId ctx
             return $ if endOfStream then
+                        -- turned into HalfClosedRemote in processState
                         Open hcl (NoBody tbl)
                        else
                         Open hcl (HasBody tbl)
