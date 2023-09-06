@@ -148,13 +148,12 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
                 _           -> False
         (ths,_) <- toHeaderTable $ fixHeaders hdr
         off' <- headerContinue sid ths endOfStream off0
+        -- halfClosedLocal calls closed which removes
+        -- the stream from stream table.
+        when endOfStream $ halfClosedLocal ctx strm Finished
         off <- flushIfNecessary off'
         case body of
-            OutBodyNone -> do
-                -- halfClosedLocal calls closed which removes
-                -- the stream from stream table.
-                when (isServer ctx) $ halfClosedLocal ctx strm Finished
-                return off
+            OutBodyNone -> return off
             OutBodyFile (FileSpec path fileoff bytecount) -> do
                 (pread, sentinel') <- confPositionReadMaker path
                 refresh <- case sentinel' of
@@ -288,7 +287,7 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
         fillFrameHeader FrameData datPayloadLen streamNumber flag buf
         off'' <- handleTrailers mtrailers off'
         void tell
-        when (isServer ctx) $ halfClosedLocal ctx strm Finished
+        halfClosedLocal ctx strm Finished
         decreaseWindowSize ctx strm datPayloadLen
         if reqflush then do
             flushN off''
@@ -299,7 +298,7 @@ frameSender ctx@Context{outputQ,controlQ,encodeDynamicTable,outputBufferLimit}
         handleTrailers Nothing off0 = return off0
         handleTrailers (Just trailers) off0 = do
             (ths,_) <- toHeaderTable trailers
-            headerContinue streamNumber ths True off0
+            headerContinue streamNumber ths True {- endOfStream -} off0
 
     fillDataHeaderEnqueueNext _
                    off 0 (Just next) tlrmkr _ out reqflush = do
