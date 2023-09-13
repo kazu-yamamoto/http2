@@ -220,17 +220,16 @@ data ClosedCode = Finished
 
 data StreamState =
     Idle
-  | Open OpenState
+  | Open (Maybe ClosedCode) OpenState -- HalfClosedLocal if Just
   | HalfClosedRemote
-  | HalfClosedLocal ClosedCode
   | Closed ClosedCode
   | Reserved
 
 instance Show StreamState where
     show Idle                = "Idle"
-    show Open{}              = "Open"
+    show (Open Nothing _)    = "Open"
+    show (Open (Just e) _)   = "HalfClosedLocal: " ++ show e
     show HalfClosedRemote    = "HalfClosedRemote"
-    show (HalfClosedLocal e) = "HalfClosedLocal: " ++ show e
     show (Closed e)          = "Closed: " ++ show e
     show Reserved            = "Reserved"
 
