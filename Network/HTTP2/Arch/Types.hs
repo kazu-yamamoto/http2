@@ -284,7 +284,7 @@ data Control = CFinish HTTP2Error
 
 ----------------------------------------------------------------
 
-data StreamingChunk = StreamingFinished
+data StreamingChunk = StreamingFinished (IO ())
                     | StreamingFlush
                     | StreamingBuilder Builder
 

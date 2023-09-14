@@ -101,9 +101,7 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
                     writeTBQueue tbq (StreamingBuilder b)
                     writeTVar tbqNonEmpty True
                 flush  = atomically $ writeTBQueue tbq StreamingFlush
-                finished = do
-                    atomically $ writeTBQueue tbq StreamingFinished
-                    decCounter mgr
+                finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
             incCounter mgr
             strmbdy unmask push flush `finally` finished
         atomically $ do

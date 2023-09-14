@@ -438,7 +438,9 @@ runStreamBuilder buf0 room0 takeQ = loop buf0 room0 0
                     B.More  _ writer  -> return (True,  total', False, LOne writer)
                     B.Chunk bs writer -> return (True,  total', False, LTwo bs writer)
             Just StreamingFlush       -> return (True,  total,  True,  LZero)
-            Just StreamingFinished    -> return (False, total,  True,  LZero)
+            Just (StreamingFinished dec) -> do
+                dec
+                return (False, total,  True,  LZero)
 
 fillBufStream :: Leftover -> IO (Maybe StreamingChunk) -> DynaNext
 fillBufStream leftover0 takeQ buf0 siz0 lim0 = do
