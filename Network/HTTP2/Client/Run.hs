@@ -34,10 +34,13 @@ run ClientConfig{..} conf@Config{..} client = do
                 runSender   = frameSender   ctx conf mgr
             concurrently_ runReceiver runSender
     exchangeSettings conf ctx
+    mvar <- newMVar ()
     let runClient = do
             x <- client $ sendRequest ctx mgr scheme authority
+            waitCounter0 mgr
             let frame = goawayFrame 0 NoError "graceful closing"
-            enqueueControl (controlQ ctx) $ CFrames Nothing [frame]
+            enqueueControl (controlQ ctx) $ CGoaway frame mvar
+            takeMVar mvar
             return x
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
       closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
@@ -98,8 +101,9 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
                     writeTBQueue tbq (StreamingBuilder b)
                     writeTVar tbqNonEmpty True
                 flush  = atomically $ writeTBQueue tbq StreamingFlush
-            strmbdy unmask push flush
-            atomically $ writeTBQueue tbq StreamingFinished
+                finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
+            incCounter mgr
+            strmbdy unmask push flush `finally` finished
         atomically $ do
             sidOK <- readTVar outputQStreamID
             ready <- readTVar tbqNonEmpty
