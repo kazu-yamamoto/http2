@@ -1,9 +1,9 @@
 module Main where
 
-import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy.Char8 as BL
+import Data.Maybe (fromJust)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn, stderr)
@@ -14,11 +14,12 @@ import JSON
 main :: IO ()
 main = do
     args <- getArgs
-    when (length args /= 3) $ do
+    (arg1,arg2,desc) <- case args of
+      [a,b,c] -> return (a,b,c)
+      _     -> do
         hPutStrLn stderr "hpack-encode on/off naive|linear <desc>"
         exitFailure
-    let [arg1,arg2,desc] = args
-        huffman
+    let huffman
           | arg1 == "on" = True
           | otherwise = False
         algo
@@ -31,7 +32,7 @@ main = do
 hpackEncode :: EncodeStrategy -> String -> IO ()
 hpackEncode stgy desc = do
     bs <- BL.getContents
-    let Just tc = decode bs :: Maybe Test
+    let tc = fromJust (decode bs :: Maybe Test)
     hexs <- run False stgy tc
     let cs = cases tc
         cs' = zipWith update cs hexs

@@ -23,10 +23,11 @@ import Network.HTTP2.Server
 main :: IO ()
 main = do
     args <- getArgs
-    when (length args /= 2) $ do
-        putStrLn "server <addr> <port>"
-        exitFailure
-    let [host,port] = args
+    (host,port) <- case args of
+      [h,p] -> return (h,p)
+      _     -> do
+          putStrLn "server <addr> <port>"
+          exitFailure
     runTCPServer (Just host) port runHTTP2Server
   where
     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)

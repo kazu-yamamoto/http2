@@ -9,6 +9,7 @@ import Data.Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.List
+import Data.Maybe (fromJust)
 import System.Directory
 import System.FilePath
 import Control.Monad
@@ -75,7 +76,7 @@ get func dir = do
 getHeaderSize :: FilePath -> IO Int
 getHeaderSize file = do
     bs <- BL.readFile file
-    let Just tc = decode bs :: Maybe Test
+    let tc = fromJust (decode bs :: Maybe Test)
     let len = sum $ map toT $ cases tc
     return len
   where
@@ -84,14 +85,14 @@ getHeaderSize file = do
 getHeaderLen :: FilePath -> IO Int
 getHeaderLen file = do
     bs <- BL.readFile file
-    let Just tc = decode bs :: Maybe Test
+    let tc = fromJust (decode bs :: Maybe Test)
     let len = length $ cases tc
     return len
 
 getWireSize :: FilePath -> IO Int
 getWireSize file = do
     bs <- BL.readFile file
-    let Just tc = decode bs :: Maybe Test
+    let tc = fromJust (decode bs :: Maybe Test)
     let len = sum $ map toT $ cases tc
     return len
   where
