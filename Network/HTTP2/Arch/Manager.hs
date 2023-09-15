@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 
--- | A thread pool manager.
+-- | A thread manager.
 --   The manager has responsibility to spawn and kill
 --   worker threads.
 module Network.HTTP2.Arch.Manager (
@@ -43,10 +43,10 @@ noAction = return ()
 
 data Command = Stop (Maybe SomeException) | Spawn | Add ThreadId | Delete ThreadId
 
--- | Manager to manage the thread pool and the timer.
+-- | Manager to manage the thread and the timer.
 data Manager = Manager (TQueue Command) (IORef Action) (TVar Int) T.Manager
 
--- | Starting a thread pool manager.
+-- | Starting a thread manager.
 --   Its action is initially set to 'return ()' and should be set
 --   by 'setAction'. This allows that the action can include
 --   the manager itself.
