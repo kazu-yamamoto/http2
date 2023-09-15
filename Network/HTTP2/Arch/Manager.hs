@@ -14,7 +14,7 @@ module Network.HTTP2.Arch.Manager (
   , forkManagedUnmask
   , timeoutKillThread
   , timeoutClose
-  , KilledByHttp2ThreadPoolManager(..)
+  , KilledByHttp2ThreadManager(..)
   , incCounter
   , decCounter
   , waitCounter0
@@ -142,7 +142,7 @@ del tid set = set'
     set' = Set.delete tid set
 
 kill :: Set ThreadId -> Maybe SomeException -> IO ()
-kill set err = traverse_ (\tid -> E.throwTo tid $ KilledByHttp2ThreadPoolManager err) set
+kill set err = traverse_ (\tid -> E.throwTo tid $ KilledByHttp2ThreadManager err) set
 
 -- | Killing the IO action of the second argument on timeout.
 timeoutKillThread :: Manager -> (T.Handle -> IO ()) -> IO ()
@@ -157,10 +157,10 @@ timeoutClose (Manager _ _ _ tmgr) closer = do
     th <- T.register tmgr closer
     return $ T.tickle th
 
-data KilledByHttp2ThreadPoolManager = KilledByHttp2ThreadPoolManager (Maybe SomeException)
+data KilledByHttp2ThreadManager = KilledByHttp2ThreadManager (Maybe SomeException)
   deriving Show
 
-instance Exception KilledByHttp2ThreadPoolManager where
+instance Exception KilledByHttp2ThreadManager where
   toException   = asyncExceptionToException
   fromException = asyncExceptionFromException
 

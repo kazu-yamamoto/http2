@@ -171,7 +171,7 @@ worker wc@WorkerConf{..} mgr server = do
             Right () -> return True
             Left e@(SomeException _)
               -- killed by the local worker manager
-              | Just KilledByHttp2ThreadPoolManager{} <- E.fromException e -> return False
+              | Just KilledByHttp2ThreadManager{} <- E.fromException e -> return False
               -- killed by the local timeout manager
               | Just T.TimeoutThread <- E.fromException e -> do
                   cleanup sinfo
