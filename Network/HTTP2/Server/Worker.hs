@@ -144,10 +144,6 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
           finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
       incCounter mgr
       strmbdy push flush `E.finally` finished
-      -- Remove the thread's ID from the manager's queue, to ensure the that the
-      -- manager will not terminate it before we are done. (The thread ID was
-      -- added implicitly when the worker was spawned by the manager).
-      deleteMyId mgr
   OutBodyStreamingUnmask _ ->
     error "response: server does not support OutBodyStreamingUnmask"
   where

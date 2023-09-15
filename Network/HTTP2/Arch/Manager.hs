@@ -12,7 +12,6 @@ module Network.HTTP2.Arch.Manager (
   , spawnAction
   , forkManaged
   , forkManagedUnmask
-  , deleteMyId
   , timeoutKillThread
   , timeoutClose
   , KilledByHttp2ThreadPoolManager(..)
@@ -70,7 +69,9 @@ start timmgr = do
       where
         next tset = do
             action <- readIORef ref
-            newtid <- forkIO action
+            newtid <- forkFinally action $ \_ -> do
+                mytid <- myThreadId
+                atomically $ writeTQueue q $ Delete mytid
             let tset' = add newtid tset
             go q tset' ref
 
