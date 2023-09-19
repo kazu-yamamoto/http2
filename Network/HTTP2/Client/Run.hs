@@ -79,9 +79,10 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
           newstrm <- openStream ctx sid FrameHeaders
           case outObjBody req of
             OutBodyStreaming strmbdy ->
-                streaming req' sid newstrm $ \unmask push flush -> unmask $ strmbdy push flush
+                sendStreaming ctx mgr req' sid newstrm $ \unmask push flush ->
+                    unmask $ strmbdy push flush
             OutBodyStreamingUnmask strmbdy ->
-                streaming req' sid newstrm strmbdy
+                sendStreaming ctx mgr req' sid newstrm strmbdy
             _ -> atomically $ do
                 sidOK <- readTVar outputQStreamID
                 check (sidOK == sid)
@@ -91,25 +92,27 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
       Just strm0 -> return strm0
     rsp <- takeMVar $ streamInput strm
     processResponse $ Response rsp
-  where
-    streaming :: OutObj -> StreamId -> Stream -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ()) -> IO ()
-    streaming req' sid newstrm strmbdy = do
-        tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-        tbqNonEmpty <- newTVarIO False
-        forkManagedUnmask mgr $ \unmask -> do
-            let push b = atomically $ do
-                    writeTBQueue tbq (StreamingBuilder b)
-                    writeTVar tbqNonEmpty True
-                flush  = atomically $ writeTBQueue tbq StreamingFlush
-                finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
-            incCounter mgr
-            strmbdy unmask push flush `finally` finished
-        atomically $ do
-            sidOK <- readTVar outputQStreamID
-            ready <- readTVar tbqNonEmpty
-            check (sidOK == sid && ready)
-            writeTVar outputQStreamID (sid + 2)
-            writeTQueue outputQ $ Output newstrm req' OObj (Just tbq) (return ())
+
+sendStreaming :: Context -> Manager -> OutObj -> StreamId -> Stream
+              -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ())
+              -> IO ()
+sendStreaming Context{..} mgr req sid newstrm strmbdy = do
+    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    tbqNonEmpty <- newTVarIO False
+    forkManagedUnmask mgr $ \unmask -> do
+        let push b = atomically $ do
+                writeTBQueue tbq (StreamingBuilder b)
+                writeTVar tbqNonEmpty True
+            flush  = atomically $ writeTBQueue tbq StreamingFlush
+            finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
+        incCounter mgr
+        strmbdy unmask push flush `finally` finished
+    atomically $ do
+        sidOK <- readTVar outputQStreamID
+        ready <- readTVar tbqNonEmpty
+        check (sidOK == sid && ready)
+        writeTVar outputQStreamID (sid + 2)
+        writeTQueue outputQ $ Output newstrm req OObj (Just tbq) (return ())
 
 exchangeSettings :: Config -> Context -> IO ()
 exchangeSettings conf ctx@Context{..} = do
