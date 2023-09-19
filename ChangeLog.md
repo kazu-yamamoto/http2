@@ -1,3 +1,26 @@
+## 4.2.0
+
+* Treating HALF_CLOSED_LOCAL correctly.
+  [#90](https://github.com/kazu-yamamoto/http2/pull/90)
+* Ensuring that GOAWAY is sent after DATA in the client side.
+  [#89](https://github.com/kazu-yamamoto/http2/pull/90)
+* Test uses a random port instead of 8080.
+* Breaking change: adding two optional `SockAddr`s to `Config` to be copied into `Aux`.
+* Close all streams on termination.
+  [#83](https://github.com/kazu-yamamoto/http2/pull/83)
+* Introducing `OutBodyStreamingUnmask`
+  [#80](https://github.com/kazu-yamamoto/http2/pull/80)
+* Introducing `KilledByHttp2ThreadManager` instead of `ThreadKilled`.
+  [#79](https://github.com/kazu-yamamoto/http2/pull/79)
+  [#81](https://github.com/kazu-yamamoto/http2/pull/82)
+  [#82](https://github.com/kazu-yamamoto/http2/pull/82)
+* Handle RST_STREAM with NO_ERROR.
+  [#78](https://github.com/kazu-yamamoto/http2/pull/78)
+* Internal changes:
+  [#74](https://github.com/kazu-yamamoto/http2/pull/74)
+* Breaking change: `Client` is generalized into `(forall b. Request -> (Response -> IO b) -> IO b) -> IO a`. The `RankNTypes` language extension is required.
+  [#72](https://github.com/kazu-yamamoto/http2/pull/72)
+
 ## 4.1.3
 
 * Using crypton instead of cryptonite.
