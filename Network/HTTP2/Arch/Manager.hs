@@ -145,7 +145,7 @@ kill :: Set ThreadId -> Maybe SomeException -> IO ()
 kill set err = traverse_ (\tid -> E.throwTo tid $ KilledByHttp2ThreadManager err) set
 
 -- | Killing the IO action of the second argument on timeout.
-timeoutKillThread :: Manager -> (T.Handle -> IO ()) -> IO ()
+timeoutKillThread :: Manager -> (T.Handle -> IO a) -> IO a
 timeoutKillThread (Manager _ _ _ tmgr) action = E.bracket register T.cancel action
   where
     register = T.registerKillThread tmgr noAction
