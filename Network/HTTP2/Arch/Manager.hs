@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | A thread manager.
 --   The manager has responsibility to spawn and kill
@@ -107,9 +108,10 @@ forkManagedUnmask :: Manager -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
 forkManagedUnmask mgr io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> do
       addMyId mgr
-      r <- io unmask `onException` deleteMyId mgr
+      -- We catch the exception and do not rethrow it: we don't want the
+      -- exception printed to stderr.
+      io unmask `catch` \(_e :: SomeException) -> return ()
       deleteMyId mgr
-      return r
 
 -- | Adding my thread id to the kill-thread list on stopping.
 --
