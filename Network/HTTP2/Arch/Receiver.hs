@@ -46,6 +46,9 @@ settingsRateLimit = 4
 emptyFrameRateLimit :: Int
 emptyFrameRateLimit = 4
 
+rstRateLimit :: Int
+rstRateLimit = 4
+
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> Config -> IO ()
@@ -449,6 +452,9 @@ stream FrameWindowUpdate header bs _ s strm = do
 
 -- Transition (stream6)
 stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
+    rate <- getRate $ rstRate ctx
+    when (rate > rstRateLimit) $
+        E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many rst_stream"
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
 
