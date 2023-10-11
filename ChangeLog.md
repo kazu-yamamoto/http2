@@ -1,7 +1,11 @@
-## 4.2.1
+## 4.2.2
 
 * Adding rate limit for RST_STREAM to work around CVE-2023-44487.
   [#94](https://github.com/kazu-yamamoto/http2/pull/94)
+
+## 4.2.1
+
+* This version is identical to v4.2.0 by accident.
 
 ## 4.2.0
 
