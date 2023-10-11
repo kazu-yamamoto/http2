@@ -47,7 +47,7 @@ jobs:
       run: cabal build --enable-tests --disable-benchmarks all
 
     - name: Run tests
-      run: cabal test --test-show-details=streaming
+      run: cabal test --enable-tests --test-show-details=streaming
 
     - name: Run doctest
       if: ${{ runner.os == 'Linux' }}
