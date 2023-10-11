@@ -88,6 +88,7 @@ data Context = Context {
   , pingRate           :: Rate
   , settingsRate       :: Rate
   , emptyFrameRate     :: Rate
+  , rstRate            :: Rate
   , mySockAddr         :: SockAddr
   , peerSockAddr       :: SockAddr
   }
@@ -115,6 +116,7 @@ newContext rinfo siz mysa peersa =
                <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
                <*> newTVarIO defaultWindowSize
                <*> newIORef 0
+               <*> newRate
                <*> newRate
                <*> newRate
                <*> newRate
