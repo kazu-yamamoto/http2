@@ -1,26 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Table.Entry (
-  -- * Type
-    Size
-  , Entry(..)
-  , Header      -- re-exporting
-  , HeaderName  -- re-exporting
-  , HeaderValue -- re-exporting
-  , Index       -- re-exporting
-  -- * Header and Entry
-  , toEntry
-  , toEntryToken
-  -- * Getters
-  , entrySize
-  , entryTokenHeader
-  , entryToken
-  , entryHeaderName
-  , entryHeaderValue
-  -- * For initialization
-  , dummyEntry
-  , maxNumbers
-  ) where
+    -- * Type
+    Size,
+    Entry (..),
+    Header, -- re-exporting
+    HeaderName, -- re-exporting
+    HeaderValue, -- re-exporting
+    Index, -- re-exporting
+
+    -- * Header and Entry
+    toEntry,
+    toEntryToken,
+
+    -- * Getters
+    entrySize,
+    entryTokenHeader,
+    entryToken,
+    entryHeaderName,
+    entryHeaderValue,
+
+    -- * For initialization
+    dummyEntry,
+    maxNumbers,
+) where
 
 import qualified Data.ByteString as BS
 import Network.HPACK.Token
@@ -32,7 +35,7 @@ import Network.HPACK.Types
 type Size = Int
 
 -- | Type for table entry. Size includes the 32 bytes magic number.
-data Entry = Entry Size Token HeaderValue deriving Show
+data Entry = Entry Size Token HeaderValue deriving (Show)
 
 ----------------------------------------------------------------
 
@@ -40,20 +43,22 @@ headerSizeMagicNumber :: Size
 headerSizeMagicNumber = 32
 
 headerSize :: Header -> Size
-headerSize (k,v) = BS.length k
-                 + BS.length v
-                 + headerSizeMagicNumber
+headerSize (k, v) =
+    BS.length k
+        + BS.length v
+        + headerSizeMagicNumber
 
 headerSize' :: Token -> HeaderValue -> Size
-headerSize' t v = BS.length (tokenFoldedKey t)
-                + BS.length v
-                + headerSizeMagicNumber
+headerSize' t v =
+    BS.length (tokenFoldedKey t)
+        + BS.length v
+        + headerSizeMagicNumber
 
 ----------------------------------------------------------------
 
 -- | From 'Header' to 'Entry'.
 toEntry :: Header -> Entry
-toEntry kv@(k,v) = Entry siz t v
+toEntry kv@(k, v) = Entry siz t v
   where
     t = toToken k
     siz = headerSize kv
