@@ -16,37 +16,41 @@ import Network.HTTP2.Frame
 
 isIdle :: StreamState -> Bool
 isIdle Idle = True
-isIdle _    = False
+isIdle _ = False
 
 isOpen :: StreamState -> Bool
 isOpen Open{} = True
-isOpen _      = False
+isOpen _ = False
 
 isHalfClosedRemote :: StreamState -> Bool
 isHalfClosedRemote HalfClosedRemote = True
-isHalfClosedRemote (Closed _)       = True
-isHalfClosedRemote _                = False
+isHalfClosedRemote (Closed _) = True
+isHalfClosedRemote _ = False
 
 isHalfClosedLocal :: StreamState -> Bool
 isHalfClosedLocal (Open (Just _) _) = True
-isHalfClosedLocal (Closed _)        = True
-isHalfClosedLocal _                 = False
+isHalfClosedLocal (Closed _) = True
+isHalfClosedLocal _ = False
 
 isClosed :: StreamState -> Bool
 isClosed Closed{} = True
-isClosed _        = False
+isClosed _ = False
 
 ----------------------------------------------------------------
 
 newStream :: StreamId -> WindowSize -> IO Stream
-newStream sid win = Stream sid <$> newIORef Idle
-                               <*> newTVarIO win
-                               <*> newEmptyMVar
+newStream sid win =
+    Stream sid
+        <$> newIORef Idle
+        <*> newTVarIO win
+        <*> newEmptyMVar
 
 newPushStream :: StreamId -> WindowSize -> IO Stream
-newPushStream sid win = Stream sid <$> newIORef Reserved
-                                   <*> newTVarIO win
-                                   <*> newEmptyMVar
+newPushStream sid win =
+    Stream sid
+        <$> newIORef Reserved
+        <*> newTVarIO win
+        <*> newEmptyMVar
 
 ----------------------------------------------------------------
 
@@ -62,12 +66,12 @@ newStreamTable = StreamTable <$> newIORef M.empty
 insert :: StreamTable -> M.Key -> Stream -> IO ()
 insert (StreamTable ref) k v = atomicModifyIORef' ref $ \m ->
     let m' = M.insert k v m
-    in (m', ())
+     in (m', ())
 
 remove :: StreamTable -> M.Key -> IO ()
 remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
     let m' = M.delete k m
-    in (m', ())
+     in (m', ())
 
 search :: StreamTable -> M.Key -> IO (Maybe Stream)
 search (StreamTable ref) k = M.lookup k <$> readIORef ref
@@ -81,16 +85,17 @@ closeAllStreams :: StreamTable -> Maybe SomeException -> IO ()
 closeAllStreams (StreamTable ref) mErr' = do
     strms <- atomicModifyIORef' ref $ \m -> (M.empty, m)
     forM_ strms $ \strm -> do
-      st <- readStreamState strm
-      case st of
-        Open _ (Body q _ _ _) ->
-          atomically $ writeTQueue q $ maybe (Right mempty) Left mErr
-        _otherwise ->
-          return ()
+        st <- readStreamState strm
+        case st of
+            Open _ (Body q _ _ _) ->
+                atomically $ writeTQueue q $ maybe (Right mempty) Left mErr
+            _otherwise ->
+                return ()
   where
     mErr :: Maybe SomeException
     mErr = case mErr' of
-             Just err | Just ConnectionIsClosed <- fromException err ->
-               Nothing
-             _otherwise ->
-               mErr'
+        Just err
+            | Just ConnectionIsClosed <- fromException err ->
+                Nothing
+        _otherwise ->
+            mErr'

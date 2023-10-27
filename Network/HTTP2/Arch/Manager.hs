@@ -5,21 +5,21 @@
 --   The manager has responsibility to spawn and kill
 --   worker threads.
 module Network.HTTP2.Arch.Manager (
-    Manager
-  , Action
-  , start
-  , setAction
-  , stopAfter
-  , spawnAction
-  , forkManaged
-  , forkManagedUnmask
-  , timeoutKillThread
-  , timeoutClose
-  , KilledByHttp2ThreadManager(..)
-  , incCounter
-  , decCounter
-  , waitCounter0
-  ) where
+    Manager,
+    Action,
+    start,
+    setAction,
+    stopAfter,
+    spawnAction,
+    forkManaged,
+    forkManagedUnmask,
+    timeoutKillThread,
+    timeoutClose,
+    KilledByHttp2ThreadManager (..),
+    incCounter,
+    decCounter,
+    waitCounter0,
+) where
 
 import Control.Exception
 import Data.Foldable
@@ -61,12 +61,14 @@ start timmgr = do
     go q tset0 ref = do
         x <- atomically $ readTQueue q
         case x of
-            Stop err      -> kill tset0 err
-            Spawn         -> next tset0
-            Add    newtid -> let tset = add newtid tset0
-                             in go q tset ref
-            Delete oldtid -> let tset = del oldtid tset0
-                             in go q tset ref
+            Stop err -> kill tset0 err
+            Spawn -> next tset0
+            Add newtid ->
+                let tset = add newtid tset0
+                 in go q tset ref
+            Delete oldtid ->
+                let tset = del oldtid tset0
+                 in go q tset ref
       where
         next tset = do
             action <- readIORef ref
@@ -83,10 +85,10 @@ setAction (Manager _ ref _ _) action = writeIORef ref action
 -- | Stopping the manager.
 stopAfter :: Manager -> IO a -> (Either SomeException a -> IO b) -> IO b
 stopAfter (Manager q _ _ _) action cleanup = do
-   mask $ \unmask -> do
-     ma <- try $ unmask action
-     atomically $ writeTQueue q $ Stop (either Just (const Nothing) ma)
-     cleanup ma
+    mask $ \unmask -> do
+        ma <- try $ unmask action
+        atomically $ writeTQueue q $ Stop (either Just (const Nothing) ma)
+        cleanup ma
 
 -- | Spawning the action.
 spawnAction :: Manager -> IO ()
@@ -107,11 +109,11 @@ forkManaged mgr io =
 forkManagedUnmask :: Manager -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
 forkManagedUnmask mgr io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> do
-      addMyId mgr
-      -- We catch the exception and do not rethrow it: we don't want the
-      -- exception printed to stderr.
-      io unmask `catch` \(_e :: SomeException) -> return ()
-      deleteMyId mgr
+        addMyId mgr
+        -- We catch the exception and do not rethrow it: we don't want the
+        -- exception printed to stderr.
+        io unmask `catch` \(_e :: SomeException) -> return ()
+        deleteMyId mgr
 
 -- | Adding my thread id to the kill-thread list on stopping.
 --
@@ -160,16 +162,16 @@ timeoutClose (Manager _ _ _ tmgr) closer = do
     return $ T.tickle th
 
 data KilledByHttp2ThreadManager = KilledByHttp2ThreadManager (Maybe SomeException)
-  deriving Show
+    deriving (Show)
 
 instance Exception KilledByHttp2ThreadManager where
-  toException   = asyncExceptionToException
-  fromException = asyncExceptionFromException
+    toException = asyncExceptionToException
+    fromException = asyncExceptionFromException
 
 ----------------------------------------------------------------
 
 incCounter :: Manager -> IO ()
-incCounter (Manager _ _ cnt _) = atomically $ modifyTVar' cnt (+1)
+incCounter (Manager _ _ cnt _) = atomically $ modifyTVar' cnt (+ 1)
 
 decCounter :: Manager -> IO ()
 decCounter (Manager _ _ cnt _) = atomically $ modifyTVar' cnt (subtract 1)

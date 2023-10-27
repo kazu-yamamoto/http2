@@ -16,121 +16,123 @@ import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
-data Role = Client | Server deriving (Eq,Show)
+data Role = Client | Server deriving (Eq, Show)
 
 ----------------------------------------------------------------
 
 data RoleInfo = RIS ServerInfo | RIC ClientInfo
 
-data ServerInfo = ServerInfo {
-    inputQ :: TQueue (Input Stream)
-  }
+data ServerInfo = ServerInfo
+    { inputQ :: TQueue (Input Stream)
+    }
 
-data ClientInfo = ClientInfo {
-    scheme    :: ByteString
-  , authority :: ByteString
-  , cache     :: IORef (Cache (Method,ByteString) Stream)
-  }
+data ClientInfo = ClientInfo
+    { scheme :: ByteString
+    , authority :: ByteString
+    , cache :: IORef (Cache (Method, ByteString) Stream)
+    }
 
 toServerInfo :: RoleInfo -> ServerInfo
 toServerInfo (RIS x) = x
-toServerInfo _       = error "toServerInfo"
+toServerInfo _ = error "toServerInfo"
 
 toClientInfo :: RoleInfo -> ClientInfo
 toClientInfo (RIC x) = x
-toClientInfo _       = error "toClientInfo"
+toClientInfo _ = error "toClientInfo"
 
 newServerInfo :: IO RoleInfo
 newServerInfo = RIS . ServerInfo <$> newTQueueIO
 
 newClientInfo :: ByteString -> ByteString -> Int -> IO RoleInfo
-newClientInfo scm auth lim =  RIC . ClientInfo scm auth <$> newIORef (emptyCache lim)
+newClientInfo scm auth lim = RIC . ClientInfo scm auth <$> newIORef (emptyCache lim)
 
 insertCache :: Method -> ByteString -> Stream -> RoleInfo -> IO ()
 insertCache m path v (RIC (ClientInfo _ _ ref)) = atomicModifyIORef' ref $ \c ->
-  (Cache.insert (m,path) v c, ())
+    (Cache.insert (m, path) v c, ())
 insertCache _ _ _ _ = error "insertCache"
 
 lookupCache :: Method -> ByteString -> RoleInfo -> IO (Maybe Stream)
-lookupCache m path (RIC (ClientInfo _ _ ref)) = Cache.lookup (m,path) <$> readIORef ref
+lookupCache m path (RIC (ClientInfo _ _ ref)) = Cache.lookup (m, path) <$> readIORef ref
 lookupCache _ _ _ = error "lookupCache"
 
 ----------------------------------------------------------------
 
 -- | The context for HTTP/2 connection.
-data Context = Context {
-    role               :: Role
-  , roleInfo           :: RoleInfo
-  -- Settings
-  , myFirstSettings    :: IORef Bool
-  , myPendingAlist     :: IORef (Maybe SettingsList)
-  , mySettings         :: IORef Settings
-  , peerSettings       :: IORef Settings
-  , streamTable        :: StreamTable
-  , concurrency        :: IORef Int
-  -- | RFC 9113 says "Other frames (from any stream) MUST NOT
-  --   occur between the HEADERS frame and any CONTINUATION
-  --   frames that might follow". This field is used to implement
-  --   this requirement.
-  , continued          :: IORef (Maybe StreamId)
-  , myStreamId         :: IORef StreamId
-  , peerStreamId       :: IORef StreamId
-  , outputBufferLimit  :: IORef Int
-  , outputQ            :: TQueue (Output Stream)
-  , outputQStreamID    :: TVar StreamId
-  , controlQ           :: TQueue Control
-  , encodeDynamicTable :: DynamicTable
-  , decodeDynamicTable :: DynamicTable
-  -- the connection window for sending data
-  , txConnectionWindow :: TVar WindowSize
-  -- window update for receiving data
-  , rxConnectionInc    :: IORef WindowSize -- this is diff
-  , pingRate           :: Rate
-  , settingsRate       :: Rate
-  , emptyFrameRate     :: Rate
-  , rstRate            :: Rate
-  , mySockAddr         :: SockAddr
-  , peerSockAddr       :: SockAddr
-  }
+data Context = Context
+    { role :: Role
+    , roleInfo :: RoleInfo
+    , -- Settings
+      myFirstSettings :: IORef Bool
+    , myPendingAlist :: IORef (Maybe SettingsList)
+    , mySettings :: IORef Settings
+    , peerSettings :: IORef Settings
+    , streamTable :: StreamTable
+    , concurrency :: IORef Int
+    , continued :: IORef (Maybe StreamId)
+    -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
+    --   occur between the HEADERS frame and any CONTINUATION
+    --   frames that might follow". This field is used to implement
+    --   this requirement.
+    , myStreamId :: IORef StreamId
+    , peerStreamId :: IORef StreamId
+    , outputBufferLimit :: IORef Int
+    , outputQ :: TQueue (Output Stream)
+    , outputQStreamID :: TVar StreamId
+    , controlQ :: TQueue Control
+    , encodeDynamicTable :: DynamicTable
+    , decodeDynamicTable :: DynamicTable
+    , -- the connection window for sending data
+      txConnectionWindow :: TVar WindowSize
+    , -- window update for receiving data
+      rxConnectionInc :: IORef WindowSize -- this is diff
+    , pingRate :: Rate
+    , settingsRate :: Rate
+    , emptyFrameRate :: Rate
+    , rstRate :: Rate
+    , mySockAddr :: SockAddr
+    , peerSockAddr :: SockAddr
+    }
 
 ----------------------------------------------------------------
 
 newContext :: RoleInfo -> BufferSize -> SockAddr -> SockAddr -> IO Context
 newContext rinfo siz mysa peersa =
     Context rl rinfo
-               <$> newIORef False
-               <*> newIORef Nothing
-               <*> newIORef defaultSettings
-               <*> newIORef defaultSettings
-               <*> newStreamTable
-               <*> newIORef 0
-               <*> newIORef Nothing
-               <*> newIORef sid0
-               <*> newIORef 0
-               <*> newIORef buflim
-               <*> newTQueueIO
-               <*> newTVarIO sid0
-               <*> newTQueueIO
-               -- My SETTINGS_HEADER_TABLE_SIZE
-               <*> newDynamicTableForEncoding defaultDynamicTableSize
-               <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
-               <*> newTVarIO defaultWindowSize
-               <*> newIORef 0
-               <*> newRate
-               <*> newRate
-               <*> newRate
-               <*> newRate
-               <*> return mysa
-               <*> return peersa
-   where
-     rl = case rinfo of
-       RIC{} -> Client
-       _     -> Server
-     sid0 | rl == Client = 1
-          | otherwise    = 2
-     dlim = defaultPayloadLength + frameHeaderLength
-     buflim | siz >= dlim = dlim
-            | otherwise   = siz
+        <$> newIORef False
+        <*> newIORef Nothing
+        <*> newIORef defaultSettings
+        <*> newIORef defaultSettings
+        <*> newStreamTable
+        <*> newIORef 0
+        <*> newIORef Nothing
+        <*> newIORef sid0
+        <*> newIORef 0
+        <*> newIORef buflim
+        <*> newTQueueIO
+        <*> newTVarIO sid0
+        <*> newTQueueIO
+        -- My SETTINGS_HEADER_TABLE_SIZE
+        <*> newDynamicTableForEncoding defaultDynamicTableSize
+        <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
+        <*> newTVarIO defaultWindowSize
+        <*> newIORef 0
+        <*> newRate
+        <*> newRate
+        <*> newRate
+        <*> newRate
+        <*> return mysa
+        <*> return peersa
+  where
+    rl = case rinfo of
+        RIC{} -> Client
+        _ -> Server
+    sid0
+        | rl == Client = 1
+        | otherwise = 2
+    dlim = defaultPayloadLength + frameHeaderLength
+    buflim
+        | siz >= dlim = dlim
+        | otherwise = siz
 
 ----------------------------------------------------------------
 
@@ -151,7 +153,7 @@ getPeerStreamID :: Context -> IO StreamId
 getPeerStreamID ctx = readIORef $ peerStreamId ctx
 
 setPeerStreamID :: Context -> StreamId -> IO ()
-setPeerStreamID ctx sid =  writeIORef (peerStreamId ctx) sid
+setPeerStreamID ctx sid = writeIORef (peerStreamId ctx) sid
 
 ----------------------------------------------------------------
 
@@ -161,7 +163,7 @@ setStreamState _ Stream{streamState} val = writeIORef streamState val
 
 opened :: Context -> Stream -> IO ()
 opened ctx@Context{concurrency} strm = do
-    atomicModifyIORef' concurrency (\x -> (x+1,()))
+    atomicModifyIORef' concurrency (\x -> (x + 1, ()))
     setStreamState ctx strm (Open Nothing JustOpened)
 
 halfClosedRemote :: Context -> Stream -> IO ()
@@ -170,9 +172,9 @@ halfClosedRemote ctx stream@Stream{streamState} = do
     traverse_ (closed ctx stream) closingCode
   where
     closeHalf :: StreamState -> (StreamState, Maybe ClosedCode)
-    closeHalf x@(Closed _)       = (x, Nothing)
+    closeHalf x@(Closed _) = (x, Nothing)
     closeHalf (Open (Just cc) _) = (Closed cc, Just cc)
-    closeHalf _                  = (HalfClosedRemote, Nothing)
+    closeHalf _ = (HalfClosedRemote, Nothing)
 
 halfClosedLocal :: Context -> Stream -> ClosedCode -> IO ()
 halfClosedLocal ctx stream@Stream{streamState} cc = do
@@ -181,16 +183,16 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
         closed ctx stream cc
   where
     closeHalf :: StreamState -> (StreamState, Bool)
-    closeHalf x@(Closed _)     = (x, False)
+    closeHalf x@(Closed _) = (x, False)
     closeHalf HalfClosedRemote = (Closed cc, True)
     closeHalf (Open Nothing o) = (Open (Just cc) o, False)
-    closeHalf _                = (Open (Just cc) JustOpened, False)
+    closeHalf _ = (Open (Just cc) JustOpened, False)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
-closed ctx@Context{concurrency,streamTable} strm@Stream{streamNumber} cc = do
+closed ctx@Context{concurrency, streamTable} strm@Stream{streamNumber} cc = do
     remove streamTable streamNumber
     -- TODO: prevent double-counting
-    atomicModifyIORef' concurrency (\x -> (x-1,()))
+    atomicModifyIORef' concurrency (\x -> (x - 1, ()))
     setStreamState ctx strm (Closed cc) -- anyway
 
 openStream :: Context -> StreamId -> FrameType -> IO Stream
