@@ -25,66 +25,78 @@
 -- >         response = responseBuilder ok200 header body
 -- >         header = [("Content-Type", "text/plain")]
 -- >         body = byteString "Hello, world!\n"
-
 module Network.HTTP2.Server (
-  -- * Runner
-    run
-  -- * Runner arguments
-  , Config(..)
-  , allocSimpleConfig
-  , freeSimpleConfig
-  -- * HTTP\/2 server
-  , Server
-  -- * Request
-  , Request
-  -- ** Accessing request
-  , requestMethod
-  , requestPath
-  , requestAuthority
-  , requestScheme
-  , requestHeaders
-  , requestBodySize
-  , getRequestBodyChunk
-  , getRequestTrailers
-  -- * Aux
-  , Aux
-  , auxTimeHandle
-  , auxMySockAddr
-  , auxPeerSockAddr
-  -- * Response
-  , Response
-  -- ** Creating response
-  , responseNoBody
-  , responseFile
-  , responseStreaming
-  , responseBuilder
-  -- ** Accessing response
-  , responseBodySize
-  -- ** Trailers maker
-  , TrailersMaker
-  , NextTrailersMaker(..)
-  , defaultTrailersMaker
-  , setResponseTrailersMaker
-  -- * Push promise
-  , PushPromise
-  , pushPromise
-  , promiseRequestPath
-  , promiseResponse
-  -- * Types
-  , Path
-  , Authority
-  , Scheme
-  , FileSpec(..)
-  , FileOffset
-  , ByteCount
-  -- * RecvN
-  , defaultReadN
-  -- * Position read for files
-  , PositionReadMaker
-  , PositionRead
-  , Sentinel(..)
-  , defaultPositionReadMaker
-  ) where
+    -- * Runner
+    run,
+
+    -- * Runner arguments
+    Config (..),
+    allocSimpleConfig,
+    freeSimpleConfig,
+
+    -- * HTTP\/2 server
+    Server,
+
+    -- * Request
+    Request,
+
+    -- ** Accessing request
+    requestMethod,
+    requestPath,
+    requestAuthority,
+    requestScheme,
+    requestHeaders,
+    requestBodySize,
+    getRequestBodyChunk,
+    getRequestTrailers,
+
+    -- * Aux
+    Aux,
+    auxTimeHandle,
+    auxMySockAddr,
+    auxPeerSockAddr,
+
+    -- * Response
+    Response,
+
+    -- ** Creating response
+    responseNoBody,
+    responseFile,
+    responseStreaming,
+    responseBuilder,
+
+    -- ** Accessing response
+    responseBodySize,
+
+    -- ** Trailers maker
+    TrailersMaker,
+    NextTrailersMaker (..),
+    defaultTrailersMaker,
+    setResponseTrailersMaker,
+
+    -- * Push promise
+    PushPromise,
+    pushPromise,
+    promiseRequestPath,
+    promiseResponse,
+
+    -- * Types
+    Path,
+    Authority,
+    Scheme,
+    FileSpec (..),
+    FileOffset,
+    ByteCount,
+
+    -- * RecvN
+    defaultReadN,
+
+    -- * Position read for files
+    PositionReadMaker,
+    PositionRead,
+    Sentinel (..),
+    defaultPositionReadMaker,
+) where
 
 import Data.ByteString.Builder (Builder)
 import Data.IORef (readIORef)
@@ -104,25 +116,25 @@ import Network.HTTP2.Server.Types
 requestMethod :: Request -> Maybe H.Method
 requestMethod (Request req) = getHeaderValue tokenMethod vt
   where
-    (_,vt) = inpObjHeaders req
+    (_, vt) = inpObjHeaders req
 
 -- | Getting the path from a request.
 requestPath :: Request -> Maybe Path
 requestPath (Request req) = getHeaderValue tokenPath vt
   where
-    (_,vt) = inpObjHeaders req
+    (_, vt) = inpObjHeaders req
 
 -- | Getting the authority from a request.
 requestAuthority :: Request -> Maybe Authority
 requestAuthority (Request req) = getHeaderValue tokenAuthority vt
   where
-    (_,vt) = inpObjHeaders req
+    (_, vt) = inpObjHeaders req
 
 -- | Getting the scheme from a request.
 requestScheme :: Request -> Maybe Scheme
 requestScheme (Request req) = getHeaderValue tokenScheme vt
   where
-    (_,vt) = inpObjHeaders req
+    (_, vt) = inpObjHeaders req
 
 -- | Getting the headers from a request.
 requestHeaders :: Request -> HeaderTable
@@ -164,9 +176,11 @@ responseBuilder st hdr builder = Response $ OutObj hdr' (OutBodyBuilder builder)
     hdr' = setStatus st hdr
 
 -- | Creating response with streaming.
-responseStreaming :: H.Status -> H.ResponseHeaders
-                  -> ((Builder -> IO ()) -> IO () -> IO ())
-                  -> Response
+responseStreaming
+    :: H.Status
+    -> H.ResponseHeaders
+    -> ((Builder -> IO ()) -> IO () -> IO ())
+    -> Response
 responseStreaming st hdr strmbdy = Response $ OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
   where
     hdr' = setStatus st hdr
@@ -176,11 +190,11 @@ responseStreaming st hdr strmbdy = Response $ OutObj hdr' (OutBodyStreaming strm
 -- | Getter for response body size. This value is available for file body.
 responseBodySize :: Response -> Maybe Int
 responseBodySize (Response (OutObj _ (OutBodyFile (FileSpec _ _ len)) _)) = Just (fromIntegral len)
-responseBodySize _                                                        = Nothing
+responseBodySize _ = Nothing
 
 -- | Setting 'TrailersMaker' to 'Response'.
 setResponseTrailersMaker :: Response -> TrailersMaker -> Response
-setResponseTrailersMaker (Response rsp) tm = Response rsp { outObjTrailers = tm }
+setResponseTrailersMaker (Response rsp) tm = Response rsp{outObjTrailers = tm}
 
 ----------------------------------------------------------------
 

@@ -40,57 +40,83 @@
 -- >         case ex of
 -- >           Left  e  -> print (e :: HTTP2Error)
 -- >           Right () -> putStrLn "OK"
-
 module Network.HTTP2.Client (
-  -- * Runner
-    run
-  , Scheme
-  , Authority
-  -- * Runner arguments
-  , ClientConfig(..)
-  , Config(..)
-  , allocSimpleConfig
-  , freeSimpleConfig
-  -- * HTTP\/2 client
-  , Client
-  -- * Request
-  , Request
-  -- * Creating request
-  , requestNoBody
-  , requestFile
-  , requestStreaming
-  , requestStreamingUnmask
-  , requestBuilder
-  -- ** Trailers maker
-  , TrailersMaker
-  , NextTrailersMaker(..)
-  , defaultTrailersMaker
-  , setRequestTrailersMaker
-  -- * Response
-  , Response
-  -- ** Accessing response
-  , responseStatus
-  , responseHeaders
-  , responseBodySize
-  , getResponseBodyChunk
-  , getResponseTrailers
-  -- * Types
-  , Method
-  , Path
-  , FileSpec(..)
-  , FileOffset
-  , ByteCount
-  -- * Error
-  , HTTP2Error(..)
-  , ErrorCode(ErrorCode,NoError,ProtocolError,InternalError,FlowControlError,SettingsTimeout,StreamClosed,FrameSizeError,RefusedStream,Cancel,CompressionError,ConnectError,EnhanceYourCalm,InadequateSecurity,HTTP11Required)
-  -- * RecvN
-  , defaultReadN
-  -- * Position read for files
-  , PositionReadMaker
-  , PositionRead
-  , Sentinel(..)
-  , defaultPositionReadMaker
-  ) where
+    -- * Runner
+    run,
+    Scheme,
+    Authority,
+
+    -- * Runner arguments
+    ClientConfig (..),
+    Config (..),
+    allocSimpleConfig,
+    freeSimpleConfig,
+
+    -- * HTTP\/2 client
+    Client,
+
+    -- * Request
+    Request,
+
+    -- * Creating request
+    requestNoBody,
+    requestFile,
+    requestStreaming,
+    requestStreamingUnmask,
+    requestBuilder,
+
+    -- ** Trailers maker
+    TrailersMaker,
+    NextTrailersMaker (..),
+    defaultTrailersMaker,
+    setRequestTrailersMaker,
+
+    -- * Response
+    Response,
+
+    -- ** Accessing response
+    responseStatus,
+    responseHeaders,
+    responseBodySize,
+    getResponseBodyChunk,
+    getResponseTrailers,
+
+    -- * Types
+    Method,
+    Path,
+    FileSpec (..),
+    FileOffset,
+    ByteCount,
+
+    -- * Error
+    HTTP2Error (..),
+    ErrorCode (
+        ErrorCode,
+        NoError,
+        ProtocolError,
+        InternalError,
+        FlowControlError,
+        SettingsTimeout,
+        StreamClosed,
+        FrameSizeError,
+        RefusedStream,
+        Cancel,
+        CompressionError,
+        ConnectError,
+        EnhanceYourCalm,
+        InadequateSecurity,
+        HTTP11Required
+    ),
+
+    -- * RecvN
+    defaultReadN,
+
+    -- * Position read for files
+    PositionReadMaker,
+    PositionRead,
+    Sentinel (..),
+    defaultPositionReadMaker,
+) where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
@@ -124,17 +150,23 @@ requestBuilder m p hdr builder = Request $ OutObj hdr' (OutBodyBuilder builder) 
     hdr' = addHeaders m p hdr
 
 -- | Creating request with streaming.
-requestStreaming :: Method -> Path -> RequestHeaders
-                 -> ((Builder -> IO ()) -> IO () -> IO ())
-                 -> Request
+requestStreaming
+    :: Method
+    -> Path
+    -> RequestHeaders
+    -> ((Builder -> IO ()) -> IO () -> IO ())
+    -> Request
 requestStreaming m p hdr strmbdy = Request $ OutObj hdr' (OutBodyStreaming strmbdy) defaultTrailersMaker
   where
     hdr' = addHeaders m p hdr
 
 -- | Like 'requestStreaming', but run the action with exceptions masked
-requestStreamingUnmask :: Method -> Path -> RequestHeaders
-                       -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ())
-                       -> Request
+requestStreamingUnmask
+    :: Method
+    -> Path
+    -> RequestHeaders
+    -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ())
+    -> Request
 requestStreamingUnmask m p hdr strmbdy = Request $ OutObj hdr' (OutBodyStreamingUnmask strmbdy) defaultTrailersMaker
   where
     hdr' = addHeaders m p hdr
@@ -144,7 +176,7 @@ addHeaders m p hdr = (":method", m) : (":path", p) : hdr
 
 -- | Setting 'TrailersMaker' to 'Response'.
 setRequestTrailersMaker :: Request -> TrailersMaker -> Request
-setRequestTrailersMaker (Request req) tm = Request req { outObjTrailers = tm }
+setRequestTrailersMaker (Request req) tm = Request req{outObjTrailers = tm}
 
 ----------------------------------------------------------------
 
