@@ -1,12 +1,13 @@
-{-# LANGUAGE OverloadedStrings, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module HPACKDecode (
-    run
-  , Result(..)
-  , EncodeStrategy(..)
-  , defaultEncodeStrategy
-  , CompressionAlgo(..)
-  ) where
+    run,
+    Result (..),
+    EncodeStrategy (..),
+    defaultEncodeStrategy,
+    CompressionAlgo (..),
+) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
@@ -21,35 +22,37 @@ import Network.HPACK.Table
 
 import JSON
 
-newtype Conf = Conf {
-    debug :: Bool
-  }
+newtype Conf = Conf
+    { debug :: Bool
+    }
 
-data Result = Pass | Fail String deriving (Eq,Show)
+data Result = Pass | Fail String deriving (Eq, Show)
 
 run :: Bool -> Test -> IO Result
-run _ (Test _ [])        = return Pass
+run _ (Test _ []) = return Pass
 run d (Test _ ccs) = do
     -- 'size c' must not be used. Initial value is defaultDynamicTableSize!
     withDynamicTableForDecoding defaultDynamicTableSize 4096 $ \dyntbl -> do
-        let conf = Conf { debug = d }
+        let conf = Conf{debug = d}
         testLoop conf ccs dyntbl
 
-testLoop :: Conf
-         -> [Case]
-         -> DynamicTable
-         -> IO Result
-testLoop _    []     _      = return Pass
-testLoop conf (c:cs) dyntbl = do
+testLoop
+    :: Conf
+    -> [Case]
+    -> DynamicTable
+    -> IO Result
+testLoop _ [] _ = return Pass
+testLoop conf (c : cs) dyntbl = do
     res <- test conf c dyntbl
     case res of
         Nothing -> testLoop conf cs dyntbl
-        Just  e -> return $ Fail e
+        Just e -> return $ Fail e
 
-test :: Conf
-     -> Case
-     -> DynamicTable
-     -> IO (Maybe String)
+test
+    :: Conf
+    -> Case
+    -> DynamicTable
+    -> IO (Maybe String)
 test conf c dyntbl = do
     -- context is destructive!!!
     when (debug conf) $ do
@@ -61,17 +64,24 @@ test conf c dyntbl = do
         putStrLn "---- Input Hex"
         B8.putStrLn wirehex
     case size c of
-        Nothing  -> return ()
+        Nothing -> return ()
         Just siz -> renewDynamicTable siz dyntbl
     x <- try $ decodeHeader dyntbl inp
     case x of
         Left e -> return $ Just $ show (e :: DecodeError)
         Right hs' -> do
             let pass = sort hs == sort hs'
-            if pass then
-                return Nothing
-              else
-                return $ Just $ "Headers are different in " ++ B8.unpack wirehex ++ ":\n" ++ show hs ++ "\n" ++ show hs'
+            if pass
+                then return Nothing
+                else
+                    return $
+                        Just $
+                            "Headers are different in "
+                                ++ B8.unpack wirehex
+                                ++ ":\n"
+                                ++ show hs
+                                ++ "\n"
+                                ++ show hs'
   where
     wirehex = wire c
     inp = B16.decodeLenient wirehex
@@ -81,7 +91,7 @@ test conf c dyntbl = do
 printHeaderList :: HeaderList -> IO ()
 printHeaderList hs = mapM_ printHeader hs
   where
-    printHeader (k,v) = do
+    printHeader (k, v) = do
         B8.putStr k
         putStr ": "
         B8.putStr v

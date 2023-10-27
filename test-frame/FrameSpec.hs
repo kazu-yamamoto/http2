@@ -19,7 +19,7 @@ testDir :: FilePath
 testDir = "test-frame/http2-frame-test-case"
 
 getTestFiles :: FilePath -> IO [FilePath]
-getTestFiles dir =  head <$> globDir [compile "*/*.json"] dir
+getTestFiles dir = head <$> globDir [compile "*/*.json"] dir
 
 check :: FilePath -> IO ()
 check file = do
@@ -37,17 +37,18 @@ check file = do
                         print fderr
                     Just errs -> do
                         let e = case fderr of
-                              FrameDecodeError x _ _ -> x
+                                FrameDecodeError x _ _ -> x
                         errs `shouldContain` [e]
                 Right frm -> do
                     case frame tc of
                         Just fp -> do
                             fpFrame fp `shouldBe` frm
-                            let einfo = EncodeInfo {
-                                    encodeFlags = flags $ frameHeader $ fpFrame fp
-                                  , encodeStreamId = streamId (frameHeader frm)
-                                  , encodePadding = unPad <$> fpPad fp
-                                  }
+                            let einfo =
+                                    EncodeInfo
+                                        { encodeFlags = flags $ frameHeader $ fpFrame fp
+                                        , encodeStreamId = streamId (frameHeader frm)
+                                        , encodePadding = unPad <$> fpPad fp
+                                        }
                                 payload = framePayload frm
                             encodeFrame einfo payload `shouldBe` bin
                         Nothing -> putStrLn file -- fixme

@@ -19,17 +19,19 @@ serverName = "127.0.0.1"
 main :: IO ()
 main = do
     args <- getArgs
-    (host,port) <- case args of
-      [h,p] -> return (h,p)
-      _     -> do
-          putStrLn "client <addr> <port>"
-          exitFailure
+    (host, port) <- case args of
+        [h, p] -> return (h, p)
+        _ -> do
+            putStrLn "client <addr> <port>"
+            exitFailure
     runTCPClient serverName port $ runHTTP2Client host
   where
     cliconf host = ClientConfig "http" (C8.pack host) 20
-    runHTTP2Client host s = E.bracket (allocSimpleConfig s 4096)
-                                      freeSimpleConfig
-                                      (\conf -> run (cliconf host) conf client)
+    runHTTP2Client host s =
+        E.bracket
+            (allocSimpleConfig s 4096)
+            freeSimpleConfig
+            (\conf -> run (cliconf host) conf client)
     client :: Client ()
     client sendRequest = do
         let req0 = requestNoBody methodGet "/" []
@@ -42,5 +44,5 @@ main = do
                 getResponseBodyChunk rsp >>= C8.putStrLn
         ex <- E.try $ concurrently_ client0 client1
         case ex of
-          Left  e  -> print (e :: HTTP2Error)
-          Right () -> putStrLn "OK"
+            Left e -> print (e :: HTTP2Error)
+            Right () -> putStrLn "OK"

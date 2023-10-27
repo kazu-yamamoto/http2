@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main (main) where
 
@@ -23,20 +23,22 @@ import Network.HTTP2.Server
 main :: IO ()
 main = do
     args <- getArgs
-    (host,port) <- case args of
-      [h,p] -> return (h,p)
-      _     -> do
-          putStrLn "server <addr> <port>"
-          exitFailure
+    (host, port) <- case args of
+        [h, p] -> return (h, p)
+        _ -> do
+            putStrLn "server <addr> <port>"
+            exitFailure
     runTCPServer (Just host) port runHTTP2Server
   where
-    runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
-                                 freeSimpleConfig
-                                 (`run` server)
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 4096)
+            freeSimpleConfig
+            (`run` server)
     server req _aux sendResponse = case getHeaderValue tokenMethod vt of
-      Just "GET"  -> sendResponse responseHello []
-      Just "POST" -> sendResponse (responseEcho req) []
-      _           -> sendResponse response404 []
+        Just "GET" -> sendResponse responseHello []
+        Just "POST" -> sendResponse (responseEcho req) []
+        _ -> sendResponse response404 []
       where
         (_, vt) = requestHeaders req
 

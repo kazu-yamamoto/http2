@@ -1,5 +1,7 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings, RecordWildCards, CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module JSON where
@@ -10,11 +12,11 @@ import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (first)
 import Control.Monad (mzero)
 import Data.Aeson
+import Data.Aeson.KeyMap (union)
 import Data.Aeson.Types
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
-import Data.Aeson.KeyMap (union)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -31,16 +33,17 @@ textToByteString = B8.pack . T.unpack
 
 (+++) :: Value -> Value -> Value
 Object x +++ Object y = Object $ x `union` y
-Null     +++ x        = x
-x        +++ Null     = x
-_        +++ _        = error "+++"
+Null +++ x = x
+x +++ Null = x
+_ +++ _ = error "+++"
 
 ----------------------------------------------------------------
 
-data FramePad = FramePad {
-    fpFrame :: Frame
-  , fpPad :: Maybe Pad
-  } deriving (Show, Read)
+data FramePad = FramePad
+    { fpFrame :: Frame
+    , fpPad :: Maybe Pad
+    }
+    deriving (Show, Read)
 
 newtype Pad = Pad Padding deriving (Show, Read)
 
@@ -49,12 +52,13 @@ unPad (Pad x) = x
 
 ----------------------------------------------------------------
 
-data Case = Case {
-    description :: String
-  , wire :: ByteString
-  , frame :: Maybe FramePad
-  , err :: Maybe [ErrorCode]
-  } deriving (Show, Read)
+data Case = Case
+    { description :: String
+    , wire :: ByteString
+    , frame :: Maybe FramePad
+    , err :: Maybe [ErrorCode]
+    }
+    deriving (Show, Read)
 
 ----------------------------------------------------------------
 
@@ -93,64 +97,76 @@ instance FromJSON ByteString where
 ----------------------------------------------------------------
 
 instance ToJSON FramePayload where
-    toJSON (DataFrame body) = object [
-        "data" .= body
-      ]
-    toJSON (HeadersFrame mpri hdr) = object [
-        "exclusive"             .= maybe Null (toJSON . exclusive) mpri
-      , "stream_dependency"     .= maybe Null (toJSON . streamDependency) mpri
-      , "weight"                .= maybe Null (toJSON . weight) mpri
-      , "header_block_fragment" .= hdr
-      ]
-    toJSON (PriorityFrame pri) = object [
-        "exclusive" .= exclusive pri
-      , "stream_dependency" .= streamDependency pri
-      , "weight" .= weight pri
-      ]
-    toJSON (RSTStreamFrame e) = object [
-        "error_code" .= e
-      ]
-    toJSON (SettingsFrame settings) = object [
-        "settings" .= settings
-      ]
-    toJSON (PushPromiseFrame sid hdr) = object [
-        "promised_stream_id" .= sid
-      , "header_block_fragment" .= hdr
-      ]
-    toJSON (PingFrame odata) = object [
-        "opaque_data" .= odata
-      ]
-    toJSON (GoAwayFrame sid e debug) = object [
-        "last_stream_id" .= sid
-      , "error_code" .= e
-      , "additional_debug_data" .= debug
-      ]
-    toJSON (WindowUpdateFrame size) = object [
-        "window_size_increment" .= size
-      ]
-    toJSON (ContinuationFrame hdr) = object [
-        "header_block_fragment" .= hdr
-      ]
-    toJSON (UnknownFrame _ opaque) = object [
-        "payload" .= opaque
-      ]
+    toJSON (DataFrame body) =
+        object
+            [ "data" .= body
+            ]
+    toJSON (HeadersFrame mpri hdr) =
+        object
+            [ "exclusive" .= maybe Null (toJSON . exclusive) mpri
+            , "stream_dependency" .= maybe Null (toJSON . streamDependency) mpri
+            , "weight" .= maybe Null (toJSON . weight) mpri
+            , "header_block_fragment" .= hdr
+            ]
+    toJSON (PriorityFrame pri) =
+        object
+            [ "exclusive" .= exclusive pri
+            , "stream_dependency" .= streamDependency pri
+            , "weight" .= weight pri
+            ]
+    toJSON (RSTStreamFrame e) =
+        object
+            [ "error_code" .= e
+            ]
+    toJSON (SettingsFrame settings) =
+        object
+            [ "settings" .= settings
+            ]
+    toJSON (PushPromiseFrame sid hdr) =
+        object
+            [ "promised_stream_id" .= sid
+            , "header_block_fragment" .= hdr
+            ]
+    toJSON (PingFrame odata) =
+        object
+            [ "opaque_data" .= odata
+            ]
+    toJSON (GoAwayFrame sid e debug) =
+        object
+            [ "last_stream_id" .= sid
+            , "error_code" .= e
+            , "additional_debug_data" .= debug
+            ]
+    toJSON (WindowUpdateFrame size) =
+        object
+            [ "window_size_increment" .= size
+            ]
+    toJSON (ContinuationFrame hdr) =
+        object
+            [ "header_block_fragment" .= hdr
+            ]
+    toJSON (UnknownFrame _ opaque) =
+        object
+            [ "payload" .= opaque
+            ]
 
 ----------------------------------------------------------------
 
 instance ToJSON FramePad where
-    toJSON FramePad{fpFrame = Frame{..},..} = object [
-        "length" .= payloadLength frameHeader
-      , "type"   .= framePayloadToFrameType framePayload
-      , "flags"  .= flags frameHeader
-      , "stream_identifier" .= streamId frameHeader
-      , "frame_payload"     .= (toJSON framePayload +++ padObj)
-      ]
+    toJSON FramePad{fpFrame = Frame{..}, ..} =
+        object
+            [ "length" .= payloadLength frameHeader
+            , "type" .= framePayloadToFrameType framePayload
+            , "flags" .= flags frameHeader
+            , "stream_identifier" .= streamId frameHeader
+            , "frame_payload" .= (toJSON framePayload +++ padObj)
+            ]
       where
         padObj = case toJSON fpPad of
             Null
-              | isPaddingDefined framePayload -> emptyPad
-              | otherwise                     -> noPad
-            x    -> x
+                | isPaddingDefined framePayload -> emptyPad
+                | otherwise -> noPad
+            x -> x
 
 instance FromJSON FramePad where
     parseJSON (Object o) = do
@@ -159,14 +175,16 @@ instance FromJSON FramePad where
         flg <- o .: "flags"
         sid <- o .: "stream_identifier"
         pld <- o .: "frame_payload"
-        (payload,mpad) <- parsePayloadPad typ pld
-        return FramePad {
-            fpFrame = Frame {
-                 frameHeader = FrameHeader len flg sid
-               , framePayload = payload
-               }
-          , fpPad = mpad
-          }
+        (payload, mpad) <- parsePayloadPad typ pld
+        return
+            FramePad
+                { fpFrame =
+                    Frame
+                        { frameHeader = FrameHeader len flg sid
+                        , framePayload = payload
+                        }
+                , fpPad = mpad
+                }
     parseJSON _ = mzero
 
 parsePayloadPad :: FrameType -> Object -> Parser (FramePayload, Maybe Pad)
@@ -176,9 +194,11 @@ parsePayloadPad ftyp o = do
     return (payload, mpad)
 
 priority :: Object -> Parser Priority
-priority o = Priority <$> o .: "exclusive"
-                       <*> o .: "stream_dependency"
-                       <*> o .: "weight"
+priority o =
+    Priority
+        <$> o .: "exclusive"
+        <*> o .: "stream_dependency"
+        <*> o .: "weight"
 
 mpriority :: Object -> Parser (Maybe Priority)
 mpriority o = do
@@ -198,27 +218,33 @@ parsePayload FrameHeaders o = do
 parsePayload FramePriority o = PriorityFrame <$> priority o
 parsePayload FrameRSTStream o = RSTStreamFrame <$> o .: "error_code"
 parsePayload FrameSettings o = SettingsFrame <$> o .: "settings"
-parsePayload FramePushPromise o = PushPromiseFrame <$> o .: "promised_stream_id"
-                                                   <*> o .: "header_block_fragment"
+parsePayload FramePushPromise o =
+    PushPromiseFrame
+        <$> o .: "promised_stream_id"
+        <*> o .: "header_block_fragment"
 parsePayload FramePing o = PingFrame <$> o .: "opaque_data"
-parsePayload FrameGoAway o = GoAwayFrame <$> o .: "last_stream_id"
-                                         <*> o .: "error_code"
-                                         <*> o .: "additional_debug_data"
+parsePayload FrameGoAway o =
+    GoAwayFrame
+        <$> o .: "last_stream_id"
+        <*> o .: "error_code"
+        <*> o .: "additional_debug_data"
 parsePayload FrameWindowUpdate o = WindowUpdateFrame <$> o .: "window_size_increment"
 parsePayload FrameContinuation o = ContinuationFrame <$> o .: "header_block_fragment"
-parsePayload ftyp o              = UnknownFrame ftyp <$> o .: "dummy"
+parsePayload ftyp o = UnknownFrame ftyp <$> o .: "dummy"
 
 instance ToJSON Pad where
-    toJSON (Pad padding) = object [
-        "padding_length" .= BS.length padding
-      , "padding" .= padding
-      ]
+    toJSON (Pad padding) =
+        object
+            [ "padding_length" .= BS.length padding
+            , "padding" .= padding
+            ]
 
 emptyPad :: Value
-emptyPad = object [
-    "padding_length" .= Null
-  , "padding" .= Null
-  ]
+emptyPad =
+    object
+        [ "padding_length" .= Null
+        , "padding" .= Null
+        ]
 
 noPad :: Value
 noPad = object []
@@ -226,16 +252,19 @@ noPad = object []
 ----------------------------------------------------------------
 
 instance ToJSON Case where
-    toJSON Case{..} = object [
-        "description" .= description
-      , "wire" .= wire
-      , "frame" .= frame
-      , "error" .= err
-      ]
+    toJSON Case{..} =
+        object
+            [ "description" .= description
+            , "wire" .= wire
+            , "frame" .= frame
+            , "error" .= err
+            ]
 
 instance FromJSON Case where
-    parseJSON (Object o) = Case <$> o .: "description"
-                                <*> o .: "wire"
-                                <*> o .:? "frame"
-                                <*> o .:? "error"
-    parseJSON _          = mzero
+    parseJSON (Object o) =
+        Case
+            <$> o .: "description"
+            <*> o .: "wire"
+            <*> o .:? "frame"
+            <*> o .:? "error"
+    parseJSON _ = mzero

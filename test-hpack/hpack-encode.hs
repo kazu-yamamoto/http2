@@ -14,18 +14,18 @@ import JSON
 main :: IO ()
 main = do
     args <- getArgs
-    (arg1,arg2,desc) <- case args of
-      [a,b,c] -> return (a,b,c)
-      _     -> do
-        hPutStrLn stderr "hpack-encode on/off naive|linear <desc>"
-        exitFailure
+    (arg1, arg2, desc) <- case args of
+        [a, b, c] -> return (a, b, c)
+        _ -> do
+            hPutStrLn stderr "hpack-encode on/off naive|linear <desc>"
+            exitFailure
     let huffman
-          | arg1 == "on" = True
-          | otherwise = False
+            | arg1 == "on" = True
+            | otherwise = False
         algo
-          | arg2 == "naive"  = Naive
-          | arg2 == "static" = Static
-          | otherwise        = Linear
+            | arg2 == "naive" = Naive
+            | arg2 == "static" = Static
+            | otherwise = Linear
         stgy = EncodeStrategy algo huffman
     hpackEncode stgy desc
 
@@ -36,10 +36,11 @@ hpackEncode stgy desc = do
     hexs <- run False stgy tc
     let cs = cases tc
         cs' = zipWith update cs hexs
-        tc' = tc {
-            description = desc
-          , cases = cs'
-          }
+        tc' =
+            tc
+                { description = desc
+                , cases = cs'
+                }
     BL.putStrLn $ encodePretty tc'
   where
-    update c hex = c { wire = hex }
+    update c hex = c{wire = hex}

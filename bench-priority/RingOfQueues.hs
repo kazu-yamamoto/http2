@@ -1,32 +1,32 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- Haskell implementation of H2O's priority queue.
 -- https://github.com/h2o/h2o/blob/master/lib/http2/scheduler.c
 
 module RingOfQueues (
-    Entry
-  , newEntry
-  , renewEntry
-  , item
-  , Node
-  , PriorityQueue(..)
-  , new
-  , enqueue
-  , dequeue
-  , delete
-  ) where
+    Entry,
+    newEntry,
+    renewEntry,
+    item,
+    Node,
+    PriorityQueue (..),
+    new,
+    enqueue,
+    dequeue,
+    delete,
+) where
 
 import Control.Monad (replicateM)
 import Data.Array (Array, listArray, (!))
-import Data.Bits (setBit, clearBit, shiftR)
+import Data.Bits (clearBit, setBit, shiftR)
 import Data.IORef
 import Data.Word (Word64)
-import Foreign.C.Types (CLLong(..))
+import Foreign.C.Types (CLLong (..))
 
-import DoublyLinkedQueueIO (Queue, Node)
+import DoublyLinkedQueueIO (Node, Queue)
 import qualified DoublyLinkedQueueIO as Q
 
 ----------------------------------------------------------------
@@ -34,26 +34,28 @@ import qualified DoublyLinkedQueueIO as Q
 type Weight = Int
 
 -- | Abstract data type of entries for priority queues.
-data Entry a = Entry {
-    item :: a -- ^ Extracting an item from an entry.
-  , weight  :: {-# UNPACK #-} !Weight
-  , deficit :: {-# UNPACK #-} !Int
-  } deriving Show
+data Entry a = Entry
+    { item :: a
+    -- ^ Extracting an item from an entry.
+    , weight :: {-# UNPACK #-} !Weight
+    , deficit :: {-# UNPACK #-} !Int
+    }
+    deriving (Show)
 
 newEntry :: a -> Weight -> Entry a
 newEntry x w = Entry x w 0
 
 -- | Changing the item of an entry.
 renewEntry :: Entry a -> b -> Entry b
-renewEntry ent x = ent { item = x }
+renewEntry ent x = ent{item = x}
 
 ----------------------------------------------------------------
 
-data PriorityQueue a = PriorityQueue {
-    bitsRef   :: IORef Word64
-  , offsetRef :: IORef Int
-  , queues    :: Array Int (Queue (Entry a))
-  }
+data PriorityQueue a = PriorityQueue
+    { bitsRef :: IORef Word64
+    , offsetRef :: IORef Int
+    , queues :: Array Int (Queue (Entry a))
+    }
 
 ----------------------------------------------------------------
 
@@ -72,11 +74,11 @@ deficitList :: [Int]
 deficitList = map calc idxs
   where
     idxs :: [Double]
-    idxs = [1..256]
+    idxs = [1 .. 256]
     calc w = round (65536 * 63 / w)
 
 deficitTable :: Array Int Int
-deficitTable = listArray (1,256) deficitList
+deficitTable = listArray (1, 256) deficitList
 
 ----------------------------------------------------------------
 
@@ -111,9 +113,9 @@ new = PriorityQueue <$> newIORef 0 <*> newIORef 0 <*> newQueues
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Entry a -> PriorityQueue a -> IO (Node (Entry a))
 enqueue ent PriorityQueue{..} = do
-    let (!idx,!deficit') = calcIdxAndDeficit
+    let (!idx, !deficit') = calcIdxAndDeficit
     !offidx <- getOffIdx idx
-    node <- push offidx ent { deficit = deficit' }
+    node <- push offidx ent{deficit = deficit'}
     updateBits idx
     return node
   where
@@ -128,17 +130,16 @@ enqueue ent PriorityQueue{..} = do
 dequeue :: PriorityQueue a -> IO (Maybe (Entry a))
 dequeue pq@PriorityQueue{..} = do
     !idx <- getIdx
-    if idx == -1 then
-        return Nothing
-      else do
-        !offidx <- getOffIdx idx
-        updateOffset offidx
-        queueIsEmpty <- checkEmpty offidx
-        updateBits idx queueIsEmpty
-        if queueIsEmpty then
-            dequeue pq
-          else
-            Just <$> pop offidx
+    if idx == -1
+        then return Nothing
+        else do
+            !offidx <- getOffIdx idx
+            updateOffset offidx
+            queueIsEmpty <- checkEmpty offidx
+            updateBits idx queueIsEmpty
+            if queueIsEmpty
+                then dequeue pq
+                else Just <$> pop offidx
   where
     getIdx = firstBitSet <$> readIORef bitsRef
     getOffIdx idx = relativeIndex idx <$> readIORef offsetRef
@@ -148,8 +149,8 @@ dequeue pq@PriorityQueue{..} = do
     updateBits idx isEmpty = modifyIORef' bitsRef shiftClear
       where
         shiftClear bits
-          | isEmpty   = clearBit (shiftR bits idx) 0
-          | otherwise = shiftR bits idx
+            | isEmpty = clearBit (shiftR bits idx) 0
+            | otherwise = shiftR bits idx
 
 -- bits is not updated because it's difficult.
 delete :: Node (Entry a) -> IO ()

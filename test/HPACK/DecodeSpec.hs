@@ -41,7 +41,10 @@ spec = do
                     isDynamicTableEmpty dtbl `shouldReturn` True
 
 hl1 :: HeaderList
-hl1 = [("custom-key","custom-value")
-      ,("loooooooooooooooooooooooooooooooooooooooooog-key"
-       ,"loooooooooooooooooooooooooooooooooooooooooog-value")
-      ]
+hl1 =
+    [ ("custom-key", "custom-value")
+    ,
+        ( "loooooooooooooooooooooooooooooooooooooooooog-key"
+        , "loooooooooooooooooooooooooooooooooooooooooog-value"
+        )
+    ]

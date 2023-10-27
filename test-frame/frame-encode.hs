@@ -13,10 +13,9 @@ main :: IO ()
 main = do
     args <- getArgs
     xs <- getContents
-    if not (null args) then -- "-w"
-        printWire xs
-      else
-        printJSON xs
+    if not (null args) -- "-w"
+        then printWire xs
+        else printJSON xs
 
 printWire :: String -> IO ()
 printWire = print . sourceToWire . read

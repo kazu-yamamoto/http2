@@ -5,16 +5,20 @@ module HPACKSpec where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Monad (forM_, filterM)
+import Control.Monad (filterM, forM_)
 import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Lazy as BL
 import Data.List (isPrefixOf, isSuffixOf)
-import System.Directory (getDirectoryContents, doesDirectoryExist, doesFileExist)
+import System.Directory (
+    doesDirectoryExist,
+    doesFileExist,
+    getDirectoryContents,
+ )
 import System.FilePath ((</>))
 import Test.Hspec
 
-import JSON
 import HPACKDecode
+import JSON
 
 testDir :: FilePath
 testDir = "test-hpack/hpack-test-case"
@@ -39,11 +43,11 @@ test file = do
     bs <- BL.readFile file
     let etc = eitherDecode bs :: Either String Test
     case etc of
-        Left e   -> return $ Just $ file ++ ": " ++ e
+        Left e -> return $ Just $ file ++ ": " ++ e
         Right tc -> do
             res <- run False tc
             case res of
-                Pass   -> return Nothing
+                Pass -> return Nothing
                 Fail e -> return $ Just $ file ++ ": " ++ e
 
 spec :: Spec

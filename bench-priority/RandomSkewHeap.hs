@@ -21,17 +21,17 @@
 -- APIs are made to be pure with unsafePerformIO.
 
 module RandomSkewHeap (
-    PriorityQueue
-  , empty
-  , isEmpty
-  , enqueue
-  , dequeue
-  , delete
-  ) where
+    PriorityQueue,
+    empty,
+    isEmpty,
+    enqueue,
+    dequeue,
+    delete,
+) where
 
 import Data.List (partition)
 import System.IO.Unsafe (unsafePerformIO)
-import System.Random.MWC (createSystemRandom, uniformR, GenIO)
+import System.Random.MWC (GenIO, createSystemRandom, uniformR)
 
 ----------------------------------------------------------------
 
@@ -40,12 +40,16 @@ type Weight = Int
 
 ----------------------------------------------------------------
 
-data PriorityQueue a = Leaf | Node {-# UNPACK #-} !Weight -- total
-                                   {-# UNPACK #-} !Key
-                                   {-# UNPACK #-} !Weight
-                                   !a
-                                   !(PriorityQueue a)
-                                   !(PriorityQueue a) deriving Show
+data PriorityQueue a
+    = Leaf
+    | Node
+        {-# UNPACK #-} !Weight -- total
+        {-# UNPACK #-} !Key
+        {-# UNPACK #-} !Weight
+        !a
+        !(PriorityQueue a)
+        !(PriorityQueue a)
+    deriving (Show)
 
 ----------------------------------------------------------------
 
@@ -54,7 +58,7 @@ empty = Leaf
 
 isEmpty :: PriorityQueue a -> Bool
 isEmpty Leaf = True
-isEmpty _    = False
+isEmpty _ = False
 
 singleton :: Key -> Weight -> a -> PriorityQueue a
 singleton k w v = Node w k w v Leaf Leaf
@@ -69,15 +73,15 @@ merge :: PriorityQueue t -> PriorityQueue t -> PriorityQueue t
 merge t Leaf = t
 merge Leaf t = t
 merge l@(Node tw1 k1 w1 v1 ll lr) r@(Node tw2 k2 w2 v2 rl rr)
-  | g <= w1   = Node tw k1 w1 v1 lr $ merge ll r
-  | otherwise = Node tw k2 w2 v2 rr $ merge rl l
+    | g <= w1 = Node tw k1 w1 v1 lr $ merge ll r
+    | otherwise = Node tw k2 w2 v2 rr $ merge rl l
   where
     tw = tw1 + tw2
-    g = unsafePerformIO $ uniformR (1,tw) gen
+    g = unsafePerformIO $ uniformR (1, tw) gen
 {-# NOINLINE merge #-}
 
 dequeue :: PriorityQueue a -> Maybe (Key, Weight, a, PriorityQueue a)
-dequeue Leaf               = Nothing
+dequeue Leaf = Nothing
 dequeue (Node _ k w v l r) = Just (k, w, v, t)
   where
     !t = merge l r
@@ -86,22 +90,22 @@ delete :: Key -> PriorityQueue a -> (Maybe a, PriorityQueue a)
 delete k q = (mv, fromList xs')
   where
     !xs = toList q
-    (!ds,!xs') = partition (\(k',_,_) -> k' == k) xs
+    (!ds, !xs') = partition (\(k', _, _) -> k' == k) xs
     mv = case ds of
-       []          -> Nothing
-       ((_,_,v):_) -> Just v
+        [] -> Nothing
+        ((_, _, v) : _) -> Just v
 
 toList :: PriorityQueue a -> [(Key, Weight, a)]
 toList q = go q id []
   where
     go Leaf b = b
-    go (Node _ k w v l r) b = go r (go l (((k,w,v) :) . b))
+    go (Node _ k w v l r) b = go r (go l (((k, w, v) :) . b))
 
 fromList :: [(Key, Weight, a)] -> PriorityQueue a
 fromList xs = go empty xs
   where
     go !q [] = q
-    go !q ((k,w,v):xks) = go (enqueue k w v q) xks
+    go !q ((k, w, v) : xks) = go (enqueue k w v q) xks
 
 {-# NOINLINE gen #-}
 gen :: GenIO

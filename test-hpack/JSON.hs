@@ -1,21 +1,23 @@
-{-# LANGUAGE OverloadedStrings, FlexibleInstances, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module JSON (
-    Test(..)
-  , Case(..)
-  , HeaderList
-  ) where
+    Test (..),
+    Case (..),
+    HeaderList,
+) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
 import Control.Monad (mzero)
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as H
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.Aeson.KeyMap as H
-import qualified Data.Aeson.Key as Key
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Vector ((!))
@@ -33,64 +35,76 @@ main = do
     BL.putStr $ encodePretty x
 -}
 
-data Test = Test {
-    description :: String
-  , cases :: [Case]
-  } deriving Show
+data Test = Test
+    { description :: String
+    , cases :: [Case]
+    }
+    deriving (Show)
 
-data Case = Case {
-    size :: Maybe Int
-  , wire :: ByteString
-  , headers :: HeaderList
-  , seqno :: Maybe Int
-  } deriving Show
+data Case = Case
+    { size :: Maybe Int
+    , wire :: ByteString
+    , headers :: HeaderList
+    , seqno :: Maybe Int
+    }
+    deriving (Show)
 
 instance FromJSON Test where
-    parseJSON (Object o) = Test <$> o .: "description"
-                                <*> o .: "cases"
-    parseJSON _          = mzero
+    parseJSON (Object o) =
+        Test
+            <$> o .: "description"
+            <*> o .: "cases"
+    parseJSON _ = mzero
 
 instance ToJSON Test where
-    toJSON (Test desc cs) = object ["description" .= desc
-                                   ,"cases" .= cs
-                                   ]
+    toJSON (Test desc cs) =
+        object
+            [ "description" .= desc
+            , "cases" .= cs
+            ]
 
 instance FromJSON Case where
-    parseJSON (Object o) = Case <$> o .:? "header_table_size"
-                                <*> (textToByteString <$> (o .: "wire"))
-                                <*> o .: "headers"
-                                <*> o .:? "seqno"
-    parseJSON _          = mzero
+    parseJSON (Object o) =
+        Case
+            <$> o .:? "header_table_size"
+            <*> (textToByteString <$> (o .: "wire"))
+            <*> o .: "headers"
+            <*> o .:? "seqno"
+    parseJSON _ = mzero
 
 instance ToJSON Case where
-    toJSON (Case (Just siz) w hs no) = object ["header_table_size" .= siz
-                                              ,"wire" .= byteStringToText w
-                                              ,"headers" .= hs
-                                              ,"seqno" .= no
-                                              ]
-    toJSON (Case Nothing    w hs no) = object ["wire" .= byteStringToText w
-                                              ,"headers" .= hs
-                                              ,"seqno" .= no
-                                              ]
+    toJSON (Case (Just siz) w hs no) =
+        object
+            [ "header_table_size" .= siz
+            , "wire" .= byteStringToText w
+            , "headers" .= hs
+            , "seqno" .= no
+            ]
+    toJSON (Case Nothing w hs no) =
+        object
+            [ "wire" .= byteStringToText w
+            , "headers" .= hs
+            , "seqno" .= no
+            ]
 
 instance {-# OVERLAPPING #-} FromJSON HeaderList where
     parseJSON (Array a) = mapM parseJSON $ V.toList a
-    parseJSON _         = mzero
+    parseJSON _ = mzero
 
 instance {-# OVERLAPPING #-} ToJSON HeaderList where
     toJSON hs = toJSON $ map toJSON hs
 
 instance {-# OVERLAPPING #-} FromJSON Header where
-    parseJSON (Array a)  = pure (toKey (a ! 0), toValue (a ! 1)) -- old
+    parseJSON (Array a) = pure (toKey (a ! 0), toValue (a ! 1)) -- old
       where
         toKey = toValue
     parseJSON (Object o) = pure (textToByteString (Key.toText k), toValue v) -- new
       where
-        (k,v) = head $ H.toList o
-    parseJSON _          = mzero
+        (k, v) = head $ H.toList o
+    parseJSON _ = mzero
 
 instance {-# OVERLAPPING #-} ToJSON Header where
-    toJSON (k,v) = object [ Key.fromText (byteStringToText k) .= byteStringToText v ]
+    toJSON (k, v) = object [Key.fromText (byteStringToText k) .= byteStringToText v]
 
 textToByteString :: Text -> ByteString
 textToByteString = B8.pack . T.unpack
@@ -100,4 +114,4 @@ byteStringToText = T.pack . B8.unpack
 
 toValue :: Value -> ByteString
 toValue (String s) = textToByteString s
-toValue _          = error "toValue"
+toValue _ = error "toValue"
