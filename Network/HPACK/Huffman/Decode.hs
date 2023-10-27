@@ -121,6 +121,7 @@ step _    (Bin _ n _ _) (Two w z) [] = GoBack2 (fromIntegral n) w z
 step root (Bin _ _ l _) mx    (F:bs) = step root l mx bs
 step root (Bin _ _ _ r) mx    (T:bs) = step root r mx bs
 
+{- FOURMOLU_DISABLE -}
 bits8s :: [[B]]
 bits8s = [
     [F,F,F,F,F,F,F,F]
@@ -380,4 +381,4 @@ bits8s = [
   , [T,T,T,T,T,T,T,F]
   , [T,T,T,T,T,T,T,T]
   ]
-
+{- FOURMOLU_ENABLE -}
