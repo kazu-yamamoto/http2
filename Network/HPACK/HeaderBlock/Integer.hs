@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.HeaderBlock.Integer (
-    encodeI
-  , encodeInteger
-  , decodeI
-  , decodeInteger
-  ) where
+    encodeI,
+    encodeInteger,
+    decodeI,
+    decodeInteger,
+) where
 
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
@@ -17,7 +17,7 @@ import Imports
 -- >>> import qualified Data.ByteString as BS
 
 powerArray :: Array Int Int
-powerArray = listArray (1,8) [1,3,7,15,31,63,127,255]
+powerArray = listArray (1, 8) [1, 3, 7, 15, 31, 63, 127, 255]
 
 ----------------------------------------------------------------
 
@@ -41,35 +41,43 @@ if I < 2^N - 1, encode I on N bits
 -- [31,154,10]
 -- >>> BS.unpack <$> encodeInteger 8 42
 -- [42]
-encodeInteger :: Int -- ^ N+
-              -> Int -- ^ Target
-              -> IO ByteString
+encodeInteger
+    :: Int
+    -- ^ N+
+    -> Int
+    -- ^ Target
+    -> IO ByteString
 encodeInteger n i = withWriteBuffer 4096 $ \wbuf -> encodeI wbuf id n i
 
 -- Using write8 is faster than using internals directly.
 --
+
 -- | Integer encoding with a write buffer.
-{-# INLINABLE encodeI #-}
-encodeI :: WriteBuffer
-        -> (Word8 -> Word8) -- ^ Setting prefix
-        -> Int -- ^ N+
-        -> Int -- ^ Target
-        -> IO ()
+{-# INLINEABLE encodeI #-}
+encodeI
+    :: WriteBuffer
+    -> (Word8 -> Word8)
+    -- ^ Setting prefix
+    -> Int
+    -- ^ N+
+    -> Int
+    -- ^ Target
+    -> IO ()
 encodeI wbuf set n i
-  | i < p     = write8 wbuf $ set $ fromIntegral i
-  | otherwise = do
+    | i < p = write8 wbuf $ set $ fromIntegral i
+    | otherwise = do
         write8 wbuf $ set $ fromIntegral p
         encode' (i - p)
   where
     p = powerArray `unsafeAt` (n - 1)
     encode' :: Int -> IO ()
     encode' j
-      | j < 128   = write8 wbuf $ fromIntegral j
-      | otherwise = do
-          let q = j `shiftR` 7
-              r = j .&. 0x7f
-          write8 wbuf $ fromIntegral (r + 128)
-          encode' q
+        | j < 128 = write8 wbuf $ fromIntegral j
+        | otherwise = do
+            let q = j `shiftR` 7
+                r = j .&. 0x7f
+            write8 wbuf $ fromIntegral (r + 128)
+            encode' q
 
 ----------------------------------------------------------------
 
@@ -94,21 +102,29 @@ decode I from the next N bits
 -- 1337
 -- >>> decodeInteger 8 42 $ BS.empty
 -- 42
-decodeInteger :: Int        -- ^ N+
-              -> Word8      -- ^ The head of encoded integer whose prefix is already dropped
-              -> ByteString -- ^ The tail of encoded integer
-              -> IO Int
+decodeInteger
+    :: Int
+    -- ^ N+
+    -> Word8
+    -- ^ The head of encoded integer whose prefix is already dropped
+    -> ByteString
+    -- ^ The tail of encoded integer
+    -> IO Int
 decodeInteger n w bs = withReadBuffer bs $ \rbuf -> decodeI n w rbuf
 
-{-# INLINABLE decodeI #-}
+{-# INLINEABLE decodeI #-}
+
 -- | Integer decoding with a read buffer. The first argument is N of prefix.
-decodeI :: Int        -- ^ N+
-        -> Word8      -- ^ The head of encoded integer whose prefix is already dropped
-        -> ReadBuffer
-        -> IO Int
+decodeI
+    :: Int
+    -- ^ N+
+    -> Word8
+    -- ^ The head of encoded integer whose prefix is already dropped
+    -> ReadBuffer
+    -> IO Int
 decodeI n w rbuf
-  | i < p     = return i
-  | otherwise = decode 0 i
+    | i < p = return i
+    | otherwise = decode 0 i
   where
     p = powerArray `unsafeAt` (n - 1)
     i = fromIntegral w
