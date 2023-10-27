@@ -5,12 +5,12 @@ module Network.HTTP2.Server.Run where
 
 import UnliftIO.Async (concurrently_)
 
+import Control.Exception
 import Imports
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame
 import Network.HTTP2.Server.Types
 import Network.HTTP2.Server.Worker
-import Control.Exception
 
 ----------------------------------------------------------------
 
@@ -32,22 +32,22 @@ run conf@Config{..} server = do
         -- context switches happen.
         replicateM_ 3 $ spawnAction mgr
         let runReceiver = frameReceiver ctx conf
-            runSender   = frameSender   ctx conf mgr
+            runSender = frameSender ctx conf mgr
         stopAfter mgr (concurrently_ runReceiver runSender) $ \res -> do
-          closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
-          case res of
-            Left err ->
-              throwIO err
-            Right x ->
-              return x
+            closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
+            case res of
+                Left err ->
+                    throwIO err
+                Right x ->
+                    return x
   where
     checkPreface = do
         preface <- confReadN connectionPrefaceLength
-        if connectionPreface /= preface then do
-            goaway conf ProtocolError "Preface mismatch"
-            return False
-          else
-            return True
+        if connectionPreface /= preface
+            then do
+                goaway conf ProtocolError "Preface mismatch"
+                return False
+            else return True
 
 -- connClose must not be called here since Run:fork calls it
 goaway :: Config -> ErrorCode -> ByteString -> IO ()
