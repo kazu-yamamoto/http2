@@ -349,7 +349,8 @@ toHeaderTable kvs = do
     conv :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
     conv arr = go kvs empty
       where
-        go :: [(CI HeaderName, HeaderValue)] -> Builder TokenHeader -> IO TokenHeaderList
+        go
+            :: [(CI HeaderName, HeaderValue)] -> Builder TokenHeader -> IO TokenHeaderList
         go [] builder = return $ run builder
         go ((k, v) : xs) builder = do
             let t = toToken (foldedCase k)
