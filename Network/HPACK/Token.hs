@@ -121,6 +121,7 @@ tokenCIKey (Token _ _ _ ci) = original ci
 tokenFoldedKey :: Token -> ByteString
 tokenFoldedKey (Token _ _ _ ci) = foldedCase ci
 
+{- FOURMOLU_DISABLE -}
 tokenAuthority                :: Token
 tokenMethod                   :: Token
 tokenPath                     :: Token
@@ -276,6 +277,7 @@ tokenXFrameOptions                 = Token 71  True False "X-Frame-Options"
 tokenXXssProtection                = Token 72  True False "X-Xss-Protection"
 
 tokenMax                           = Token 73  True False "for other tokens"
+{- FOURMOLU_ENABLE -}
 
 -- | Minimum token index.
 minTokenIx :: Int
