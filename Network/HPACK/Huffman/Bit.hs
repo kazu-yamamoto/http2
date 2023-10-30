@@ -1,16 +1,19 @@
 module Network.HPACK.Huffman.Bit (
-  -- * Bits
-    B(..)
-  , Bits
-  , fromBits
-  ) where
+    -- * Bits
+    B (..),
+    Bits,
+    fromBits,
+) where
 
 import Imports
 
 -- | Data type for Bit.
-data B = F -- ^ Zero
-       | T -- ^ One
-       deriving (Eq,Ord,Show)
+data B
+    = -- | Zero
+      F
+    | -- | One
+      T
+    deriving (Eq, Ord, Show)
 
 -- | Bit stream.
 type Bits = [B]

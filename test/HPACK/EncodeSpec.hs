@@ -6,8 +6,8 @@ module HPACK.EncodeSpec where
 import Control.Applicative ((<$>))
 #endif
 import qualified Control.Exception as E
-import qualified Data.ByteString as BS
 import Data.Bits
+import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 import Network.HPACK
 import Test.Hspec
@@ -16,22 +16,22 @@ spec :: Spec
 spec = do
     describe "encodeHeader and decodeHeader" $ do
         it "works for Naive" $
-            run Nothing EncodeStrategy {compressionAlgo = Naive, useHuffman = False} []
+            run Nothing EncodeStrategy{compressionAlgo = Naive, useHuffman = False} []
         it "works for NaiveH" $
-            run Nothing EncodeStrategy {compressionAlgo = Naive, useHuffman = True} []
+            run Nothing EncodeStrategy{compressionAlgo = Naive, useHuffman = True} []
         it "works for Static" $
-            run Nothing EncodeStrategy {compressionAlgo = Static, useHuffman = False} []
+            run Nothing EncodeStrategy{compressionAlgo = Static, useHuffman = False} []
         it "works for StaticH" $
-            run Nothing EncodeStrategy {compressionAlgo = Static, useHuffman = True} []
+            run Nothing EncodeStrategy{compressionAlgo = Static, useHuffman = True} []
         it "works for Linear" $
-            run Nothing EncodeStrategy {compressionAlgo = Linear, useHuffman = False} [] -- linearLens
+            run Nothing EncodeStrategy{compressionAlgo = Linear, useHuffman = False} [] -- linearLens
         it "works for LinearH" $
-            run Nothing EncodeStrategy {compressionAlgo = Linear, useHuffman = True} []
+            run Nothing EncodeStrategy{compressionAlgo = Linear, useHuffman = True} []
     describe "encodeHeader with a 0-size table" $ do
-      it "works for Linear" $
-          run (Just 0) EncodeStrategy {compressionAlgo = Linear, useHuffman = False} []
-      it "does not use indexed fields" $ do
-          runNotIndexed EncodeStrategy {compressionAlgo = Linear, useHuffman = False}
+        it "works for Linear" $
+            run (Just 0) EncodeStrategy{compressionAlgo = Linear, useHuffman = False} []
+        it "does not use indexed fields" $ do
+            runNotIndexed EncodeStrategy{compressionAlgo = Linear, useHuffman = False}
 
 run :: Maybe Int -> EncodeStrategy -> [Int] -> Expectation
 run msz stgy lens0 = do
@@ -39,27 +39,34 @@ run msz stgy lens0 = do
     hdrs <- read <$> readFile "bench-hpack/headers.hs"
     withDynamicTableForEncoding sz $ \etbl ->
         withDynamicTableForDecoding sz 4096 $ \dtbl ->
-        go etbl dtbl hdrs lens0 `shouldReturn` True
-    where
-        go :: DynamicTable -> DynamicTable -> [HeaderList] -> [Int] -> IO Bool
-        go _    _    []     _    = return True
-        go etbl dtbl (h:hs) lens = do
-            bs <- encodeHeader stgy 4096 etbl h `E.catch` \(E.SomeException e) -> do
+            go etbl dtbl hdrs lens0 `shouldReturn` True
+  where
+    go :: DynamicTable -> DynamicTable -> [HeaderList] -> [Int] -> IO Bool
+    go _ _ [] _ = return True
+    go etbl dtbl (h : hs) lens = do
+        bs <-
+            encodeHeader stgy 4096 etbl h `E.catch` \(E.SomeException e) -> do
                 putStrLn $ "encodeHeader: " ++ show e
                 print h
                 E.throwIO e
-            lens' <- case lens of
-                    l:ls
-                      | BS.length bs == l -> return ls
-                      | otherwise         -> error $ "The length of encoded headers should be " ++ show l ++ " but " ++ show (BS.length bs)
-                    []                    -> return []
-            h' <- decodeHeader dtbl bs  `E.catch` \(E.SomeException e) -> do
+        lens' <- case lens of
+            l : ls
+                | BS.length bs == l -> return ls
+                | otherwise ->
+                    error $
+                        "The length of encoded headers should be "
+                            ++ show l
+                            ++ " but "
+                            ++ show (BS.length bs)
+            [] -> return []
+        h' <-
+            decodeHeader dtbl bs `E.catch` \(E.SomeException e) -> do
                 putStrLn $ "decodeHeader: " ++ show e
                 print h
                 E.throwIO e
-            if h == h' then
-                go etbl dtbl hs lens'
-              else do
+        if h == h'
+            then go etbl dtbl hs lens'
+            else do
                 return False
 
 runNotIndexed :: EncodeStrategy -> Expectation
@@ -68,26 +75,27 @@ runNotIndexed stgy = do
     withDynamicTableForEncoding 0 $ \etbl ->
         withDynamicTableForDecoding 0 4096 $ \dtbl ->
             mapM_ (go etbl dtbl) (hdrs :: [HeaderList])
-    where
-        go etbl _dtbl h = do
-          print h
-          bs <- encodeHeader stgy 4096 etbl h `E.catch` \(E.SomeException e) -> do
-              putStrLn $ "encodeHeader: " ++ show e
-              print h
-              E.throwIO e
-          findIndexed bs `shouldBe` False
+  where
+    go etbl _dtbl h = do
+        print h
+        bs <-
+            encodeHeader stgy 4096 etbl h `E.catch` \(E.SomeException e) -> do
+                putStrLn $ "encodeHeader: " ++ show e
+                print h
+                E.throwIO e
+        findIndexed bs `shouldBe` False
 
 -- check whether indexed fields are used (HPACK spec 6.1)
 findIndexed :: BS.ByteString -> Bool
 findIndexed = go . BS.unpack
-    where
-        go [] = False
-        go (b : bs)
-          | testBit b 7 = if clearBit b 7 <= 61 then go bs else True
-          | b == 0x40 || b == 0 = go (skip (skip bs))
-          | otherwise = go (skip bs)
-        skip (b : bs) = drop (fromIntegral (clearBit b 7)) bs
-        skip [] = []
+  where
+    go [] = False
+    go (b : bs)
+        | testBit b 7 = if clearBit b 7 <= 61 then go bs else True
+        | b == 0x40 || b == 0 = go (skip (skip bs))
+        | otherwise = go (skip bs)
+    skip (b : bs) = drop (fromIntegral (clearBit b 7)) bs
+    skip [] = []
 
 {- fixme: form where these values come?
 linearLens :: [Int]

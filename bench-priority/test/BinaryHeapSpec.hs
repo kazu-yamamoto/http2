@@ -20,13 +20,13 @@ spec = do
             e3 <- P.newEntry 5 1
             P.enqueue e3 q
             xs <- enqdeq q 1000
-            map length (group (sort xs)) `shouldBe` [664,333,3]
+            map length (group (sort xs)) `shouldBe` [664, 333, 3]
         it "deletes properly" $ do
             q <- P.new 100
             e1 <- P.newEntry 1 201
-            e3 <- P.newEntry 3  50
-            e5 <- P.newEntry 5   5
-            e7 <- P.newEntry 7   1
+            e3 <- P.newEntry 3 50
+            e5 <- P.newEntry 5 5
+            e7 <- P.newEntry 7 1
             P.enqueue e1 q
             P.enqueue e3 q
             P.enqueue e5 q
@@ -42,9 +42,9 @@ spec = do
 enqdeq :: P.PriorityQueue Int -> Int -> IO [Int]
 enqdeq pq num = loop pq num []
   where
-    loop _   0 vs = return vs
+    loop _ 0 vs = return vs
     loop !q !n vs = do
         ent <- P.dequeue q
         P.enqueue ent q
         v <- readIORef $ P.item ent
-        loop q (n - 1) (v:vs)
+        loop q (n - 1) (v : vs)

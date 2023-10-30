@@ -32,6 +32,7 @@ toErrorCode = ErrorCode
 
 -- | The type for error code. See <https://www.rfc-editor.org/rfc/rfc9113#ErrorCodes>.
 
+{- FOURMOLU_DISABLE -}
 pattern NoError            :: ErrorCode
 pattern NoError             = ErrorCode 0x0
 
@@ -73,6 +74,7 @@ pattern InadequateSecurity  = ErrorCode 0xc
 
 pattern HTTP11Required     :: ErrorCode
 pattern HTTP11Required      = ErrorCode 0xd
+{- FOURMOLU_ENABLE -}
 
 instance Show ErrorCode where
     show (ErrorCode 0x0) = "NoError"
@@ -89,7 +91,7 @@ instance Show ErrorCode where
     show (ErrorCode 0xb) = "EnhanceYourCalm"
     show (ErrorCode 0xc) = "InadequateSecurity"
     show (ErrorCode 0xd) = "HTTP11Required"
-    show (ErrorCode   x) = "ErrorCode " ++ show x
+    show (ErrorCode x) = "ErrorCode " ++ show x
 
 ----------------------------------------------------------------
 
@@ -108,6 +110,7 @@ minSettingsKey = SettingsKey 1
 maxSettingsKey :: SettingsKey
 maxSettingsKey = SettingsKey 6
 
+{- FOURMOLU_DISABLE -}
 pattern SettingsHeaderTableSize      :: SettingsKey
 pattern SettingsHeaderTableSize       = SettingsKey 1
 
@@ -125,15 +128,16 @@ pattern SettingsMaxFrameSize          = SettingsKey 5 -- this means payload size
 
 pattern SettingsMaxHeaderBlockSize   :: SettingsKey
 pattern SettingsMaxHeaderBlockSize    = SettingsKey 6
+{- FOURMOLU_ENABLE -}
 
 instance Show SettingsKey where
-    show SettingsHeaderTableSize      = "SettingsHeaderTableSize"
-    show SettingsEnablePush           = "SettingsEnablePush"
+    show SettingsHeaderTableSize = "SettingsHeaderTableSize"
+    show SettingsEnablePush = "SettingsEnablePush"
     show SettingsMaxConcurrentStreams = "SettingsMaxConcurrentStreams"
-    show SettingsInitialWindowSize    = "SettingsInitialWindowSize"
-    show SettingsMaxFrameSize         = "SettingsMaxFrameSize"
-    show SettingsMaxHeaderBlockSize   = "SettingsMaxHeaderBlockSize"
-    show (SettingsKey x)              = "SettingsKey " ++ show x
+    show SettingsInitialWindowSize = "SettingsInitialWindowSize"
+    show SettingsMaxFrameSize = "SettingsMaxFrameSize"
+    show SettingsMaxHeaderBlockSize = "SettingsMaxHeaderBlockSize"
+    show (SettingsKey x) = "SettingsKey " ++ show x
 
 instance Read SettingsKey where
     readListPrec = readListPrecDefault
@@ -141,53 +145,56 @@ instance Read SettingsKey where
         Ident idnt <- lexP
         readSK idnt
       where
-        readSK "SettingsHeaderTableSize"      = return SettingsHeaderTableSize
-        readSK "SettingsEnablePush"           = return SettingsEnablePush
+        readSK "SettingsHeaderTableSize" = return SettingsHeaderTableSize
+        readSK "SettingsEnablePush" = return SettingsEnablePush
         readSK "SettingsMaxConcurrentStreams" = return SettingsMaxConcurrentStreams
-        readSK "SettingsInitialWindowSize"    = return SettingsInitialWindowSize
-        readSK "SettingsMaxFrameSize"         = return SettingsMaxFrameSize
-        readSK "SettingsMaxHeaderBlockSize"   = return SettingsMaxHeaderBlockSize
-        readSK "SettingsKey"         = do
-              Number ftyp <- lexP
-              return $ SettingsKey $ fromIntegral $ fromJust $ L.numberToInteger ftyp
-        readSK _                   = error "Read for SettingsKey"
+        readSK "SettingsInitialWindowSize" = return SettingsInitialWindowSize
+        readSK "SettingsMaxFrameSize" = return SettingsMaxFrameSize
+        readSK "SettingsMaxHeaderBlockSize" = return SettingsMaxHeaderBlockSize
+        readSK "SettingsKey" = do
+            Number ftyp <- lexP
+            return $ SettingsKey $ fromIntegral $ fromJust $ L.numberToInteger ftyp
+        readSK _ = error "Read for SettingsKey"
 
 -- | The type for raw SETTINGS value.
 type SettingsValue = Int -- Word32
 
 -- | Association list of SETTINGS.
-type SettingsList = [(SettingsKey,SettingsValue)]
+type SettingsList = [(SettingsKey, SettingsValue)]
 
 ----------------------------------------------------------------
 
 -- | Cooked version of settings. This is suitable to be stored in a HTTP/2 context.
-data Settings = Settings {
-    headerTableSize :: Int
-  , enablePush :: Bool
-  , maxConcurrentStreams :: Maybe Int
-  , initialWindowSize :: WindowSize
-  , maxFrameSize :: Int
-  , maxHeaderListSize :: Maybe Int
-  } deriving (Show)
+data Settings = Settings
+    { headerTableSize :: Int
+    , enablePush :: Bool
+    , maxConcurrentStreams :: Maybe Int
+    , initialWindowSize :: WindowSize
+    , maxFrameSize :: Int
+    , maxHeaderListSize :: Maybe Int
+    }
+    deriving (Show)
 
 -- | The default settings.
 --
 -- >>> defaultSettings
 -- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing}
 defaultSettings :: Settings
-defaultSettings = Settings {
-    headerTableSize = 4096 -- defaultDynamicTableSize
-  , enablePush = True
-  , maxConcurrentStreams = Nothing
-  , initialWindowSize = defaultWindowSize
-  , maxFrameSize = defaultPayloadLength
-  , maxHeaderListSize = Nothing
-  }
+defaultSettings =
+    Settings
+        { headerTableSize = 4096 -- defaultDynamicTableSize
+        , enablePush = True
+        , maxConcurrentStreams = Nothing
+        , initialWindowSize = defaultWindowSize
+        , maxFrameSize = defaultPayloadLength
+        , maxHeaderListSize = Nothing
+        }
 
 -- | Updating settings.
 --
 -- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
 -- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Just 200}
+{- FOURMOLU_DISABLE -}
 updateSettings :: Settings -> SettingsList -> Settings
 updateSettings settings kvs = foldl' update settings kvs
   where
@@ -199,6 +206,7 @@ updateSettings settings kvs = foldl' update settings kvs
     update def (SettingsMaxFrameSize,x)         = def { maxFrameSize = x }
     update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderListSize = Just x }
     update def _                                = def
+{- FOURMOLU_ENABLE -}
 
 -- | The type for window size.
 type WindowSize = Int
@@ -228,7 +236,6 @@ maxWindowSize = 2147483647
 isWindowOverflow :: WindowSize -> Bool
 isWindowOverflow w = testBit w 31
 
-
 -- | Default concurrency.
 --
 -- >>> recommendedConcurrency
@@ -243,11 +250,12 @@ recommendedConcurrency = 100
 type Weight = Int
 
 -- | Type for stream priority. Deprecated in RFC 9113 but provided for 'FrameHeaders'.
-data Priority = Priority {
-    exclusive :: Bool
-  , streamDependency :: StreamId
-  , weight :: Weight
-  } deriving (Show, Read, Eq)
+data Priority = Priority
+    { exclusive :: Bool
+    , streamDependency :: StreamId
+    , weight :: Weight
+    }
+    deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------
 
@@ -272,6 +280,7 @@ minFrameType = FrameType 0
 maxFrameType :: FrameType
 maxFrameType = FrameType 9
 
+{- FOURMOLU_DISABLE -}
 pattern FrameData         :: FrameType
 pattern FrameData          = FrameType 0
 
@@ -301,6 +310,7 @@ pattern FrameWindowUpdate  = FrameType 8
 
 pattern FrameContinuation :: FrameType
 pattern FrameContinuation  = FrameType 9
+{- FOURMOLU_ENABLE -}
 
 instance Show FrameType where
     show (FrameType 0) = "FrameData"
@@ -315,6 +325,7 @@ instance Show FrameType where
     show (FrameType 9) = "FrameContinuation"
     show (FrameType x) = "FrameType " ++ show x
 
+{- FOURMOLU_DISABLE -}
 instance Read FrameType where
     readListPrec = readListPrecDefault
     readPrec = do
@@ -335,6 +346,7 @@ instance Read FrameType where
               Number ftyp <- lexP
               return $ FrameType $ fromIntegral $ fromJust $ L.numberToInteger ftyp
         readFT _                   = error "Read for FrameType"
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
@@ -343,14 +355,14 @@ instance Read FrameType where
 -- >>> maxPayloadLength
 -- 16777215
 maxPayloadLength :: Int
-maxPayloadLength = 2^(24::Int) - 1
+maxPayloadLength = 2 ^ (24 :: Int) - 1
 
 -- | The default payload length of HTTP/2 payload.
 --
 -- >>> defaultPayloadLength
 -- 16384
 defaultPayloadLength :: Int
-defaultPayloadLength = 2^(14::Int)
+defaultPayloadLength = 2 ^ (14 :: Int)
 
 ----------------------------------------------------------------
 -- Flags
@@ -491,31 +503,33 @@ type Padding = ByteString
 
 -- | The data type for HTTP/2 frames.
 data Frame = Frame
-    { frameHeader  :: FrameHeader
+    { frameHeader :: FrameHeader
     , framePayload :: FramePayload
-    } deriving (Show, Read, Eq)
+    }
+    deriving (Show, Read, Eq)
 
 -- | The data type for HTTP/2 frame headers.
 data FrameHeader = FrameHeader
     { payloadLength :: Int
-    , flags         :: FrameFlags
-    , streamId      :: StreamId
-    } deriving (Show, Read, Eq)
+    , flags :: FrameFlags
+    , streamId :: StreamId
+    }
+    deriving (Show, Read, Eq)
 
 -- | The data type for HTTP/2 frame payloads.
-data FramePayload =
-    DataFrame ByteString
-  | HeadersFrame (Maybe Priority) HeaderBlockFragment
-  | PriorityFrame Priority
-  | RSTStreamFrame ErrorCode
-  | SettingsFrame SettingsList
-  | PushPromiseFrame StreamId HeaderBlockFragment
-  | PingFrame ByteString
-  | GoAwayFrame {- the last -}StreamId ErrorCode ByteString
-  | WindowUpdateFrame WindowSize
-  | ContinuationFrame HeaderBlockFragment
-  | UnknownFrame FrameType ByteString
-  deriving (Show, Read, Eq)
+data FramePayload
+    = DataFrame ByteString
+    | HeadersFrame (Maybe Priority) HeaderBlockFragment
+    | PriorityFrame Priority
+    | RSTStreamFrame ErrorCode
+    | SettingsFrame SettingsList
+    | PushPromiseFrame StreamId HeaderBlockFragment
+    | PingFrame ByteString
+    | GoAwayFrame {- the last -} StreamId ErrorCode ByteString
+    | WindowUpdateFrame WindowSize
+    | ContinuationFrame HeaderBlockFragment
+    | UnknownFrame FrameType ByteString
+    deriving (Show, Read, Eq)
 
 ----------------------------------------------------------------
 
@@ -523,6 +537,7 @@ data FramePayload =
 --
 -- >>> framePayloadToFrameType (DataFrame "body")
 -- FrameData
+{- FOURMOLU_DISABLE -}
 framePayloadToFrameType :: FramePayload -> FrameType
 framePayloadToFrameType DataFrame{}          = FrameData
 framePayloadToFrameType HeadersFrame{}       = FrameHeaders
@@ -535,6 +550,7 @@ framePayloadToFrameType GoAwayFrame{}        = FrameGoAway
 framePayloadToFrameType WindowUpdateFrame{}  = FrameWindowUpdate
 framePayloadToFrameType ContinuationFrame{}  = FrameContinuation
 framePayloadToFrameType (UnknownFrame ft _)  = ft
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
@@ -544,6 +560,7 @@ framePayloadToFrameType (UnknownFrame ft _)  = ft
 -- True
 -- >>> isPaddingDefined $ PingFrame ""
 -- False
+{- FOURMOLU_DISABLE -}
 isPaddingDefined :: FramePayload -> Bool
 isPaddingDefined DataFrame{}         = True
 isPaddingDefined HeadersFrame{}      = True
@@ -556,13 +573,16 @@ isPaddingDefined GoAwayFrame{}       = False
 isPaddingDefined WindowUpdateFrame{} = False
 isPaddingDefined ContinuationFrame{} = False
 isPaddingDefined UnknownFrame{}      = False
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 -- Deprecated
 
+{- FOURMOLU_DISABLE -}
 type ErrorCodeId   = ErrorCode
 type SettingsKeyId = SettingsKey
 type FrameTypeId   = FrameType
+{- FOURMOLU_ENABLE -}
 {- DEPRECATED ErrorCodeId   "Use ErrorCode instead" -}
 {- DEPRECATED SettingsKeyId "Use SettingsKey instead" -}
 {- DEPRECATED FrameTypeId   "Use FrameType instead" -}

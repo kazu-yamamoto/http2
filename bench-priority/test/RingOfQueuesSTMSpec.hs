@@ -21,14 +21,14 @@ spec = do
             let e3 = P.newEntry 5 1
             atomically $ P.enqueue e3 q
             xs <- enqdeq q 1000
-            map length (group (sort xs)) `shouldBe` [663,334,3]
+            map length (group (sort xs)) `shouldBe` [663, 334, 3]
 
 enqdeq :: P.PriorityQueue Int -> Int -> IO [Int]
 enqdeq pq num = loop pq num []
   where
-    loop _   0 vs = return vs
+    loop _ 0 vs = return vs
     loop !q !n vs = do
         ent <- atomically $ P.dequeue q
         atomically $ P.enqueue ent q
         let !v = P.item ent
-        loop q (n - 1) (v:vs)
+        loop q (n - 1) (v : vs)

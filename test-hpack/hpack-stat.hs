@@ -1,10 +1,12 @@
-{-# LANGUAGE ScopedTypeVariables, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative
 #endif
+import Control.Monad
 import Data.Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as BL
@@ -12,7 +14,6 @@ import Data.List
 import Data.Maybe (fromJust)
 import System.Directory
 import System.FilePath
-import Control.Monad
 
 import JSON
 
@@ -37,11 +38,9 @@ wdir5 = "test-hpack/hpack-test-case/haskell-http2-linear"
 wdir6 :: FilePath
 wdir6 = "test-hpack/hpack-test-case/haskell-http2-linear-huffman"
 
-
-
 main :: IO ()
 main = do
-    hs  <- get getHeaderSize hdir
+    hs <- get getHeaderSize hdir
     hlen <- get getHeaderLen hdir
     ws1 <- get getWireSize wdir1
     ws2 <- get getWireSize wdir2
@@ -49,7 +48,7 @@ main = do
     ws4 <- get getWireSize wdir4
     ws5 <- get getWireSize wdir5
     ws6 <- get getWireSize wdir6
-    let h  :: Float = fromIntegral $ sum hs
+    let h :: Float = fromIntegral $ sum hs
         w1 :: Float = fromIntegral $ sum ws1
         w2 :: Float = fromIntegral $ sum ws2
         w3 :: Float = fromIntegral $ sum ws3
@@ -57,12 +56,14 @@ main = do
         w5 :: Float = fromIntegral $ sum ws5
         w6 :: Float = fromIntegral $ sum ws6
         hl :: Float = fromIntegral $ sum hlen
-    print (w1 / h
-          ,w2 / h
-          ,w3 / h
-          ,w4 / h
-          ,w5 / h
-          ,w6 / h)
+    print
+        ( w1 / h
+        , w2 / h
+        , w3 / h
+        , w4 / h
+        , w5 / h
+        , w6 / h
+        )
     print ((w4 - w6) / hl)
 
 get :: (FilePath -> IO Int) -> String -> IO [Int]
@@ -80,7 +81,7 @@ getHeaderSize file = do
     let len = sum $ map toT $ cases tc
     return len
   where
-    toT (Case _ _ hs _) = sum $ map (\(x,y) -> BS.length x + BS.length y) hs
+    toT (Case _ _ hs _) = sum $ map (\(x, y) -> BS.length x + BS.length y) hs
 
 getHeaderLen :: FilePath -> IO Int
 getHeaderLen file = do

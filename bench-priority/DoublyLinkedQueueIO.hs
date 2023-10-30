@@ -1,28 +1,29 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module DoublyLinkedQueueIO (
-    Queue
-  , Node
-  , item
-  , new
-  , isEmpty
-  , enqueue
-  , dequeue
-  , delete
-  ) where
+    Queue,
+    Node,
+    item,
+    new,
+    isEmpty,
+    enqueue,
+    dequeue,
+    delete,
+) where
 
 import Data.IORef
 
-data Queue a = Queue {
-    entr :: Node a
-  , exit :: Node a
-  }
+data Queue a = Queue
+    { entr :: Node a
+    , exit :: Node a
+    }
 
-data Node a = Node {
-    item :: a
-  , prev :: {-# UNPACK #-} !(IORef (Node a))
-  , next :: {-# UNPACK #-} !(IORef (Node a))
-  } deriving Eq
+data Node a = Node
+    { item :: a
+    , prev :: {-# UNPACK #-} !(IORef (Node a))
+    , next :: {-# UNPACK #-} !(IORef (Node a))
+    }
+    deriving (Eq)
 
 newNode :: a -> IO (Node a)
 newNode x = Node x <$> newIORef undefined <*> newIORef undefined

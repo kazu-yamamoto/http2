@@ -1,7 +1,7 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- Haskell implementation of H2O's priority queue.
 -- https://github.com/h2o/h2o/blob/master/lib/http2/scheduler.c
@@ -10,48 +10,50 @@
 -- So, key is not passed to enqueue.
 
 module RingOfQueuesSTM (
-    Entry
-  , newEntry
-  , renewEntry
-  , item
-  , PriorityQueue(..)
-  , new
-  , enqueue
-  , dequeue
-  ) where
+    Entry,
+    newEntry,
+    renewEntry,
+    item,
+    PriorityQueue (..),
+    new,
+    enqueue,
+    dequeue,
+) where
 
 import Control.Concurrent.STM
 import Control.Monad (replicateM)
 import Data.Array (Array, listArray, (!))
-import Data.Bits (setBit, clearBit, shiftR)
+import Data.Bits (clearBit, setBit, shiftR)
 import Data.Word (Word64)
-import Foreign.C.Types (CLLong(..))
+import Foreign.C.Types (CLLong (..))
 
 ----------------------------------------------------------------
 
 type Weight = Int
 
 -- | Abstract data type of entries for priority queues.
-data Entry a = Entry {
-    item :: a -- ^ Extracting an item from an entry.
-  , weight  :: {-# UNPACK #-} !Weight
-  , deficit :: {-# UNPACK #-} !Int
-  } deriving Show
+data Entry a = Entry
+    { item :: a
+    -- ^ Extracting an item from an entry.
+    , weight :: {-# UNPACK #-} !Weight
+    , deficit :: {-# UNPACK #-} !Int
+    }
+    deriving (Show)
 
 newEntry :: a -> Weight -> Entry a
 newEntry x w = Entry x w 0
 
 -- | Changing the item of an entry.
 renewEntry :: Entry a -> b -> Entry b
-renewEntry ent x = ent { item = x }
+renewEntry ent x = ent{item = x}
 
 ----------------------------------------------------------------
 
-data PriorityQueue a = PriorityQueue {
-    bitsRef   :: TVar Word64
-  , offsetRef :: TVar Int
-  , queues    :: Array Int (TQueue (Entry a))
-  }
+data PriorityQueue a = PriorityQueue
+    { bitsRef :: TVar Word64
+    , offsetRef :: TVar Int
+    , queues :: Array Int (TQueue (Entry a))
+    }
 
 ----------------------------------------------------------------
 
@@ -70,11 +72,11 @@ deficitList :: [Int]
 deficitList = map calc idxs
   where
     idxs :: [Double]
-    idxs = [1..256]
+    idxs = [1 .. 256]
     calc w = round (65536 * 63 / w)
 
 deficitTable :: Array Int Int
-deficitTable = listArray (1,256) deficitList
+deficitTable = listArray (1, 256) deficitList
 
 ----------------------------------------------------------------
 
@@ -109,9 +111,9 @@ new = PriorityQueue <$> newTVar 0 <*> newTVar 0 <*> newQueues
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Entry a -> PriorityQueue a -> STM ()
 enqueue ent PriorityQueue{..} = do
-    let (!idx,!deficit') = calcIdxAndDeficit
+    let (!idx, !deficit') = calcIdxAndDeficit
     !offidx <- getOffIdx idx
-    push offidx ent { deficit = deficit' }
+    push offidx ent{deficit = deficit'}
     updateBits idx
   where
     calcIdxAndDeficit = total `divMod` deficitSteps
@@ -125,17 +127,16 @@ enqueue ent PriorityQueue{..} = do
 dequeue :: PriorityQueue a -> STM (Entry a)
 dequeue pq@PriorityQueue{..} = do
     !idx <- getIdx
-    if idx == -1 then
-        retry
-      else do
-        !offidx <- getOffIdx idx
-        updateOffset offidx
-        queueIsEmpty <- checkEmpty offidx
-        updateBits idx queueIsEmpty
-        if queueIsEmpty then
-            dequeue pq
-          else
-            pop offidx
+    if idx == -1
+        then retry
+        else do
+            !offidx <- getOffIdx idx
+            updateOffset offidx
+            queueIsEmpty <- checkEmpty offidx
+            updateBits idx queueIsEmpty
+            if queueIsEmpty
+                then dequeue pq
+                else pop offidx
   where
     getIdx = firstBitSet <$> readTVar bitsRef
     getOffIdx idx = relativeIndex idx <$> readTVar offsetRef
@@ -145,5 +146,5 @@ dequeue pq@PriorityQueue{..} = do
     updateBits idx isEmpty = modifyTVar' bitsRef shiftClear
       where
         shiftClear bits
-          | isEmpty   = clearBit (shiftR bits idx) 0
-          | otherwise = shiftR bits idx
+            | isEmpty = clearBit (shiftR bits idx) 0
+            | otherwise = shiftR bits idx

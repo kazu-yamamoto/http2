@@ -1,23 +1,24 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleContexts, CPP #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module BinaryHeap (
-    Entry
-  , newEntry
-  , renewEntry
-  , item
-  , PriorityQueue(..)
-  , new
-  , enqueue
-  , dequeue
-  , delete
-  ) where
+    Entry,
+    newEntry,
+    renewEntry,
+    item,
+    PriorityQueue (..),
+    new,
+    enqueue,
+    dequeue,
+    delete,
+) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Data.Word (Word)
 #endif
-import Control.Monad (when, void)
+import Control.Monad (void, when)
 import Data.Array (Array, listArray, (!))
 import Data.Array.IO (IOArray)
 import Data.Array.MArray (newArray_, readArray, writeArray)
@@ -31,12 +32,13 @@ type Deficit = Word
 -- | Abstract data type of entries for priority queues.
 --   This does not contain Key because Entry is assumed to be stored
 --   in HTTP/2 stream information, too.
-data Entry a = Entry {
-    weight  :: {-# UNPACK #-} !Weight
-  , item    :: {-# UNPACK #-} !(IORef a) -- ^ Extracting an item from an entry.
-  , deficit :: {-# UNPACK #-} !(IORef Deficit)
-  , index   :: {-# UNPACK #-} !(IORef Index)
-  }
+data Entry a = Entry
+    { weight :: {-# UNPACK #-} !Weight
+    , item :: {-# UNPACK #-} !(IORef a)
+    -- ^ Extracting an item from an entry.
+    , deficit :: {-# UNPACK #-} !(IORef Deficit)
+    , index :: {-# UNPACK #-} !(IORef Index)
+    }
 
 newEntry :: a -> Weight -> IO (Entry a)
 newEntry x w = Entry w <$> newIORef x <*> newIORef magicDeficit <*> newIORef (-1)
@@ -50,9 +52,11 @@ renewEntry Entry{..} x = writeIORef item x
 type Index = Int
 type MA a = IOArray Index (Entry a)
 
-data PriorityQueue a = PriorityQueue (IORef Deficit)
-                                     (IORef Index)
-                                     (MA a)
+data PriorityQueue a
+    = PriorityQueue
+        (IORef Deficit)
+        (IORef Index)
+        (MA a)
 
 ----------------------------------------------------------------
 
@@ -68,11 +72,11 @@ deficitStepsW = fromIntegral deficitSteps
 deficitList :: [Deficit]
 deficitList = map calc idxs
   where
-    idxs = [1..256] :: [Double]
+    idxs = [1 .. 256] :: [Double]
     calc w = round (fromIntegral deficitSteps / w)
 
 deficitTable :: Array Index Deficit
-deficitTable = listArray (1,256) deficitList
+deficitTable = listArray (1, 256) deficitList
 
 weightToDeficit :: Weight -> Deficit
 weightToDeficit w = deficitTable ! w
@@ -80,9 +84,11 @@ weightToDeficit w = deficitTable ! w
 ----------------------------------------------------------------
 
 new :: Int -> IO (PriorityQueue a)
-new n = PriorityQueue <$> newIORef 0
-                      <*> newIORef 1
-                      <*> newArray_ (1,n)
+new n =
+    PriorityQueue
+        <$> newIORef 0
+        <*> newIORef 1
+        <*> newArray_ (1, n)
 
 -- | Enqueuing an entry. PriorityQueue is updated.
 enqueue :: Entry a -> PriorityQueue a -> IO ()
@@ -120,7 +126,7 @@ shrink arr r idx = do
     return entr
 
 shiftUp :: MA a -> Int -> IO ()
-shiftUp _   1 = return ()
+shiftUp _ 1 = return ()
 shiftUp arr c = do
     swapped <- swap arr p c
     when swapped $ shiftUp arr p
@@ -129,17 +135,17 @@ shiftUp arr c = do
 
 shiftDown :: MA a -> Int -> Int -> IO ()
 shiftDown arr p n
-  | c1 > n    = return ()
-  | c1 == n   = void $ swap arr p c1
-  | otherwise = do
-      let !c2 = c1 + 1
-      xc1 <- readArray arr c1
-      xc2 <- readArray arr c2
-      d1 <- readIORef $ deficit xc1
-      d2 <- readIORef $ deficit xc2
-      let !c = if d1 /= d2 && d2 - d1 <= deficitStepsW then c1 else c2
-      swapped <- swap arr p c
-      when swapped $ shiftDown arr c n
+    | c1 > n = return ()
+    | c1 == n = void $ swap arr p c1
+    | otherwise = do
+        let !c2 = c1 + 1
+        xc1 <- readArray arr c1
+        xc2 <- readArray arr c2
+        d1 <- readIORef $ deficit xc1
+        d2 <- readIORef $ deficit xc2
+        let !c = if d1 /= d2 && d2 - d1 <= deficitStepsW then c1 else c2
+        swapped <- swap arr p c
+        when swapped $ shiftDown arr c n
   where
     c1 = 2 * p
 
@@ -150,12 +156,12 @@ swap arr p c = do
     xc <- readArray arr c
     dp <- readIORef $ deficit xp
     dc <- readIORef $ deficit xc
-    if dc < dp then do
-        write arr c xp
-        write arr p xc
-        return True
-      else
-        return False
+    if dc < dp
+        then do
+            write arr c xp
+            write arr p xc
+            return True
+        else return False
 
 {-# INLINE write #-}
 write :: MA a -> Index -> Entry a -> IO ()
@@ -166,10 +172,10 @@ write arr i ent = do
 delete :: Entry a -> PriorityQueue a -> IO ()
 delete ent pq@(PriorityQueue _ idx arr) = do
     i <- readIORef $ index ent
-    if i == 1 then
-        void $ dequeue pq
-      else do
-        entr <- shrink arr i idx
-        r <- readIORef $ index entr
-        shiftDown arr r (i - 1)
-        shiftUp arr r
+    if i == 1
+        then void $ dequeue pq
+        else do
+            entr <- shrink arr i idx
+            r <- readIORef $ index entr
+            shiftDown arr r (i - 1)
+            shiftUp arr r

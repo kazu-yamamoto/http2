@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module HTTP2.ClientSpec where
 
@@ -44,14 +44,16 @@ spec = do
         it "receives an error if authority and host are different" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient "http" host' [("Host","foo")] `shouldThrow` streamError
+                runClient "http" host' [("Host", "foo")] `shouldThrow` streamError
 
 runServer :: IO ()
 runServer = runTCPServer (Just host) port runHTTP2Server
   where
-    runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
-                                 freeSimpleConfig
-                                 (`S.run` server)
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 4096)
+            freeSimpleConfig
+            (`S.run` server)
 server :: S.Server
 server _req _aux sendResponse = sendResponse responseHello []
 
@@ -65,10 +67,13 @@ runClient :: Scheme -> Authority -> RequestHeaders -> IO ()
 runClient sc au hd = runTCPClient host port $ runHTTP2Client
   where
     cliconf = ClientConfig sc au 20
-    runHTTP2Client s = E.bracket (allocSimpleConfig s 4096)
-                                 freeSimpleConfig
-                                 (\conf -> run cliconf conf $ \sendRequest ->
-                                   client sendRequest)
+    runHTTP2Client s =
+        E.bracket
+            (allocSimpleConfig s 4096)
+            freeSimpleConfig
+            ( \conf -> run cliconf conf $ \sendRequest ->
+                client sendRequest
+            )
     client sendRequest = do
         let req = requestNoBody methodGet "/" hd
         sendRequest req $ \rsp -> do
@@ -77,4 +82,4 @@ runClient sc au hd = runTCPClient host port $ runHTTP2Client
 
 streamError :: Selector HTTP2Error
 streamError (StreamErrorIsReceived _ _) = True
-streamError _                           = False
+streamError _ = False

@@ -1,19 +1,19 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HPACK.HeaderBlock.Encode (
-    encodeHeader
-  , encodeTokenHeader
-  , encodeString
-  , encodeS
-  ) where
+    encodeHeader,
+    encodeTokenHeader,
+    encodeString,
+    encodeS,
+) where
 
 import Control.Exception (bracket, throwIO)
 import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (create, memcpy)
 import Data.IORef
-import Foreign.Marshal.Alloc (mallocBytes, free)
+import Foreign.Marshal.Alloc (free, mallocBytes)
 import Foreign.Ptr (minusPtr)
 import Network.ByteOrder
 
@@ -43,30 +43,35 @@ changeTableSize dyntbl wbuf = do
 -- | Converting 'HeaderList' to the HPACK format.
 --   This function has overhead of allocating/freeing a temporary buffer.
 --   'BufferOverrun' will be thrown if the temporary buffer is too small.
-encodeHeader :: EncodeStrategy
-             -> Size -- ^ The size of a temporary buffer.
-             -> DynamicTable
-             -> HeaderList
-             -> IO ByteString -- ^ An HPACK format
+encodeHeader
+    :: EncodeStrategy
+    -> Size
+    -- ^ The size of a temporary buffer.
+    -> DynamicTable
+    -> HeaderList
+    -> IO ByteString
+    -- ^ An HPACK format
 encodeHeader stgy siz dyntbl hs = encodeHeader' stgy siz dyntbl hs'
   where
-    hs' = map (\(k,v) -> let t = toToken k in (t,v)) hs
-
+    hs' = map (\(k, v) -> let t = toToken k in (t, v)) hs
 
 -- | Converting 'HeaderList' to the HPACK format.
 --   'BufferOverrun' will be thrown if the temporary buffer is too small.
-encodeHeader' :: EncodeStrategy
-              -> Size -- ^ The size of a temporary buffer.
-              -> DynamicTable
-              -> TokenHeaderList
-              -> IO ByteString -- ^ An HPACK format
+encodeHeader'
+    :: EncodeStrategy
+    -> Size
+    -- ^ The size of a temporary buffer.
+    -> DynamicTable
+    -> TokenHeaderList
+    -> IO ByteString
+    -- ^ An HPACK format
 encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
   where
     enc buf = do
-        (hs',len) <- encodeTokenHeader buf siz stgy True dyntbl hs
+        (hs', len) <- encodeTokenHeader buf siz stgy True dyntbl hs
         case hs' of
             [] -> create len $ \p -> memcpy p buf len
-            _  -> throwIO BufferOverrun
+            _ -> throwIO BufferOverrun
 
 ----------------------------------------------------------------
 
@@ -85,14 +90,16 @@ encodeHeader' stgy siz dyntbl hs = bracket (mallocBytes siz) free enc
 --   If 'True' and the limit is set by 'setLimitForEncoding',
 --   dynamic table size update is generated at the beginning of
 --   the HPACK format.
---
-encodeTokenHeader :: Buffer
-                  -> BufferSize
-                  -> EncodeStrategy
-                  -> Bool -- ^ 'True' at the first time, 'False' when continued.
-                  -> DynamicTable
-                  -> TokenHeaderList
-                  -> IO (TokenHeaderList, Int) -- ^ Leftover, filled length
+encodeTokenHeader
+    :: Buffer
+    -> BufferSize
+    -> EncodeStrategy
+    -> Bool
+    -- ^ 'True' at the first time, 'False' when continued.
+    -> DynamicTable
+    -> TokenHeaderList
+    -> IO (TokenHeaderList, Int)
+    -- ^ Leftover, filled length
 encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
     wbuf <- newWriteBuffer buf siz
     when first $ changeTableSize dyntbl wbuf
@@ -104,7 +111,7 @@ encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
         fe' = literalHeaderFieldWithoutIndexingNewName' dyntbl wbuf useHuffman
         rev = getRevIndex dyntbl
         step0 = case compressionAlgo of
-            Naive  -> naiveStep  fe'
+            Naive -> naiveStep fe'
             Static -> staticStep fa fd fe
             Linear -> linearStep rev fa fb fc fd
     ref1 <- currentOffset wbuf >>= newIORef
@@ -118,7 +125,7 @@ encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
     loop wbuf ref1 ref2 step hsx = go hsx
       where
         go [] = return ()
-        go ((t,v):hs) = do
+        go ((t, v) : hs) = do
             _ <- step t v
             currentOffset wbuf >>= writeIORef ref1
             writeIORef ref2 hs
@@ -126,7 +133,8 @@ encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
 
 ----------------------------------------------------------------
 
-naiveStep :: (HeaderName -> HeaderValue -> IO ()) -> Token -> HeaderValue -> IO ()
+naiveStep
+    :: (HeaderName -> HeaderValue -> IO ()) -> Token -> HeaderValue -> IO ()
 naiveStep fe t v = fe (tokenFoldedKey t) v
 
 ----------------------------------------------------------------
@@ -201,7 +209,8 @@ index wbuf i = encodeI wbuf set1 7 i
 
 -- Using Huffman encoding
 {-# INLINE indexedName #-}
-indexedName :: WriteBuffer -> Bool -> Int -> Setter -> HeaderValue -> Index -> IO ()
+indexedName
+    :: WriteBuffer -> Bool -> Int -> Setter -> HeaderValue -> Index -> IO ()
 indexedName wbuf huff n set v idx = do
     encodeI wbuf set n idx
     encStr wbuf huff v
@@ -220,9 +229,9 @@ type Setter = Word8 -> Word8
 
 -- Assuming MSBs are 0.
 set1, set01, set001, set0000 :: Setter
-set1    x = x `setBit` 7
-set01   x = x `setBit` 6
-set001  x = x `setBit` 5
+set1 x = x `setBit` 7
+set01 x = x `setBit` 6
+set001 x = x `setBit` 5
 -- set0001 x = x `setBit` 4 -- Never indexing
 set0000 = id
 
@@ -231,47 +240,59 @@ set0000 = id
 -- | String encoding.
 --   The algorithm based on copy avoidance and
 --   selection of better result of huffman or raw.
-encodeS :: WriteBuffer
-        -> Bool             -- ^ Use Huffman if efficient
-        -> (Word8 -> Word8) -- ^ Setting prefix
-        -> (Word8 -> Word8) -- ^ Setting huffman flag
-        -> Int              -- ^ N+
-        -> ByteString       -- ^ Target
-        -> IO ()
+encodeS
+    :: WriteBuffer
+    -> Bool
+    -- ^ Use Huffman if efficient
+    -> (Word8 -> Word8)
+    -- ^ Setting prefix
+    -> (Word8 -> Word8)
+    -- ^ Setting huffman flag
+    -> Int
+    -- ^ N+
+    -> ByteString
+    -- ^ Target
+    -> IO ()
 encodeS wbuf False set _ n bs = do
     let len = BS.length bs
     encodeI wbuf set n len
     copyByteString wbuf bs
-encodeS wbuf True  set setH n bs = do
+encodeS wbuf True set setH n bs = do
     let origLen = BS.length bs
         expectedLen = (origLen `div` 10) * 8 -- 80%: decided by examples
         expectedIntLen = integerLength n expectedLen
     ff wbuf expectedIntLen
     len <- encodeH wbuf bs
     let intLen = integerLength n len
-    if origLen < len then do
-        ff wbuf (negate (expectedIntLen + len))
-        encodeI wbuf set n origLen
-        copyByteString wbuf bs
-      else if intLen == expectedIntLen then do
-        ff wbuf (negate (expectedIntLen + len))
-        encodeI wbuf (set . setH) n len
-        ff wbuf len
-      else do
-        let gap = intLen - expectedIntLen
-        shiftLastN wbuf gap len
-        ff wbuf (negate (intLen + len))
-        encodeI wbuf (set . setH) n  len
-        ff wbuf len
+    if origLen < len
+        then do
+            ff wbuf (negate (expectedIntLen + len))
+            encodeI wbuf set n origLen
+            copyByteString wbuf bs
+        else
+            if intLen == expectedIntLen
+                then do
+                    ff wbuf (negate (expectedIntLen + len))
+                    encodeI wbuf (set . setH) n len
+                    ff wbuf len
+                else do
+                    let gap = intLen - expectedIntLen
+                    shiftLastN wbuf gap len
+                    ff wbuf (negate (intLen + len))
+                    encodeI wbuf (set . setH) n len
+                    ff wbuf len
 
 {-# INLINE encStr #-}
 encStr :: WriteBuffer -> Bool -> ByteString -> IO ()
 encStr wbuf h bs = encodeS wbuf h id (`setBit` 7) 7 bs
 
 -- | String encoding (7+) with a temporary buffer whose size is 4096.
-encodeString :: Bool       -- ^ Use Huffman if efficient
-             -> ByteString -- ^ Target
-             -> IO ByteString
+encodeString
+    :: Bool
+    -- ^ Use Huffman if efficient
+    -> ByteString
+    -- ^ Target
+    -> IO ByteString
 encodeString h bs = withWriteBuffer 4096 $ \wbuf -> encStr wbuf h bs
 
 {-
@@ -289,34 +310,34 @@ N+   1   2     3 <- bytes
 {-# INLINE integerLength #-}
 integerLength :: Int -> Int -> Int
 integerLength 8 l
-  | l <= 254  = 1
-  | l <= 382  = 2
-  | otherwise = 3
+    | l <= 254 = 1
+    | l <= 382 = 2
+    | otherwise = 3
 integerLength 7 l
-  | l <= 126  = 1
-  | l <= 254  = 2
-  | otherwise = 3
+    | l <= 126 = 1
+    | l <= 254 = 2
+    | otherwise = 3
 integerLength 6 l
-  | l <=  62  = 1
-  | l <= 190  = 2
-  | otherwise = 3
+    | l <= 62 = 1
+    | l <= 190 = 2
+    | otherwise = 3
 integerLength 5 l
-  | l <=  30  = 1
-  | l <= 158  = 2
-  | otherwise = 3
+    | l <= 30 = 1
+    | l <= 158 = 2
+    | otherwise = 3
 integerLength 4 l
-  | l <=  14  = 1
-  | l <= 142  = 2
-  | otherwise = 3
+    | l <= 14 = 1
+    | l <= 142 = 2
+    | otherwise = 3
 integerLength 3 l
-  | l <=   6  = 1
-  | l <= 134  = 2
-  | otherwise = 3
+    | l <= 6 = 1
+    | l <= 134 = 2
+    | otherwise = 3
 integerLength 2 l
-  | l <=   2  = 1
-  | l <= 130  = 2
-  | otherwise = 3
+    | l <= 2 = 1
+    | l <= 130 = 2
+    | otherwise = 3
 integerLength _ l
-  | l <=   0  = 1
-  | l <= 128  = 2
-  | otherwise = 3
+    | l <= 0 = 1
+    | l <= 128 = 2
+    | otherwise = 3

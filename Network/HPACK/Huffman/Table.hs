@@ -3,6 +3,7 @@ module Network.HPACK.Huffman.Table where
 import Imports
 import Network.HPACK.Huffman.Bit
 
+{- FOURMOLU_DISABLE -}
 huffmanTable :: [Bits]
 huffmanTable = [
     [T,T,T,T,T,T,T,T,T,T,F,F,F]
@@ -524,3 +525,4 @@ huffmanTable' = [
   , 0x3ffffee
   , 0x3fffffff
   ]
+{- FOURMOLU_ENABLE -}

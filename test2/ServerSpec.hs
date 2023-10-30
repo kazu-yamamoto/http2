@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module ServerSpec (spec) where
 
@@ -25,21 +25,23 @@ spec = do
     describe "server" $ do
         it "handles error cases" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
-                runProcess (proc "h2spec" ["-h",host,"-p",port]) `shouldReturn` ExitSuccess
+                runProcess (proc "h2spec" ["-h", host, "-p", port]) `shouldReturn` ExitSuccess
 
 runServer :: IO ()
 runServer = runTCPServer (Just host) port runHTTP2Server
   where
-    runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
-                                 freeSimpleConfig
-                                 (`run` server)
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 4096)
+            freeSimpleConfig
+            (`run` server)
 
 server :: Server
 server req _aux sendResponse = case requestMethod req of
-  Just "GET"  -> case requestPath req of
-                   Just "/"     -> sendResponse responseHello []
-                   _            -> sendResponse response404 []
-  _           -> sendResponse response405 []
+    Just "GET" -> case requestPath req of
+        Just "/" -> sendResponse responseHello []
+        _ -> sendResponse response404 []
+    _ -> sendResponse response405 []
 
 responseHello :: Response
 responseHello = responseBuilder ok200 header body

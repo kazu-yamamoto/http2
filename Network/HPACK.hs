@@ -2,49 +2,57 @@
 
 -- | HPACK(<https://tools.ietf.org/html/rfc7541>) encoding and decoding a header list.
 module Network.HPACK (
-  -- * Encoding and decoding
-    encodeHeader
-  , decodeHeader
-  -- * Encoding and decoding with token
-  , encodeTokenHeader
-  , decodeTokenHeader
-  -- * DynamicTable
-  , DynamicTable
-  , defaultDynamicTableSize
-  , newDynamicTableForEncoding
-  , newDynamicTableForDecoding
-  , withDynamicTableForEncoding
-  , withDynamicTableForDecoding
-  , setLimitForEncoding
-  -- * Strategy for encoding
-  , CompressionAlgo(..)
-  , EncodeStrategy(..)
-  , defaultEncodeStrategy
-  -- * Errors
-  , DecodeError(..)
-  , BufferOverrun(..)
-  -- * Headers
-  , HeaderList
-  , Header
-  , HeaderName
-  , HeaderValue
-  , TokenHeaderList
-  , TokenHeader
-  -- * Value table
-  , ValueTable
-  , HeaderTable
-  , getHeaderValue
-  , toHeaderTable
-  -- * Basic types
-  , Size
-  , Index
-  , Buffer
-  , BufferSize
-  -- * Re-exports
-  , original
-  , foldedCase
-  , mk
-  ) where
+    -- * Encoding and decoding
+    encodeHeader,
+    decodeHeader,
+
+    -- * Encoding and decoding with token
+    encodeTokenHeader,
+    decodeTokenHeader,
+
+    -- * DynamicTable
+    DynamicTable,
+    defaultDynamicTableSize,
+    newDynamicTableForEncoding,
+    newDynamicTableForDecoding,
+    withDynamicTableForEncoding,
+    withDynamicTableForDecoding,
+    setLimitForEncoding,
+
+    -- * Strategy for encoding
+    CompressionAlgo (..),
+    EncodeStrategy (..),
+    defaultEncodeStrategy,
+
+    -- * Errors
+    DecodeError (..),
+    BufferOverrun (..),
+
+    -- * Headers
+    HeaderList,
+    Header,
+    HeaderName,
+    HeaderValue,
+    TokenHeaderList,
+    TokenHeader,
+
+    -- * Value table
+    ValueTable,
+    HeaderTable,
+    getHeaderValue,
+    toHeaderTable,
+
+    -- * Basic types
+    Size,
+    Index,
+    Buffer,
+    BufferSize,
+
+    -- * Re-exports
+    original,
+    foldedCase,
+    mk,
+) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))

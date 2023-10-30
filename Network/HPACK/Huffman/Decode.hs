@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Huffman.Decode (
-  -- * Huffman decoding
-    decodeH
-  , decodeHuffman
-  , HuffmanDecoder
-  , decH
-  , GCBuffer
-  ) where
+    -- * Huffman decoding
+    decodeH,
+    decodeHuffman,
+    HuffmanDecoder,
+    decH,
+    GCBuffer,
+) where
 
 import Control.Exception (throwIO)
 import Data.Array (Array, listArray)
@@ -20,7 +20,7 @@ import Network.HPACK.Huffman.Bit
 import Network.HPACK.Huffman.Params
 import Network.HPACK.Huffman.Table
 import Network.HPACK.Huffman.Tree
-import Network.HPACK.Types (DecodeError(..))
+import Network.HPACK.Types (DecodeError (..))
 
 ----------------------------------------------------------------
 
@@ -29,14 +29,17 @@ type HuffmanDecoder = ReadBuffer -> Int -> IO ByteString
 
 ----------------------------------------------------------------
 
-data Pin = EndOfString
-         | Forward {-# UNPACK #-} Word8 -- node no.
-         | GoBack  {-# UNPACK #-} Word8 -- node no.
-                   {-# UNPACK #-} Word8 -- a decoded value
-         | GoBack2 {-# UNPACK #-} Word8 -- node no.
-                   {-# UNPACK #-} Word8 -- a decoded value
-                   {-# UNPACK #-} Word8 -- a decoded value
-         deriving Show
+data Pin
+    = EndOfString
+    | Forward {-# UNPACK #-} Word8 -- node no.
+    | GoBack
+        {-# UNPACK #-} Word8 -- node no.
+        {-# UNPACK #-} Word8 -- a decoded value
+    | GoBack2
+        {-# UNPACK #-} Word8 -- node no.
+        {-# UNPACK #-} Word8 -- a decoded value
+        {-# UNPACK #-} Word8 -- a decoded value
+    deriving (Show)
 
 data WayStep = WayStep (Maybe Int) (Array Word8 Pin)
 type Way256 = Array Word8 WayStep
@@ -47,11 +50,15 @@ next (WayStep _ a16) w = a16 `unsafeAt` fromIntegral w
 ----------------------------------------------------------------
 
 -- | Huffman decoding.
-decodeH :: GCBuffer    -- ^ A working space
-        -> BufferSize
-        -> ReadBuffer  -- ^ A read buffer which contains the target
-        -> Int         -- ^ The target length
-        -> IO ByteString
+decodeH
+    :: GCBuffer
+    -- ^ A working space
+    -> BufferSize
+    -> ReadBuffer
+    -- ^ A read buffer which contains the target
+    -> Int
+    -- ^ The target length
+    -> IO ByteString
 decodeH gcbuf bufsiz rbuf len = withForeignPtr gcbuf $ \buf -> do
     wbuf <- newWriteBuffer buf bufsiz
     decH wbuf rbuf len
@@ -62,18 +69,18 @@ decH :: WriteBuffer -> ReadBuffer -> Int -> IO ()
 decH wbuf rbuf len = go len (way256 `unsafeAt` 0)
   where
     go 0 way0 = case way0 of
-        WayStep Nothing  _ -> throwIO IllegalEos
+        WayStep Nothing _ -> throwIO IllegalEos
         WayStep (Just i) _
-          | i <= 8         -> return ()
-          | otherwise      -> throwIO TooLongEos
+            | i <= 8 -> return ()
+            | otherwise -> throwIO TooLongEos
     go n way0 = do
         w <- read8 rbuf
         way <- doit way0 w
         go (n - 1) way
     doit way w = case next way w of
         EndOfString -> throwIO EosInTheMiddle
-        Forward n   -> return $ way256 `unsafeAt` fromIntegral n
-        GoBack  n v -> do
+        Forward n -> return $ way256 `unsafeAt` fromIntegral n
+        GoBack n v -> do
             write8 wbuf v
             return $ way256 `unsafeAt` fromIntegral n
         GoBack2 n v1 v2 -> do
@@ -93,17 +100,19 @@ way256 :: Way256
 way256 = construct $ toHTree huffmanTable
 
 construct :: HTree -> Way256
-construct decoder = listArray (0,255) $ map to16ways $ flatten decoder
+construct decoder = listArray (0, 255) $ map to16ways $ flatten decoder
   where
     to16ways x = WayStep ei a16
       where
         ei = eosInfo x
-        a16 = listArray (0,255) $ map (step decoder x Non) bits8s
+        a16 = listArray (0, 255) $ map (step decoder x Non) bits8s
 
-data Chara = Non
-           | One Word8
-           | Two Word8 Word8
+data Chara
+    = Non
+    | One Word8
+    | Two Word8 Word8
 
+{- FOURMOLU_DISABLE -}
 inc :: Chara -> Word8 -> Chara
 inc Non w     = One w
 inc (One v) w = Two v w
@@ -380,4 +389,4 @@ bits8s = [
   , [T,T,T,T,T,T,T,F]
   , [T,T,T,T,T,T,T,T]
   ]
-
+{- FOURMOLU_ENABLE -}

@@ -1,115 +1,123 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Network.HPACK.Token (
-  -- * Data type
-    Token(..)
-  , tokenCIKey
-  , tokenFoldedKey
-  , toToken
-  -- * Ix
-  , minTokenIx
-  , maxStaticTokenIx
-  , maxTokenIx
-  , cookieTokenIx
-  -- * Utilities
-  , isMaxTokenIx
-  , isCookieTokenIx
-  , isStaticTokenIx
-  , isStaticToken
-  -- * Defined tokens
-  , tokenAuthority
-  , tokenMethod
-  , tokenPath
-  , tokenScheme
-  , tokenStatus
-  , tokenAcceptCharset
-  , tokenAcceptEncoding
-  , tokenAcceptLanguage
-  , tokenAcceptRanges
-  , tokenAccept
-  , tokenAccessControlAllowOrigin
-  , tokenAge
-  , tokenAllow
-  , tokenAuthorization
-  , tokenCacheControl
-  , tokenContentDisposition
-  , tokenContentEncoding
-  , tokenContentLanguage
-  , tokenContentLength
-  , tokenContentLocation
-  , tokenContentRange
-  , tokenContentType
-  , tokenCookie
-  , tokenDate
-  , tokenEtag
-  , tokenExpect
-  , tokenExpires
-  , tokenFrom
-  , tokenHost
-  , tokenIfMatch
-  , tokenIfModifiedSince
-  , tokenIfNoneMatch
-  , tokenIfRange
-  , tokenIfUnmodifiedSince
-  , tokenLastModified
-  , tokenLink
-  , tokenLocation
-  , tokenMaxForwards
-  , tokenProxyAuthenticate
-  , tokenProxyAuthorization
-  , tokenRange
-  , tokenReferer
-  , tokenRefresh
-  , tokenRetryAfter
-  , tokenServer
-  , tokenSetCookie
-  , tokenStrictTransportSecurity
-  , tokenTransferEncoding
-  , tokenUserAgent
-  , tokenVary
-  , tokenVia
-  , tokenWwwAuthenticate
-  , tokenConnection
-  , tokenTE
-  , tokenMax
-  , tokenAccessControlAllowCredentials
-  , tokenAccessControlAllowHeaders
-  , tokenAccessControlAllowMethods
-  , tokenAccessControlExposeHeaders
-  , tokenAccessControlRequestHeaders
-  , tokenAccessControlRequestMethod
-  , tokenAltSvc
-  , tokenContentSecurityPolicy
-  , tokenEarlyData
-  , tokenExpectCt
-  , tokenForwarded
-  , tokenOrigin
-  , tokenPurpose
-  , tokenTimingAllowOrigin
-  , tokenUpgradeInsecureRequests
-  , tokenXContentTypeOptions
-  , tokenXForwardedFor
-  , tokenXFrameOptions
-  , tokenXXssProtection
-  ) where
+    -- * Data type
+    Token (..),
+    tokenCIKey,
+    tokenFoldedKey,
+    toToken,
+
+    -- * Ix
+    minTokenIx,
+    maxStaticTokenIx,
+    maxTokenIx,
+    cookieTokenIx,
+
+    -- * Utilities
+    isMaxTokenIx,
+    isCookieTokenIx,
+    isStaticTokenIx,
+    isStaticToken,
+
+    -- * Defined tokens
+    tokenAuthority,
+    tokenMethod,
+    tokenPath,
+    tokenScheme,
+    tokenStatus,
+    tokenAcceptCharset,
+    tokenAcceptEncoding,
+    tokenAcceptLanguage,
+    tokenAcceptRanges,
+    tokenAccept,
+    tokenAccessControlAllowOrigin,
+    tokenAge,
+    tokenAllow,
+    tokenAuthorization,
+    tokenCacheControl,
+    tokenContentDisposition,
+    tokenContentEncoding,
+    tokenContentLanguage,
+    tokenContentLength,
+    tokenContentLocation,
+    tokenContentRange,
+    tokenContentType,
+    tokenCookie,
+    tokenDate,
+    tokenEtag,
+    tokenExpect,
+    tokenExpires,
+    tokenFrom,
+    tokenHost,
+    tokenIfMatch,
+    tokenIfModifiedSince,
+    tokenIfNoneMatch,
+    tokenIfRange,
+    tokenIfUnmodifiedSince,
+    tokenLastModified,
+    tokenLink,
+    tokenLocation,
+    tokenMaxForwards,
+    tokenProxyAuthenticate,
+    tokenProxyAuthorization,
+    tokenRange,
+    tokenReferer,
+    tokenRefresh,
+    tokenRetryAfter,
+    tokenServer,
+    tokenSetCookie,
+    tokenStrictTransportSecurity,
+    tokenTransferEncoding,
+    tokenUserAgent,
+    tokenVary,
+    tokenVia,
+    tokenWwwAuthenticate,
+    tokenConnection,
+    tokenTE,
+    tokenMax,
+    tokenAccessControlAllowCredentials,
+    tokenAccessControlAllowHeaders,
+    tokenAccessControlAllowMethods,
+    tokenAccessControlExposeHeaders,
+    tokenAccessControlRequestHeaders,
+    tokenAccessControlRequestMethod,
+    tokenAltSvc,
+    tokenContentSecurityPolicy,
+    tokenEarlyData,
+    tokenExpectCt,
+    tokenForwarded,
+    tokenOrigin,
+    tokenPurpose,
+    tokenTimingAllowOrigin,
+    tokenUpgradeInsecureRequests,
+    tokenXContentTypeOptions,
+    tokenXForwardedFor,
+    tokenXFrameOptions,
+    tokenXXssProtection,
+) where
 
 import qualified Data.ByteString as B
-import Data.ByteString.Internal (ByteString(..), memcmp)
+import Data.ByteString.Internal (ByteString (..), memcmp)
+import Data.CaseInsensitive (CI (..), mk, original)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import System.IO.Unsafe (unsafeDupablePerformIO)
-import Data.CaseInsensitive (original, mk, CI(..))
 
 -- $setup
 -- >>> :set -XOverloadedStrings
 
 -- | Internal representation for header keys.
-data Token = Token {
-    tokenIx :: Int          -- ^ Index for value table
-  , shouldBeIndexed :: Bool -- ^ should be indexed in HPACK
-  , isPseudo :: Bool        -- ^ is this a pseudo header key?
-  , tokenKey :: CI ByteString -- ^ Case insensitive header key
-  } deriving (Eq, Show)
+data Token = Token
+    { tokenIx :: Int
+    -- ^ Index for value table
+    , shouldBeIndexed :: Bool
+    -- ^ should be indexed in HPACK
+    , isPseudo :: Bool
+    -- ^ is this a pseudo header key?
+    , tokenKey :: CI ByteString
+    -- ^ Case insensitive header key
+    }
+    deriving (Eq, Show)
 
 -- | Extracting a case insensitive header key from a token.
 {-# INLINE tokenCIKey #-}
@@ -121,6 +129,7 @@ tokenCIKey (Token _ _ _ ci) = original ci
 tokenFoldedKey :: Token -> ByteString
 tokenFoldedKey (Token _ _ _ ci) = foldedCase ci
 
+{- FOURMOLU_DISABLE -}
 tokenAuthority                :: Token
 tokenMethod                   :: Token
 tokenPath                     :: Token
@@ -276,6 +285,7 @@ tokenXFrameOptions                 = Token 71  True False "X-Frame-Options"
 tokenXXssProtection                = Token 72  True False "X-Xss-Protection"
 
 tokenMax                           = Token 73  True False "for other tokens"
+{- FOURMOLU_ENABLE -}
 
 -- | Minimum token index.
 minTokenIx :: Int
@@ -326,9 +336,9 @@ toToken "" = Token maxTokenIx True False ""
 toToken bs = case len of
     2 -> if bs === "te" then tokenTE else mkTokenMax bs
     3 -> case lst of
-        97  | bs === "via" -> tokenVia
+        97 | bs === "via" -> tokenVia
         101 | bs === "age" -> tokenAge
-        _                  -> mkTokenMax bs
+        _ -> mkTokenMax bs
     4 -> case lst of
         101 | bs === "date" -> tokenDate
         103 | bs === "etag" -> tokenEtag
@@ -336,54 +346,55 @@ toToken bs = case len of
         109 | bs === "from" -> tokenFrom
         116 | bs === "host" -> tokenHost
         121 | bs === "vary" -> tokenVary
-        _                   -> mkTokenMax bs
+        _ -> mkTokenMax bs
     5 -> case lst of
         101 | bs === "range" -> tokenRange
         104 | bs === ":path" -> tokenPath
         119 | bs === "allow" -> tokenAllow
-        _                    -> mkTokenMax bs
+        _ -> mkTokenMax bs
     6 -> case lst of
         101 | bs === "cookie" -> tokenCookie
         110 | bs === "origin" -> tokenOrigin
         114 | bs === "server" -> tokenServer
-        116 | bs === "expect" -> tokenExpect
+        116
+            | bs === "expect" -> tokenExpect
             | bs === "accept" -> tokenAccept
-        _                     -> mkTokenMax bs
+        _ -> mkTokenMax bs
     7 -> case lst of
-        99  | bs === "alt-svc" -> tokenAltSvc
+        99 | bs === "alt-svc" -> tokenAltSvc
         100 | bs === ":method" -> tokenMethod
-        101 | bs === ":scheme" -> tokenScheme
+        101
+            | bs === ":scheme" -> tokenScheme
             | bs === "purpose" -> tokenPurpose
         104 | bs === "refresh" -> tokenRefresh
         114 | bs === "referer" -> tokenReferer
-        115 | bs === "expires" -> tokenExpires
+        115
+            | bs === "expires" -> tokenExpires
             | bs === ":status" -> tokenStatus
-        _                      -> mkTokenMax bs
+        _ -> mkTokenMax bs
     8 -> case lst of
         101 | bs === "if-range" -> tokenIfRange
         104 | bs === "if-match" -> tokenIfMatch
         110 | bs === "location" -> tokenLocation
-        _                       -> mkTokenMax bs
-
+        _ -> mkTokenMax bs
     9 -> case lst of
         100 | bs === "forwarded" -> tokenForwarded
         116 | bs === "expect-ct" -> tokenExpectCt
-        _                        -> mkTokenMax bs
-
+        _ -> mkTokenMax bs
     10 -> case lst of
-        97  | bs === "early-data" -> tokenEarlyData
+        97 | bs === "early-data" -> tokenEarlyData
         101 | bs === "set-cookie" -> tokenSetCookie
         110 | bs === "connection" -> tokenConnection
         116 | bs === "user-agent" -> tokenUserAgent
         121 | bs === ":authority" -> tokenAuthority
-        _                         -> mkTokenMax bs
+        _ -> mkTokenMax bs
     11 -> case lst of
         114 | bs === "retry-after" -> tokenRetryAfter
-        _                          -> mkTokenMax bs
+        _ -> mkTokenMax bs
     12 -> case lst of
         101 | bs === "content-type" -> tokenContentType
         115 | bs === "max-forwards" -> tokenMaxForwards
-        _                           -> mkTokenMax bs
+        _ -> mkTokenMax bs
     13 -> case lst of
         100 | bs === "last-modified" -> tokenLastModified
         101 | bs === "content-range" -> tokenContentRange
@@ -391,77 +402,84 @@ toToken bs = case len of
         108 | bs === "cache-control" -> tokenCacheControl
         110 | bs === "authorization" -> tokenAuthorization
         115 | bs === "accept-ranges" -> tokenAcceptRanges
-        _                            -> mkTokenMax bs
+        _ -> mkTokenMax bs
     14 -> case lst of
         104 | bs === "content-length" -> tokenContentLength
         116 | bs === "accept-charset" -> tokenAcceptCharset
-        _                             -> mkTokenMax bs
+        _ -> mkTokenMax bs
     15 -> case lst of
         101 | bs === "accept-language" -> tokenAcceptLanguage
         103 | bs === "accept-encoding" -> tokenAcceptEncoding
         114 | bs === "x-forwarded-for" -> tokenXForwardedFor
         115 | bs === "x-frame-options" -> tokenXFrameOptions
-        _                              -> mkTokenMax bs
+        _ -> mkTokenMax bs
     16 -> case lst of
-        101 | bs === "content-language" -> tokenContentLanguage
+        101
+            | bs === "content-language" -> tokenContentLanguage
             | bs === "www-authenticate" -> tokenWwwAuthenticate
         103 | bs === "content-encoding" -> tokenContentEncoding
-        110 | bs === "content-location" -> tokenContentLocation
+        110
+            | bs === "content-location" -> tokenContentLocation
             | bs === "x-xss-protection" -> tokenXXssProtection
-        _                               -> mkTokenMax bs
+        _ -> mkTokenMax bs
     17 -> case lst of
         101 | bs === "if-modified-since" -> tokenIfModifiedSince
         103 | bs === "transfer-encoding" -> tokenTransferEncoding
-        _                                -> mkTokenMax bs
+        _ -> mkTokenMax bs
     18 -> case lst of
         101 | bs === "proxy-authenticate" -> tokenProxyAuthenticate
-        _                                 -> mkTokenMax bs
+        _ -> mkTokenMax bs
     19 -> case lst of
         101 | bs === "if-unmodified-since" -> tokenIfUnmodifiedSince
-        110 | bs === "proxy-authorization" -> tokenProxyAuthorization
+        110
+            | bs === "proxy-authorization" -> tokenProxyAuthorization
             | bs === "content-disposition" -> tokenContentDisposition
             | bs === "timing-allow-origin" -> tokenTimingAllowOrigin
-        _                                  -> mkTokenMax bs
+        _ -> mkTokenMax bs
     22 -> case lst of
         115 | bs === "x-content-type-options" -> tokenXContentTypeOptions
-        _                                     -> mkTokenMax bs
+        _ -> mkTokenMax bs
     23 -> case lst of
         121 | bs === "content-security-policy" -> tokenContentSecurityPolicy
-        _                                      -> mkTokenMax bs
+        _ -> mkTokenMax bs
     25 -> case lst of
         115 | bs === "upgrade-insecure-requests" -> tokenUpgradeInsecureRequests
         121 | bs === "strict-transport-security" -> tokenStrictTransportSecurity
-        _                                        -> mkTokenMax bs
+        _ -> mkTokenMax bs
     27 -> case lst of
         110 | bs === "access-control-allow-origin" -> tokenAccessControlAllowOrigin
-        _                                          -> mkTokenMax bs
+        _ -> mkTokenMax bs
     28 -> case lst of
-        115 | bs === "access-control-allow-headers" -> tokenAccessControlAllowHeaders
+        115
+            | bs === "access-control-allow-headers" -> tokenAccessControlAllowHeaders
             | bs === "access-control-allow-methods" -> tokenAccessControlAllowMethods
-        _                                           -> mkTokenMax bs
+        _ -> mkTokenMax bs
     29 -> case lst of
         100 | bs === "access-control-request-method" -> tokenAccessControlRequestMethod
         115 | bs === "access-control-expose-headers" -> tokenAccessControlExposeHeaders
-        _                                            -> mkTokenMax bs
+        _ -> mkTokenMax bs
     30 -> case lst of
         115 | bs === "access-control-request-headers" -> tokenAccessControlRequestHeaders
-        _                                             -> mkTokenMax bs
+        _ -> mkTokenMax bs
     32 -> case lst of
-        115 | bs === "access-control-allow-credentials" -> tokenAccessControlAllowCredentials
-        _                                               -> mkTokenMax bs
-    _  -> mkTokenMax bs
+        115
+            | bs === "access-control-allow-credentials" ->
+                tokenAccessControlAllowCredentials
+        _ -> mkTokenMax bs
+    _ -> mkTokenMax bs
   where
     len = B.length bs
     lst = B.last bs
     PS fp1 off1 siz === PS fp2 off2 _ = unsafeDupablePerformIO $
-      withForeignPtr fp1 $ \p1 ->
-      withForeignPtr fp2 $ \p2 -> do
-        i <- memcmp (p1 `plusPtr` off1) (p2 `plusPtr` off2) siz
-        return $ i == 0
+        withForeignPtr fp1 $ \p1 ->
+            withForeignPtr fp2 $ \p2 -> do
+                i <- memcmp (p1 `plusPtr` off1) (p2 `plusPtr` off2) siz
+                return $ i == 0
 
 mkTokenMax :: ByteString -> Token
 mkTokenMax bs = Token maxTokenIx True p (mk bs)
   where
-    p | B.length bs == 0 = False
-      | B.head bs == 58  = True
-      | otherwise        = False
+    p
+        | B.length bs == 0 = False
+        | B.head bs == 58 = True
+        | otherwise = False

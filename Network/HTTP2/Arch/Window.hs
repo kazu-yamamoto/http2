@@ -44,12 +44,14 @@ increaseWindowSize sid tvar n = do
         return w1
     when (isWindowOverflow w) $ do
         let msg = fromString ("window update for stream " ++ show sid ++ " is overflow")
-            err = if isControl sid then ConnectionErrorIsSent
-                                   else StreamErrorIsSent
+            err =
+                if isControl sid
+                    then ConnectionErrorIsSent
+                    else StreamErrorIsSent
         E.throwIO $ err FlowControlError sid msg
 
 increaseStreamWindowSize :: Stream -> WindowSize -> IO ()
-increaseStreamWindowSize Stream{streamNumber,streamWindow} n =
+increaseStreamWindowSize Stream{streamNumber, streamWindow} n =
     increaseWindowSize streamNumber streamWindow n
 
 increaseConnectionWindowSize :: Context -> Int -> IO ()
@@ -65,17 +67,18 @@ decreaseWindowSize Context{txConnectionWindow} Stream{streamWindow} siz = do
 -- Sending window update
 
 informWindowUpdate :: Context -> Stream -> IORef Int -> Int -> IO ()
-informWindowUpdate _        _   _       0   = return ()
-informWindowUpdate Context{controlQ,rxConnectionInc} Stream{streamNumber} streamInc len = do
+informWindowUpdate _ _ _ 0 = return ()
+informWindowUpdate Context{controlQ, rxConnectionInc} Stream{streamNumber} streamInc len = do
     join $ atomicModifyIORef rxConnectionInc $ modify 0
-    join $ atomicModifyIORef streamInc       $ modify streamNumber
+    join $ atomicModifyIORef streamInc $ modify streamNumber
   where
     modify sid w0
-      | w1 < thresh = (w1, return ())
-      | otherwise   = let frame = windowUpdateFrame sid w1
-                          cframe = CFrames Nothing [frame]
-                          action = enqueueControl controlQ cframe
-                      in (0, action)
+        | w1 < thresh = (w1, return ())
+        | otherwise =
+            let frame = windowUpdateFrame sid w1
+                cframe = CFrames Nothing [frame]
+                action = enqueueControl controlQ cframe
+             in (0, action)
       where
         thresh = defaultWindowSize -- fixme
         w1 = w0 + len
@@ -89,7 +92,7 @@ properWindowSize :: WindowSize
 properWindowSize = 1048575
 
 updateMySettings :: Config -> Context -> IO [ByteString]
-updateMySettings Config{..} Context{myFirstSettings,myPendingAlist} = do
+updateMySettings Config{..} Context{myFirstSettings, myPendingAlist} = do
     writeIORef myFirstSettings True
     writeIORef myPendingAlist $ Just myInitialAlist
     return frames
@@ -100,19 +103,20 @@ updateMySettings Config{..} Context{myFirstSettings,myPendingAlist} = do
         -- confBufferSize is the size of the write buffer.
         -- But we assume that the size of the read buffer is the same size.
         -- So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
-        [(SettingsMaxFrameSize,payloadLen)
-        ,(SettingsMaxConcurrentStreams,recommendedConcurrency)
-        -- Initial window size for streams
-        ,(SettingsInitialWindowSize,properWindowSize)]
+        [ (SettingsMaxFrameSize, payloadLen)
+        , (SettingsMaxConcurrentStreams, recommendedConcurrency)
+        , -- Initial window size for streams
+          (SettingsInitialWindowSize, properWindowSize)
+        ]
     frame1 = settingsFrame id myInitialAlist
-        -- Initial window update for connection
+    -- Initial window update for connection
     frame2 = windowUpdateFrame 0 (properWindowSize - defaultWindowSize)
-    frames = [frame1,frame2]
+    frames = [frame1, frame2]
 
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
 updatePeerSettings :: Context -> SettingsList -> IO ()
-updatePeerSettings Context{peerSettings,streamTable} peerAlist = do
+updatePeerSettings Context{peerSettings, streamTable} peerAlist = do
     oldws <- initialWindowSize <$> readIORef peerSettings
     modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
     newws <- initialWindowSize <$> readIORef peerSettings
