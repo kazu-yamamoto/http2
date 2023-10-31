@@ -32,16 +32,15 @@ run ClientConfig{..} conf@Config{..} client = do
     clientInfo <- newClientInfo scheme authority cacheLimit
     ctx <- newContext clientInfo confBufferSize confMySockAddr confPeerSockAddr
     mgr <- start confTimeoutManager
-    let runBackgroundThreads = do
-            let runReceiver = frameReceiver ctx conf
-                runSender = frameSender ctx conf mgr
-            concurrently_ runReceiver runSender
+    let runReceiver = frameReceiver ctx conf
+        runSender = frameSender ctx conf mgr
+        runBackgroundThreads = concurrently_ runReceiver runSender
     exchangeSettings conf ctx
-    mvar <- newMVar ()
     let runClient = do
             x <- client $ sendRequest ctx mgr scheme authority
             waitCounter0 mgr
             let frame = goawayFrame 0 NoError "graceful closing"
+            mvar <- newMVar ()
             enqueueControl (controlQ ctx) $ CGoaway frame mvar
             takeMVar mvar
             return x

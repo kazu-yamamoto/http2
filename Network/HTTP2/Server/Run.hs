@@ -33,7 +33,8 @@ run conf@Config{..} server = do
         replicateM_ 3 $ spawnAction mgr
         let runReceiver = frameReceiver ctx conf
             runSender = frameSender ctx conf mgr
-        stopAfter mgr (concurrently_ runReceiver runSender) $ \res -> do
+            runBackgroundThreads = concurrently_ runReceiver runSender
+        stopAfter mgr runBackgroundThreads $ \res -> do
             closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
             case res of
                 Left err ->
