@@ -92,12 +92,12 @@ frameSender
 
         dequeue :: Offset -> STM Switch
         dequeue off = do
-            isEmpty <- isEmptyTQueue controlQ
-            if isEmpty
+            isEmptyC <- isEmptyTQueue controlQ
+            if isEmptyC
                 then do
                     waitConnectionWindowSize ctx
-                    emp <- isEmptyTQueue outputQ
-                    if emp
+                    isEmptyO <- isEmptyTQueue outputQ
+                    if isEmptyO
                         then if off /= 0 then return Flush else retrySTM
                         else O <$> readTQueue outputQ
                 else C <$> readTQueue controlQ
