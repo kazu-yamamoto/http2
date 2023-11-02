@@ -6,11 +6,12 @@ module Network.HTTP2.Client.Run where
 
 import Control.Concurrent.STM (check)
 import Control.Exception
+import Data.ByteString.Builder (Builder)
+import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
 import UnliftIO.STM
 
-import Data.ByteString.Builder (Builder)
 import Imports
 import Network.HTTP2.Arch
 import Network.HTTP2.Client.Types
@@ -28,22 +29,44 @@ data ClientConfig = ClientConfig
 
 -- | Running HTTP/2 client.
 run :: ClientConfig -> Config -> Client a -> IO a
-run ClientConfig{..} conf@Config{..} client = do
-    clientInfo <- newClientInfo scheme authority cacheLimit
-    ctx <- newContext clientInfo confBufferSize confMySockAddr confPeerSockAddr
-    mgr <- start confTimeoutManager
-    let runReceiver = frameReceiver ctx conf
-        runSender = frameSender ctx conf mgr
-        runBackgroundThreads = concurrently_ runReceiver runSender
-    exchangeSettings conf ctx
+run cconf@ClientConfig{..} conf client = do
+    (ctx, mgr) <- setup cconf conf
     let runClient = do
-            x <- client $ sendRequest ctx mgr scheme authority
+            x <- client $ \req processRequest -> do
+                strm <- sendRequest ctx mgr scheme authority req
+                rsp <- Response <$> takeMVar (streamInput strm)
+                processRequest rsp
             waitCounter0 mgr
             let frame = goawayFrame 0 NoError "graceful closing"
             mvar <- newMVar ()
             enqueueControl (controlQ ctx) $ CGoaway frame mvar
             takeMVar mvar
             return x
+    runArch conf ctx mgr runClient
+
+runWithContext :: ClientConfig -> Config -> (ClientContext -> IO (IO a)) -> IO a
+runWithContext cconf@ClientConfig{..} conf@Config{..} action = do
+    (ctx@Context{..}, mgr) <- setup cconf conf
+    let putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
+        putR = sendRequest ctx mgr scheme authority
+        get strm = Response <$> takeMVar (streamInput strm)
+        create = do
+            sid <- getMyNewStreamId ctx
+            openStream ctx sid FrameHeaders
+    runClient <-
+        action $ ClientContext confMySockAddr confPeerSockAddr putB putR get create
+    runArch conf ctx mgr runClient
+
+setup :: ClientConfig -> Config -> IO (Context, Manager)
+setup ClientConfig{..} conf@Config{..} = do
+    clientInfo <- newClientInfo scheme authority cacheLimit
+    ctx <- newContext clientInfo confBufferSize confMySockAddr confPeerSockAddr
+    mgr <- start confTimeoutManager
+    exchangeSettings conf ctx
+    return (ctx, mgr)
+
+runArch :: Config -> Context -> Manager -> IO a -> IO a
+runArch conf ctx mgr runClient =
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
         closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
         case res of
@@ -53,6 +76,10 @@ run ClientConfig{..} conf@Config{..} client = do
                 undefined -- never reach
             Right (Right x) ->
                 return x
+  where
+    runReceiver = frameReceiver ctx conf
+    runSender = frameSender ctx conf mgr
+    runBackgroundThreads = concurrently_ runReceiver runSender
 
 sendRequest
     :: Context
@@ -60,15 +87,14 @@ sendRequest
     -> Scheme
     -> Authority
     -> Request
-    -> (Response -> IO a)
-    -> IO a
-sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
+    -> IO Stream
+sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
     -- Checking push promises
     let hdr0 = outObjHeaders req
         method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr0
         path = fromMaybe (error "sendRequest:path") $ lookup ":path" hdr0
     mstrm0 <- lookupCache method path roleInfo
-    strm <- case mstrm0 of
+    case mstrm0 of
         Nothing -> do
             -- Arch/Sender is originally implemented for servers where
             -- the ordering of responses can be out-of-order.
@@ -101,8 +127,6 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) processResponse = do
                     writeTQueue outputQ $ Output newstrm req' OObj Nothing (return ())
             return newstrm
         Just strm0 -> return strm0
-    rsp <- takeMVar $ streamInput strm
-    processResponse $ Response rsp
 
 sendStreaming
     :: Context
@@ -135,3 +159,12 @@ exchangeSettings conf ctx@Context{..} = do
     frames <- updateMySettings conf ctx
     let setframe = CFrames Nothing (connectionPreface : frames)
     enqueueControl controlQ setframe
+
+data ClientContext = ClientContext
+    { cctxMySockAddr :: SockAddr
+    , cctxPeerSockAddr :: SockAddr
+    , cctxWriteBytes :: ByteString -> IO ()
+    , cctxWriteRequest :: Request -> IO Stream
+    , cctxReadResponse :: Stream -> IO Response
+    , cctxCreateStream :: IO Stream
+    }
