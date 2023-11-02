@@ -90,6 +90,7 @@ module Network.HTTP2.Client (
 
     -- * Error
     HTTP2Error (..),
+    ReasonPhrase,
     ErrorCode (
         ErrorCode,
         NoError,
