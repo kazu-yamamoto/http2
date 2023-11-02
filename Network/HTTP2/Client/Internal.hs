@@ -3,7 +3,7 @@ module Network.HTTP2.Client.Internal (
     Response (..),
 
     -- * Low level
-    Stream (..),
+    Stream,
     ClientContext (..),
     runWithContext,
 ) where

@@ -357,8 +357,8 @@ rapidPing C.ClientContext{..} = do
 
 rapidEmptyHeader :: C.ClientContext -> IO ()
 rapidEmptyHeader C.ClientContext{..} = do
-    C.Stream{..} <- cctxCreateStream
-    let einfo = EncodeInfo defaultFlags streamNumber Nothing
+    (sid, _) <- cctxCreateStream
+    let einfo = EncodeInfo defaultFlags sid Nothing
         bs = encodeFrame einfo $ HeadersFrame Nothing ""
     cctxWriteBytes bs
     cctxWriteBytes bs
@@ -372,8 +372,8 @@ rapidEmptyHeader C.ClientContext{..} = do
 
 rapidEmptyData :: C.ClientContext -> IO ()
 rapidEmptyData C.ClientContext{..} = do
-    C.Stream{..} <- cctxCreateStream
-    let einfoH = EncodeInfo (setEndHeader defaultFlags) streamNumber Nothing
+    (sid, _) <- cctxCreateStream
+    let einfoH = EncodeInfo (setEndHeader defaultFlags) sid Nothing
         hdr =
             hpackEncode
                 [ (":scheme", "http")
@@ -383,7 +383,7 @@ rapidEmptyData C.ClientContext{..} = do
                 ]
         bsH = encodeFrame einfoH $ HeadersFrame Nothing hdr
     cctxWriteBytes bsH
-    let einfoD = EncodeInfo defaultFlags streamNumber Nothing
+    let einfoD = EncodeInfo defaultFlags sid Nothing
         bsD = encodeFrame einfoD $ DataFrame ""
     cctxWriteBytes bsD
     cctxWriteBytes bsD
@@ -406,9 +406,9 @@ rapidRst C.ClientContext{..} = do
     reset
   where
     reset = do
-        C.Stream{..} <- cctxCreateStream
+        (sid, _) <- cctxCreateStream
         -- setEndStream for HalfClosedRemote
-        let einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) streamNumber Nothing
+        let einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing
             hdr =
                 hpackEncode
                     [ (":scheme", "http")
@@ -418,7 +418,7 @@ rapidRst C.ClientContext{..} = do
                     ]
             bsH = encodeFrame einfoH $ HeadersFrame Nothing hdr
         cctxWriteBytes bsH
-        let einfoR = EncodeInfo defaultFlags streamNumber Nothing
+        let einfoR = EncodeInfo defaultFlags sid Nothing
             -- Only (HalfClosedRemote, NoError) is accepted.
             -- Otherwise, a stream error terminates the connection.
             bsR = encodeFrame einfoR $ RSTStreamFrame NoError

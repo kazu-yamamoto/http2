@@ -34,7 +34,7 @@ run conf server = do
 data ServerContext = ServerContext
     { sctxMySockAddr :: SockAddr
     , sctxPeerSockAddr :: SockAddr
-    , sctxReadRequest :: IO (Stream, Request)
+    , sctxReadRequest :: IO (StreamId, Stream, Request)
     , sctxWriteResponse :: Stream -> Response -> IO ()
     , sctxWriteBytes :: ByteString -> IO ()
     }
@@ -50,7 +50,7 @@ runWithContext conf@Config{..} action = do
         let ServerInfo{..} = toServerInfo roleInfo
             get = do
                 Input strm inObj <- atomically $ readTQueue inputQ
-                return (strm, Request inObj)
+                return (streamNumber strm, strm, Request inObj)
             putR strm (Response outObj) = do
                 let out = Output strm outObj OObj Nothing (return ())
                 enqueueOutput outputQ out

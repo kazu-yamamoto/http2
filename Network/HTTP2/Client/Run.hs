@@ -48,11 +48,14 @@ runWithContext :: ClientConfig -> Config -> (ClientContext -> IO (IO a)) -> IO a
 runWithContext cconf@ClientConfig{..} conf@Config{..} action = do
     (ctx@Context{..}, mgr) <- setup cconf conf
     let putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
-        putR = sendRequest ctx mgr scheme authority
+        putR req = do
+            strm <- sendRequest ctx mgr scheme authority req
+            return (streamNumber strm, strm)
         get strm = Response <$> takeMVar (streamInput strm)
         create = do
             sid <- getMyNewStreamId ctx
-            openStream ctx sid FrameHeaders
+            strm <- openStream ctx sid FrameHeaders
+            return (sid, strm)
     runClient <-
         action $ ClientContext confMySockAddr confPeerSockAddr putB putR get create
     runArch conf ctx mgr runClient
@@ -164,7 +167,7 @@ data ClientContext = ClientContext
     { cctxMySockAddr :: SockAddr
     , cctxPeerSockAddr :: SockAddr
     , cctxWriteBytes :: ByteString -> IO ()
-    , cctxWriteRequest :: Request -> IO Stream
+    , cctxWriteRequest :: Request -> IO (StreamId, Stream)
     , cctxReadResponse :: Stream -> IO Response
-    , cctxCreateStream :: IO Stream
+    , cctxCreateStream :: IO (StreamId, Stream)
     }
