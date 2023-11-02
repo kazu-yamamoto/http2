@@ -326,7 +326,7 @@ control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirst
             rate <- getRate settingsRate
             when (rate > settingsRateLimit) $
                 E.throwIO $
-                    ConnectionErrorIsSent ProtocolError streamId "too many settings"
+                    ConnectionErrorIsSent EnhanceYourCalm streamId "too many settings"
             let ack = settingsFrame setAck []
             sent <- readIORef myFirstSettings
             if sent
@@ -343,7 +343,7 @@ control FramePing FrameHeader{flags, streamId} bs Context{controlQ, pingRate} _ 
         -- Ping Flood - CVE-2019-9512
         rate <- getRate pingRate
         if rate > pingRateLimit
-            then E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many ping"
+            then E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many ping"
             else do
                 let frame = pingFrame bs
                 enqueueControl controlQ $ CFrames Nothing [frame]
@@ -396,7 +396,7 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
             if rate > emptyFrameRateLimit
                 then
                     E.throwIO $
-                        ConnectionErrorIsSent ProtocolError streamId "too many empty headers"
+                        ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty headers"
                 else return s
         else do
             case mp of
@@ -450,7 +450,7 @@ stream
             then unless endOfStream $ do
                 rate <- getRate emptyFrameRate
                 when (rate > emptyFrameRateLimit) $ do
-                    E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "too many empty data"
+                    E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty data"
             else do
                 writeIORef bodyLength len
                 atomically $ writeTQueue q $ Right body
@@ -480,7 +480,7 @@ stream FrameContinuation FrameHeader{flags, streamId} frag ctx s@(Open hcl (Cont
             if rate > emptyFrameRateLimit
                 then
                     E.throwIO $
-                        ConnectionErrorIsSent ProtocolError streamId "too many empty continuation"
+                        ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty continuation"
                 else return s
         else do
             let rfrags' = frag : rfrags
@@ -514,7 +514,7 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     rate <- getRate $ rstRate ctx
     when (rate > rstRateLimit) $
         E.throwIO $
-            ConnectionErrorIsSent ProtocolError streamId "too many rst_stream"
+            ConnectionErrorIsSent EnhanceYourCalm streamId "too many rst_stream"
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
 
