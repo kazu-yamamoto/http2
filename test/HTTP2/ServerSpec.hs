@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module HTTP2.ServerSpec where
 
@@ -20,13 +21,15 @@ import Network.Run.TCP
 import Network.Socket
 import Network.Socket.ByteString
 import System.IO
-import System.IO.Unsafe (unsafePerformIO)
+import System.IO.Unsafe
 import System.Random
 import Test.Hspec
 
 import Network.HPACK
+import Network.HPACK.Internal
 import Network.HPACK.Token
 import qualified Network.HTTP2.Client as C
+import qualified Network.HTTP2.Client.Internal as C
 import Network.HTTP2.Frame
 import Network.HTTP2.Server
 
@@ -45,6 +48,7 @@ spec = do
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
                 (runClient allocSimpleConfig)
+
         it "should always send the connection preface first" $ do
             prefaceVar <- newEmptyMVar
             E.bracket (forkIO (runFakeServer prefaceVar)) killThread $ \_ -> do
@@ -53,6 +57,16 @@ spec = do
 
             preface <- takeMVar prefaceVar
             preface `shouldBe` connectionPreface
+
+        it "prevents attacks" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runAttack rapidSettings `shouldThrow` connectionError "too many settings"
+                runAttack rapidPing `shouldThrow` connectionError "too many ping"
+                runAttack rapidEmptyHeader
+                    `shouldThrow` connectionError "too many empty headers"
+                runAttack rapidEmptyData `shouldThrow` connectionError "too many empty data"
+                runAttack rapidRst `shouldThrow` connectionError "too many rst_stream"
 
 ignoreHTTP2Error :: C.HTTP2Error -> IO ()
 ignoreHTTP2Error _ = pure ()
@@ -296,3 +310,132 @@ client5 sendRequest = do
 
 firstTrailerValue :: HeaderTable -> HeaderValue
 firstTrailerValue = snd . Prelude.head . fst
+
+runAttack :: (C.ClientContext -> IO ()) -> IO ()
+runAttack attack =
+    runTCPClient host port $ runHTTP2Client
+  where
+    authority = C8.pack host
+    cliconf = C.ClientConfig "http" authority 20
+    runHTTP2Client s =
+        E.bracket
+            (allocSimpleConfig s 4096)
+            freeSimpleConfig
+            (\conf -> C.runWithContext cliconf conf client)
+    client cconf = return $ do
+        attack cconf
+        threadDelay 1000000
+
+rapidSettings :: C.ClientContext -> IO ()
+rapidSettings C.ClientContext{..} = do
+    let einfo = EncodeInfo defaultFlags 0 Nothing
+        bs = encodeFrame einfo $ SettingsFrame [(SettingsEnablePush, 0)]
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+
+rapidPing :: C.ClientContext -> IO ()
+rapidPing C.ClientContext{..} = do
+    let einfo = EncodeInfo defaultFlags 0 Nothing
+        opaque64 = "01234567"
+        bs = encodeFrame einfo $ PingFrame opaque64
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+
+rapidEmptyHeader :: C.ClientContext -> IO ()
+rapidEmptyHeader C.ClientContext{..} = do
+    C.Stream{..} <- cctxCreateStream
+    let einfo = EncodeInfo defaultFlags streamNumber Nothing
+        bs = encodeFrame einfo $ HeadersFrame Nothing ""
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+    cctxWriteBytes bs
+
+rapidEmptyData :: C.ClientContext -> IO ()
+rapidEmptyData C.ClientContext{..} = do
+    C.Stream{..} <- cctxCreateStream
+    let einfoH = EncodeInfo (setEndHeader defaultFlags) streamNumber Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/")
+                , (":method", "GET")
+                ]
+        bsH = encodeFrame einfoH $ HeadersFrame Nothing hdr
+    cctxWriteBytes bsH
+    let einfoD = EncodeInfo defaultFlags streamNumber Nothing
+        bsD = encodeFrame einfoD $ DataFrame ""
+    cctxWriteBytes bsD
+    cctxWriteBytes bsD
+    cctxWriteBytes bsD
+    cctxWriteBytes bsD
+    cctxWriteBytes bsD
+    cctxWriteBytes bsD
+    cctxWriteBytes bsD
+    cctxWriteBytes bsD
+
+rapidRst :: C.ClientContext -> IO ()
+rapidRst C.ClientContext{..} = do
+    reset
+    reset
+    reset
+    reset
+    reset
+    reset
+    reset
+    reset
+  where
+    reset = do
+        C.Stream{..} <- cctxCreateStream
+        -- setEndStream for HalfClosedRemote
+        let einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) streamNumber Nothing
+            hdr =
+                hpackEncode
+                    [ (":scheme", "http")
+                    , (":authority", "127.0.0.1")
+                    , (":path", "/")
+                    , (":method", "GET")
+                    ]
+            bsH = encodeFrame einfoH $ HeadersFrame Nothing hdr
+        cctxWriteBytes bsH
+        let einfoR = EncodeInfo defaultFlags streamNumber Nothing
+            -- Only (HalfClosedRemote, NoError) is accepted.
+            -- Otherwise, a stream error terminates the connection.
+            bsR = encodeFrame einfoR $ RSTStreamFrame NoError
+        cctxWriteBytes bsR
+
+connectionError :: C.ReasonPhrase -> C.HTTP2Error -> Bool
+connectionError phrase (C.ConnectionErrorIsReceived _ _ p)
+    | phrase == p = True
+connectionError _ _ = False
+
+hpackEncode :: [(ByteString, ByteString)] -> ByteString
+hpackEncode kvs = foldr cat "" kvs
+  where
+    (k, v) `cat` b =
+        B.singleton 0x10
+            <> unsafePerformIO (encodeInteger 7 (B.length k))
+            <> k
+            <> unsafePerformIO (encodeInteger 7 (B.length v))
+            <> v
+            <> b
