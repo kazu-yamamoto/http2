@@ -37,18 +37,18 @@ spec = do
         it "receives an error if scheme is missing" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient "" host' (defaultClient []) `shouldThrow` streamError
+                runClient "" host' (defaultClient []) `shouldThrow` connectionError
 
         it "receives an error if authority is missing" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient "http" "" (defaultClient []) `shouldThrow` streamError
+                runClient "http" "" (defaultClient []) `shouldThrow` connectionError
 
         it "receives an error if authority and host are different" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
                 runClient "http" host' (defaultClient [("Host", "foo")])
-                    `shouldThrow` streamError
+                    `shouldThrow` connectionError
 
         it "does not deadlock (in concurrent setting)" $
             E.bracket (forkIO $ runServer irresponsiveServer) killThread $ \_ -> do
@@ -111,6 +111,6 @@ concurrentClient resultVar sendRequest = do
         putMVar resultVar result
     threadDelay 10000
 
-streamError :: Selector HTTP2Error
-streamError (StreamErrorIsReceived _ _) = True
-streamError _ = False
+connectionError :: Selector HTTP2Error
+connectionError ConnectionErrorIsReceived{} = True
+connectionError _ = False

@@ -4,7 +4,9 @@
 module Network.HTTP2.Arch.Stream where
 
 import Control.Exception
+import Control.Monad
 import Data.IORef
+import Data.Maybe (fromMaybe)
 import UnliftIO.Concurrent
 import UnliftIO.STM
 
@@ -74,6 +76,10 @@ closeAllStreams ovar evar mErr' = do
   where
     finalize strm = do
         st <- readStreamState strm
+        void . tryPutMVar (streamInput strm) $
+            Left $
+                fromMaybe (toException ConnectionIsClosed) $
+                    mErr
         case st of
             Open _ (Body q _ _ _) ->
                 atomically $ writeTQueue q $ maybe (Right mempty) Left mErr

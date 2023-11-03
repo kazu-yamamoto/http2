@@ -229,6 +229,14 @@ data ClosedCode
     | ResetByMe SomeException
     deriving (Show)
 
+closedCodeToError :: StreamId -> ClosedCode -> HTTP2Error
+closedCodeToError sid cc =
+    case cc of
+        Finished -> ConnectionIsClosed
+        Killed -> ConnectionIsTimeout
+        Reset err -> ConnectionErrorIsReceived err sid "Connection was reset"
+        ResetByMe err -> BadThingHappen err
+
 ----------------------------------------------------------------
 
 data StreamState
@@ -252,7 +260,7 @@ data Stream = Stream
     { streamNumber :: StreamId
     , streamState :: IORef StreamState
     , streamWindow :: TVar WindowSize
-    , streamInput :: MVar InpObj -- Client only
+    , streamInput :: MVar (Either SomeException InpObj) -- Client only
     }
 
 instance Show Stream where
@@ -319,6 +327,7 @@ type ReasonPhrase = ShortByteString
 --   caused this error.
 data HTTP2Error
     = ConnectionIsClosed -- NoError
+    | ConnectionIsTimeout
     | ConnectionErrorIsReceived ErrorCode StreamId ReasonPhrase
     | ConnectionErrorIsSent ErrorCode StreamId ReasonPhrase
     | StreamErrorIsReceived ErrorCode StreamId

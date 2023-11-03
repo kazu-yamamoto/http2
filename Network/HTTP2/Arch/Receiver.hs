@@ -175,14 +175,14 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
                 ProtocolError
                 streamId
                 "no body but content-length is not zero"
-    halfClosedRemote ctx strm
     tlr <- newIORef Nothing
     let inpObj = InpObj tbl (Just 0) (return "") tlr
     if isServer ctx
         then do
             let si = toServerInfo roleInfo
             atomically $ writeTQueue (inputQ si) $ Input strm inpObj
-        else putMVar streamInput inpObj
+        else putMVar streamInput $ Right inpObj
+    halfClosedRemote ctx strm
     return False
 
 -- Transition (process2)
@@ -199,7 +199,7 @@ processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{str
         then do
             let si = toServerInfo roleInfo
             atomically $ writeTQueue (inputQ si) $ Input strm inpObj
-        else putMVar streamInput inpObj
+        else putMVar streamInput $ Right inpObj
     return False
 
 -- Transition (process3)

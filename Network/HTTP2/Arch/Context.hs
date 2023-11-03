@@ -4,6 +4,7 @@
 
 module Network.HTTP2.Arch.Context where
 
+import Control.Exception
 import Data.IORef
 import Network.HTTP.Types (Method)
 import Network.Socket (SockAddr)
@@ -191,9 +192,12 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
 closed :: Context -> Stream -> ClosedCode -> IO ()
 closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc = do
     if isServerInitiated streamNumber
-        then deleteEven evenStreamTable streamNumber
-        else deleteOdd oddStreamTable streamNumber
+        then deleteEven evenStreamTable streamNumber err
+        else deleteOdd oddStreamTable streamNumber err
     setStreamState ctx strm (Closed cc) -- anyway
+  where
+    err :: SomeException
+    err = toException (closedCodeToError streamNumber cc)
 
 ----------------------------------------------------------------
 -- From peer
