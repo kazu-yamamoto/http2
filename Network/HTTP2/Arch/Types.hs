@@ -259,7 +259,10 @@ instance Show Stream where
 
 ----------------------------------------------------------------
 
-newtype StreamTable = StreamTable (IORef (IntMap Stream))
+data StreamTable = StreamTable
+    { concurrency :: Int
+    , streams :: IntMap Stream
+    }
 
 ----------------------------------------------------------------
 

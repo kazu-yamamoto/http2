@@ -289,7 +289,7 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
                 when (ftyp == FrameHeaders) $ do
                     setPeerStreamID ctx streamId
-                    cnt <- readIORef concurrency
+                    cnt <- concurrency <$> readIORef streamTable
                     -- Checking the limitation of concurrency
                     -- My SETTINGS_MAX_CONCURRENT_STREAMS
                     mMaxConc <- maxConcurrentStreams <$> readIORef mySettings

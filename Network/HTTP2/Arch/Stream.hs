@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Arch.Stream where
 
@@ -60,30 +61,32 @@ readStreamState Stream{streamState} = readIORef streamState
 
 ----------------------------------------------------------------
 
-newStreamTable :: IO StreamTable
-newStreamTable = StreamTable <$> newIORef M.empty
+emptyStreamTable :: StreamTable
+emptyStreamTable = StreamTable 0 M.empty
 
-insert :: StreamTable -> M.Key -> Stream -> IO ()
-insert (StreamTable ref) k v = atomicModifyIORef' ref $ \m ->
-    let m' = M.insert k v m
-     in (m', ())
+insert :: IORef StreamTable -> M.Key -> Stream -> IO ()
+insert ref k v = atomicModifyIORef' ref $ \StreamTable{..} ->
+    let concurrency' = concurrency + 1
+        streams' = M.insert k v streams
+     in (StreamTable concurrency' streams', ())
 
-remove :: StreamTable -> M.Key -> IO ()
-remove (StreamTable ref) k = atomicModifyIORef' ref $ \m ->
-    let m' = M.delete k m
-     in (m', ())
+remove :: IORef StreamTable -> M.Key -> IO ()
+remove ref k = atomicModifyIORef' ref $ \StreamTable{..} ->
+    let concurrency' = concurrency - 1
+        streams' = M.delete k streams
+     in (StreamTable concurrency' streams', ())
 
-search :: StreamTable -> M.Key -> IO (Maybe Stream)
-search (StreamTable ref) k = M.lookup k <$> readIORef ref
+search :: IORef StreamTable -> M.Key -> IO (Maybe Stream)
+search ref k = M.lookup k . streams <$> readIORef ref
 
-updateAllStreamWindow :: (WindowSize -> WindowSize) -> StreamTable -> IO ()
-updateAllStreamWindow adst (StreamTable ref) = do
-    strms <- M.elems <$> readIORef ref
+updateAllStreamWindow :: (WindowSize -> WindowSize) -> IORef StreamTable -> IO ()
+updateAllStreamWindow adst ref = do
+    strms <- streams <$> readIORef ref
     forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
 
-closeAllStreams :: StreamTable -> Maybe SomeException -> IO ()
-closeAllStreams (StreamTable ref) mErr' = do
-    strms <- atomicModifyIORef' ref $ \m -> (M.empty, m)
+closeAllStreams :: IORef StreamTable -> Maybe SomeException -> IO ()
+closeAllStreams ref mErr' = do
+    strms <- streams <$> atomicModifyIORef' ref (\st -> (emptyStreamTable, st))
     forM_ strms $ \strm -> do
         st <- readStreamState strm
         case st of

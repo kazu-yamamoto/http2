@@ -66,8 +66,7 @@ data Context = Context
     , myPendingAlist :: IORef (Maybe SettingsList)
     , mySettings :: IORef Settings
     , peerSettings :: IORef Settings
-    , streamTable :: StreamTable
-    , concurrency :: IORef Int
+    , streamTable :: IORef StreamTable
     , continued :: IORef (Maybe StreamId)
     -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
     --   occur between the HEADERS frame and any CONTINUATION
@@ -102,8 +101,7 @@ newContext rinfo siz mysa peersa =
         <*> newIORef Nothing
         <*> newIORef defaultSettings
         <*> newIORef defaultSettings
-        <*> newStreamTable
-        <*> newIORef 0
+        <*> newIORef emptyStreamTable
         <*> newIORef Nothing
         <*> newIORef sid0
         <*> newIORef 0
@@ -162,9 +160,7 @@ setStreamState :: Context -> Stream -> StreamState -> IO ()
 setStreamState _ Stream{streamState} val = writeIORef streamState val
 
 opened :: Context -> Stream -> IO ()
-opened ctx@Context{concurrency} strm = do
-    atomicModifyIORef' concurrency (\x -> (x + 1, ()))
-    setStreamState ctx strm (Open Nothing JustOpened)
+opened ctx strm = setStreamState ctx strm (Open Nothing JustOpened)
 
 halfClosedRemote :: Context -> Stream -> IO ()
 halfClosedRemote ctx stream@Stream{streamState} = do
@@ -189,10 +185,8 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
     closeHalf _ = (Open (Just cc) JustOpened, False)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
-closed ctx@Context{concurrency, streamTable} strm@Stream{streamNumber} cc = do
+closed ctx@Context{streamTable} strm@Stream{streamNumber} cc = do
     remove streamTable streamNumber
-    -- TODO: prevent double-counting
-    atomicModifyIORef' concurrency (\x -> (x - 1, ()))
     setStreamState ctx strm (Closed cc) -- anyway
 
 openStream :: Context -> StreamId -> FrameType -> IO Stream
