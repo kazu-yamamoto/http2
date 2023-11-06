@@ -4,8 +4,8 @@ module Network.HTTP2.Client.Internal (
 
     -- * Low level
     Stream,
-    ClientContext (..),
-    runWithContext,
+    ClientIO (..),
+    runIO,
 ) where
 
 import Network.HTTP2.Arch

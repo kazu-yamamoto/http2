@@ -311,7 +311,7 @@ client5 sendRequest = do
 firstTrailerValue :: HeaderTable -> HeaderValue
 firstTrailerValue = snd . Prelude.head . fst
 
-runAttack :: (C.ClientContext -> IO ()) -> IO ()
+runAttack :: (C.ClientIO -> IO ()) -> IO ()
 runAttack attack =
     runTCPClient host port $ runHTTP2Client
   where
@@ -321,58 +321,58 @@ runAttack attack =
         E.bracket
             (allocSimpleConfig s 4096)
             freeSimpleConfig
-            (\conf -> C.runWithContext cliconf conf client)
+            (\conf -> C.runIO cliconf conf client)
     client cconf = return $ do
         attack cconf
         threadDelay 1000000
 
-rapidSettings :: C.ClientContext -> IO ()
-rapidSettings C.ClientContext{..} = do
+rapidSettings :: C.ClientIO -> IO ()
+rapidSettings C.ClientIO{..} = do
     let einfo = EncodeInfo defaultFlags 0 Nothing
         bs = encodeFrame einfo $ SettingsFrame [(SettingsEnablePush, 0)]
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
 
-rapidPing :: C.ClientContext -> IO ()
-rapidPing C.ClientContext{..} = do
+rapidPing :: C.ClientIO -> IO ()
+rapidPing C.ClientIO{..} = do
     let einfo = EncodeInfo defaultFlags 0 Nothing
         opaque64 = "01234567"
         bs = encodeFrame einfo $ PingFrame opaque64
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
 
-rapidEmptyHeader :: C.ClientContext -> IO ()
-rapidEmptyHeader C.ClientContext{..} = do
-    (sid, _) <- cctxCreateStream
+rapidEmptyHeader :: C.ClientIO -> IO ()
+rapidEmptyHeader C.ClientIO{..} = do
+    (sid, _) <- cioCreateStream
     let einfo = EncodeInfo defaultFlags sid Nothing
         bs = encodeFrame einfo $ HeadersFrame Nothing ""
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
-    cctxWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
+    cioWriteBytes bs
 
-rapidEmptyData :: C.ClientContext -> IO ()
-rapidEmptyData C.ClientContext{..} = do
-    (sid, _) <- cctxCreateStream
+rapidEmptyData :: C.ClientIO -> IO ()
+rapidEmptyData C.ClientIO{..} = do
+    (sid, _) <- cioCreateStream
     let einfoH = EncodeInfo (setEndHeader defaultFlags) sid Nothing
         hdr =
             hpackEncode
@@ -382,20 +382,20 @@ rapidEmptyData C.ClientContext{..} = do
                 , (":method", "GET")
                 ]
         bsH = encodeFrame einfoH $ HeadersFrame Nothing hdr
-    cctxWriteBytes bsH
+    cioWriteBytes bsH
     let einfoD = EncodeInfo defaultFlags sid Nothing
         bsD = encodeFrame einfoD $ DataFrame ""
-    cctxWriteBytes bsD
-    cctxWriteBytes bsD
-    cctxWriteBytes bsD
-    cctxWriteBytes bsD
-    cctxWriteBytes bsD
-    cctxWriteBytes bsD
-    cctxWriteBytes bsD
-    cctxWriteBytes bsD
+    cioWriteBytes bsD
+    cioWriteBytes bsD
+    cioWriteBytes bsD
+    cioWriteBytes bsD
+    cioWriteBytes bsD
+    cioWriteBytes bsD
+    cioWriteBytes bsD
+    cioWriteBytes bsD
 
-rapidRst :: C.ClientContext -> IO ()
-rapidRst C.ClientContext{..} = do
+rapidRst :: C.ClientIO -> IO ()
+rapidRst C.ClientIO{..} = do
     reset
     reset
     reset
@@ -406,7 +406,7 @@ rapidRst C.ClientContext{..} = do
     reset
   where
     reset = do
-        (sid, _) <- cctxCreateStream
+        (sid, _) <- cioCreateStream
         -- setEndStream for HalfClosedRemote
         let einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing
             hdr =
@@ -417,12 +417,12 @@ rapidRst C.ClientContext{..} = do
                     , (":method", "GET")
                     ]
             bsH = encodeFrame einfoH $ HeadersFrame Nothing hdr
-        cctxWriteBytes bsH
+        cioWriteBytes bsH
         let einfoR = EncodeInfo defaultFlags sid Nothing
             -- Only (HalfClosedRemote, NoError) is accepted.
             -- Otherwise, a stream error terminates the connection.
             bsR = encodeFrame einfoR $ RSTStreamFrame NoError
-        cctxWriteBytes bsR
+        cioWriteBytes bsR
 
 connectionError :: C.ReasonPhrase -> C.HTTP2Error -> Bool
 connectionError phrase (C.ConnectionErrorIsReceived _ _ p)

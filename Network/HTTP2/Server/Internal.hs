@@ -5,8 +5,8 @@ module Network.HTTP2.Server.Internal (
 
     -- * Low level
     Stream,
-    ServerContext (..),
-    runWithContext,
+    ServerIO (..),
+    runIO,
 ) where
 
 import Network.HTTP2.Arch

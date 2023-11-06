@@ -31,19 +31,19 @@ run conf server = do
         replicateM_ 3 $ spawnAction mgr
         runArch conf ctx mgr
 
-data ServerContext = ServerContext
-    { sctxMySockAddr :: SockAddr
-    , sctxPeerSockAddr :: SockAddr
-    , sctxReadRequest :: IO (StreamId, Stream, Request)
-    , sctxWriteResponse :: Stream -> Response -> IO ()
-    , sctxWriteBytes :: ByteString -> IO ()
+data ServerIO = ServerIO
+    { sioMySockAddr :: SockAddr
+    , sioPeerSockAddr :: SockAddr
+    , sioReadRequest :: IO (StreamId, Stream, Request)
+    , sioWriteResponse :: Stream -> Response -> IO ()
+    , sioWriteBytes :: ByteString -> IO ()
     }
 
-runWithContext
+runIO
     :: Config
-    -> (ServerContext -> IO (IO ()))
+    -> (ServerIO -> IO (IO ()))
     -> IO ()
-runWithContext conf@Config{..} action = do
+runIO conf@Config{..} action = do
     ok <- checkPreface conf
     when ok $ do
         (ctx@Context{..}, mgr) <- setup conf
@@ -55,7 +55,7 @@ runWithContext conf@Config{..} action = do
                 let out = Output strm outObj OObj Nothing (return ())
                 enqueueOutput outputQ out
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
-        io <- action $ ServerContext confMySockAddr confPeerSockAddr get putR putB
+        io <- action $ ServerIO confMySockAddr confPeerSockAddr get putR putB
         concurrently_ io $ runArch conf ctx mgr
 
 checkPreface :: Config -> IO Bool
