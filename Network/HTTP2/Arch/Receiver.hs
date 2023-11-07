@@ -511,6 +511,7 @@ stream FrameWindowUpdate header bs _ s strm = do
 
 -- Transition (stream6)
 stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
+    -- Rapid Rest: CVE-2023-44487
     rate <- getRate $ rstRate ctx
     when (rate > rstRateLimit) $
         E.throwIO $
