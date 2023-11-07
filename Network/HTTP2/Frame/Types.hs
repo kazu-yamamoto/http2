@@ -76,22 +76,24 @@ pattern HTTP11Required     :: ErrorCode
 pattern HTTP11Required      = ErrorCode 0xd
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 instance Show ErrorCode where
-    show (ErrorCode 0x0) = "NoError"
-    show (ErrorCode 0x1) = "ProtocolError"
-    show (ErrorCode 0x2) = "InternalError"
-    show (ErrorCode 0x3) = "FlowControlError"
-    show (ErrorCode 0x4) = "SettingsTimeout"
-    show (ErrorCode 0x5) = "StreamClosed"
-    show (ErrorCode 0x6) = "FrameSizeError"
-    show (ErrorCode 0x7) = "RefusedStream"
-    show (ErrorCode 0x8) = "Cancel"
-    show (ErrorCode 0x9) = "CompressionError"
-    show (ErrorCode 0xa) = "ConnectError"
-    show (ErrorCode 0xb) = "EnhanceYourCalm"
-    show (ErrorCode 0xc) = "InadequateSecurity"
-    show (ErrorCode 0xd) = "HTTP11Required"
-    show (ErrorCode x) = "ErrorCode " ++ show x
+    show NoError            = "NoError"
+    show ProtocolError      = "ProtocolError"
+    show InternalError      = "InternalError"
+    show FlowControlError   = "FlowControlError"
+    show SettingsTimeout    = "SettingsTimeout"
+    show StreamClosed       = "StreamClosed"
+    show FrameSizeError     = "FrameSizeError"
+    show RefusedStream      = "RefusedStream"
+    show Cancel             = "Cancel"
+    show CompressionError   = "CompressionError"
+    show ConnectError       = "ConnectError"
+    show EnhanceYourCalm    = "EnhanceYourCalm"
+    show InadequateSecurity = "InadequateSecurity"
+    show HTTP11Required     = "HTTP11Required"
+    show (ErrorCode x)      = "ErrorCode " ++ show x
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
@@ -130,14 +132,16 @@ pattern SettingsMaxHeaderBlockSize   :: SettingsKey
 pattern SettingsMaxHeaderBlockSize    = SettingsKey 6
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 instance Show SettingsKey where
-    show SettingsHeaderTableSize = "SettingsHeaderTableSize"
-    show SettingsEnablePush = "SettingsEnablePush"
+    show SettingsHeaderTableSize      = "SettingsHeaderTableSize"
+    show SettingsEnablePush           = "SettingsEnablePush"
     show SettingsMaxConcurrentStreams = "SettingsMaxConcurrentStreams"
-    show SettingsInitialWindowSize = "SettingsInitialWindowSize"
-    show SettingsMaxFrameSize = "SettingsMaxFrameSize"
-    show SettingsMaxHeaderBlockSize = "SettingsMaxHeaderBlockSize"
-    show (SettingsKey x) = "SettingsKey " ++ show x
+    show SettingsInitialWindowSize    = "SettingsInitialWindowSize"
+    show SettingsMaxFrameSize         = "SettingsMaxFrameSize"
+    show SettingsMaxHeaderBlockSize   = "SettingsMaxHeaderBlockSize"
+    show (SettingsKey x)              = "SettingsKey " ++ show x
+{- FOURMOLU_ENABLE -}
 
 instance Read SettingsKey where
     readListPrec = readListPrecDefault
@@ -312,18 +316,20 @@ pattern FrameContinuation :: FrameType
 pattern FrameContinuation  = FrameType 9
 {- FOURMOLU_ENABLE -}
 
+{- FOURMOLU_DISABLE -}
 instance Show FrameType where
-    show (FrameType 0) = "FrameData"
-    show (FrameType 1) = "FrameHeaders"
-    show (FrameType 2) = "FramePriority"
-    show (FrameType 3) = "FrameRSTStream"
-    show (FrameType 4) = "FrameSettings"
-    show (FrameType 5) = "FramePushPromise"
-    show (FrameType 6) = "FramePing"
-    show (FrameType 7) = "FrameGoAway"
-    show (FrameType 8) = "FrameWindowUpdate"
-    show (FrameType 9) = "FrameContinuation"
-    show (FrameType x) = "FrameType " ++ show x
+    show FrameData         = "FrameData"
+    show FrameHeaders      = "FrameHeaders"
+    show FramePriority     = "FramePriority"
+    show FrameRSTStream    = "FrameRSTStream"
+    show FrameSettings     = "FrameSettings"
+    show FramePushPromise  = "FramePushPromise"
+    show FramePing         = "FramePing"
+    show FrameGoAway       = "FrameGoAway"
+    show FrameWindowUpdate = "FrameWindowUpdate"
+    show FrameContinuation = "FrameContinuation"
+    show (FrameType x)     = "FrameType " ++ show x
+{- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
 instance Read FrameType where
