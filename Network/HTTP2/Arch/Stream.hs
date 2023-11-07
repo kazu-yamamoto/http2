@@ -79,7 +79,8 @@ remove ref k = atomicModifyIORef' ref $ \StreamTable{..} ->
 search :: IORef StreamTable -> M.Key -> IO (Maybe Stream)
 search ref k = M.lookup k . streams <$> readIORef ref
 
-updateAllStreamWindow :: (WindowSize -> WindowSize) -> IORef StreamTable -> IO ()
+updateAllStreamWindow
+    :: (WindowSize -> WindowSize) -> IORef StreamTable -> IO ()
 updateAllStreamWindow adst ref = do
     strms <- streams <$> readIORef ref
     forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
