@@ -57,7 +57,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
             strm <- openStream ctx sid FrameHeaders
             return (sid, strm)
     runClient <-
-        action $ ClientIO confMySockAddr confPeerSockAddr putB putR get create
+        action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
     runArch conf ctx mgr runClient
 
 setup :: ClientConfig -> Config -> IO (Context, Manager)
@@ -166,8 +166,8 @@ exchangeSettings conf ctx@Context{..} = do
 data ClientIO = ClientIO
     { cioMySockAddr :: SockAddr
     , cioPeerSockAddr :: SockAddr
-    , cioWriteBytes :: ByteString -> IO ()
     , cioWriteRequest :: Request -> IO (StreamId, Stream)
     , cioReadResponse :: Stream -> IO Response
+    , cioWriteBytes :: ByteString -> IO ()
     , cioCreateStream :: IO (StreamId, Stream)
     }
