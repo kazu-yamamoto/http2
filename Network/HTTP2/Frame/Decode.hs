@@ -143,12 +143,12 @@ checkFrameHeader Settings{..} typfrm@(typ, FrameHeader{..})
     checkType FramePushPromise
         | not enablePush =
             Left $ FrameDecodeError ProtocolError streamId "push not enabled" -- checkme
-        | isClientInitiated streamId =
+        | isServerInitiated streamId =
             Left $
                 FrameDecodeError
                     ProtocolError
                     streamId
-                    "push promise must be used with even stream identifier"
+                    "push promise must be used with an odd stream identifier"
     checkType FramePing
         | payloadLength /= 8 =
             Left $

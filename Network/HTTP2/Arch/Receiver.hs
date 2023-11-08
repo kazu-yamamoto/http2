@@ -343,7 +343,7 @@ push header@FrameHeader{streamId} bs ctx = do
     PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header bs
     unless (isServerInitiated sid) $
         E.throwIO $
-            ConnectionErrorIsSent ProtocolError streamId "wrong sid for push promise"
+            ConnectionErrorIsSent ProtocolError streamId "push promise must specify an even stream identifier"
     when (frag == "") $
         E.throwIO $
             ConnectionErrorIsSent
