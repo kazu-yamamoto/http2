@@ -101,6 +101,10 @@ processFrame ctx _conf (fid, FrameHeader{streamId})
         && (fid `notElem` [FramePriority, FrameRSTStream, FrameWindowUpdate]) =
         E.throwIO $
             ConnectionErrorIsSent ProtocolError streamId "stream id should be odd"
+processFrame ctx _conf (FramePushPromise, FrameHeader{streamId})
+    | isServer ctx =
+        E.throwIO $
+            ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
 processFrame Context{..} Config{..} (ftyp, FrameHeader{payloadLength, streamId})
     | ftyp > maxFrameType = do
         mx <- readIORef continued
@@ -109,10 +113,6 @@ processFrame Context{..} Config{..} (ftyp, FrameHeader{payloadLength, streamId})
                 -- ignoring unknown frame
                 void $ confReadN payloadLength
             Just _ -> E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "unknown frame"
-processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength, streamId})
-    | isServer ctx =
-        E.throwIO $
-            ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     -- My SETTINGS_MAX_FRAME_SIZE
     -- My SETTINGS_ENABLE_PUSH
