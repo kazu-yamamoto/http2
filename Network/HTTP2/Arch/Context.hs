@@ -55,6 +55,11 @@ lookupCache :: Method -> ByteString -> RoleInfo -> IO (Maybe Stream)
 lookupCache m path (RIC (ClientInfo _ _ ref)) = Cache.lookup (m, path) <$> readIORef ref
 lookupCache _ _ _ = error "lookupCache"
 
+deleteCache :: Method -> ByteString -> RoleInfo -> IO ()
+deleteCache m path (RIC (ClientInfo _ _ ref)) = atomicModifyIORef' ref $ \c ->
+  (Cache.delete (m, path) c, ())
+deleteCache _ _ _ = error "deleteCache"
+
 ----------------------------------------------------------------
 
 -- | The context for HTTP/2 connection.

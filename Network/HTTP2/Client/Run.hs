@@ -98,6 +98,9 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
         path = fromMaybe (error "sendRequest:path") $ lookup ":path" hdr0
     mstrm0 <- lookupCache method path roleInfo
     case mstrm0 of
+        Just strm0 -> do
+            deleteCache method path roleInfo
+            return strm0
         Nothing -> do
             -- Arch/Sender is originally implemented for servers where
             -- the ordering of responses can be out-of-order.
@@ -129,7 +132,6 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
                     writeTVar outputQStreamID (sid + 2)
                     writeTQueue outputQ $ Output newstrm req' OObj Nothing (return ())
             return newstrm
-        Just strm0 -> return strm0
 
 sendStreaming
     :: Context

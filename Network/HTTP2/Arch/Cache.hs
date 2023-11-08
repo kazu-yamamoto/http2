@@ -28,3 +28,8 @@ insert k v c@Cache{..}
 
 lookup :: Ord k => k -> Cache k v -> Maybe v
 lookup k Cache{..} = snd <$> PSQ.lookup k cQueue
+
+delete :: Ord k => k -> Cache k v -> Cache k v
+delete k c@Cache{..} =
+    let q = PSQ.delete k cQueue
+     in c{cQueue = q, cSize = cSize - 1}
