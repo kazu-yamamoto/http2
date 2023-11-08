@@ -39,6 +39,8 @@ data ServerIO = ServerIO
     , sioWriteBytes :: ByteString -> IO ()
     }
 
+-- | Launching a receiver and a sender without workers.
+-- Any frames can be sent with `sioWriteBytes`.
 runIO
     :: Config
     -> (ServerIO -> IO (IO ()))
