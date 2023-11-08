@@ -113,32 +113,6 @@ processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength,
     | isServer ctx =
         E.throwIO $
             ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
-    | otherwise = do
-        pl <- confReadN payloadLength
-        PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header pl
-        unless (isServerInitiated sid) $
-            E.throwIO $
-                ConnectionErrorIsSent ProtocolError streamId "wrong sid for push promise"
-        when (frag == "") $
-            E.throwIO $
-                ConnectionErrorIsSent
-                    ProtocolError
-                    streamId
-                    "wrong header fragment for push promise"
-        (_, vt) <- hpackDecodeHeader frag streamId ctx
-        let ClientInfo{..} = toClientInfo $ roleInfo ctx
-        when
-            ( getHeaderValue tokenAuthority vt == Just authority
-                && getHeaderValue tokenScheme vt == Just scheme
-            )
-            $ do
-                let mmethod = getHeaderValue tokenMethod vt
-                    mpath = getHeaderValue tokenPath vt
-                case (mmethod, mpath) of
-                    (Just method, Just path) -> do
-                        strm <- openStream ctx sid FramePushPromise
-                        insertCache method path strm $ roleInfo ctx
-                    _ -> return ()
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     -- My SETTINGS_MAX_FRAME_SIZE
     -- My SETTINGS_ENABLE_PUSH
@@ -152,23 +126,26 @@ processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
 controlOrStream :: Context -> Config -> FrameType -> FrameHeader -> IO ()
 controlOrStream ctx@Context{..} conf@Config{..} ftyp header@FrameHeader{streamId, payloadLength}
     | isControl streamId = do
-        pl <- confReadN payloadLength
-        control ftyp header pl ctx conf
+        bs <- confReadN payloadLength
+        control ftyp header bs ctx conf
+    | ftyp == FramePushPromise = do
+        bs <- confReadN payloadLength
+        push header bs ctx
     | otherwise = do
         checkContinued
         mstrm <- getStream ctx ftyp streamId
-        pl <- confReadN payloadLength
+        bs <- confReadN payloadLength
         case mstrm of
             Just strm -> do
                 state0 <- readStreamState strm
-                state <- stream ftyp header pl ctx state0 strm
+                state <- stream ftyp header bs ctx state0 strm
                 resetContinued
                 set <- processState state ctx strm streamId
                 when set setContinued
             Nothing
                 | ftyp == FramePriority -> do
                     -- for h2spec only
-                    PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
+                    PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
                     checkPriority newpri streamId
                 | otherwise -> return ()
   where
@@ -358,6 +335,35 @@ control FrameWindowUpdate header bs ctx _ = do
 control _ _ _ _ _ =
     -- must not reach here
     return ()
+
+----------------------------------------------------------------
+
+push :: FrameHeader -> ByteString -> Context -> IO ()
+push header@FrameHeader{streamId} bs ctx = do
+    PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header bs
+    unless (isServerInitiated sid) $
+        E.throwIO $
+            ConnectionErrorIsSent ProtocolError streamId "wrong sid for push promise"
+    when (frag == "") $
+        E.throwIO $
+            ConnectionErrorIsSent
+                ProtocolError
+                streamId
+                "wrong header fragment for push promise"
+    (_, vt) <- hpackDecodeHeader frag streamId ctx
+    let ClientInfo{..} = toClientInfo $ roleInfo ctx
+    when
+        ( getHeaderValue tokenAuthority vt == Just authority
+            && getHeaderValue tokenScheme vt == Just scheme
+        )
+        $ do
+            let mmethod = getHeaderValue tokenMethod vt
+                mpath = getHeaderValue tokenPath vt
+            case (mmethod, mpath) of
+                (Just method, Just path) -> do
+                    strm <- openStream ctx sid FramePushPromise
+                    insertCache method path strm $ roleInfo ctx
+                _ -> return ()
 
 ----------------------------------------------------------------
 
