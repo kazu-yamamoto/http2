@@ -37,17 +37,21 @@ isClosed :: StreamState -> Bool
 isClosed Closed{} = True
 isClosed _ = False
 
+isReserved :: StreamState -> Bool
+isReserved Reserved = True
+isReserved _ = False
+
 ----------------------------------------------------------------
 
-newStream :: StreamId -> WindowSize -> IO Stream
-newStream sid win =
+newOddStream :: StreamId -> WindowSize -> IO Stream
+newOddStream sid win =
     Stream sid
         <$> newIORef Idle
         <*> newTVarIO win
         <*> newEmptyMVar
 
-newPushStream :: StreamId -> WindowSize -> IO Stream
-newPushStream sid win =
+newEvenStream :: StreamId -> WindowSize -> IO Stream
+newEvenStream sid win =
     Stream sid
         <$> newIORef Reserved
         <*> newTVarIO win

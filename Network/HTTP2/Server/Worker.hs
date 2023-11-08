@@ -48,12 +48,14 @@ fromContext ctx@Context{..} =
             enqueueControl controlQ $ CFrames Nothing [frame]
         , -- Peer SETTINGS_ENABLE_PUSH
           isPushable = enablePush <$> readIORef peerSettings
-        , insertStream = insert streamTable
+        , insertStream = insert oddStreamTable
         , -- Peer SETTINGS_INITIAL_WINDOW_SIZE
           makePushStream = \pstrm _ -> do
             ws <- initialWindowSize <$> readIORef peerSettings
             sid <- getMyNewStreamId ctx
-            newstrm <- newPushStream sid ws
+            -- XXX
+            -- Server: Peer SETTINGS_MAX_CONCURRENT_STREAMS
+            newstrm <- newEvenStream sid ws
             let pid = streamNumber pstrm
             return (pid, sid, newstrm)
         , mySockAddr = mySockAddr
@@ -90,6 +92,7 @@ pushStream WorkerConf{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         (pid, sid, newstrm) <- makePushStream pstrm pp
+        --- XXX deleteStream?
         insertStream sid newstrm
         let scheme = fromJust $ getHeaderValue tokenScheme reqvt
             -- fixme: this value can be Nothing

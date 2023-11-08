@@ -116,9 +116,9 @@ updateMySettings Config{..} Context{myFirstSettings, myPendingAlist} = do
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
 updatePeerSettings :: Context -> SettingsList -> IO ()
-updatePeerSettings Context{peerSettings, streamTable} peerAlist = do
+updatePeerSettings Context{peerSettings, oddStreamTable} peerAlist = do
     oldws <- initialWindowSize <$> readIORef peerSettings
     modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
     newws <- initialWindowSize <$> readIORef peerSettings
     let diff = newws - oldws
-    when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+    when (diff /= 0) $ updateAllStreamWindow (+ diff) oddStreamTable

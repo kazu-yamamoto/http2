@@ -223,13 +223,26 @@ processState s ctx strm _streamId = do
 
 ----------------------------------------------------------------
 
+{- FOURMOLU_DISABLE -}
 getStream :: Context -> FrameType -> StreamId -> IO (Maybe Stream)
-getStream ctx@Context{..} ftyp streamId =
-    search streamTable streamId >>= getStream' ctx ftyp streamId
+getStream ctx@Context{..} ftyp streamId
+  | isEven    = search evenStreamTable streamId >>= getEvenStream ctx ftyp
+  | otherwise = search oddStreamTable  streamId >>= getOddStream  ctx ftyp streamId
+  where
+    isEven = isServerInitiated streamId
+{- FOURMOLU_ENABLE -}
 
-getStream'
+getEvenStream :: Context -> FrameType -> Maybe Stream -> IO (Maybe Stream)
+getEvenStream ctx ftyp js@(Just strm) = do
+    when (ftyp == FrameHeaders) $ do
+        st <- readStreamState strm
+        when (isReserved st) $ halfClosedLocal ctx strm Finished
+    return js
+getEvenStream _ _ Nothing = return Nothing
+
+getOddStream
     :: Context -> FrameType -> StreamId -> Maybe Stream -> IO (Maybe Stream)
-getStream' ctx ftyp streamId js@(Just strm0) = do
+getOddStream ctx ftyp streamId js@(Just strm0) = do
     when (ftyp == FrameHeaders) $ do
         st <- readStreamState strm0
         when (isHalfClosedRemote st) $
@@ -241,8 +254,7 @@ getStream' ctx ftyp streamId js@(Just strm0) = do
         -- Priority made an idle stream
         when (isIdle st) $ opened ctx strm0
     return js
-getStream' ctx@Context{..} ftyp streamId Nothing
-    | isServerInitiated streamId = return Nothing
+getOddStream ctx@Context{..} ftyp streamId Nothing
     | isServer ctx = do
         csid <- getPeerStreamID ctx
         if streamId <= csid -- consider the stream closed
@@ -266,18 +278,22 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
                 when (ftyp == FrameHeaders) $ do
                     setPeerStreamID ctx streamId
-                    cnt <- concurrency <$> readIORef streamTable
                     -- Checking the limitation of concurrency
-                    -- My SETTINGS_MAX_CONCURRENT_STREAMS
-                    mMaxConc <- maxConcurrentStreams <$> readIORef mySettings
-                    case mMaxConc of
-                        Nothing -> return ()
-                        Just maxConc ->
-                            when (cnt >= maxConc) $
-                                E.throwIO $
-                                    StreamErrorIsSent RefusedStream streamId "exceeds max concurrent"
-                Just <$> openStream ctx streamId ftyp
+                    -- Server: My SETTINGS_MAX_CONCURRENT_STREAMS
+                    checkMyConcurrency streamId mySettings oddStreamTable
+                Just <$> openOddStream ctx streamId ftyp
     | otherwise = undefined -- never reach
+
+checkMyConcurrency :: StreamId -> IORef Settings -> IORef StreamTable -> IO ()
+checkMyConcurrency sid settings st = do
+    cnt <- concurrency <$> readIORef st
+    mMaxConc <- maxConcurrentStreams <$> readIORef settings
+    case mMaxConc of
+        Nothing -> return ()
+        Just maxConc ->
+            when (cnt >= maxConc) $
+                E.throwIO $
+                    StreamErrorIsSent RefusedStream sid "exceeds max concurrent"
 
 ----------------------------------------------------------------
 
@@ -338,12 +354,16 @@ control _ _ _ _ _ =
 
 ----------------------------------------------------------------
 
+-- Called in client only
 push :: FrameHeader -> ByteString -> Context -> IO ()
-push header@FrameHeader{streamId} bs ctx = do
+push header@FrameHeader{streamId} bs ctx@Context{mySettings, evenStreamTable} = do
     PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header bs
     unless (isServerInitiated sid) $
         E.throwIO $
-            ConnectionErrorIsSent ProtocolError streamId "push promise must specify an even stream identifier"
+            ConnectionErrorIsSent
+                ProtocolError
+                streamId
+                "push promise must specify an even stream identifier"
     when (frag == "") $
         E.throwIO $
             ConnectionErrorIsSent
@@ -361,7 +381,10 @@ push header@FrameHeader{streamId} bs ctx = do
                 mpath = getHeaderValue tokenPath vt
             case (mmethod, mpath) of
                 (Just method, Just path) -> do
-                    strm <- openStream ctx sid FramePushPromise
+                    -- XXX
+                    -- Client: My SETTINGS_MAX_CONCURRENT_STREAMS
+                    checkMyConcurrency streamId mySettings evenStreamTable
+                    strm <- openEvenStream ctx sid
                     insertCache method path strm $ roleInfo ctx
                 _ -> return ()
 
@@ -565,10 +588,10 @@ stream FrameData FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         StreamErrorIsSent StreamClosed streamId $
             fromString ("illegal data frame for " ++ show streamId)
-stream _ FrameHeader{streamId} _ _ _ _ =
+stream x FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         StreamErrorIsSent ProtocolError streamId $
-            fromString ("illegal frame for " ++ show streamId)
+            fromString ("illegal frame " ++ show x ++ " for " ++ show streamId)
 
 ----------------------------------------------------------------
 

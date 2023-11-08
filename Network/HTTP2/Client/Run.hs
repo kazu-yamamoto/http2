@@ -54,7 +54,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
         get strm = Response <$> takeMVar (streamInput strm)
         create = do
             sid <- getMyNewStreamId ctx
-            strm <- openStream ctx sid FrameHeaders
+            strm <- openOddStream ctx sid FrameHeaders
             return (sid, strm)
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
@@ -71,7 +71,7 @@ setup ClientConfig{..} conf@Config{..} = do
 runArch :: Config -> Context -> Manager -> IO a -> IO a
 runArch conf ctx mgr runClient =
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
-        closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
+        closeAllStreams (oddStreamTable ctx) $ either Just (const Nothing) res
         case res of
             Left err ->
                 throwIO err
@@ -119,7 +119,9 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
                     | otherwise = hdr1
                 req' = req{outObjHeaders = hdr2}
             sid <- getMyNewStreamId ctx
-            newstrm <- openStream ctx sid FrameHeaders
+            -- XXX
+            -- Clinet: Peer SETTINGS_MAX_CONCURRENT_STREAMS
+            newstrm <- openOddStream ctx sid FrameHeaders
             case outObjBody req of
                 OutBodyStreaming strmbdy ->
                     sendStreaming ctx mgr req' sid newstrm $ \unmask push flush ->

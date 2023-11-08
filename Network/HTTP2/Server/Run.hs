@@ -83,7 +83,7 @@ runArch conf ctx mgr = do
         runSender = frameSender ctx conf mgr
         runBackgroundThreads = concurrently_ runReceiver runSender
     stopAfter mgr runBackgroundThreads $ \res -> do
-        closeAllStreams (streamTable ctx) $ either Just (const Nothing) res
+        closeAllStreams (oddStreamTable ctx) $ either Just (const Nothing) res
         case res of
             Left err ->
                 throwIO err

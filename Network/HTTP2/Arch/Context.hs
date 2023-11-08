@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Arch.Context where
 
@@ -47,17 +48,17 @@ newClientInfo :: ByteString -> ByteString -> Int -> IO RoleInfo
 newClientInfo scm auth lim = RIC . ClientInfo scm auth <$> newIORef (emptyCache lim)
 
 insertCache :: Method -> ByteString -> Stream -> RoleInfo -> IO ()
-insertCache m path v (RIC (ClientInfo _ _ ref)) = atomicModifyIORef' ref $ \c ->
+insertCache m path v (RIC ClientInfo{..}) = atomicModifyIORef' cache $ \c ->
     (Cache.insert (m, path) v c, ())
 insertCache _ _ _ _ = error "insertCache"
 
 lookupCache :: Method -> ByteString -> RoleInfo -> IO (Maybe Stream)
-lookupCache m path (RIC (ClientInfo _ _ ref)) = Cache.lookup (m, path) <$> readIORef ref
+lookupCache m path (RIC ClientInfo{..}) = Cache.lookup (m, path) <$> readIORef cache
 lookupCache _ _ _ = error "lookupCache"
 
 deleteCache :: Method -> ByteString -> RoleInfo -> IO ()
-deleteCache m path (RIC (ClientInfo _ _ ref)) = atomicModifyIORef' ref $ \c ->
-  (Cache.delete (m, path) c, ())
+deleteCache m path (RIC ClientInfo{..}) = atomicModifyIORef' cache $ \c ->
+    (Cache.delete (m, path) c, ())
 deleteCache _ _ _ = error "deleteCache"
 
 ----------------------------------------------------------------
@@ -71,7 +72,8 @@ data Context = Context
     , myPendingAlist :: IORef (Maybe SettingsList)
     , mySettings :: IORef Settings
     , peerSettings :: IORef Settings
-    , streamTable :: IORef StreamTable
+    , oddStreamTable :: IORef StreamTable
+    , evenStreamTable :: IORef StreamTable
     , continued :: IORef (Maybe StreamId)
     -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
     --   occur between the HEADERS frame and any CONTINUATION
@@ -106,6 +108,7 @@ newContext rinfo siz mysa peersa =
         <*> newIORef Nothing
         <*> newIORef defaultSettings
         <*> newIORef defaultSettings
+        <*> newIORef emptyStreamTable
         <*> newIORef emptyStreamTable
         <*> newIORef Nothing
         <*> newIORef sid0
@@ -190,14 +193,23 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
     closeHalf _ = (Open (Just cc) JustOpened, False)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
-closed ctx@Context{streamTable} strm@Stream{streamNumber} cc = do
-    remove streamTable streamNumber
+closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc = do
+    if isServerInitiated streamNumber
+        then remove evenStreamTable streamNumber
+        else remove oddStreamTable streamNumber
     setStreamState ctx strm (Closed cc) -- anyway
 
-openStream :: Context -> StreamId -> FrameType -> IO Stream
-openStream ctx@Context{streamTable, peerSettings} sid ftyp = do
+openOddStream :: Context -> StreamId -> FrameType -> IO Stream
+openOddStream ctx@Context{oddStreamTable, peerSettings} sid ftyp = do
     ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newStream sid ws
+    newstrm <- newOddStream sid ws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
-    insert streamTable sid newstrm
+    insert oddStreamTable sid newstrm
+    return newstrm
+
+openEvenStream :: Context -> StreamId -> IO Stream
+openEvenStream Context{evenStreamTable, peerSettings} sid = do
+    ws <- initialWindowSize <$> readIORef peerSettings
+    newstrm <- newEvenStream sid ws
+    insert evenStreamTable sid newstrm
     return newstrm
