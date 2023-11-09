@@ -227,20 +227,22 @@ checkMyConcurrency sid settings conc = do
 -- From me
 
 -- Clinet
-openOddStreamWait :: Context -> StreamId -> IO Stream
-openOddStreamWait ctx@Context{oddStreamTable, peerSettings} sid = do
+openOddStreamWait :: Context -> IO (StreamId, Stream)
+openOddStreamWait ctx@Context{oddStreamTable, peerSettings} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
+    sid <- getMyNewStreamId ctx
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newOddStream sid ws
     opened ctx newstrm
     insertOdd oddStreamTable sid newstrm
-    return newstrm
+    return (sid, newstrm)
 
 -- Server
-openEvenStreamWait :: Context -> StreamId -> IO Stream
-openEvenStreamWait Context{evenStreamTable, peerSettings} sid = do
+openEvenStreamWait :: Context -> IO (StreamId, Stream)
+openEvenStreamWait ctx@Context{evenStreamTable, peerSettings} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
+    sid <- getMyNewStreamId ctx
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newEvenStream sid ws
     insertEven evenStreamTable sid newstrm
-    return newstrm
+    return (sid, newstrm)

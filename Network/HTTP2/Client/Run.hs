@@ -52,10 +52,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
             strm <- sendRequest ctx mgr scheme authority req
             return (streamNumber strm, strm)
         get strm = Response <$> takeMVar (streamInput strm)
-        create = do
-            sid <- getMyNewStreamId ctx
-            strm <- openOddStreamWait ctx sid
-            return (sid, strm)
+        create = openOddStreamWait ctx
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
     runArch conf ctx mgr runClient
@@ -120,8 +117,7 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
                     | auth /= "" = (":authority", auth) : hdr1
                     | otherwise = hdr1
                 req' = req{outObjHeaders = hdr2}
-            sid <- getMyNewStreamId ctx
-            newstrm <- openOddStreamWait ctx sid
+            (sid, newstrm) <- openOddStreamWait ctx
             case outObjBody req of
                 OutBodyStreaming strmbdy ->
                     sendStreaming ctx mgr req' sid newstrm $ \unmask push flush ->
