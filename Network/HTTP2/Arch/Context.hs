@@ -137,8 +137,8 @@ isServer ctx = role ctx == Server
 
 ----------------------------------------------------------------
 
-getMyNewStreamId :: Context -> IO StreamId
-getMyNewStreamId Context{..} = atomically $ do
+getMyNewStreamId :: Context -> STM StreamId
+getMyNewStreamId Context{..} = do
     n <- readTVar myStreamId
     let n' = n + 2
     writeTVar myStreamId n'
@@ -232,19 +232,41 @@ checkMyConcurrency sid settings conc = do
 openOddStreamWait :: Context -> IO (StreamId, Stream)
 openOddStreamWait ctx@Context{oddStreamTable, peerSettings} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
-    sid <- getMyNewStreamId ctx
-    ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newOddStream sid ws
-    opened ctx newstrm
-    insertOdd oddStreamTable sid newstrm
-    return (sid, newstrm)
+    mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
+    case mMaxConc of
+        Nothing -> do
+            sid <- atomically $ getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newOddStream sid ws
+            insertOdd oddStreamTable sid newstrm
+            return (sid, newstrm)
+        Just maxConc -> do
+            sid <- atomically $ do
+                waitIncOdd oddStreamTable maxConc
+                getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newOddStream sid ws
+            insertOdd' oddStreamTable sid newstrm
+            return (sid, newstrm)
 
 -- Server
 openEvenStreamWait :: Context -> IO (StreamId, Stream)
-openEvenStreamWait ctx@Context{evenStreamTable, peerSettings} = do
+openEvenStreamWait ctx@Context{..} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
-    sid <- getMyNewStreamId ctx
-    ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newEvenStream sid ws
-    insertEven evenStreamTable sid newstrm
-    return (sid, newstrm)
+    mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
+    case mMaxConc of
+        Nothing -> do
+            sid <- atomically $ getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newEvenStream sid ws
+            insertEven evenStreamTable sid newstrm
+            return (sid, newstrm)
+        Just maxConc -> do
+            sid <- atomically $ do
+                waitIncEven evenStreamTable maxConc
+                getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newEvenStream sid ws
+            insertEven' evenStreamTable sid newstrm
+            return (sid, newstrm)
+

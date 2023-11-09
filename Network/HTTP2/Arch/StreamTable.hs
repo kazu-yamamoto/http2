@@ -9,18 +9,22 @@ module Network.HTTP2.Arch.StreamTable (
 
     -- * Odd
     insertOdd,
+    insertOdd',
     deleteOdd,
     lookupOdd,
     getOddConcurrency,
     getOddStreams,
     clearOddStreamTable,
+    waitIncOdd,
 
     -- * Even
     insertEven,
+    insertEven',
     deleteEven,
     lookupEven,
     getEvenConcurrency,
     clearEvenStreamTable,
+    waitIncEven,
     insertEvenCache,
     deleteEvenCache,
     lookupEvenCache,
@@ -66,6 +70,11 @@ insertOdd var k v = atomically $ modifyTVar var $ \OddStreamTable{..} ->
         oddTable' = IntMap.insert k v oddTable
      in OddStreamTable oddConc' oddTable'
 
+insertOdd' :: TVar OddStreamTable -> IntMap.Key -> Stream -> IO ()
+insertOdd' var k v = atomically $ modifyTVar var $ \OddStreamTable{..} ->
+    let oddTable' = IntMap.insert k v oddTable
+     in OddStreamTable oddConc oddTable'
+
 deleteOdd :: TVar OddStreamTable -> IntMap.Key -> IO ()
 deleteOdd var k = atomically $ modifyTVar var $ \OddStreamTable{..} ->
     let oddConc' = oddConc - 1
@@ -87,6 +96,13 @@ clearOddStreamTable var = atomically $ do
     writeTVar var emptyOddStreamTable
     return oddTable
 
+waitIncOdd :: TVar OddStreamTable -> Int -> STM ()
+waitIncOdd var maxConc = do
+    OddStreamTable{..} <- readTVar var
+    check (oddConc < maxConc)
+    let oddConc' = oddConc + 1
+    writeTVar var $ OddStreamTable oddConc' oddTable
+
 ----------------------------------------------------------------
 
 insertEven :: TVar EvenStreamTable -> IntMap.Key -> Stream -> IO ()
@@ -94,6 +110,11 @@ insertEven var k v = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenConc' = evenConc + 1
         evenTable' = IntMap.insert k v evenTable
      in EvenStreamTable evenConc' evenTable' evenCache
+
+insertEven' :: TVar EvenStreamTable -> IntMap.Key -> Stream -> IO ()
+insertEven' var k v = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
+    let evenTable' = IntMap.insert k v evenTable
+     in EvenStreamTable evenConc evenTable' evenCache
 
 deleteEven :: TVar EvenStreamTable -> IntMap.Key -> IO ()
 deleteEven var k = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
@@ -112,6 +133,13 @@ clearEvenStreamTable var = atomically $ do
     EvenStreamTable{..} <- readTVar var
     writeTVar var $ emptyEvenStreamTable 0
     return evenTable
+
+waitIncEven :: TVar EvenStreamTable -> Int -> STM ()
+waitIncEven var maxConc = do
+    EvenStreamTable{..} <- readTVar var
+    check (evenConc < maxConc)
+    let evenConc' = evenConc + 1
+    writeTVar var $ EvenStreamTable evenConc' evenTable evenCache
 
 insertEvenCache
     :: TVar EvenStreamTable -> Method -> ByteString -> Stream -> IO ()
