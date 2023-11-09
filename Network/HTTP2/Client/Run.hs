@@ -62,8 +62,9 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
 
 setup :: ClientConfig -> Config -> IO (Context, Manager)
 setup ClientConfig{..} conf@Config{..} = do
-    clientInfo <- newClientInfo scheme authority cacheLimit
-    ctx <- newContext clientInfo confBufferSize confMySockAddr confPeerSockAddr
+    let clientInfo = newClientInfo scheme authority
+    ctx <-
+        newContext clientInfo cacheLimit confBufferSize confMySockAddr confPeerSockAddr
     mgr <- start confTimeoutManager
     exchangeSettings conf ctx
     return (ctx, mgr)
@@ -71,7 +72,8 @@ setup ClientConfig{..} conf@Config{..} = do
 runArch :: Config -> Context -> Manager -> IO a -> IO a
 runArch conf ctx mgr runClient =
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
-        closeAllStreams (oddStreamTable ctx) $ either Just (const Nothing) res
+        closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
+            either Just (const Nothing) res
         case res of
             Left err ->
                 throwIO err
@@ -96,10 +98,10 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
     let hdr0 = outObjHeaders req
         method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr0
         path = fromMaybe (error "sendRequest:path") $ lookup ":path" hdr0
-    mstrm0 <- lookupCache method path roleInfo
+    mstrm0 <- lookupEvenCache evenStreamTable method path
     case mstrm0 of
         Just strm0 -> do
-            deleteCache method path roleInfo
+            deleteEvenCache evenStreamTable method path
             return strm0
         Nothing -> do
             -- Arch/Sender is originally implemented for servers where

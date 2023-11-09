@@ -10,10 +10,9 @@ import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK
-import Network.HTTP2.Arch.Cache (Cache, emptyCache)
-import qualified Network.HTTP2.Arch.Cache as Cache
 import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
@@ -30,7 +29,6 @@ data ServerInfo = ServerInfo
 data ClientInfo = ClientInfo
     { scheme :: ByteString
     , authority :: ByteString
-    , cache :: IORef (Cache (Method, ByteString) Stream)
     }
 
 toServerInfo :: RoleInfo -> ServerInfo
@@ -44,22 +42,8 @@ toClientInfo _ = error "toClientInfo"
 newServerInfo :: IO RoleInfo
 newServerInfo = RIS . ServerInfo <$> newTQueueIO
 
-newClientInfo :: ByteString -> ByteString -> Int -> IO RoleInfo
-newClientInfo scm auth lim = RIC . ClientInfo scm auth <$> newIORef (emptyCache lim)
-
-insertCache :: Method -> ByteString -> Stream -> RoleInfo -> IO ()
-insertCache m path v (RIC ClientInfo{..}) = atomicModifyIORef' cache $ \c ->
-    (Cache.insert (m, path) v c, ())
-insertCache _ _ _ _ = error "insertCache"
-
-lookupCache :: Method -> ByteString -> RoleInfo -> IO (Maybe Stream)
-lookupCache m path (RIC ClientInfo{..}) = Cache.lookup (m, path) <$> readIORef cache
-lookupCache _ _ _ = error "lookupCache"
-
-deleteCache :: Method -> ByteString -> RoleInfo -> IO ()
-deleteCache m path (RIC ClientInfo{..}) = atomicModifyIORef' cache $ \c ->
-    (Cache.delete (m, path) c, ())
-deleteCache _ _ _ = error "deleteCache"
+newClientInfo :: ByteString -> ByteString -> RoleInfo
+newClientInfo scm auth = RIC $ ClientInfo scm auth
 
 ----------------------------------------------------------------
 
@@ -72,8 +56,8 @@ data Context = Context
     , myPendingAlist :: IORef (Maybe SettingsList)
     , mySettings :: IORef Settings
     , peerSettings :: IORef Settings
-    , oddStreamTable :: IORef StreamTable
-    , evenStreamTable :: IORef StreamTable
+    , oddStreamTable :: IORef OddStreamTable
+    , evenStreamTable :: IORef EvenStreamTable
     , continued :: IORef (Maybe StreamId)
     -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
     --   occur between the HEADERS frame and any CONTINUATION
@@ -101,15 +85,16 @@ data Context = Context
 
 ----------------------------------------------------------------
 
-newContext :: RoleInfo -> BufferSize -> SockAddr -> SockAddr -> IO Context
-newContext rinfo siz mysa peersa =
+newContext
+    :: RoleInfo -> Int -> BufferSize -> SockAddr -> SockAddr -> IO Context
+newContext rinfo cacheSiz siz mysa peersa =
     Context rl rinfo
         <$> newIORef False
         <*> newIORef Nothing
         <*> newIORef defaultSettings
         <*> newIORef defaultSettings
-        <*> newIORef emptyStreamTable
-        <*> newIORef emptyStreamTable
+        <*> newIORef emptyOddStreamTable
+        <*> newIORef (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing
         <*> newIORef sid0
         <*> newIORef 0
@@ -195,8 +180,8 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
 closed :: Context -> Stream -> ClosedCode -> IO ()
 closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc = do
     if isServerInitiated streamNumber
-        then remove evenStreamTable streamNumber
-        else remove oddStreamTable streamNumber
+        then deleteEven evenStreamTable streamNumber
+        else deleteOdd oddStreamTable streamNumber
     setStreamState ctx strm (Closed cc) -- anyway
 
 openOddStream :: Context -> StreamId -> FrameType -> IO Stream
@@ -204,12 +189,11 @@ openOddStream ctx@Context{oddStreamTable, peerSettings} sid ftyp = do
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newOddStream sid ws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
-    insert oddStreamTable sid newstrm
+    insertOdd oddStreamTable sid newstrm
     return newstrm
 
-openEvenStream :: Context -> StreamId -> IO Stream
-openEvenStream Context{evenStreamTable, peerSettings} sid = do
+openEvenStream :: Context -> StreamId -> Method -> ByteString -> IO ()
+openEvenStream Context{evenStreamTable, peerSettings} sid method path = do
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newEvenStream sid ws
-    insert evenStreamTable sid newstrm
-    return newstrm
+    insertEvenCache evenStreamTable method path newstrm

@@ -72,7 +72,8 @@ checkPreface conf@Config{..} = do
 setup :: Config -> IO (Context, Manager)
 setup Config{..} = do
     serverInfo <- newServerInfo
-    ctx <- newContext serverInfo confBufferSize confMySockAddr confPeerSockAddr
+    -- XXX fixme
+    ctx <- newContext serverInfo 100 confBufferSize confMySockAddr confPeerSockAddr
     -- Workers, worker manager and timer manager
     mgr <- start confTimeoutManager
     return (ctx, mgr)
@@ -83,7 +84,8 @@ runArch conf ctx mgr = do
         runSender = frameSender ctx conf mgr
         runBackgroundThreads = concurrently_ runReceiver runSender
     stopAfter mgr runBackgroundThreads $ \res -> do
-        closeAllStreams (oddStreamTable ctx) $ either Just (const Nothing) res
+        closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
+            either Just (const Nothing) res
         case res of
             Left err ->
                 throwIO err

@@ -5,11 +5,10 @@ module Network.HTTP2.Arch.Stream where
 
 import Control.Exception
 import Data.IORef
-import qualified Data.IntMap.Strict as M
 import UnliftIO.Concurrent
 import UnliftIO.STM
 
-import Imports
+import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
@@ -65,41 +64,23 @@ readStreamState Stream{streamState} = readIORef streamState
 
 ----------------------------------------------------------------
 
-emptyStreamTable :: StreamTable
-emptyStreamTable = StreamTable 0 M.empty
-
-insert :: IORef StreamTable -> M.Key -> Stream -> IO ()
-insert ref k v = atomicModifyIORef' ref $ \StreamTable{..} ->
-    let concurrency' = concurrency + 1
-        streams' = M.insert k v streams
-     in (StreamTable concurrency' streams', ())
-
-remove :: IORef StreamTable -> M.Key -> IO ()
-remove ref k = atomicModifyIORef' ref $ \StreamTable{..} ->
-    let concurrency' = concurrency - 1
-        streams' = M.delete k streams
-     in (StreamTable concurrency' streams', ())
-
-search :: IORef StreamTable -> M.Key -> IO (Maybe Stream)
-search ref k = M.lookup k . streams <$> readIORef ref
-
-updateAllStreamWindow
-    :: (WindowSize -> WindowSize) -> IORef StreamTable -> IO ()
-updateAllStreamWindow adst ref = do
-    strms <- streams <$> readIORef ref
-    forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
-
-closeAllStreams :: IORef StreamTable -> Maybe SomeException -> IO ()
-closeAllStreams ref mErr' = do
-    strms <- streams <$> atomicModifyIORef' ref (\st -> (emptyStreamTable, st))
-    forM_ strms $ \strm -> do
+closeAllStreams
+    :: IORef OddStreamTable -> IORef EvenStreamTable -> Maybe SomeException -> IO ()
+closeAllStreams oref eref mErr' = do
+    ostrms <-
+        oddTable <$> atomicModifyIORef' oref (\st -> (emptyOddStreamTable, st))
+    mapM_ finalize ostrms
+    estrms <-
+        evenTable <$> atomicModifyIORef' eref (\st -> (emptyEvenStreamTable 0, st))
+    mapM_ finalize estrms
+  where
+    finalize strm = do
         st <- readStreamState strm
         case st of
             Open _ (Body q _ _ _) ->
                 atomically $ writeTQueue q $ maybe (Right mempty) Left mErr
             _otherwise ->
                 return ()
-  where
     mErr :: Maybe SomeException
     mErr = case mErr' of
         Just err

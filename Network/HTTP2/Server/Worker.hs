@@ -48,7 +48,7 @@ fromContext ctx@Context{..} =
             enqueueControl controlQ $ CFrames Nothing [frame]
         , -- Peer SETTINGS_ENABLE_PUSH
           isPushable = enablePush <$> readIORef peerSettings
-        , insertStream = insert oddStreamTable
+        , insertStream = insertEven evenStreamTable
         , -- Peer SETTINGS_INITIAL_WINDOW_SIZE
           makePushStream = \pstrm _ -> do
             ws <- initialWindowSize <$> readIORef peerSettings

@@ -7,7 +7,6 @@ module Network.HTTP2.Arch.Types where
 import qualified Control.Exception as E
 import Data.ByteString.Builder (Builder)
 import Data.IORef
-import Data.IntMap.Strict (IntMap)
 import Data.Typeable
 import qualified Network.HTTP.Types as H
 import System.IO.Unsafe
@@ -257,14 +256,12 @@ data Stream = Stream
     }
 
 instance Show Stream where
-    show Stream{..} = "Stream{id=" ++ show streamNumber ++ ",state=" ++ show (unsafePerformIO (readIORef streamState)) ++ "}"
-
-----------------------------------------------------------------
-
-data StreamTable = StreamTable
-    { concurrency :: Int
-    , streams :: IntMap Stream
-    }
+    show Stream{..} =
+        "Stream{id="
+            ++ show streamNumber
+            ++ ",state="
+            ++ show (unsafePerformIO (readIORef streamState))
+            ++ "}"
 
 ----------------------------------------------------------------
 

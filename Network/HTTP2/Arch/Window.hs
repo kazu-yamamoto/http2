@@ -12,7 +12,7 @@ import Network.HTTP2.Arch.Config
 import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
 import Network.HTTP2.Arch.Queue
-import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
@@ -121,4 +121,10 @@ updatePeerSettings Context{peerSettings, oddStreamTable} peerAlist = do
     modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
     newws <- initialWindowSize <$> readIORef peerSettings
     let diff = newws - oldws
-    when (diff /= 0) $ updateAllStreamWindow (+ diff) oddStreamTable
+    when (diff /= 0) $ updateAllOddStreamWindow (+ diff) oddStreamTable
+
+updateAllOddStreamWindow
+    :: (WindowSize -> WindowSize) -> IORef OddStreamTable -> IO ()
+updateAllOddStreamWindow adst ref = do
+    strms <- oddTable <$> readIORef ref
+    forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst

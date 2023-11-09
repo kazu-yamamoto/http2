@@ -25,6 +25,7 @@ import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Arch.Window
 import Network.HTTP2.Frame
@@ -226,8 +227,8 @@ processState s ctx strm _streamId = do
 {- FOURMOLU_DISABLE -}
 getStream :: Context -> FrameType -> StreamId -> IO (Maybe Stream)
 getStream ctx@Context{..} ftyp streamId
-  | isEven    = search evenStreamTable streamId >>= getEvenStream ctx ftyp
-  | otherwise = search oddStreamTable  streamId >>= getOddStream  ctx ftyp streamId
+  | isEven    = lookupEven evenStreamTable streamId >>= getEvenStream ctx ftyp
+  | otherwise = lookupOdd oddStreamTable  streamId >>= getOddStream  ctx ftyp streamId
   where
     isEven = isServerInitiated streamId
 {- FOURMOLU_ENABLE -}
@@ -280,18 +281,19 @@ getOddStream ctx@Context{..} ftyp streamId Nothing
                     setPeerStreamID ctx streamId
                     -- Checking the limitation of concurrency
                     -- Server: My SETTINGS_MAX_CONCURRENT_STREAMS
-                    checkMyConcurrency streamId mySettings oddStreamTable
+                    conc <- oddConc <$> readIORef oddStreamTable
+                    checkMyConcurrency streamId mySettings conc
                 Just <$> openOddStream ctx streamId ftyp
     | otherwise = undefined -- never reach
 
-checkMyConcurrency :: StreamId -> IORef Settings -> IORef StreamTable -> IO ()
-checkMyConcurrency sid settings st = do
-    cnt <- concurrency <$> readIORef st
+checkMyConcurrency
+    :: StreamId -> IORef Settings -> Int -> IO ()
+checkMyConcurrency sid settings conc = do
     mMaxConc <- maxConcurrentStreams <$> readIORef settings
     case mMaxConc of
         Nothing -> return ()
         Just maxConc ->
-            when (cnt >= maxConc) $
+            when (conc >= maxConc) $
                 E.throwIO $
                     StreamErrorIsSent RefusedStream sid "exceeds max concurrent"
 
@@ -381,11 +383,10 @@ push header@FrameHeader{streamId} bs ctx@Context{mySettings, evenStreamTable} = 
                 mpath = getHeaderValue tokenPath vt
             case (mmethod, mpath) of
                 (Just method, Just path) -> do
-                    -- XXX
                     -- Client: My SETTINGS_MAX_CONCURRENT_STREAMS
-                    checkMyConcurrency streamId mySettings evenStreamTable
-                    strm <- openEvenStream ctx sid
-                    insertCache method path strm $ roleInfo ctx
+                    conc <- evenConc <$> readIORef evenStreamTable
+                    checkMyConcurrency streamId mySettings conc
+                    openEvenStream ctx sid method path
                 _ -> return ()
 
 ----------------------------------------------------------------
