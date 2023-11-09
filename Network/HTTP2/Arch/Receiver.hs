@@ -342,7 +342,7 @@ control _ _ _ _ _ =
 
 -- Called in client only
 push :: FrameHeader -> ByteString -> Context -> IO ()
-push header@FrameHeader{streamId} bs ctx@Context{mySettings, evenStreamTable} = do
+push header@FrameHeader{streamId} bs ctx = do
     PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header bs
     unless (isServerInitiated sid) $
         E.throwIO $
@@ -366,9 +366,7 @@ push header@FrameHeader{streamId} bs ctx@Context{mySettings, evenStreamTable} = 
             let mmethod = getHeaderValue tokenMethod vt
                 mpath = getHeaderValue tokenPath vt
             case (mmethod, mpath) of
-                (Just method, Just path) -> do
-                    conc <- evenConc <$> readIORef evenStreamTable
-                    checkMyConcurrency streamId mySettings conc
+                (Just method, Just path) ->
                     openEvenStreamCacheCheck ctx sid method path
                 _ -> return ()
 

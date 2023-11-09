@@ -65,13 +65,11 @@ readStreamState Stream{streamState} = readIORef streamState
 ----------------------------------------------------------------
 
 closeAllStreams
-    :: IORef OddStreamTable -> IORef EvenStreamTable -> Maybe SomeException -> IO ()
-closeAllStreams oref eref mErr' = do
-    ostrms <-
-        oddTable <$> atomicModifyIORef' oref (\st -> (emptyOddStreamTable, st))
+    :: TVar OddStreamTable -> TVar EvenStreamTable -> Maybe SomeException -> IO ()
+closeAllStreams ovar evar mErr' = do
+    ostrms <- clearOddStreamTable ovar
     mapM_ finalize ostrms
-    estrms <-
-        evenTable <$> atomicModifyIORef' eref (\st -> (emptyEvenStreamTable 0, st))
+    estrms <- clearEvenStreamTable evar
     mapM_ finalize estrms
   where
     finalize strm = do

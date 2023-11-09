@@ -58,8 +58,8 @@ data Context = Context
     , myPendingAlist :: IORef (Maybe SettingsList)
     , mySettings :: IORef Settings
     , peerSettings :: IORef Settings
-    , oddStreamTable :: IORef OddStreamTable
-    , evenStreamTable :: IORef EvenStreamTable
+    , oddStreamTable :: TVar OddStreamTable
+    , evenStreamTable :: TVar EvenStreamTable
     , continued :: IORef (Maybe StreamId)
     -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
     --   occur between the HEADERS frame and any CONTINUATION
@@ -95,8 +95,8 @@ newContext rinfo cacheSiz siz mysa peersa =
         <*> newIORef Nothing
         <*> newIORef defaultSettings
         <*> newIORef defaultSettings
-        <*> newIORef emptyOddStreamTable
-        <*> newIORef (emptyEvenStreamTable cacheSiz)
+        <*> newTVarIO emptyOddStreamTable
+        <*> newTVarIO (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing
         <*> newIORef sid0
         <*> newIORef 0
@@ -194,7 +194,7 @@ openOddStreamCheck :: Context -> StreamId -> FrameType -> IO Stream
 openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings} sid ftyp = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (ftyp == FrameHeaders) $ do
-        conc <- oddConc <$> readIORef oddStreamTable
+        conc <- getOddConcurrency oddStreamTable
         checkMyConcurrency sid mySettings conc
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newOddStream sid ws
@@ -206,7 +206,7 @@ openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings} sid fty
 openEvenStreamCacheCheck :: Context -> StreamId -> Method -> ByteString -> IO ()
 openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings} sid method path = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
-    conc <- evenConc <$> readIORef evenStreamTable
+    conc <- getEvenConcurrency evenStreamTable
     checkMyConcurrency sid mySettings conc
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newEvenStream sid ws

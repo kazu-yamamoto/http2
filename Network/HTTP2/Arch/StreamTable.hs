@@ -1,22 +1,32 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Arch.StreamTable (
-    OddStreamTable (..),
+    -- * Types
+    OddStreamTable,
     emptyOddStreamTable,
-    EvenStreamTable (..),
+    EvenStreamTable,
     emptyEvenStreamTable,
+
+    -- * Odd
     insertOdd,
     deleteOdd,
     lookupOdd,
+    getOddConcurrency,
+    getOddStreams,
+    clearOddStreamTable,
+
+    -- * Even
     insertEven,
     deleteEven,
     lookupEven,
+    getEvenConcurrency,
+    clearEvenStreamTable,
     insertEvenCache,
     deleteEvenCache,
     lookupEvenCache,
 ) where
 
-import Data.IORef
+import Control.Concurrent.STM
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import Data.OrdPSQ (OrdPSQ)
@@ -50,54 +60,75 @@ emptyEvenStreamTable lim = EvenStreamTable 0 IntMap.empty $ emptyCache lim
 
 ----------------------------------------------------------------
 
-insertOdd :: IORef OddStreamTable -> IntMap.Key -> Stream -> IO ()
-insertOdd ref k v = atomicModifyIORef' ref $ \OddStreamTable{..} ->
+insertOdd :: TVar OddStreamTable -> IntMap.Key -> Stream -> IO ()
+insertOdd var k v = atomically $ modifyTVar var $ \OddStreamTable{..} ->
     let oddConc' = oddConc + 1
         oddTable' = IntMap.insert k v oddTable
-     in (OddStreamTable oddConc' oddTable', ())
+     in OddStreamTable oddConc' oddTable'
 
-deleteOdd :: IORef OddStreamTable -> IntMap.Key -> IO ()
-deleteOdd ref k = atomicModifyIORef' ref $ \OddStreamTable{..} ->
+deleteOdd :: TVar OddStreamTable -> IntMap.Key -> IO ()
+deleteOdd var k = atomically $ modifyTVar var $ \OddStreamTable{..} ->
     let oddConc' = oddConc - 1
         oddTable' = IntMap.delete k oddTable
-     in (OddStreamTable oddConc' oddTable', ())
+     in OddStreamTable oddConc' oddTable'
 
-lookupOdd :: IORef OddStreamTable -> IntMap.Key -> IO (Maybe Stream)
-lookupOdd ref k = IntMap.lookup k . oddTable <$> readIORef ref
+lookupOdd :: TVar OddStreamTable -> IntMap.Key -> IO (Maybe Stream)
+lookupOdd var k = IntMap.lookup k . oddTable <$> readTVarIO var
+
+getOddConcurrency :: TVar OddStreamTable -> IO Int
+getOddConcurrency var = oddConc <$> readTVarIO var
+
+getOddStreams :: TVar OddStreamTable -> IO (IntMap Stream)
+getOddStreams var = oddTable <$> readTVarIO var
+
+clearOddStreamTable :: TVar OddStreamTable -> IO (IntMap Stream)
+clearOddStreamTable var = atomically $ do
+    OddStreamTable{..} <- readTVar var
+    writeTVar var emptyOddStreamTable
+    return oddTable
 
 ----------------------------------------------------------------
 
-insertEven :: IORef EvenStreamTable -> IntMap.Key -> Stream -> IO ()
-insertEven ref k v = atomicModifyIORef' ref $ \EvenStreamTable{..} ->
+insertEven :: TVar EvenStreamTable -> IntMap.Key -> Stream -> IO ()
+insertEven var k v = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenConc' = evenConc + 1
         evenTable' = IntMap.insert k v evenTable
-     in (EvenStreamTable evenConc' evenTable' evenCache, ())
+     in EvenStreamTable evenConc' evenTable' evenCache
 
-deleteEven :: IORef EvenStreamTable -> IntMap.Key -> IO ()
-deleteEven ref k = atomicModifyIORef' ref $ \EvenStreamTable{..} ->
+deleteEven :: TVar EvenStreamTable -> IntMap.Key -> IO ()
+deleteEven var k = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenConc' = evenConc - 1
         evenTable' = IntMap.delete k evenTable
-     in (EvenStreamTable evenConc' evenTable' evenCache, ())
+     in EvenStreamTable evenConc' evenTable' evenCache
 
-lookupEven :: IORef EvenStreamTable -> IntMap.Key -> IO (Maybe Stream)
-lookupEven ref k = IntMap.lookup k . evenTable <$> readIORef ref
+lookupEven :: TVar EvenStreamTable -> IntMap.Key -> IO (Maybe Stream)
+lookupEven var k = IntMap.lookup k . evenTable <$> readTVarIO var
+
+getEvenConcurrency :: TVar EvenStreamTable -> IO Int
+getEvenConcurrency var = evenConc <$> readTVarIO var
+
+clearEvenStreamTable :: TVar EvenStreamTable -> IO (IntMap Stream)
+clearEvenStreamTable var = atomically $ do
+    EvenStreamTable{..} <- readTVar var
+    writeTVar var $ emptyEvenStreamTable 0
+    return evenTable
 
 insertEvenCache
-    :: IORef EvenStreamTable -> Method -> ByteString -> Stream -> IO ()
-insertEvenCache ref method path strm@Stream{..} = atomicModifyIORef' ref $ \EvenStreamTable{..} ->
+    :: TVar EvenStreamTable -> Method -> ByteString -> Stream -> IO ()
+insertEvenCache var method path strm@Stream{..} = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenConc' = evenConc + 1
         evenTable' = IntMap.insert streamNumber strm evenTable
         evenCache' = insertCache (method, path) strm evenCache
-     in (EvenStreamTable evenConc' evenTable' evenCache', ())
+     in EvenStreamTable evenConc' evenTable' evenCache'
 
-deleteEvenCache :: IORef EvenStreamTable -> Method -> ByteString -> IO ()
-deleteEvenCache ref m path = atomicModifyIORef' ref $ \EvenStreamTable{..} ->
+deleteEvenCache :: TVar EvenStreamTable -> Method -> ByteString -> IO ()
+deleteEvenCache var m path = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenCache' = deleteCache (m, path) evenCache
-     in (EvenStreamTable evenConc evenTable evenCache', ())
+     in EvenStreamTable evenConc evenTable evenCache'
 
 lookupEvenCache
-    :: IORef EvenStreamTable -> Method -> ByteString -> IO (Maybe Stream)
-lookupEvenCache ref m path = lookupCache (m, path) . evenCache <$> readIORef ref
+    :: TVar EvenStreamTable -> Method -> ByteString -> IO (Maybe Stream)
+lookupEvenCache var m path = lookupCache (m, path) . evenCache <$> readTVarIO var
 
 ----------------------------------------------------------------
 

@@ -124,7 +124,7 @@ updatePeerSettings Context{peerSettings, oddStreamTable} peerAlist = do
     when (diff /= 0) $ updateAllOddStreamWindow (+ diff) oddStreamTable
 
 updateAllOddStreamWindow
-    :: (WindowSize -> WindowSize) -> IORef OddStreamTable -> IO ()
-updateAllOddStreamWindow adst ref = do
-    strms <- oddTable <$> readIORef ref
+    :: (WindowSize -> WindowSize) -> TVar OddStreamTable -> IO ()
+updateAllOddStreamWindow adst var = do
+    strms <- getOddStreams var
     forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
