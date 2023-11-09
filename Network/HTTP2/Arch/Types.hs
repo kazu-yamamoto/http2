@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Arch.Types where
 
@@ -9,6 +10,7 @@ import Data.IORef
 import Data.IntMap.Strict (IntMap)
 import Data.Typeable
 import qualified Network.HTTP.Types as H
+import System.IO.Unsafe
 import UnliftIO.Concurrent
 import UnliftIO.Exception (SomeException)
 import UnliftIO.STM
@@ -255,7 +257,7 @@ data Stream = Stream
     }
 
 instance Show Stream where
-    show s = show (streamNumber s)
+    show Stream{..} = "Stream{id=" ++ show streamNumber ++ ",state=" ++ show (unsafePerformIO (readIORef streamState)) ++ "}"
 
 ----------------------------------------------------------------
 
