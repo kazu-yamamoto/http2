@@ -65,7 +65,7 @@ data Context = Context
     --   occur between the HEADERS frame and any CONTINUATION
     --   frames that might follow". This field is used to implement
     --   this requirement.
-    , myStreamId :: IORef StreamId
+    , myStreamId :: TVar StreamId
     , peerStreamId :: IORef StreamId
     , outputBufferLimit :: IORef Int
     , outputQ :: TQueue (Output Stream)
@@ -98,7 +98,7 @@ newContext rinfo cacheSiz siz mysa peersa =
         <*> newTVarIO emptyOddStreamTable
         <*> newTVarIO (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing
-        <*> newIORef sid0
+        <*> newTVarIO sid0
         <*> newIORef 0
         <*> newIORef buflim
         <*> newTQueueIO
@@ -138,9 +138,11 @@ isServer ctx = role ctx == Server
 ----------------------------------------------------------------
 
 getMyNewStreamId :: Context -> IO StreamId
-getMyNewStreamId ctx = atomicModifyIORef' (myStreamId ctx) inc2
-  where
-    inc2 n = let n' = n + 2 in (n', n)
+getMyNewStreamId Context{..} = atomically $ do
+    n <- readTVar myStreamId
+    let n' = n + 2
+    writeTVar myStreamId n'
+    return n
 
 getPeerStreamID :: Context -> IO StreamId
 getPeerStreamID ctx = readIORef $ peerStreamId ctx
