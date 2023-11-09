@@ -255,7 +255,7 @@ getOddStream ctx ftyp streamId js@(Just strm0) = do
         -- Priority made an idle stream
         when (isIdle st) $ opened ctx strm0
     return js
-getOddStream ctx@Context{..} ftyp streamId Nothing
+getOddStream ctx ftyp streamId Nothing
     | isServer ctx = do
         csid <- getPeerStreamID ctx
         if streamId <= csid -- consider the stream closed
@@ -277,25 +277,9 @@ getOddStream ctx@Context{..} ftyp streamId Nothing
                                     `BS.append` (C8.pack (show ftyp))
                                 )
                     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
-                when (ftyp == FrameHeaders) $ do
-                    setPeerStreamID ctx streamId
-                    -- Checking the limitation of concurrency
-                    -- Server: My SETTINGS_MAX_CONCURRENT_STREAMS
-                    conc <- oddConc <$> readIORef oddStreamTable
-                    checkMyConcurrency streamId mySettings conc
-                Just <$> openOddStream ctx streamId ftyp
+                when (ftyp == FrameHeaders) $ setPeerStreamID ctx streamId
+                Just <$> openOddStreamCheck ctx streamId ftyp
     | otherwise = undefined -- never reach
-
-checkMyConcurrency
-    :: StreamId -> IORef Settings -> Int -> IO ()
-checkMyConcurrency sid settings conc = do
-    mMaxConc <- maxConcurrentStreams <$> readIORef settings
-    case mMaxConc of
-        Nothing -> return ()
-        Just maxConc ->
-            when (conc >= maxConc) $
-                E.throwIO $
-                    StreamErrorIsSent RefusedStream sid "exceeds max concurrent"
 
 ----------------------------------------------------------------
 
@@ -383,10 +367,9 @@ push header@FrameHeader{streamId} bs ctx@Context{mySettings, evenStreamTable} = 
                 mpath = getHeaderValue tokenPath vt
             case (mmethod, mpath) of
                 (Just method, Just path) -> do
-                    -- Client: My SETTINGS_MAX_CONCURRENT_STREAMS
                     conc <- evenConc <$> readIORef evenStreamTable
                     checkMyConcurrency streamId mySettings conc
-                    openEvenStreamCache ctx sid method path
+                    openEvenStreamCacheCheck ctx sid method path
                 _ -> return ()
 
 ----------------------------------------------------------------

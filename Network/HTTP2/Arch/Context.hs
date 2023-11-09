@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Arch.Context where
@@ -6,6 +7,7 @@ module Network.HTTP2.Arch.Context where
 import Data.IORef
 import Network.HTTP.Types (Method)
 import Network.Socket (SockAddr)
+import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (insert)
@@ -184,23 +186,61 @@ closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc
         else deleteOdd oddStreamTable streamNumber
     setStreamState ctx strm (Closed cc) -- anyway
 
-openOddStream :: Context -> StreamId -> FrameType -> IO Stream
-openOddStream ctx@Context{oddStreamTable, peerSettings} sid ftyp = do
+----------------------------------------------------------------
+-- From peer
+
+-- Server
+openOddStreamCheck :: Context -> StreamId -> FrameType -> IO Stream
+openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings} sid ftyp = do
+    -- My SETTINGS_MAX_CONCURRENT_STREAMS
+    when (ftyp == FrameHeaders) $ do
+        conc <- oddConc <$> readIORef oddStreamTable
+        checkMyConcurrency sid mySettings conc
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newOddStream sid ws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
     insertOdd oddStreamTable sid newstrm
     return newstrm
 
-openEvenStream :: Context -> StreamId -> IO Stream
-openEvenStream Context{evenStreamTable, peerSettings} sid = do
+-- Client
+openEvenStreamCacheCheck :: Context -> StreamId -> Method -> ByteString -> IO ()
+openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings} sid method path = do
+    -- My SETTINGS_MAX_CONCURRENT_STREAMS
+    conc <- evenConc <$> readIORef evenStreamTable
+    checkMyConcurrency sid mySettings conc
+    ws <- initialWindowSize <$> readIORef peerSettings
+    newstrm <- newEvenStream sid ws
+    insertEvenCache evenStreamTable method path newstrm
+
+checkMyConcurrency
+    :: StreamId -> IORef Settings -> Int -> IO ()
+checkMyConcurrency sid settings conc = do
+    mMaxConc <- maxConcurrentStreams <$> readIORef settings
+    case mMaxConc of
+        Nothing -> return ()
+        Just maxConc ->
+            when (conc >= maxConc) $
+                E.throwIO $
+                    StreamErrorIsSent RefusedStream sid "exceeds max concurrent"
+
+----------------------------------------------------------------
+-- From me
+
+-- Clinet
+openOddStreamWait :: Context -> StreamId -> IO Stream
+openOddStreamWait ctx@Context{oddStreamTable, peerSettings} sid = do
+    -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
+    ws <- initialWindowSize <$> readIORef peerSettings
+    newstrm <- newOddStream sid ws
+    opened ctx newstrm
+    insertOdd oddStreamTable sid newstrm
+    return newstrm
+
+-- Server
+openEvenStreamWait :: Context -> StreamId -> IO Stream
+openEvenStreamWait Context{evenStreamTable, peerSettings} sid = do
+    -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newEvenStream sid ws
     insertEven evenStreamTable sid newstrm
     return newstrm
-
-openEvenStreamCache :: Context -> StreamId -> Method -> ByteString -> IO ()
-openEvenStreamCache Context{evenStreamTable, peerSettings} sid method path = do
-    ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newEvenStream sid ws
-    insertEvenCache evenStreamTable method path newstrm

@@ -50,9 +50,7 @@ fromContext ctx@Context{..} =
         , -- Peer SETTINGS_INITIAL_WINDOW_SIZE
           makePushStream = \pstrm _ -> do
             sid <- getMyNewStreamId ctx
-            -- XXX
-            -- Server: Peer SETTINGS_MAX_CONCURRENT_STREAMS
-            newstrm <- openEvenStream ctx sid
+            newstrm <- openEvenStreamWait ctx sid
             let pid = streamNumber pstrm
             return (pid, newstrm)
         , mySockAddr = mySockAddr
