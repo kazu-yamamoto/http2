@@ -31,8 +31,7 @@ data WorkerConf a = WorkerConf
     , writeOutputQ :: Output a -> IO ()
     , workerCleanup :: a -> IO ()
     , isPushable :: IO Bool
-    , insertStream :: StreamId -> a -> IO ()
-    , makePushStream :: a -> PushPromise -> IO (StreamId, StreamId, a)
+    , makePushStream :: a -> PushPromise -> IO (StreamId, a)
     , mySockAddr :: SockAddr
     , peerSockAddr :: SockAddr
     }
@@ -48,7 +47,6 @@ fromContext ctx@Context{..} =
             enqueueControl controlQ $ CFrames Nothing [frame]
         , -- Peer SETTINGS_ENABLE_PUSH
           isPushable = enablePush <$> readIORef peerSettings
-        , insertStream = insertEven evenStreamTable
         , -- Peer SETTINGS_INITIAL_WINDOW_SIZE
           makePushStream = \pstrm _ -> do
             ws <- initialWindowSize <$> readIORef peerSettings
@@ -56,8 +54,9 @@ fromContext ctx@Context{..} =
             -- XXX
             -- Server: Peer SETTINGS_MAX_CONCURRENT_STREAMS
             newstrm <- newEvenStream sid ws
+            insertEven evenStreamTable sid newstrm
             let pid = streamNumber pstrm
-            return (pid, sid, newstrm)
+            return (pid, newstrm)
         , mySockAddr = mySockAddr
         , peerSockAddr = peerSockAddr
         }
@@ -91,9 +90,7 @@ pushStream WorkerConf{..} pstrm reqvt pps0
         checkSTM (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
-        (pid, sid, newstrm) <- makePushStream pstrm pp
-        --- XXX deleteStream?
-        insertStream sid newstrm
+        (pid, newstrm) <- makePushStream pstrm pp
         let scheme = fromJust $ getHeaderValue tokenScheme reqvt
             -- fixme: this value can be Nothing
             auth =
