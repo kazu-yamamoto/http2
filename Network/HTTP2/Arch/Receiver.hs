@@ -386,7 +386,7 @@ push header@FrameHeader{streamId} bs ctx@Context{mySettings, evenStreamTable} = 
                     -- Client: My SETTINGS_MAX_CONCURRENT_STREAMS
                     conc <- evenConc <$> readIORef evenStreamTable
                     checkMyConcurrency streamId mySettings conc
-                    openEvenStream ctx sid method path
+                    openEvenStreamCache ctx sid method path
                 _ -> return ()
 
 ----------------------------------------------------------------

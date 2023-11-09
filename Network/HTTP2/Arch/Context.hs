@@ -192,8 +192,15 @@ openOddStream ctx@Context{oddStreamTable, peerSettings} sid ftyp = do
     insertOdd oddStreamTable sid newstrm
     return newstrm
 
-openEvenStream :: Context -> StreamId -> Method -> ByteString -> IO ()
-openEvenStream Context{evenStreamTable, peerSettings} sid method path = do
+openEvenStream :: Context -> StreamId -> IO Stream
+openEvenStream Context{evenStreamTable, peerSettings} sid = do
+    ws <- initialWindowSize <$> readIORef peerSettings
+    newstrm <- newEvenStream sid ws
+    insertEven evenStreamTable sid newstrm
+    return newstrm
+
+openEvenStreamCache :: Context -> StreamId -> Method -> ByteString -> IO ()
+openEvenStreamCache Context{evenStreamTable, peerSettings} sid method path = do
     ws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newEvenStream sid ws
     insertEvenCache evenStreamTable method path newstrm

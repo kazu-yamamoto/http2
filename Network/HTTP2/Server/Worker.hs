@@ -49,12 +49,10 @@ fromContext ctx@Context{..} =
           isPushable = enablePush <$> readIORef peerSettings
         , -- Peer SETTINGS_INITIAL_WINDOW_SIZE
           makePushStream = \pstrm _ -> do
-            ws <- initialWindowSize <$> readIORef peerSettings
             sid <- getMyNewStreamId ctx
             -- XXX
             -- Server: Peer SETTINGS_MAX_CONCURRENT_STREAMS
-            newstrm <- newEvenStream sid ws
-            insertEven evenStreamTable sid newstrm
+            newstrm <- openEvenStream ctx sid
             let pid = streamNumber pstrm
             return (pid, newstrm)
         , mySockAddr = mySockAddr
