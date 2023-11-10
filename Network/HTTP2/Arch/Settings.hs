@@ -48,8 +48,8 @@ pendingMySettings Context{mySettingAlist, myFirstSettings, myPendingAlist} = do
     frame1 = settingsFrame id mySettingAlist
     -- Initial window update for connection
     frames = case lookup SettingsInitialWindowSize mySettingAlist of
-      Nothing -> []
-      Just winSiz -> [windowUpdateFrame 0 (winSiz - defaultWindowSize)]
+        Nothing -> []
+        Just winSiz -> [windowUpdateFrame 0 (winSiz - defaultWindowSize)]
     frames' = frame1 : frames
 
 ----------------------------------------------------------------

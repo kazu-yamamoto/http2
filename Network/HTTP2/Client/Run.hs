@@ -30,7 +30,8 @@ data ClientConfig = ClientConfig
     -- ^ The maximum number of incoming streams on the net
     , windowSize :: WindowSize
     -- ^ The window size of incoming streams
-    } deriving (Eq, Show)
+    }
+    deriving (Eq, Show)
 
 -- | The default client config.
 --
@@ -81,7 +82,13 @@ setup ClientConfig{..} conf@Config{..} = do
     let clientInfo = newClientInfo scheme authority
         myAlist = makeMySettingsList conf concurrentStreams windowSize
     ctx <-
-        newContext clientInfo cacheLimit confBufferSize confMySockAddr confPeerSockAddr myAlist
+        newContext
+            clientInfo
+            cacheLimit
+            confBufferSize
+            confMySockAddr
+            confPeerSockAddr
+            myAlist
     mgr <- start confTimeoutManager
     exchangeSettings ctx
     return (ctx, mgr)

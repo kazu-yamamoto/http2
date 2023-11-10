@@ -89,7 +89,13 @@ data Context = Context
 ----------------------------------------------------------------
 
 newContext
-    :: RoleInfo -> Int -> BufferSize -> SockAddr -> SockAddr -> SettingsList -> IO Context
+    :: RoleInfo
+    -> Int
+    -> BufferSize
+    -> SockAddr
+    -> SockAddr
+    -> SettingsList
+    -> IO Context
 newContext rinfo cacheSiz siz mysa peersa settingAlist =
     Context rl rinfo settingAlist
         <$> newIORef False
