@@ -24,6 +24,7 @@ import Network.HTTP2.Arch.EncodeFrame
 import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Rate
+import Network.HTTP2.Arch.Settings
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
@@ -125,10 +126,10 @@ processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
 ----------------------------------------------------------------
 
 controlOrStream :: Context -> Config -> FrameType -> FrameHeader -> IO ()
-controlOrStream ctx@Context{..} conf@Config{..} ftyp header@FrameHeader{streamId, payloadLength}
+controlOrStream ctx@Context{..} Config{..} ftyp header@FrameHeader{streamId, payloadLength}
     | isControl streamId = do
         bs <- confReadN payloadLength
-        control ftyp header bs ctx conf
+        control ftyp header bs ctx
     | ftyp == FramePushPromise = do
         bs <- confReadN payloadLength
         push header bs ctx
@@ -285,8 +286,8 @@ getOddStream ctx ftyp streamId Nothing
 
 type Payload = ByteString
 
-control :: FrameType -> FrameHeader -> Payload -> Context -> Config -> IO ()
-control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirstSettings, myPendingAlist, mySettings, controlQ, settingsRate} conf = do
+control :: FrameType -> FrameHeader -> Payload -> Context -> IO ()
+control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirstSettings, myPendingAlist, mySettings, controlQ, settingsRate} = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     if testAck flags
@@ -314,10 +315,10 @@ control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirst
                     enqueueControl controlQ setframe
                 else do
                     -- Server side only
-                    frames <- updateMySettings conf ctx
+                    frames <- pendingMySettings ctx
                     let setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     enqueueControl controlQ setframe
-control FramePing FrameHeader{flags, streamId} bs Context{controlQ, pingRate} _ =
+control FramePing FrameHeader{flags, streamId} bs Context{controlQ, pingRate} =
     unless (testAck flags) $ do
         -- Ping Flood - CVE-2019-9512
         rate <- getRate pingRate
@@ -326,15 +327,15 @@ control FramePing FrameHeader{flags, streamId} bs Context{controlQ, pingRate} _ 
             else do
                 let frame = pingFrame bs
                 enqueueControl controlQ $ CFrames Nothing [frame]
-control FrameGoAway header bs _ _ = do
+control FrameGoAway header bs _ = do
     GoAwayFrame sid err msg <- guardIt $ decodeGoAwayFrame header bs
     if err == NoError
         then E.throwIO ConnectionIsClosed
         else E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
-control FrameWindowUpdate header bs ctx _ = do
+control FrameWindowUpdate header bs ctx = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs
     increaseConnectionWindowSize ctx n
-control _ _ _ _ _ =
+control _ _ _ _ =
     -- must not reach here
     return ()
 

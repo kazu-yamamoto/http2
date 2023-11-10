@@ -7,30 +7,34 @@ module Network.HTTP2.Server.Run where
 import Control.Concurrent.STM
 import Control.Exception
 import Imports
+import Network.Socket (SockAddr)
+import UnliftIO.Async (concurrently_)
+
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame
 import Network.HTTP2.Server.Types
 import Network.HTTP2.Server.Worker
-import Network.Socket (SockAddr)
-import UnliftIO.Async (concurrently_)
 
 -- | Server configuration
 data ServerConfig = ServerConfig
     { numberOfworkers :: Int
     -- ^ The number of workers
-    , maxConcurrency :: Int
-    }
+    , concurrentStreams :: Int
+    -- ^ The maximum number of incoming streams on the net
+    , windowSize :: WindowSize
+    -- ^ The window size of incoming streams
+    } deriving (Eq, Show)
 
--- | The number of workers is 3.
--- This was carefully chosen based on a lot of benchmarks.
--- If it is 1, we cannot avoid head-of-line blocking.
--- If it is large, huge memory is consumed and many
--- context switches happen.
+-- | The default server config.
+--
+-- >>> defaultServerConfig
+-- ServerConfig {numberOfworkers = 8, concurrentStreams = 64, windowSize = 1048575}
 defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
-        { numberOfworkers = 3
-        , maxConcurrency = recommendedConcurrency
+        { numberOfworkers = 8
+        , concurrentStreams = properConcurrentStreams
+        , windowSize = properWindowSize
         }
 
 ----------------------------------------------------------------
@@ -91,9 +95,10 @@ checkPreface conf@Config{..} = do
         else return True
 
 setup :: ServerConfig -> Config -> IO (Context, Manager)
-setup _ Config{..} = do
+setup ServerConfig{..} conf@Config{..} = do
     serverInfo <- newServerInfo
-    ctx <- newContext serverInfo 0 confBufferSize confMySockAddr confPeerSockAddr
+    let myAlist = makeMySettingsList conf concurrentStreams windowSize
+    ctx <- newContext serverInfo 0 confBufferSize confMySockAddr confPeerSockAddr myAlist
     -- Workers, worker manager and timer manager
     mgr <- start confTimeoutManager
     return (ctx, mgr)

@@ -43,11 +43,14 @@
 module Network.HTTP2.Client (
     -- * Runner
     run,
+
+    -- * Client configuration
     Scheme,
     Authority,
-
-    -- * Runner arguments
     ClientConfig (..),
+    defaultClientConfig,
+
+    -- * Common configuration
     Config (..),
     allocSimpleConfig,
     freeSimpleConfig,

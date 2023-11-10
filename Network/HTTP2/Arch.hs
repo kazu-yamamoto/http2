@@ -9,6 +9,7 @@ module Network.HTTP2.Arch (
     module Network.HTTP2.Arch.ReadN,
     module Network.HTTP2.Arch.Receiver,
     module Network.HTTP2.Arch.Sender,
+    module Network.HTTP2.Arch.Settings,
     module Network.HTTP2.Arch.Status,
     module Network.HTTP2.Arch.Stream,
     module Network.HTTP2.Arch.StreamTable,
@@ -26,6 +27,7 @@ import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.ReadN
 import Network.HTTP2.Arch.Receiver
 import Network.HTTP2.Arch.Sender
+import Network.HTTP2.Arch.Settings
 import Network.HTTP2.Arch.Status
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.StreamTable

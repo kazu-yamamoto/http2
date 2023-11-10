@@ -26,7 +26,7 @@ main = do
             exitFailure
     runTCPClient serverName port $ runHTTP2Client host
   where
-    cliconf host = ClientConfig "http" (C8.pack host) 20
+    cliconf host = defaultClientConfig { authority = C8.pack host }
     runHTTP2Client host s =
         E.bracket
             (allocSimpleConfig s 4096)

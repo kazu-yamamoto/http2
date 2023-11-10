@@ -28,8 +28,13 @@
 module Network.HTTP2.Server (
     -- * Runner
     run,
+    run',
 
-    -- * Runner arguments
+    -- * Client configuration
+    ServerConfig(..),
+    defaultServerConfig,
+
+    -- * Common configuration
     Config (..),
     allocSimpleConfig,
     freeSimpleConfig,
@@ -107,7 +112,7 @@ import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame.Types
-import Network.HTTP2.Server.Run (run)
+import Network.HTTP2.Server.Run (run, run', ServerConfig(..), defaultServerConfig)
 import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------

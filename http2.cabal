@@ -98,6 +98,7 @@ library
         Network.HTTP2.Arch.ReadN
         Network.HTTP2.Arch.Receiver
         Network.HTTP2.Arch.Sender
+        Network.HTTP2.Arch.Settings
         Network.HTTP2.Arch.Status
         Network.HTTP2.Arch.Stream
         Network.HTTP2.Arch.StreamTable

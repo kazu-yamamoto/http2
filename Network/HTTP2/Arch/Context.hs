@@ -54,8 +54,9 @@ data Context = Context
     { role :: Role
     , roleInfo :: RoleInfo
     , -- Settings
-      myFirstSettings :: IORef Bool
-    , myPendingAlist :: IORef (Maybe SettingsList)
+      mySettingAlist :: SettingsList -- to be myPendingAlist
+    , myFirstSettings :: IORef Bool
+    , myPendingAlist :: IORef (Maybe SettingsList) -- to be mySettings
     , mySettings :: IORef Settings
     , peerSettings :: IORef Settings
     , oddStreamTable :: TVar OddStreamTable
@@ -88,9 +89,9 @@ data Context = Context
 ----------------------------------------------------------------
 
 newContext
-    :: RoleInfo -> Int -> BufferSize -> SockAddr -> SockAddr -> IO Context
-newContext rinfo cacheSiz siz mysa peersa =
-    Context rl rinfo
+    :: RoleInfo -> Int -> BufferSize -> SockAddr -> SockAddr -> SettingsList -> IO Context
+newContext rinfo cacheSiz siz mysa peersa settingAlist =
+    Context rl rinfo settingAlist
         <$> newIORef False
         <*> newIORef Nothing
         <*> newIORef defaultSettings
@@ -269,4 +270,3 @@ openEvenStreamWait ctx@Context{..} = do
             newstrm <- newEvenStream sid ws
             insertEven' evenStreamTable sid newstrm
             return (sid, newstrm)
-

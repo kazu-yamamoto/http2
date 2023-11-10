@@ -30,6 +30,7 @@ import Network.HTTP2.Arch.File
 import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Manager hiding (start)
 import Network.HTTP2.Arch.Queue
+import Network.HTTP2.Arch.Settings
 import Network.HTTP2.Arch.Stream
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Arch.Window

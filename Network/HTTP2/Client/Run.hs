@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -25,7 +26,25 @@ data ClientConfig = ClientConfig
     -- ^ Server name
     , cacheLimit :: Int
     -- ^ How many pushed responses are contained in the cache
-    }
+    , concurrentStreams :: Int
+    -- ^ The maximum number of incoming streams on the net
+    , windowSize :: WindowSize
+    -- ^ The window size of incoming streams
+    } deriving (Eq, Show)
+
+-- | The default client config.
+--
+-- >>> defaultClientConfig
+-- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, concurrentStreams = 64, windowSize = 1048575}
+defaultClientConfig :: ClientConfig
+defaultClientConfig =
+    ClientConfig
+        { scheme = "http"
+        , authority = "localhost"
+        , cacheLimit = 64
+        , concurrentStreams = properConcurrentStreams
+        , windowSize = properWindowSize
+        }
 
 -- | Running HTTP/2 client.
 run :: ClientConfig -> Config -> Client a -> IO a
@@ -60,10 +79,11 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
 setup :: ClientConfig -> Config -> IO (Context, Manager)
 setup ClientConfig{..} conf@Config{..} = do
     let clientInfo = newClientInfo scheme authority
+        myAlist = makeMySettingsList conf concurrentStreams windowSize
     ctx <-
-        newContext clientInfo cacheLimit confBufferSize confMySockAddr confPeerSockAddr
+        newContext clientInfo cacheLimit confBufferSize confMySockAddr confPeerSockAddr myAlist
     mgr <- start confTimeoutManager
-    exchangeSettings conf ctx
+    exchangeSettings ctx
     return (ctx, mgr)
 
 runArch :: Config -> Context -> Manager -> IO a -> IO a
@@ -157,9 +177,9 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
         writeTVar outputQStreamID (sid + 2)
         writeTQueue outputQ $ Output newstrm req OObj (Just tbq) (return ())
 
-exchangeSettings :: Config -> Context -> IO ()
-exchangeSettings conf ctx@Context{..} = do
-    frames <- updateMySettings conf ctx
+exchangeSettings :: Context -> IO ()
+exchangeSettings ctx@Context{..} = do
+    frames <- pendingMySettings ctx
     let setframe = CFrames Nothing (connectionPreface : frames)
     enqueueControl controlQ setframe
 
