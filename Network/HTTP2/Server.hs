@@ -31,7 +31,7 @@ module Network.HTTP2.Server (
     run',
 
     -- * Client configuration
-    ServerConfig(..),
+    ServerConfig (..),
     defaultServerConfig,
 
     -- * Common configuration
@@ -112,7 +112,12 @@ import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP2.Arch
 import Network.HTTP2.Frame.Types
-import Network.HTTP2.Server.Run (run, run', ServerConfig(..), defaultServerConfig)
+import Network.HTTP2.Server.Run (
+    ServerConfig (..),
+    defaultServerConfig,
+    run,
+    run',
+ )
 import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------

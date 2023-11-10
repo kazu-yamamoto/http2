@@ -23,7 +23,8 @@ data ServerConfig = ServerConfig
     -- ^ The maximum number of incoming streams on the net
     , windowSize :: WindowSize
     -- ^ The window size of incoming streams
-    } deriving (Eq, Show)
+    }
+    deriving (Eq, Show)
 
 -- | The default server config.
 --
@@ -98,7 +99,8 @@ setup :: ServerConfig -> Config -> IO (Context, Manager)
 setup ServerConfig{..} conf@Config{..} = do
     serverInfo <- newServerInfo
     let myAlist = makeMySettingsList conf concurrentStreams windowSize
-    ctx <- newContext serverInfo 0 confBufferSize confMySockAddr confPeerSockAddr myAlist
+    ctx <-
+        newContext serverInfo 0 confBufferSize confMySockAddr confPeerSockAddr myAlist
     -- Workers, worker manager and timer manager
     mgr <- start confTimeoutManager
     return (ctx, mgr)
