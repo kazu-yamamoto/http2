@@ -1,18 +1,20 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Arch.Context where
 
 import Data.IORef
 import Network.HTTP.Types (Method)
 import Network.Socket (SockAddr)
+import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK
-import Network.HTTP2.Arch.Cache (Cache, emptyCache)
-import qualified Network.HTTP2.Arch.Cache as Cache
 import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
@@ -29,7 +31,6 @@ data ServerInfo = ServerInfo
 data ClientInfo = ClientInfo
     { scheme :: ByteString
     , authority :: ByteString
-    , cache :: IORef (Cache (Method, ByteString) Stream)
     }
 
 toServerInfo :: RoleInfo -> ServerInfo
@@ -43,17 +44,8 @@ toClientInfo _ = error "toClientInfo"
 newServerInfo :: IO RoleInfo
 newServerInfo = RIS . ServerInfo <$> newTQueueIO
 
-newClientInfo :: ByteString -> ByteString -> Int -> IO RoleInfo
-newClientInfo scm auth lim = RIC . ClientInfo scm auth <$> newIORef (emptyCache lim)
-
-insertCache :: Method -> ByteString -> Stream -> RoleInfo -> IO ()
-insertCache m path v (RIC (ClientInfo _ _ ref)) = atomicModifyIORef' ref $ \c ->
-    (Cache.insert (m, path) v c, ())
-insertCache _ _ _ _ = error "insertCache"
-
-lookupCache :: Method -> ByteString -> RoleInfo -> IO (Maybe Stream)
-lookupCache m path (RIC (ClientInfo _ _ ref)) = Cache.lookup (m, path) <$> readIORef ref
-lookupCache _ _ _ = error "lookupCache"
+newClientInfo :: ByteString -> ByteString -> RoleInfo
+newClientInfo scm auth = RIC $ ClientInfo scm auth
 
 ----------------------------------------------------------------
 
@@ -66,13 +58,14 @@ data Context = Context
     , myPendingAlist :: IORef (Maybe SettingsList)
     , mySettings :: IORef Settings
     , peerSettings :: IORef Settings
-    , streamTable :: IORef StreamTable
+    , oddStreamTable :: TVar OddStreamTable
+    , evenStreamTable :: TVar EvenStreamTable
     , continued :: IORef (Maybe StreamId)
     -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
     --   occur between the HEADERS frame and any CONTINUATION
     --   frames that might follow". This field is used to implement
     --   this requirement.
-    , myStreamId :: IORef StreamId
+    , myStreamId :: TVar StreamId
     , peerStreamId :: IORef StreamId
     , outputBufferLimit :: IORef Int
     , outputQ :: TQueue (Output Stream)
@@ -94,16 +87,18 @@ data Context = Context
 
 ----------------------------------------------------------------
 
-newContext :: RoleInfo -> BufferSize -> SockAddr -> SockAddr -> IO Context
-newContext rinfo siz mysa peersa =
+newContext
+    :: RoleInfo -> Int -> BufferSize -> SockAddr -> SockAddr -> IO Context
+newContext rinfo cacheSiz siz mysa peersa =
     Context rl rinfo
         <$> newIORef False
         <*> newIORef Nothing
         <*> newIORef defaultSettings
         <*> newIORef defaultSettings
-        <*> newIORef emptyStreamTable
+        <*> newTVarIO emptyOddStreamTable
+        <*> newTVarIO (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing
-        <*> newIORef sid0
+        <*> newTVarIO sid0
         <*> newIORef 0
         <*> newIORef buflim
         <*> newTQueueIO
@@ -142,10 +137,12 @@ isServer ctx = role ctx == Server
 
 ----------------------------------------------------------------
 
-getMyNewStreamId :: Context -> IO StreamId
-getMyNewStreamId ctx = atomicModifyIORef' (myStreamId ctx) inc2
-  where
-    inc2 n = let n' = n + 2 in (n', n)
+getMyNewStreamId :: Context -> STM StreamId
+getMyNewStreamId Context{..} = do
+    n <- readTVar myStreamId
+    let n' = n + 2
+    writeTVar myStreamId n'
+    return n
 
 getPeerStreamID :: Context -> IO StreamId
 getPeerStreamID ctx = readIORef $ peerStreamId ctx
@@ -185,14 +182,91 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
     closeHalf _ = (Open (Just cc) JustOpened, False)
 
 closed :: Context -> Stream -> ClosedCode -> IO ()
-closed ctx@Context{streamTable} strm@Stream{streamNumber} cc = do
-    remove streamTable streamNumber
+closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc = do
+    if isServerInitiated streamNumber
+        then deleteEven evenStreamTable streamNumber
+        else deleteOdd oddStreamTable streamNumber
     setStreamState ctx strm (Closed cc) -- anyway
 
-openStream :: Context -> StreamId -> FrameType -> IO Stream
-openStream ctx@Context{streamTable, peerSettings} sid ftyp = do
+----------------------------------------------------------------
+-- From peer
+
+-- Server
+openOddStreamCheck :: Context -> StreamId -> FrameType -> IO Stream
+openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings} sid ftyp = do
+    -- My SETTINGS_MAX_CONCURRENT_STREAMS
+    when (ftyp == FrameHeaders) $ do
+        conc <- getOddConcurrency oddStreamTable
+        checkMyConcurrency sid mySettings conc
     ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newStream sid ws
+    newstrm <- newOddStream sid ws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
-    insert streamTable sid newstrm
+    insertOdd oddStreamTable sid newstrm
     return newstrm
+
+-- Client
+openEvenStreamCacheCheck :: Context -> StreamId -> Method -> ByteString -> IO ()
+openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings} sid method path = do
+    -- My SETTINGS_MAX_CONCURRENT_STREAMS
+    conc <- getEvenConcurrency evenStreamTable
+    checkMyConcurrency sid mySettings conc
+    ws <- initialWindowSize <$> readIORef peerSettings
+    newstrm <- newEvenStream sid ws
+    insertEvenCache evenStreamTable method path newstrm
+
+checkMyConcurrency
+    :: StreamId -> IORef Settings -> Int -> IO ()
+checkMyConcurrency sid settings conc = do
+    mMaxConc <- maxConcurrentStreams <$> readIORef settings
+    case mMaxConc of
+        Nothing -> return ()
+        Just maxConc ->
+            when (conc >= maxConc) $
+                E.throwIO $
+                    StreamErrorIsSent RefusedStream sid "exceeds max concurrent"
+
+----------------------------------------------------------------
+-- From me
+
+-- Clinet
+openOddStreamWait :: Context -> IO (StreamId, Stream)
+openOddStreamWait ctx@Context{oddStreamTable, peerSettings} = do
+    -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
+    mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
+    case mMaxConc of
+        Nothing -> do
+            sid <- atomically $ getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newOddStream sid ws
+            insertOdd oddStreamTable sid newstrm
+            return (sid, newstrm)
+        Just maxConc -> do
+            sid <- atomically $ do
+                waitIncOdd oddStreamTable maxConc
+                getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newOddStream sid ws
+            insertOdd' oddStreamTable sid newstrm
+            return (sid, newstrm)
+
+-- Server
+openEvenStreamWait :: Context -> IO (StreamId, Stream)
+openEvenStreamWait ctx@Context{..} = do
+    -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
+    mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
+    case mMaxConc of
+        Nothing -> do
+            sid <- atomically $ getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newEvenStream sid ws
+            insertEven evenStreamTable sid newstrm
+            return (sid, newstrm)
+        Just maxConc -> do
+            sid <- atomically $ do
+                waitIncEven evenStreamTable maxConc
+                getMyNewStreamId ctx
+            ws <- initialWindowSize <$> readIORef peerSettings
+            newstrm <- newEvenStream sid ws
+            insertEven' evenStreamTable sid newstrm
+            return (sid, newstrm)
+

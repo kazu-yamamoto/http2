@@ -12,7 +12,7 @@ import Network.HTTP2.Arch.Config
 import Network.HTTP2.Arch.Context
 import Network.HTTP2.Arch.EncodeFrame
 import Network.HTTP2.Arch.Queue
-import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Frame
 
@@ -116,9 +116,15 @@ updateMySettings Config{..} Context{myFirstSettings, myPendingAlist} = do
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
 updatePeerSettings :: Context -> SettingsList -> IO ()
-updatePeerSettings Context{peerSettings, streamTable} peerAlist = do
+updatePeerSettings Context{peerSettings, oddStreamTable} peerAlist = do
     oldws <- initialWindowSize <$> readIORef peerSettings
     modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
     newws <- initialWindowSize <$> readIORef peerSettings
     let diff = newws - oldws
-    when (diff /= 0) $ updateAllStreamWindow (+ diff) streamTable
+    when (diff /= 0) $ updateAllOddStreamWindow (+ diff) oddStreamTable
+
+updateAllOddStreamWindow
+    :: (WindowSize -> WindowSize) -> TVar OddStreamTable -> IO ()
+updateAllOddStreamWindow adst var = do
+    strms <- getOddStreams var
+    forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst

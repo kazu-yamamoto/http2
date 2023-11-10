@@ -25,6 +25,7 @@ import Network.HTTP2.Arch.HPACK
 import Network.HTTP2.Arch.Queue
 import Network.HTTP2.Arch.Rate
 import Network.HTTP2.Arch.Stream
+import Network.HTTP2.Arch.StreamTable
 import Network.HTTP2.Arch.Types
 import Network.HTTP2.Arch.Window
 import Network.HTTP2.Frame
@@ -101,6 +102,10 @@ processFrame ctx _conf (fid, FrameHeader{streamId})
         && (fid `notElem` [FramePriority, FrameRSTStream, FrameWindowUpdate]) =
         E.throwIO $
             ConnectionErrorIsSent ProtocolError streamId "stream id should be odd"
+processFrame ctx _conf (FramePushPromise, FrameHeader{streamId})
+    | isServer ctx =
+        E.throwIO $
+            ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
 processFrame Context{..} Config{..} (ftyp, FrameHeader{payloadLength, streamId})
     | ftyp > maxFrameType = do
         mx <- readIORef continued
@@ -109,36 +114,6 @@ processFrame Context{..} Config{..} (ftyp, FrameHeader{payloadLength, streamId})
                 -- ignoring unknown frame
                 void $ confReadN payloadLength
             Just _ -> E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "unknown frame"
-processFrame ctx Config{..} (FramePushPromise, header@FrameHeader{payloadLength, streamId})
-    | isServer ctx =
-        E.throwIO $
-            ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
-    | otherwise = do
-        pl <- confReadN payloadLength
-        PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header pl
-        unless (isServerInitiated sid) $
-            E.throwIO $
-                ConnectionErrorIsSent ProtocolError streamId "wrong sid for push promise"
-        when (frag == "") $
-            E.throwIO $
-                ConnectionErrorIsSent
-                    ProtocolError
-                    streamId
-                    "wrong header fragment for push promise"
-        (_, vt) <- hpackDecodeHeader frag streamId ctx
-        let ClientInfo{..} = toClientInfo $ roleInfo ctx
-        when
-            ( getHeaderValue tokenAuthority vt == Just authority
-                && getHeaderValue tokenScheme vt == Just scheme
-            )
-            $ do
-                let mmethod = getHeaderValue tokenMethod vt
-                    mpath = getHeaderValue tokenPath vt
-                case (mmethod, mpath) of
-                    (Just method, Just path) -> do
-                        strm <- openStream ctx sid FramePushPromise
-                        insertCache method path strm $ roleInfo ctx
-                    _ -> return ()
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     -- My SETTINGS_MAX_FRAME_SIZE
     -- My SETTINGS_ENABLE_PUSH
@@ -152,23 +127,26 @@ processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
 controlOrStream :: Context -> Config -> FrameType -> FrameHeader -> IO ()
 controlOrStream ctx@Context{..} conf@Config{..} ftyp header@FrameHeader{streamId, payloadLength}
     | isControl streamId = do
-        pl <- confReadN payloadLength
-        control ftyp header pl ctx conf
+        bs <- confReadN payloadLength
+        control ftyp header bs ctx conf
+    | ftyp == FramePushPromise = do
+        bs <- confReadN payloadLength
+        push header bs ctx
     | otherwise = do
         checkContinued
         mstrm <- getStream ctx ftyp streamId
-        pl <- confReadN payloadLength
+        bs <- confReadN payloadLength
         case mstrm of
             Just strm -> do
                 state0 <- readStreamState strm
-                state <- stream ftyp header pl ctx state0 strm
+                state <- stream ftyp header bs ctx state0 strm
                 resetContinued
                 set <- processState state ctx strm streamId
                 when set setContinued
             Nothing
                 | ftyp == FramePriority -> do
                     -- for h2spec only
-                    PriorityFrame newpri <- guardIt $ decodePriorityFrame header pl
+                    PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
                     checkPriority newpri streamId
                 | otherwise -> return ()
   where
@@ -246,13 +224,26 @@ processState s ctx strm _streamId = do
 
 ----------------------------------------------------------------
 
+{- FOURMOLU_DISABLE -}
 getStream :: Context -> FrameType -> StreamId -> IO (Maybe Stream)
-getStream ctx@Context{..} ftyp streamId =
-    search streamTable streamId >>= getStream' ctx ftyp streamId
+getStream ctx@Context{..} ftyp streamId
+  | isEven    = lookupEven evenStreamTable streamId >>= getEvenStream ctx ftyp
+  | otherwise = lookupOdd oddStreamTable  streamId >>= getOddStream  ctx ftyp streamId
+  where
+    isEven = isServerInitiated streamId
+{- FOURMOLU_ENABLE -}
 
-getStream'
+getEvenStream :: Context -> FrameType -> Maybe Stream -> IO (Maybe Stream)
+getEvenStream ctx ftyp js@(Just strm) = do
+    when (ftyp == FrameHeaders) $ do
+        st <- readStreamState strm
+        when (isReserved st) $ halfClosedLocal ctx strm Finished
+    return js
+getEvenStream _ _ Nothing = return Nothing
+
+getOddStream
     :: Context -> FrameType -> StreamId -> Maybe Stream -> IO (Maybe Stream)
-getStream' ctx ftyp streamId js@(Just strm0) = do
+getOddStream ctx ftyp streamId js@(Just strm0) = do
     when (ftyp == FrameHeaders) $ do
         st <- readStreamState strm0
         when (isHalfClosedRemote st) $
@@ -264,8 +255,7 @@ getStream' ctx ftyp streamId js@(Just strm0) = do
         -- Priority made an idle stream
         when (isIdle st) $ opened ctx strm0
     return js
-getStream' ctx@Context{..} ftyp streamId Nothing
-    | isServerInitiated streamId = return Nothing
+getOddStream ctx ftyp streamId Nothing
     | isServer ctx = do
         csid <- getPeerStreamID ctx
         if streamId <= csid -- consider the stream closed
@@ -287,19 +277,8 @@ getStream' ctx@Context{..} ftyp streamId Nothing
                                     `BS.append` (C8.pack (show ftyp))
                                 )
                     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
-                when (ftyp == FrameHeaders) $ do
-                    setPeerStreamID ctx streamId
-                    cnt <- concurrency <$> readIORef streamTable
-                    -- Checking the limitation of concurrency
-                    -- My SETTINGS_MAX_CONCURRENT_STREAMS
-                    mMaxConc <- maxConcurrentStreams <$> readIORef mySettings
-                    case mMaxConc of
-                        Nothing -> return ()
-                        Just maxConc ->
-                            when (cnt >= maxConc) $
-                                E.throwIO $
-                                    StreamErrorIsSent RefusedStream streamId "exceeds max concurrent"
-                Just <$> openStream ctx streamId ftyp
+                when (ftyp == FrameHeaders) $ setPeerStreamID ctx streamId
+                Just <$> openOddStreamCheck ctx streamId ftyp
     | otherwise = undefined -- never reach
 
 ----------------------------------------------------------------
@@ -358,6 +337,38 @@ control FrameWindowUpdate header bs ctx _ = do
 control _ _ _ _ _ =
     -- must not reach here
     return ()
+
+----------------------------------------------------------------
+
+-- Called in client only
+push :: FrameHeader -> ByteString -> Context -> IO ()
+push header@FrameHeader{streamId} bs ctx = do
+    PushPromiseFrame sid frag <- guardIt $ decodePushPromiseFrame header bs
+    unless (isServerInitiated sid) $
+        E.throwIO $
+            ConnectionErrorIsSent
+                ProtocolError
+                streamId
+                "push promise must specify an even stream identifier"
+    when (frag == "") $
+        E.throwIO $
+            ConnectionErrorIsSent
+                ProtocolError
+                streamId
+                "wrong header fragment for push promise"
+    (_, vt) <- hpackDecodeHeader frag streamId ctx
+    let ClientInfo{..} = toClientInfo $ roleInfo ctx
+    when
+        ( getHeaderValue tokenAuthority vt == Just authority
+            && getHeaderValue tokenScheme vt == Just scheme
+        )
+        $ do
+            let mmethod = getHeaderValue tokenMethod vt
+                mpath = getHeaderValue tokenPath vt
+            case (mmethod, mpath) of
+                (Just method, Just path) ->
+                    openEvenStreamCacheCheck ctx sid method path
+                _ -> return ()
 
 ----------------------------------------------------------------
 
@@ -559,10 +570,10 @@ stream FrameData FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         StreamErrorIsSent StreamClosed streamId $
             fromString ("illegal data frame for " ++ show streamId)
-stream _ FrameHeader{streamId} _ _ _ _ =
+stream x FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         StreamErrorIsSent ProtocolError streamId $
-            fromString ("illegal frame for " ++ show streamId)
+            fromString ("illegal frame " ++ show x ++ " for " ++ show streamId)
 
 ----------------------------------------------------------------
 
