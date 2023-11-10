@@ -66,7 +66,7 @@ responseHello = S.responseBuilder ok200 header body
 runClient :: Scheme -> Authority -> RequestHeaders -> IO ()
 runClient sc au hd = runTCPClient host port $ runHTTP2Client
   where
-    cliconf = defaultClientConfig { scheme = sc, authority = au }
+    cliconf = defaultClientConfig{scheme = sc, authority = au}
     runHTTP2Client s =
         E.bracket
             (allocSimpleConfig s 4096)

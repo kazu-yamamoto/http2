@@ -178,7 +178,7 @@ runClient allocConfig =
     runTCPClient host port $ runHTTP2Client
   where
     auth = C8.pack host
-    cliconf = C.defaultClientConfig { C.authority = auth }
+    cliconf = C.defaultClientConfig{C.authority = auth}
     runHTTP2Client s =
         E.bracket
             (allocConfig s 4096)
@@ -316,7 +316,7 @@ runAttack attack =
     runTCPClient host port $ runHTTP2Client
   where
     auth = C8.pack host
-    cliconf = C.defaultClientConfig { C.authority = auth }
+    cliconf = C.defaultClientConfig{C.authority = auth}
     runHTTP2Client s =
         E.bracket
             (allocSimpleConfig s 4096)
