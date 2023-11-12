@@ -30,7 +30,9 @@ module Network.HTTP2.Arch.StreamTable (
     lookupEvenCache,
 ) where
 
+import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Exception
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import Data.OrdPSQ (OrdPSQ)
@@ -75,11 +77,20 @@ insertOdd' var k v = atomically $ modifyTVar var $ \OddStreamTable{..} ->
     let oddTable' = IntMap.insert k v oddTable
      in OddStreamTable oddConc oddTable'
 
-deleteOdd :: TVar OddStreamTable -> IntMap.Key -> IO ()
-deleteOdd var k = atomically $ modifyTVar var $ \OddStreamTable{..} ->
-    let oddConc' = oddConc - 1
-        oddTable' = IntMap.delete k oddTable
-     in OddStreamTable oddConc' oddTable'
+deleteOdd :: TVar OddStreamTable -> IntMap.Key -> SomeException -> IO ()
+deleteOdd var k err = do
+    mv <- atomically deleteStream
+    case mv of
+        Nothing -> return () -- Stream was already removed
+        Just v -> void . tryPutMVar (streamInput v) $ Left err
+  where
+    deleteStream :: STM (Maybe Stream)
+    deleteStream = do
+        OddStreamTable{..} <- readTVar var
+        let oddConc' = oddConc - 1
+            oddTable' = IntMap.delete k oddTable
+        writeTVar var $ OddStreamTable oddConc' oddTable'
+        return $ IntMap.lookup k oddTable
 
 lookupOdd :: TVar OddStreamTable -> IntMap.Key -> IO (Maybe Stream)
 lookupOdd var k = IntMap.lookup k . oddTable <$> readTVarIO var
@@ -116,11 +127,20 @@ insertEven' var k v = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenTable' = IntMap.insert k v evenTable
      in EvenStreamTable evenConc evenTable' evenCache
 
-deleteEven :: TVar EvenStreamTable -> IntMap.Key -> IO ()
-deleteEven var k = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
-    let evenConc' = evenConc - 1
-        evenTable' = IntMap.delete k evenTable
-     in EvenStreamTable evenConc' evenTable' evenCache
+deleteEven :: TVar EvenStreamTable -> IntMap.Key -> SomeException -> IO ()
+deleteEven var k err = do
+    mv <- atomically deleteStream
+    case mv of
+        Nothing -> return () -- Stream was already removed
+        Just v -> void . tryPutMVar (streamInput v) $ Left err
+  where
+    deleteStream :: STM (Maybe Stream)
+    deleteStream = do
+        EvenStreamTable{..} <- readTVar var
+        let evenConc' = evenConc - 1
+            evenTable' = IntMap.delete k evenTable
+        writeTVar var $ EvenStreamTable evenConc' evenTable' evenCache
+        return $ IntMap.lookup k evenTable
 
 lookupEven :: TVar EvenStreamTable -> IntMap.Key -> IO (Maybe Stream)
 lookupEven var k = IntMap.lookup k . evenTable <$> readTVarIO var

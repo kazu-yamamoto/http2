@@ -54,7 +54,7 @@ run cconf@ClientConfig{..} conf client = do
     let runClient = do
             x <- client $ \req processRequest -> do
                 strm <- sendRequest ctx mgr scheme authority req
-                rsp <- Response <$> takeMVar (streamInput strm)
+                rsp <- getResponse strm
                 processRequest rsp
             waitCounter0 mgr
             let frame = goawayFrame 0 NoError "graceful closing"
@@ -71,11 +71,18 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
         putR req = do
             strm <- sendRequest ctx mgr scheme authority req
             return (streamNumber strm, strm)
-        get strm = Response <$> takeMVar (streamInput strm)
+        get = getResponse
         create = openOddStreamWait ctx
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
     runArch conf ctx mgr runClient
+
+getResponse :: Stream -> IO Response
+getResponse strm = do
+    mRsp <- takeMVar $ streamInput strm
+    case mRsp of
+        Left err -> throwIO err
+        Right rsp -> return $ Response rsp
 
 setup :: ClientConfig -> Config -> IO (Context, Manager)
 setup ClientConfig{..} conf@Config{..} = do
