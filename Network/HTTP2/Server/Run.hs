@@ -10,7 +10,7 @@ import Imports
 import Network.Socket (SockAddr)
 import UnliftIO.Async (concurrently_)
 
-import Network.HTTP2.Arch
+import Network.HTTP2.H2
 import Network.HTTP2.Frame
 import Network.HTTP2.Server.Types
 import Network.HTTP2.Server.Worker

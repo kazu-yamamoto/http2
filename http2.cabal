@@ -86,24 +86,24 @@ library
         Network.HPACK.Table.RevIndex
         Network.HPACK.Table.Static
         Network.HPACK.Types
-        Network.HTTP2.Arch
-        Network.HTTP2.Arch.Config
-        Network.HTTP2.Arch.Context
-        Network.HTTP2.Arch.EncodeFrame
-        Network.HTTP2.Arch.File
-        Network.HTTP2.Arch.HPACK
-        Network.HTTP2.Arch.Manager
-        Network.HTTP2.Arch.Queue
-        Network.HTTP2.Arch.Rate
-        Network.HTTP2.Arch.ReadN
-        Network.HTTP2.Arch.Receiver
-        Network.HTTP2.Arch.Sender
-        Network.HTTP2.Arch.Settings
-        Network.HTTP2.Arch.Status
-        Network.HTTP2.Arch.Stream
-        Network.HTTP2.Arch.StreamTable
-        Network.HTTP2.Arch.Types
-        Network.HTTP2.Arch.Window
+        Network.HTTP2.H2
+        Network.HTTP2.H2.Config
+        Network.HTTP2.H2.Context
+        Network.HTTP2.H2.EncodeFrame
+        Network.HTTP2.H2.File
+        Network.HTTP2.H2.HPACK
+        Network.HTTP2.H2.Manager
+        Network.HTTP2.H2.Queue
+        Network.HTTP2.H2.Rate
+        Network.HTTP2.H2.ReadN
+        Network.HTTP2.H2.Receiver
+        Network.HTTP2.H2.Sender
+        Network.HTTP2.H2.Settings
+        Network.HTTP2.H2.Status
+        Network.HTTP2.H2.Stream
+        Network.HTTP2.H2.StreamTable
+        Network.HTTP2.H2.Types
+        Network.HTTP2.H2.Window
         Network.HTTP2.Frame.Decode
         Network.HTTP2.Frame.Encode
         Network.HTTP2.Frame.Types

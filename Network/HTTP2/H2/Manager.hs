@@ -4,7 +4,7 @@
 -- | A thread manager.
 --   The manager has responsibility to spawn and kill
 --   worker threads.
-module Network.HTTP2.Arch.Manager (
+module Network.HTTP2.H2.Manager (
     Manager,
     Action,
     start,

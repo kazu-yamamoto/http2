@@ -3,7 +3,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.Receiver (
+module Network.HTTP2.H2.Receiver (
     frameReceiver,
 ) where
 
@@ -18,17 +18,17 @@ import UnliftIO.STM
 import Imports hiding (delete, insert)
 import Network.HPACK
 import Network.HPACK.Token
-import Network.HTTP2.Arch.Config
-import Network.HTTP2.Arch.Context
-import Network.HTTP2.Arch.EncodeFrame
-import Network.HTTP2.Arch.HPACK
-import Network.HTTP2.Arch.Queue
-import Network.HTTP2.Arch.Rate
-import Network.HTTP2.Arch.Settings
-import Network.HTTP2.Arch.Stream
-import Network.HTTP2.Arch.StreamTable
-import Network.HTTP2.Arch.Types
-import Network.HTTP2.Arch.Window
+import Network.HTTP2.H2.Config
+import Network.HTTP2.H2.Context
+import Network.HTTP2.H2.EncodeFrame
+import Network.HTTP2.H2.HPACK
+import Network.HTTP2.H2.Queue
+import Network.HTTP2.H2.Rate
+import Network.HTTP2.H2.Settings
+import Network.HTTP2.H2.Stream
+import Network.HTTP2.H2.StreamTable
+import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Window
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------

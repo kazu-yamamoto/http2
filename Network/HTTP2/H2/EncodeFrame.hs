@@ -1,4 +1,4 @@
-module Network.HTTP2.Arch.EncodeFrame where
+module Network.HTTP2.H2.EncodeFrame where
 
 import Network.HTTP2.Frame
 

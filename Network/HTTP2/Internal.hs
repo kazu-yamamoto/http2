@@ -1,6 +1,6 @@
 module Network.HTTP2.Internal (
     -- * File
-    module Network.HTTP2.Arch.File,
+    module Network.HTTP2.H2.File,
 
     -- * Types
     Scheme,
@@ -30,10 +30,10 @@ module Network.HTTP2.Internal (
     runTrailersMaker,
 
     -- * Thread Manager
-    module Network.HTTP2.Arch.Manager,
+    module Network.HTTP2.H2.Manager,
 ) where
 
-import Network.HTTP2.Arch.File
-import Network.HTTP2.Arch.Manager
-import Network.HTTP2.Arch.Sender
-import Network.HTTP2.Arch.Types
+import Network.HTTP2.H2.File
+import Network.HTTP2.H2.Manager
+import Network.HTTP2.H2.Sender
+import Network.HTTP2.H2.Types

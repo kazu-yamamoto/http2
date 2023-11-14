@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.HPACK (
+module Network.HTTP2.H2.HPACK (
     hpackEncodeHeader,
     hpackEncodeHeaderLoop,
     hpackDecodeHeader,
@@ -17,8 +17,8 @@ import qualified Network.HTTP.Types as H
 import Imports
 import Network.HPACK
 import Network.HPACK.Token
-import Network.HTTP2.Arch.Context
-import Network.HTTP2.Arch.Types
+import Network.HTTP2.H2.Context
+import Network.HTTP2.H2.Types
 import Network.HTTP2.Frame
 
 -- $setup

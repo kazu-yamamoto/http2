@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.Stream where
+module Network.HTTP2.H2.Stream where
 
 import Control.Exception
 import Control.Monad
@@ -10,8 +10,8 @@ import Data.Maybe (fromMaybe)
 import UnliftIO.Concurrent
 import UnliftIO.STM
 
-import Network.HTTP2.Arch.StreamTable
-import Network.HTTP2.Arch.Types
+import Network.HTTP2.H2.StreamTable
+import Network.HTTP2.H2.Types
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------

@@ -1,4 +1,4 @@
-module Network.HTTP2.Arch.Rate (
+module Network.HTTP2.H2.Rate (
     Rate,
     newRate,
     getRate,

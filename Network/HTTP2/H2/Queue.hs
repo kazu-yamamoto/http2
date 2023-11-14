@@ -1,11 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.Queue where
+module Network.HTTP2.H2.Queue where
 
 import UnliftIO.STM
 
-import Network.HTTP2.Arch.Manager
-import Network.HTTP2.Arch.Types
+import Network.HTTP2.H2.Manager
+import Network.HTTP2.H2.Types
 
 {-# INLINE forkAndEnqueueWhenReady #-}
 forkAndEnqueueWhenReady

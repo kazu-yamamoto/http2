@@ -2,7 +2,7 @@
 
 module Network.HTTP2.Client.Types where
 
-import Network.HTTP2.Arch
+import Network.HTTP2.H2
 
 ----------------------------------------------------------------
 

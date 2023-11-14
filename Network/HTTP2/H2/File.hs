@@ -1,4 +1,4 @@
-module Network.HTTP2.Arch.File where
+module Network.HTTP2.H2.File where
 
 import System.IO
 

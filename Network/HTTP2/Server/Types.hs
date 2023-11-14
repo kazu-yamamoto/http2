@@ -4,7 +4,7 @@ import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 
 import Imports
-import Network.HTTP2.Arch
+import Network.HTTP2.H2
 
 ----------------------------------------------------------------
 

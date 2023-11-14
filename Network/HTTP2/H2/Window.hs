@@ -1,17 +1,17 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.Window where
+module Network.HTTP2.H2.Window where
 
 import Data.IORef
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports
-import Network.HTTP2.Arch.Context
-import Network.HTTP2.Arch.EncodeFrame
-import Network.HTTP2.Arch.Queue
-import Network.HTTP2.Arch.Types
+import Network.HTTP2.H2.Context
+import Network.HTTP2.H2.EncodeFrame
+import Network.HTTP2.H2.Queue
+import Network.HTTP2.H2.Types
 import Network.HTTP2.Frame
 
 getStreamWindowSize :: Stream -> IO WindowSize

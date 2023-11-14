@@ -1,4 +1,4 @@
-module Network.HTTP2.Arch.Config where
+module Network.HTTP2.H2.Config where
 
 import Data.ByteString (ByteString)
 import Data.IORef
@@ -8,8 +8,8 @@ import Network.Socket.ByteString (sendAll)
 import qualified System.TimeManager as T
 
 import Network.HPACK
-import Network.HTTP2.Arch.File
-import Network.HTTP2.Arch.ReadN
+import Network.HTTP2.H2.File
+import Network.HTTP2.H2.ReadN
 
 -- | HTTP/2 configuration.
 data Config = Config

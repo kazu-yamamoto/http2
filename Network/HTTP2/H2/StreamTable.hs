@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.StreamTable (
+module Network.HTTP2.H2.StreamTable (
     -- * Types
     OddStreamTable,
     emptyOddStreamTable,
@@ -40,7 +40,7 @@ import qualified Data.OrdPSQ as PSQ
 import Network.HTTP.Types (Method)
 
 import Imports
-import Network.HTTP2.Arch.Types (Stream (..))
+import Network.HTTP2.H2.Types (Stream (..))
 
 ----------------------------------------------------------------
 

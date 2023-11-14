@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Network.HTTP2.Arch.Sender (
+module Network.HTTP2.H2.Sender (
     frameSender,
     fillBuilderBodyGetNext,
     fillFileBodyGetNext,
@@ -23,17 +23,17 @@ import UnliftIO.STM
 
 import Imports
 import Network.HPACK (TokenHeaderList, setLimitForEncoding, toHeaderTable)
-import Network.HTTP2.Arch.Config
-import Network.HTTP2.Arch.Context
-import Network.HTTP2.Arch.EncodeFrame
-import Network.HTTP2.Arch.File
-import Network.HTTP2.Arch.HPACK
-import Network.HTTP2.Arch.Manager hiding (start)
-import Network.HTTP2.Arch.Queue
-import Network.HTTP2.Arch.Settings
-import Network.HTTP2.Arch.Stream
-import Network.HTTP2.Arch.Types
-import Network.HTTP2.Arch.Window
+import Network.HTTP2.H2.Config
+import Network.HTTP2.H2.Context
+import Network.HTTP2.H2.EncodeFrame
+import Network.HTTP2.H2.File
+import Network.HTTP2.H2.HPACK
+import Network.HTTP2.H2.Manager hiding (start)
+import Network.HTTP2.H2.Queue
+import Network.HTTP2.H2.Settings
+import Network.HTTP2.H2.Stream
+import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Window
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------

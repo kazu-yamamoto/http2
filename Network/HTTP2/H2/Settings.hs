@@ -1,17 +1,17 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.Settings where
+module Network.HTTP2.H2.Settings where
 
 import Data.IORef
 import UnliftIO.STM
 
 import Imports
-import Network.HTTP2.Arch.Config
-import Network.HTTP2.Arch.Context
-import Network.HTTP2.Arch.EncodeFrame
-import Network.HTTP2.Arch.StreamTable
-import Network.HTTP2.Arch.Types
+import Network.HTTP2.H2.Config
+import Network.HTTP2.H2.Context
+import Network.HTTP2.H2.EncodeFrame
+import Network.HTTP2.H2.StreamTable
+import Network.HTTP2.H2.Types
 import Network.HTTP2.Frame
 
 -- max: 2,147,483,647 (2^31-1) is too large.

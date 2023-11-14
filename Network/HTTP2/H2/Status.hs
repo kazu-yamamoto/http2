@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Network.HTTP2.Arch.Status (
+module Network.HTTP2.H2.Status (
     getStatus,
     setStatus,
 ) where

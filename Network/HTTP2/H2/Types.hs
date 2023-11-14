@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.Arch.Types where
+module Network.HTTP2.H2.Types where
 
 import qualified Control.Exception as E
 import Data.ByteString.Builder (Builder)
@@ -16,7 +16,7 @@ import UnliftIO.STM
 
 import Imports
 import Network.HPACK
-import Network.HTTP2.Arch.File
+import Network.HTTP2.H2.File
 import Network.HTTP2.Frame
 
 ----------------------------------------------------------------

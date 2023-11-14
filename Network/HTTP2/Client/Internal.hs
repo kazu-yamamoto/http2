@@ -8,6 +8,6 @@ module Network.HTTP2.Client.Internal (
     runIO,
 ) where
 
-import Network.HTTP2.Arch
+import Network.HTTP2.H2
 import Network.HTTP2.Client.Run
 import Network.HTTP2.Client.Types
