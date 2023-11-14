@@ -96,6 +96,7 @@ frameSender
             isEmptyC <- isEmptyTQueue controlQ
             if isEmptyC
                 then do
+                    -- FLOW CONTROL: WINDOW_UPDATE 0: send: respecting peer's limit
                     waitConnectionWindowSize ctx
                     isEmptyO <- isEmptyTQueue outputQ
                     if isEmptyO
@@ -232,6 +233,7 @@ frameSender
                         forkAndEnqueueWhenReady (waitStreaming tbq) outputQ out mgr
                         return off
                     else checkStreamWindowSize
+            -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
             checkStreamWindowSize = do
                 sws <- getStreamWindowSize strm
                 if sws == 0

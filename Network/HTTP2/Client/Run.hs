@@ -151,6 +151,7 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
                     | auth /= "" = (":authority", auth) : hdr1
                     | otherwise = hdr1
                 req' = req{outObjHeaders = hdr2}
+            -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
             (sid, newstrm) <- openOddStreamWait ctx
             case outObjBody req of
                 OutBodyStreaming strmbdy ->

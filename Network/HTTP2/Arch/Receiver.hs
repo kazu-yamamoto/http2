@@ -279,6 +279,7 @@ getOddStream ctx ftyp streamId Nothing
                                 )
                     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
                 when (ftyp == FrameHeaders) $ setPeerStreamID ctx streamId
+                -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: recv: rejecting if over my limit
                 Just <$> openOddStreamCheck ctx streamId ftyp
     | otherwise = undefined -- never reach
 
@@ -368,6 +369,7 @@ push header@FrameHeader{streamId} bs ctx = do
                 mpath = getHeaderValue tokenPath vt
             case (mmethod, mpath) of
                 (Just method, Just path) ->
+                    -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: recv: rejecting if over my limit
                     openEvenStreamCacheCheck ctx sid method path
                 _ -> return ()
 

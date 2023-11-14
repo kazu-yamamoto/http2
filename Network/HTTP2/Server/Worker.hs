@@ -49,6 +49,7 @@ fromContext ctx@Context{..} =
           isPushable = enablePush <$> readIORef peerSettings
         , -- Peer SETTINGS_INITIAL_WINDOW_SIZE
           makePushStream = \pstrm _ -> do
+            -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
             (_, newstrm) <- openEvenStreamWait ctx
             let pid = streamNumber pstrm
             return (pid, newstrm)
