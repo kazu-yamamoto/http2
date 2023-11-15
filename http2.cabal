@@ -124,7 +124,6 @@ library
         network,
         network-byte-order >=0.1.5,
         network-control,
-        psqueues,
         stm,
         time-manager,
         unix-time,
