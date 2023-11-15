@@ -94,7 +94,6 @@ library
         Network.HTTP2.H2.HPACK
         Network.HTTP2.H2.Manager
         Network.HTTP2.H2.Queue
-        Network.HTTP2.H2.Rate
         Network.HTTP2.H2.ReadN
         Network.HTTP2.H2.Receiver
         Network.HTTP2.H2.Sender
@@ -124,6 +123,7 @@ library
         http-types,
         network,
         network-byte-order >=0.1.5,
+        network-control,
         psqueues,
         stm,
         time-manager,

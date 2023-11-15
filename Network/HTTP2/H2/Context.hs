@@ -6,6 +6,7 @@ module Network.HTTP2.H2.Context where
 
 import Control.Exception
 import Data.IORef
+import Network.Control
 import Network.HTTP.Types (Method)
 import Network.Socket (SockAddr)
 import qualified UnliftIO.Exception as E
@@ -13,7 +14,6 @@ import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK
-import Network.HTTP2.H2.Rate
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types

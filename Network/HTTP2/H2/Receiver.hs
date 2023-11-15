@@ -11,6 +11,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Short as Short
 import Data.IORef
+import Network.Control
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
@@ -23,7 +24,6 @@ import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.HPACK
 import Network.HTTP2.H2.Queue
-import Network.HTTP2.H2.Rate
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
