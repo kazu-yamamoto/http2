@@ -35,8 +35,8 @@ import Control.Concurrent.STM
 import Control.Exception
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
-import Data.OrdPSQ (OrdPSQ)
-import qualified Data.OrdPSQ as PSQ
+import Network.Control (LRUCache)
+import qualified Network.Control as LRUCache
 import Network.HTTP.Types (Method)
 
 import Imports
@@ -58,11 +58,11 @@ data EvenStreamTable = EvenStreamTable
     , -- Cache must contain Stream instead of StreamId because
       -- a Stream is deleted when end-of-stream is received.
       -- After that, cache is looked up.
-      evenCache :: Cache (Method, ByteString) Stream
+      evenCache :: LRUCache (Method, ByteString) Stream
     }
 
 emptyEvenStreamTable :: Int -> EvenStreamTable
-emptyEvenStreamTable lim = EvenStreamTable 0 IntMap.empty $ emptyCache lim
+emptyEvenStreamTable lim = EvenStreamTable 0 IntMap.empty $ LRUCache.empty lim
 
 ----------------------------------------------------------------
 
@@ -166,45 +166,14 @@ insertEvenCache
 insertEvenCache var method path strm@Stream{..} = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenConc' = evenConc + 1
         evenTable' = IntMap.insert streamNumber strm evenTable
-        evenCache' = insertCache (method, path) strm evenCache
+        evenCache' = LRUCache.insert (method, path) strm evenCache
      in EvenStreamTable evenConc' evenTable' evenCache'
 
 deleteEvenCache :: TVar EvenStreamTable -> Method -> ByteString -> IO ()
 deleteEvenCache var m path = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
-    let evenCache' = deleteCache (m, path) evenCache
+    let evenCache' = LRUCache.delete (m, path) evenCache
      in EvenStreamTable evenConc evenTable evenCache'
 
 lookupEvenCache
     :: TVar EvenStreamTable -> Method -> ByteString -> IO (Maybe Stream)
-lookupEvenCache var m path = lookupCache (m, path) . evenCache <$> readTVarIO var
-
-----------------------------------------------------------------
-
-type Priority = Int
-
-data Cache k v = Cache
-    { cLimit :: Int
-    , cSize :: Int
-    , cTick :: Priority
-    , cQueue :: OrdPSQ k Priority v
-    }
-
-emptyCache :: Int -> Cache k v
-emptyCache lim = Cache lim 0 0 PSQ.empty
-
-insertCache :: Ord k => k -> v -> Cache k v -> Cache k v
-insertCache k v c@Cache{..}
-    | cSize == cLimit =
-        let q = PSQ.insert k cTick v $ PSQ.deleteMin cQueue
-         in c{cTick = cTick + 1, cQueue = q}
-    | otherwise =
-        let q = PSQ.insert k cTick v cQueue
-         in c{cTick = cTick + 1, cQueue = q, cSize = cSize + 1}
-
-lookupCache :: Ord k => k -> Cache k v -> Maybe v
-lookupCache k Cache{..} = snd <$> PSQ.lookup k cQueue
-
-deleteCache :: Ord k => k -> Cache k v -> Cache k v
-deleteCache k c@Cache{..} =
-    let q = PSQ.delete k cQueue
-     in c{cQueue = q, cSize = cSize - 1}
+lookupEvenCache var m path = LRUCache.lookup (m, path) . evenCache <$> readTVarIO var
