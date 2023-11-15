@@ -16,8 +16,8 @@ import UnliftIO.STM
 
 import Imports
 import Network.HPACK
-import Network.HTTP2.H2.File
 import Network.HTTP2.Frame
+import Network.HTTP2.H2.File
 
 ----------------------------------------------------------------
 

@@ -10,9 +10,9 @@ import Data.Maybe (fromMaybe)
 import UnliftIO.Concurrent
 import UnliftIO.STM
 
+import Network.HTTP2.Frame
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
-import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 

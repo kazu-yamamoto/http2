@@ -7,12 +7,12 @@ import Data.IORef
 import UnliftIO.STM
 
 import Imports
+import Network.HTTP2.Frame
 import Network.HTTP2.H2.Config
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
-import Network.HTTP2.Frame
 
 -- max: 2,147,483,647 (2^31-1) is too large.
 -- def:        65,535 (2^16-1) it too small.

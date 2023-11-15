@@ -17,9 +17,9 @@ import qualified Network.HTTP.Types as H
 import Imports
 import Network.HPACK
 import Network.HPACK.Token
+import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.Types
-import Network.HTTP2.Frame
 
 -- $setup
 -- >>> :set -XOverloadedStrings

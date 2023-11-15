@@ -14,9 +14,9 @@ import UnliftIO.Concurrent
 import UnliftIO.STM
 
 import Imports
-import Network.HTTP2.H2
 import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
+import Network.HTTP2.H2
 
 -- | Client configuration
 data ClientConfig = ClientConfig

@@ -20,8 +20,8 @@ import UnliftIO.STM
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HPACK.Token
-import Network.HTTP2.H2
 import Network.HTTP2.Frame
+import Network.HTTP2.H2
 import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------

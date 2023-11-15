@@ -23,6 +23,7 @@ import UnliftIO.STM
 
 import Imports
 import Network.HPACK (TokenHeaderList, setLimitForEncoding, toHeaderTable)
+import Network.HTTP2.Frame
 import Network.HTTP2.H2.Config
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
@@ -34,7 +35,6 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
-import Network.HTTP2.Frame
 
 ----------------------------------------------------------------
 

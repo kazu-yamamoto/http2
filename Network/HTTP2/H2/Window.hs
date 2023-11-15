@@ -8,11 +8,11 @@ import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports
+import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Types
-import Network.HTTP2.Frame
 
 getStreamWindowSize :: Stream -> IO WindowSize
 getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow

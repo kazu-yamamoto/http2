@@ -128,10 +128,10 @@ import Data.IORef (readIORef)
 import Network.HTTP.Types
 
 import Network.HPACK
-import Network.HTTP2.H2
 import Network.HTTP2.Client.Run
 import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
+import Network.HTTP2.H2
 
 ----------------------------------------------------------------
 

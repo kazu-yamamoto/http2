@@ -14,10 +14,10 @@ import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK
+import Network.HTTP2.Frame
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
-import Network.HTTP2.Frame
 
 data Role = Client | Server deriving (Eq, Show)
 
