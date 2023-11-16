@@ -4,6 +4,7 @@
 module Network.HTTP2.H2.Window where
 
 import Data.IORef
+import Network.Control
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
@@ -64,19 +65,16 @@ decreaseWindowSize Context{txConnectionWindow} Stream{streamWindow} siz = do
 ----------------------------------------------------------------
 -- Sending window update
 
-informWindowUpdate :: Context -> Stream -> IORef Int -> Int -> IO ()
-informWindowUpdate _ _ _ 0 = return ()
-informWindowUpdate Context{controlQ, rxConnectionInc} Stream{streamNumber} streamInc len = do
-    join $ atomicModifyIORef rxConnectionInc $ modify 0
-    join $ atomicModifyIORef streamInc $ modify streamNumber
-  where
-    modify sid w0
-        | w1 < thresh = (w1, return ())
-        | otherwise =
-            let frame = windowUpdateFrame sid w1
-                cframe = CFrames Nothing [frame]
-                action = enqueueControl controlQ cframe
-             in (0, action)
-      where
-        thresh = defaultWindowSize -- fixme
-        w1 = w0 + len
+informWindowUpdate :: Context -> Stream -> Int -> IO ()
+informWindowUpdate _ _ 0 = return ()
+informWindowUpdate Context{controlQ, rxFlow} Stream{streamNumber, streamRxFlow} len = do
+    mxc <- atomicModifyIORef rxFlow $ maybeOpenRxWindow len FCTWindowUpdate
+    forM_ mxc $ \ws -> do
+        let frame = windowUpdateFrame 0 ws
+            cframe = CFrames Nothing [frame]
+        enqueueControl controlQ cframe
+    mxs <- atomicModifyIORef streamRxFlow $ maybeOpenRxWindow len FCTWindowUpdate
+    forM_ mxs $ \ws -> do
+        let frame = windowUpdateFrame streamNumber ws
+            cframe = CFrames Nothing [frame]
+        enqueueControl controlQ cframe

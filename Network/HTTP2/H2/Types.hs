@@ -8,6 +8,7 @@ import qualified Control.Exception as E
 import Data.ByteString.Builder (Builder)
 import Data.IORef
 import Data.Typeable
+import Network.Control
 import qualified Network.HTTP.Types as H
 import System.IO.Unsafe
 import UnliftIO.Concurrent
@@ -261,6 +262,7 @@ data Stream = Stream
     , streamState :: IORef StreamState
     , streamWindow :: TVar WindowSize
     , streamInput :: MVar (Either SomeException InpObj) -- Client only
+    , streamRxFlow :: IORef RxFlow
     }
 
 instance Show Stream where

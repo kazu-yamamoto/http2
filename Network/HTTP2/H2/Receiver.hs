@@ -192,8 +192,7 @@ processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{str
     tlr <- newIORef Nothing
     q <- newTQueueIO
     setStreamState ctx strm $ Open hcl (Body q mcl bodyLength tlr)
-    incref <- newIORef 0
-    bodySource <- mkSource q $ informWindowUpdate ctx strm incref
+    bodySource <- mkSource q $ informWindowUpdate ctx strm
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx
         then do
@@ -452,10 +451,24 @@ stream
     FrameData
     header@FrameHeader{flags, payloadLength, streamId}
     bs
-    Context{emptyFrameRate}
+    Context{emptyFrameRate, rxFlow}
     s@(Open _ (Body q mcl bodyLength _))
-    _ = do
+    Stream{..} = do
         DataFrame body <- guardIt $ decodeDataFrame header bs
+        okc <- atomicModifyIORef' rxFlow $ checkRxLimit payloadLength
+        unless okc $
+            E.throwIO $
+                ConnectionErrorIsSent
+                    EnhanceYourCalm
+                    streamId
+                    "exceeds connection flow-control limit"
+        oks <- atomicModifyIORef' streamRxFlow $ checkRxLimit payloadLength
+        unless oks $
+            E.throwIO $
+                ConnectionErrorIsSent
+                    EnhanceYourCalm
+                    streamId
+                    "exceeds stream flow-control limit"
         len0 <- readIORef bodyLength
         let len = len0 + payloadLength
             endOfStream = testEndStream flags

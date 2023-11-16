@@ -77,8 +77,7 @@ data Context = Context
     , decodeDynamicTable :: DynamicTable
     , -- the connection window for sending data
       txConnectionWindow :: TVar WindowSize
-    , -- window update for receiving data
-      rxConnectionInc :: IORef WindowSize -- this is diff
+    , rxFlow :: IORef RxFlow
     , pingRate :: Rate
     , settingsRate :: Rate
     , emptyFrameRate :: Rate
@@ -116,7 +115,7 @@ newContext rinfo cacheSiz siz mysa peersa settingAlist =
         <*> newDynamicTableForEncoding defaultDynamicTableSize
         <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
         <*> newTVarIO defaultWindowSize
-        <*> newIORef 0
+        <*> newIORef (newRxFlow (64 * 1024))
         <*> newRate
         <*> newRate
         <*> newRate
@@ -209,8 +208,9 @@ openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings} sid fty
     when (ftyp == FrameHeaders) $ do
         conc <- getOddConcurrency oddStreamTable
         checkMyConcurrency sid mySettings conc
-    ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newOddStream sid ws
+    txws <- initialWindowSize <$> readIORef peerSettings
+    rxws <- initialWindowSize <$> readIORef mySettings
+    newstrm <- newOddStream sid txws rxws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
     insertOdd oddStreamTable sid newstrm
     return newstrm
@@ -221,8 +221,9 @@ openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings} sid 
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     conc <- getEvenConcurrency evenStreamTable
     checkMyConcurrency sid mySettings conc
-    ws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newEvenStream sid ws
+    txws <- initialWindowSize <$> readIORef peerSettings
+    rxws <- initialWindowSize <$> readIORef mySettings
+    newstrm <- newEvenStream sid txws rxws
     insertEvenCache evenStreamTable method path newstrm
 
 checkMyConcurrency
@@ -241,22 +242,24 @@ checkMyConcurrency sid settings conc = do
 
 -- Clinet
 openOddStreamWait :: Context -> IO (StreamId, Stream)
-openOddStreamWait ctx@Context{oddStreamTable, peerSettings} = do
+openOddStreamWait ctx@Context{oddStreamTable, mySettings, peerSettings} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
     case mMaxConc of
         Nothing -> do
             sid <- atomically $ getMyNewStreamId ctx
-            ws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newOddStream sid ws
+            txws <- initialWindowSize <$> readIORef peerSettings
+            rxws <- initialWindowSize <$> readIORef mySettings
+            newstrm <- newOddStream sid txws rxws
             insertOdd oddStreamTable sid newstrm
             return (sid, newstrm)
         Just maxConc -> do
             sid <- atomically $ do
                 waitIncOdd oddStreamTable maxConc
                 getMyNewStreamId ctx
-            ws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newOddStream sid ws
+            txws <- initialWindowSize <$> readIORef peerSettings
+            rxws <- initialWindowSize <$> readIORef mySettings
+            newstrm <- newOddStream sid txws rxws
             insertOdd' oddStreamTable sid newstrm
             return (sid, newstrm)
 
@@ -268,15 +271,17 @@ openEvenStreamWait ctx@Context{..} = do
     case mMaxConc of
         Nothing -> do
             sid <- atomically $ getMyNewStreamId ctx
-            ws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newEvenStream sid ws
+            txws <- initialWindowSize <$> readIORef peerSettings
+            rxws <- initialWindowSize <$> readIORef mySettings
+            newstrm <- newEvenStream sid txws rxws
             insertEven evenStreamTable sid newstrm
             return (sid, newstrm)
         Just maxConc -> do
             sid <- atomically $ do
                 waitIncEven evenStreamTable maxConc
                 getMyNewStreamId ctx
-            ws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newEvenStream sid ws
+            txws <- initialWindowSize <$> readIORef peerSettings
+            rxws <- initialWindowSize <$> readIORef mySettings
+            newstrm <- newEvenStream sid txws rxws
             insertEven' evenStreamTable sid newstrm
             return (sid, newstrm)

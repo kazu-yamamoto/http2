@@ -7,6 +7,7 @@ import Control.Exception
 import Control.Monad
 import Data.IORef
 import Data.Maybe (fromMaybe)
+import Network.Control
 import UnliftIO.Concurrent
 import UnliftIO.STM
 
@@ -44,19 +45,21 @@ isReserved _ = False
 
 ----------------------------------------------------------------
 
-newOddStream :: StreamId -> WindowSize -> IO Stream
-newOddStream sid win =
+newOddStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
+newOddStream sid win rxwin =
     Stream sid
         <$> newIORef Idle
         <*> newTVarIO win
         <*> newEmptyMVar
+        <*> newIORef (newRxFlow rxwin)
 
-newEvenStream :: StreamId -> WindowSize -> IO Stream
-newEvenStream sid win =
+newEvenStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
+newEvenStream sid win rxwin =
     Stream sid
         <$> newIORef Reserved
         <*> newTVarIO win
         <*> newEmptyMVar
+        <*> newIORef (newRxFlow rxwin)
 
 ----------------------------------------------------------------
 
