@@ -96,6 +96,7 @@ setup ClientConfig{..} conf@Config{..} = do
             confMySockAddr
             confPeerSockAddr
             myAlist
+            windowSize
     mgr <- start confTimeoutManager
     exchangeSettings ctx
     return (ctx, mgr)

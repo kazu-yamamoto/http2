@@ -95,8 +95,9 @@ newContext
     -> SockAddr
     -> SockAddr
     -> SettingsList
+    -> WindowSize
     -> IO Context
-newContext rinfo cacheSiz siz mysa peersa settingAlist =
+newContext rinfo cacheSiz siz mysa peersa settingAlist rxws =
     Context rl rinfo settingAlist
         <$> newIORef False
         <*> newIORef Nothing
@@ -115,7 +116,7 @@ newContext rinfo cacheSiz siz mysa peersa settingAlist =
         <*> newDynamicTableForEncoding defaultDynamicTableSize
         <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
         <*> newTVarIO defaultWindowSize
-        <*> newIORef (newRxFlow (64 * 1024))
+        <*> newIORef (newRxFlow rxws)
         <*> newRate
         <*> newRate
         <*> newRate
