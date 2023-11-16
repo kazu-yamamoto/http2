@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -10,6 +11,8 @@ import Control.Monad
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
+import Data.Foldable (for_)
+import Data.Traversable (for)
 import Network.HTTP.Types
 import Network.Run.TCP
 import System.IO.Unsafe (unsafePerformIO)
@@ -59,6 +62,32 @@ spec = do
                 case result of
                     Nothing -> expectationFailure "Exception was not raised"
                     Just (Left ConnectionIsClosed) -> return ()
+                    Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
+                    Just (Right ()) -> expectationFailure "Unexpected client termination"
+
+        it "respects max concurrent streams setting" $
+            E.bracket (forkIO $ runServer irresponsiveServer) killThread $ \_ -> do
+                threadDelay 10000
+                let maxConcurrentStreams = 64
+
+                resultVars <- runClient "http" "localhost" $ \sendReq -> do
+                    for [1 .. (maxConcurrentStreams + 1) :: Int] $ \_ -> do
+                        resultVar <- newEmptyMVar
+                        concurrentClient resultVar sendReq
+                        pure resultVar
+
+                let acceptedRequestVars = take maxConcurrentStreams resultVars
+                acceptedResults <- for acceptedRequestVars (timeout 1000000 . takeMVar)
+                for_ acceptedResults $ \case
+                    Nothing -> expectationFailure "Exception was not raised"
+                    Just (Left ConnectionIsClosed) -> return ()
+                    Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
+                    Just (Right ()) -> expectationFailure "Unexpected client termination"
+
+                let waitingRequestVars = drop maxConcurrentStreams resultVars
+                waitingResults <- for waitingRequestVars (timeout 1000000 . takeMVar)
+                for_ waitingResults $ \case
+                    Nothing -> pure ()
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
