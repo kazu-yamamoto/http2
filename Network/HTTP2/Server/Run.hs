@@ -17,7 +17,7 @@ import Network.HTTP2.Server.Worker
 
 -- | Server configuration
 data ServerConfig = ServerConfig
-    { numberOfworkers :: Int
+    { numberOfWorkers :: Int
     -- ^ The number of workers
     , concurrentStreams :: Int
     -- ^ The maximum number of incoming streams on the net
@@ -29,11 +29,11 @@ data ServerConfig = ServerConfig
 -- | The default server config.
 --
 -- >>> defaultServerConfig
--- ServerConfig {numberOfworkers = 8, concurrentStreams = 64, windowSize = 1048575}
+-- ServerConfig {numberOfWorkers = 8, concurrentStreams = 64, windowSize = 1048575}
 defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
-        { numberOfworkers = 8
+        { numberOfWorkers = 8
         , concurrentStreams = properConcurrentStreams
         , windowSize = properWindowSize
         }
@@ -45,13 +45,13 @@ run :: Config -> Server -> IO ()
 run = run' defaultServerConfig
 
 run' :: ServerConfig -> Config -> Server -> IO ()
-run' sconf@ServerConfig{numberOfworkers} conf server = do
+run' sconf@ServerConfig{numberOfWorkers} conf server = do
     ok <- checkPreface conf
     when ok $ do
         (ctx, mgr) <- setup sconf conf
         let wc = fromContext ctx
         setAction mgr $ worker wc mgr server
-        replicateM_ numberOfworkers $ spawnAction mgr
+        replicateM_ numberOfWorkers $ spawnAction mgr
         runArch conf ctx mgr
 
 ----------------------------------------------------------------

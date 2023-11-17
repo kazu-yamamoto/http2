@@ -30,8 +30,11 @@ module Network.HTTP2.Server (
     run,
     run',
 
-    -- * Client configuration
-    ServerConfig (..),
+    -- * Server configuration
+    ServerConfig,
+    numberOfWorkers,
+    concurrentStreams,
+    windowSize,
     defaultServerConfig,
 
     -- * Common configuration
