@@ -61,7 +61,7 @@ decreaseWindowSize Context{txFlow} Stream{streamTxFlow} siz = do
     dec txFlow
     dec streamTxFlow
   where
-    dec tvar = atomically $ modifyTVar' tvar $ \flow -> flow{txfSent = txfSent flow - siz}
+    dec tvar = atomically $ modifyTVar' tvar $ \flow -> flow{txfSent = txfSent flow + siz}
 
 ----------------------------------------------------------------
 -- Sending window update
