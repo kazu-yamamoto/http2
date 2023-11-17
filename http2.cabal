@@ -134,7 +134,7 @@ executable client
     hs-source-dirs:     util
     default-language:   Haskell2010
     default-extensions: Strict StrictData
-    ghc-options:        -Wall -threaded
+    ghc-options:        -Wall -threaded -rtsopts
     build-depends:
         base >=4.9 && <5,
         async,
