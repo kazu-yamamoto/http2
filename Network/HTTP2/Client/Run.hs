@@ -111,6 +111,7 @@ setup ClientConfig{..} conf@Config{..} = do
             confMySockAddr
             confPeerSockAddr
             myAlist
+            concurrentStreams
             windowSize
     mgr <- start confTimeoutManager
     exchangeSettings ctx

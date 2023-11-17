@@ -97,14 +97,18 @@ newContext
     -> SockAddr
     -> SockAddr
     -> SettingsList
+    -> Int
     -> WindowSize
     -> IO Context
-newContext rinfo cacheSiz siz mysa peersa settingAlist rxws =
+newContext rinfo cacheSiz siz mysa peersa settingAlist maxConc rxws =
     Context rl rinfo settingAlist
         <$> newIORef False
         <*> newIORef Nothing
-        <*> newIORef defaultSettings
-        <*> newIORef defaultSettings
+        -- The spec defines max concurrency is infinite unless
+        -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
+        -- But it is vulnerable, so we set the limitations.
+        <*> newIORef defaultSettings { maxConcurrentStreams = Just maxConc }
+        <*> newIORef defaultSettings { maxConcurrentStreams = Just maxConc }
         <*> newTVarIO emptyOddStreamTable
         <*> newTVarIO (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing

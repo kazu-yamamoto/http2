@@ -104,6 +104,7 @@ setup ServerConfig{..} conf@Config{..} = do
             confMySockAddr
             confPeerSockAddr
             myAlist
+            concurrentStreams
             windowSize
     -- Workers, worker manager and timer manager
     mgr <- start confTimeoutManager
