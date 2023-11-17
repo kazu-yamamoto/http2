@@ -2,9 +2,9 @@
 
 module Network.HTTP2.H2.StreamTable (
     -- * Types
-    OddStreamTable,
+    OddStreamTable (..),
     emptyOddStreamTable,
-    EvenStreamTable,
+    EvenStreamTable (..),
     emptyEvenStreamTable,
 
     -- * Odd

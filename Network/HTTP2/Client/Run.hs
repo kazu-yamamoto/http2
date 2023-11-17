@@ -8,6 +8,7 @@ module Network.HTTP2.Client.Run where
 import Control.Concurrent.STM (check)
 import Control.Exception
 import Data.ByteString.Builder (Builder)
+import Data.IORef
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
@@ -55,7 +56,20 @@ run cconf@ClientConfig{..} conf client = do
             x <- client $ \req processRequest -> do
                 strm <- sendRequest ctx mgr scheme authority req
                 rsp <- getResponse strm
-                processRequest rsp
+                let serverMaxStreams = maxConcurrentStreams <$> readIORef (peerSettings ctx)
+                    possibleClientStream = do
+                        mx <- serverMaxStreams
+                        case mx of
+                            Nothing -> return Nothing
+                            Just x -> do
+                                n <- oddConc <$> readTVarIO (oddStreamTable ctx)
+                                return $ Just (x - n)
+                    aux =
+                        Aux
+                            { auxPossibleClientStreams = possibleClientStream
+                            , auxServerMaxStreams = serverMaxStreams
+                            }
+                processRequest rsp aux
             waitCounter0 mgr
             let frame = goawayFrame 0 NoError "graceful closing"
             mvar <- newMVar ()

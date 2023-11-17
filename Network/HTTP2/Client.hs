@@ -27,7 +27,7 @@
 -- >     runHTTP2Client host s = E.bracket (allocSimpleConfig s 4096)
 -- >                                       freeSimpleConfig
 -- >                                       (\conf -> run (cliconf host) conf client)
--- >     client sendRequest = do
+-- >     client sendRequest _aux = do
 -- >         let req0 = requestNoBody methodGet "/" []
 -- >             client0 = sendRequest req0 $ \rsp -> do
 -- >                 print rsp
