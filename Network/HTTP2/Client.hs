@@ -89,6 +89,11 @@ module Network.HTTP2.Client (
     getResponseBodyChunk,
     getResponseTrailers,
 
+    -- * Aux
+    Aux,
+    auxPossibleClientStreams,
+    auxServerMaxStreams,
+
     -- * Types
     Method,
     Path,
