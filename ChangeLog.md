@@ -1,3 +1,13 @@
+## 4.3.0
+
+* Using the network-control package.
+* The limits of resources can be specified in ServerConfig and ClientConfig.
+* Open streams based on peer's MaxStreams.
+* Rejecting Data if it is over the receiving limit.
+* Informing MaxStreams properly.
+* Informing WindowUpdate properly.
+* New API: Server.Internal.runIO and Client.Internal.runIO.
+
 ## 4.2.2
 
 * Adding rate limit for RST_STREAM to work around CVE-2023-44487.
