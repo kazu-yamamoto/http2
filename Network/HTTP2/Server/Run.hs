@@ -41,11 +41,8 @@ defaultServerConfig =
 ----------------------------------------------------------------
 
 -- | Running HTTP/2 server.
-run :: Config -> Server -> IO ()
-run = run' defaultServerConfig
-
-run' :: ServerConfig -> Config -> Server -> IO ()
-run' sconf@ServerConfig{numberOfWorkers} conf server = do
+run :: ServerConfig -> Config -> Server -> IO ()
+run sconf@ServerConfig{numberOfWorkers} conf server = do
     ok <- checkPreface conf
     when ok $ do
         (ctx, mgr) <- setup sconf conf

@@ -19,7 +19,7 @@
 -- >   where
 -- >     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
 -- >                                  freeSimpleConfig
--- >                                  (\config -> run config server)
+-- >                                  (\config -> run defaultServerConfig config server)
 -- >     server _req _aux sendResponse = sendResponse response []
 -- >       where
 -- >         response = responseBuilder ok200 header body
@@ -28,7 +28,6 @@
 module Network.HTTP2.Server (
     -- * Runner
     run,
-    run',
 
     -- * Server configuration
     ServerConfig,
@@ -119,7 +118,6 @@ import Network.HTTP2.Server.Run (
     ServerConfig (..),
     defaultServerConfig,
     run,
-    run',
  )
 import Network.HTTP2.Server.Types
 

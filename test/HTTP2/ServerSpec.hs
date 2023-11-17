@@ -78,7 +78,7 @@ runServer = runTCPServer (Just host) port runHTTP2Server
         E.bracket
             (allocSimpleConfig s 32768)
             freeSimpleConfig
-            (`run` server)
+            (\conf -> run defaultServerConfig conf server)
 
 runFakeServer :: MVar ByteString -> IO ()
 runFakeServer prefaceVar = do

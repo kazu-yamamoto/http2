@@ -34,7 +34,7 @@ main = do
         E.bracket
             (allocSimpleConfig s 4096)
             freeSimpleConfig
-            (`run` server)
+            (\conf -> run defaultServerConfig conf server)
     server req _aux sendResponse = case getHeaderValue tokenMethod vt of
         Just "GET" -> sendResponse responseHello []
         Just "POST" -> sendResponse (responseEcho req) []

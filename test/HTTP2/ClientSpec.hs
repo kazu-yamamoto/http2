@@ -98,7 +98,7 @@ runServer server = runTCPServer (Just host) port runHTTP2Server
         E.bracket
             (allocSimpleConfig s 4096)
             freeSimpleConfig
-            (`S.run` server)
+            (\conf -> S.run S.defaultServerConfig conf server)
 
 defaultServer :: S.Server
 defaultServer _req _aux sendResponse = sendResponse responseHello []

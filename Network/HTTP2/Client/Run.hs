@@ -62,7 +62,7 @@ run cconf@ClientConfig{..} conf client = do
             enqueueControl (controlQ ctx) $ CGoaway frame mvar
             takeMVar mvar
             return x
-    runArch conf ctx mgr runClient
+    runH2 conf ctx mgr runClient
 
 -- | Launching a receiver and a sender.
 runIO :: ClientConfig -> Config -> (ClientIO -> IO (IO a)) -> IO a
@@ -76,7 +76,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
         create = openOddStreamWait ctx
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
-    runArch conf ctx mgr runClient
+    runH2 conf ctx mgr runClient
 
 getResponse :: Stream -> IO Response
 getResponse strm = do
@@ -102,8 +102,8 @@ setup ClientConfig{..} conf@Config{..} = do
     exchangeSettings ctx
     return (ctx, mgr)
 
-runArch :: Config -> Context -> Manager -> IO a -> IO a
-runArch conf ctx mgr runClient =
+runH2 :: Config -> Context -> Manager -> IO a -> IO a
+runH2 conf ctx mgr runClient =
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
             either Just (const Nothing) res
