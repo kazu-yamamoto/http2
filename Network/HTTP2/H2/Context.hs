@@ -76,10 +76,10 @@ data Context = Context
     , encodeDynamicTable :: DynamicTable
     , decodeDynamicTable :: DynamicTable
     , -- the connection window for sending data
-      txConnectionWindow :: TVar WindowSize
+      txFlow :: TVar TxFlow
+    , rxFlow :: IORef RxFlow
     , -- This exists in mySettingAlist but lookup should be avoided.
       rxInitialWindow :: WindowSize
-    , rxFlow :: IORef RxFlow
     , pingRate :: Rate
     , settingsRate :: Rate
     , emptyFrameRate :: Rate
@@ -117,9 +117,9 @@ newContext rinfo cacheSiz siz mysa peersa settingAlist rxws =
         -- My SETTINGS_HEADER_TABLE_SIZE
         <*> newDynamicTableForEncoding defaultDynamicTableSize
         <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
-        <*> newTVarIO defaultWindowSize
-        <*> return rxws
+        <*> newTVarIO (newTxFlow defaultWindowSize)
         <*> newIORef (newRxFlow rxws)
+        <*> return rxws
         <*> newRate
         <*> newRate
         <*> newRate

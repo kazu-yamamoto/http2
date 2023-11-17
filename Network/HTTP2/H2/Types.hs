@@ -260,8 +260,8 @@ instance Show StreamState where
 data Stream = Stream
     { streamNumber :: StreamId
     , streamState :: IORef StreamState
-    , streamWindow :: TVar WindowSize
     , streamInput :: MVar (Either SomeException InpObj) -- Client only
+    , streamTxFlow :: TVar TxFlow
     , streamRxFlow :: IORef RxFlow
     }
 

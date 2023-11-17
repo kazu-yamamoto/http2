@@ -5,7 +5,6 @@ module Network.HTTP2.H2.Settings where
 
 import Data.IORef
 import Data.IntMap.Strict (IntMap)
-import UnliftIO.STM
 
 import Imports
 import Network.HTTP2.Frame
@@ -14,6 +13,7 @@ import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Window
 
 -- max: 2,147,483,647 (2^31-1) is too large.
 -- def:        65,535 (2^16-1) it too small.
@@ -69,12 +69,9 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
     --    insert it to its stream table before adjusting.
     let diff = newws - oldws
     when (diff /= 0) $ do
-        getOddStreams oddStreamTable >>= updateAllStreamWindow (+ diff)
-        getEvenStreams evenStreamTable >>= updateAllStreamWindow (+ diff)
-
-----------------------------------------------------------------
-
-updateAllStreamWindow
-    :: (WindowSize -> WindowSize) -> IntMap Stream -> IO ()
-updateAllStreamWindow adst strms =
-    forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
+        getOddStreams oddStreamTable >>= updateAllStreamTxFlow diff
+        getEvenStreams evenStreamTable >>= updateAllStreamTxFlow diff
+  where
+    updateAllStreamTxFlow :: WindowSize -> IntMap Stream -> IO ()
+    updateAllStreamTxFlow siz strms =
+        forM_ strms $ \strm -> increaseStreamWindowSize strm siz

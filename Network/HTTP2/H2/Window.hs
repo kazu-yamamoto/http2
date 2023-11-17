@@ -16,31 +16,30 @@ import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Types
 
 getStreamWindowSize :: Stream -> IO WindowSize
-getStreamWindowSize Stream{streamWindow} = readTVarIO streamWindow
+getStreamWindowSize Stream{streamTxFlow} =
+    txFlowWindow <$> readTVarIO streamTxFlow
 
 getConnectionWindowSize :: Context -> IO WindowSize
-getConnectionWindowSize Context{txConnectionWindow} = readTVarIO txConnectionWindow
+getConnectionWindowSize Context{txFlow} =
+    txFlowWindow <$> readTVarIO txFlow
 
 waitStreamWindowSize :: Stream -> IO ()
-waitStreamWindowSize Stream{streamWindow} = atomically $ do
-    w <- readTVar streamWindow
+waitStreamWindowSize Stream{streamTxFlow} = atomically $ do
+    w <- txFlowWindow <$> readTVar streamTxFlow
     checkSTM (w > 0)
 
 waitConnectionWindowSize :: Context -> STM ()
-waitConnectionWindowSize Context{txConnectionWindow} = do
-    w <- readTVar txConnectionWindow
+waitConnectionWindowSize Context{txFlow} = do
+    w <- txFlowWindow <$> readTVar txFlow
     checkSTM (w > 0)
 
 ----------------------------------------------------------------
 -- Receiving window update
 
-increaseWindowSize :: StreamId -> TVar WindowSize -> WindowSize -> IO ()
+increaseWindowSize :: StreamId -> TVar TxFlow -> WindowSize -> IO ()
 increaseWindowSize sid tvar n = do
-    w <- atomically $ do
-        w0 <- readTVar tvar
-        let w1 = w0 + n
-        writeTVar tvar w1
-        return w1
+    atomically $ modifyTVar' tvar $ \flow -> flow{txfLimit = txfLimit flow + n}
+    w <- txFlowWindow <$> readTVarIO tvar
     when (isWindowOverflow w) $ do
         let msg = fromString ("window update for stream " ++ show sid ++ " is overflow")
             err =
@@ -50,17 +49,19 @@ increaseWindowSize sid tvar n = do
         E.throwIO $ err FlowControlError sid msg
 
 increaseStreamWindowSize :: Stream -> WindowSize -> IO ()
-increaseStreamWindowSize Stream{streamNumber, streamWindow} n =
-    increaseWindowSize streamNumber streamWindow n
+increaseStreamWindowSize Stream{streamNumber, streamTxFlow} n =
+    increaseWindowSize streamNumber streamTxFlow n
 
 increaseConnectionWindowSize :: Context -> Int -> IO ()
-increaseConnectionWindowSize Context{txConnectionWindow} n =
-    increaseWindowSize 0 txConnectionWindow n
+increaseConnectionWindowSize Context{txFlow} n =
+    increaseWindowSize 0 txFlow n
 
 decreaseWindowSize :: Context -> Stream -> WindowSize -> IO ()
-decreaseWindowSize Context{txConnectionWindow} Stream{streamWindow} siz = do
-    atomically $ modifyTVar' txConnectionWindow (subtract siz)
-    atomically $ modifyTVar' streamWindow (subtract siz)
+decreaseWindowSize Context{txFlow} Stream{streamTxFlow} siz = do
+    dec txFlow
+    dec streamTxFlow
+  where
+    dec tvar = atomically $ modifyTVar' tvar $ \flow -> flow{txfSent = txfSent flow - siz}
 
 ----------------------------------------------------------------
 -- Sending window update

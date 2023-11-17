@@ -46,19 +46,19 @@ isReserved _ = False
 ----------------------------------------------------------------
 
 newOddStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
-newOddStream sid win rxwin =
+newOddStream sid txwin rxwin =
     Stream sid
         <$> newIORef Idle
-        <*> newTVarIO win
         <*> newEmptyMVar
+        <*> newTVarIO (newTxFlow txwin)
         <*> newIORef (newRxFlow rxwin)
 
 newEvenStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
-newEvenStream sid win rxwin =
+newEvenStream sid txwin rxwin =
     Stream sid
         <$> newIORef Reserved
-        <*> newTVarIO win
         <*> newEmptyMVar
+        <*> newTVarIO (newTxFlow txwin)
         <*> newIORef (newRxFlow rxwin)
 
 ----------------------------------------------------------------
