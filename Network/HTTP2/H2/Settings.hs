@@ -8,7 +8,6 @@ import Data.IntMap.Strict (IntMap)
 
 import Imports
 import Network.HTTP2.Frame
-import Network.HTTP2.H2.Config
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.StreamTable
@@ -23,20 +22,6 @@ properWindowSize = 1048575
 
 properConcurrentStreams :: Int
 properConcurrentStreams = 64
-
-makeMySettingsList :: Config -> Int -> WindowSize -> [(SettingsKey, Int)]
-makeMySettingsList Config{..} maxConc winSiz = myInitialAlist
-  where
-    -- confBufferSize is the size of the write buffer.
-    -- But we assume that the size of the read buffer is the same size.
-    -- So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
-    len = confBufferSize - frameHeaderLength
-    payloadLen = max defaultPayloadLength len
-    myInitialAlist =
-        [ (SettingsMaxFrameSize, payloadLen)
-        , (SettingsMaxConcurrentStreams, maxConc)
-        , (SettingsInitialWindowSize, winSiz)
-        ]
 
 ----------------------------------------------------------------
 

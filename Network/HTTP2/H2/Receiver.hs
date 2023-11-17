@@ -20,7 +20,6 @@ import Imports hiding (delete, insert)
 import Network.HPACK
 import Network.HPACK.Token
 import Network.HTTP2.Frame
-import Network.HTTP2.H2.Config
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.HPACK

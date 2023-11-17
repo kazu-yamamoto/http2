@@ -10,7 +10,9 @@ import Data.IORef
 import Data.Typeable
 import Network.Control
 import qualified Network.HTTP.Types as H
+import Network.Socket hiding (Stream)
 import System.IO.Unsafe
+import qualified System.TimeManager as T
 import UnliftIO.Concurrent
 import UnliftIO.Exception (SomeException)
 import UnliftIO.STM
@@ -370,3 +372,25 @@ checkSettingsValue (SettingsMaxFrameSize, v)
                 0
                 "Max frame size must be in between 16384 and 16777215"
 checkSettingsValue _ = Nothing
+
+----------------------------------------------------------------
+
+-- | HTTP/2 configuration.
+data Config = Config
+    { confWriteBuffer :: Buffer
+    -- ^ This is used only by frameSender.
+    -- This MUST be freed after frameSender is terminated.
+    , confBufferSize :: BufferSize
+    -- ^ The size of the write buffer.
+    --   We assume that the read buffer is the same size.
+    --   So, this value is announced via SETTINGS_MAX_FRAME_SIZE
+    --   to the peer.
+    , confSendAll :: ByteString -> IO ()
+    , confReadN :: Int -> IO ByteString
+    , confPositionReadMaker :: PositionReadMaker
+    , confTimeoutManager :: T.Manager
+    , confMySockAddr :: SockAddr
+    -- ^ This is copied into 'Aux', if exist, on server.
+    , confPeerSockAddr :: SockAddr
+    -- ^ This is copied into 'Aux', if exist, on server.
+    }

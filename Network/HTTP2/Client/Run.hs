@@ -102,15 +102,11 @@ getResponse strm = do
 setup :: ClientConfig -> Config -> IO (Context, Manager)
 setup ClientConfig{..} conf@Config{..} = do
     let clientInfo = newClientInfo scheme authority
-        myAlist = makeMySettingsList conf concurrentStreams windowSize
     ctx <-
         newContext
             clientInfo
+            conf
             cacheLimit
-            confBufferSize
-            confMySockAddr
-            confPeerSockAddr
-            myAlist
             concurrentStreams
             windowSize
     mgr <- start confTimeoutManager

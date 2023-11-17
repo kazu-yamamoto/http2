@@ -95,15 +95,11 @@ checkPreface conf@Config{..} = do
 setup :: ServerConfig -> Config -> IO (Context, Manager)
 setup ServerConfig{..} conf@Config{..} = do
     serverInfo <- newServerInfo
-    let myAlist = makeMySettingsList conf concurrentStreams windowSize
     ctx <-
         newContext
             serverInfo
+            conf
             0
-            confBufferSize
-            confMySockAddr
-            confPeerSockAddr
-            myAlist
             concurrentStreams
             windowSize
     -- Workers, worker manager and timer manager

@@ -1,6 +1,5 @@
 module Network.HTTP2.H2.Config where
 
-import Data.ByteString (ByteString)
 import Data.IORef
 import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.Socket
@@ -10,26 +9,7 @@ import qualified System.TimeManager as T
 import Network.HPACK
 import Network.HTTP2.H2.File
 import Network.HTTP2.H2.ReadN
-
--- | HTTP/2 configuration.
-data Config = Config
-    { confWriteBuffer :: Buffer
-    -- ^ This is used only by frameSender.
-    -- This MUST be freed after frameSender is terminated.
-    , confBufferSize :: BufferSize
-    -- ^ The size of the write buffer.
-    --   We assume that the read buffer is the same size.
-    --   So, this value is announced via SETTINGS_MAX_FRAME_SIZE
-    --   to the peer.
-    , confSendAll :: ByteString -> IO ()
-    , confReadN :: Int -> IO ByteString
-    , confPositionReadMaker :: PositionReadMaker
-    , confTimeoutManager :: T.Manager
-    , confMySockAddr :: SockAddr
-    -- ^ This is copied into 'Aux', if exist, on server.
-    , confPeerSockAddr :: SockAddr
-    -- ^ This is copied into 'Aux', if exist, on server.
-    }
+import Network.HTTP2.H2.Types
 
 -- | Making simple configuration whose IO is not efficient.
 --   A write buffer is allocated internally.

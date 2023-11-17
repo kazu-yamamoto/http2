@@ -92,15 +92,12 @@ data Context = Context
 
 newContext
     :: RoleInfo
+    -> Config
     -> Int
-    -> BufferSize
-    -> SockAddr
-    -> SockAddr
-    -> SettingsList
     -> Int
     -> WindowSize
     -> IO Context
-newContext rinfo cacheSiz siz mysa peersa settingAlist maxConc rxws =
+newContext rinfo conf@Config{..} cacheSiz maxConc rxws =
     Context rl rinfo settingAlist
         <$> newIORef False
         <*> newIORef Nothing
@@ -128,8 +125,8 @@ newContext rinfo cacheSiz siz mysa peersa settingAlist maxConc rxws =
         <*> newRate
         <*> newRate
         <*> newRate
-        <*> return mysa
-        <*> return peersa
+        <*> return confMySockAddr
+        <*> return confPeerSockAddr
   where
     rl = case rinfo of
         RIC{} -> Client
@@ -139,8 +136,23 @@ newContext rinfo cacheSiz siz mysa peersa settingAlist maxConc rxws =
         | otherwise = 2
     dlim = defaultPayloadLength + frameHeaderLength
     buflim
-        | siz >= dlim = dlim
-        | otherwise = siz
+        | confBufferSize >= dlim = dlim
+        | otherwise = confBufferSize
+    settingAlist = makeMySettingsList conf maxConc rxws
+
+makeMySettingsList :: Config -> Int -> WindowSize -> [(SettingsKey, Int)]
+makeMySettingsList Config{..} maxConc winSiz = myInitialAlist
+  where
+    -- confBufferSize is the size of the write buffer.
+    -- But we assume that the size of the read buffer is the same size.
+    -- So, the size is announced to via SETTINGS_MAX_FRAME_SIZE.
+    len = confBufferSize - frameHeaderLength
+    payloadLen = max defaultPayloadLength len
+    myInitialAlist =
+        [ (SettingsMaxFrameSize, payloadLen)
+        , (SettingsMaxConcurrentStreams, maxConc)
+        , (SettingsInitialWindowSize, winSiz)
+        ]
 
 ----------------------------------------------------------------
 
