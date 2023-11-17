@@ -64,6 +64,7 @@ run cconf@ClientConfig{..} conf client = do
             return x
     runArch conf ctx mgr runClient
 
+-- | Launching a receiver and a sender.
 runIO :: ClientConfig -> Config -> (ClientIO -> IO (IO a)) -> IO a
 runIO cconf@ClientConfig{..} conf@Config{..} action = do
     (ctx@Context{..}, mgr) <- setup cconf conf
