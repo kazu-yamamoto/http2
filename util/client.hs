@@ -35,11 +35,11 @@ main = do
     client :: Client ()
     client sendRequest = do
         let req0 = requestNoBody methodGet "/" []
-            client0 = sendRequest req0 $ \rsp -> do
+            client0 = sendRequest req0 $ \rsp _aux -> do
                 print rsp
                 getResponseBodyChunk rsp >>= C8.putStrLn
             req1 = requestNoBody methodGet "/foo" []
-            client1 = sendRequest req1 $ \rsp -> do
+            client1 = sendRequest req1 $ \rsp _aux -> do
                 print rsp
                 getResponseBodyChunk rsp >>= C8.putStrLn
         ex <- E.try $ concurrently_ client0 client1

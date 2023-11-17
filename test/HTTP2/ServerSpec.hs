@@ -213,20 +213,20 @@ allocSlowPrefaceConfig s size = do
 client0 :: C.Client ()
 client0 sendRequest = do
     let req = C.requestNoBody methodGet "/" []
-    sendRequest req $ \rsp -> do
+    sendRequest req $ \rsp _ -> do
         C.responseStatus rsp `shouldBe` Just ok200
         fmap statusMessage (C.responseStatus rsp) `shouldBe` Just "OK"
 
 client1 :: C.Client ()
 client1 sendRequest = do
     let req = C.requestNoBody methodGet "/push-pp" []
-    sendRequest req $ \rsp -> do
+    sendRequest req $ \rsp _ -> do
         C.responseStatus rsp `shouldBe` Just notFound404
 
 client2 :: C.Client ()
 client2 sendRequest = do
     let req = C.requestNoBody methodPut "/" []
-    sendRequest req $ \rsp -> do
+    sendRequest req $ \rsp _ -> do
         C.responseStatus rsp `shouldBe` Just methodNotAllowed405
 
 client3 :: C.Client ()
@@ -236,7 +236,7 @@ client3 sendRequest = do
             C.requestFile methodPost "/echo" [("X-Tag", hx)] $
                 FileSpec "test/inputFile" 0 1012731
         req = C.setRequestTrailersMaker req0 maker
-    sendRequest req $ \rsp -> do
+    sendRequest req $ \rsp _ -> do
         let comsumeBody = do
                 bs <- C.getResponseBodyChunk rsp
                 when (bs /= "") comsumeBody
@@ -257,7 +257,7 @@ client3' sendRequest = do
                         sendFile h
             withFile "test/inputFile" ReadMode sendFile
         req = C.setRequestTrailersMaker req0 maker
-    sendRequest req $ \rsp -> do
+    sendRequest req $ \rsp _ -> do
         let comsumeBody = do
                 bs <- C.getResponseBodyChunk rsp
                 when (bs /= "") comsumeBody
@@ -277,7 +277,7 @@ client3'' sendRequest = do
             replicateM_ 9 $ write $ byteString chunk
             write $ byteString tag
         req = C.setRequestTrailersMaker req0 maker
-    sendRequest req $ \rsp -> do
+    sendRequest req $ \rsp _ -> do
         let comsumeBody = do
                 bs <- C.getResponseBodyChunk rsp
                 when (bs /= "") comsumeBody
@@ -290,16 +290,16 @@ client3'' sendRequest = do
 client4 :: C.Client ()
 client4 sendRequest = do
     let req0 = C.requestNoBody methodGet "/push" []
-    sendRequest req0 $ \rsp -> do
+    sendRequest req0 $ \rsp _ -> do
         C.responseStatus rsp `shouldBe` Just ok200
     let req1 = C.requestNoBody methodGet "/push-pp" []
-    sendRequest req1 $ \rsp -> do
+    sendRequest req1 $ \rsp _ -> do
         C.responseStatus rsp `shouldBe` Just ok200
 
 client5 :: C.Client ()
 client5 sendRequest = do
     let req0 = C.requestNoBody methodGet "/stream" []
-    sendRequest req0 $ \rsp -> do
+    sendRequest req0 $ \rsp _ -> do
         C.responseStatus rsp `shouldBe` Just ok200
         let go n
                 | n > 0 = do

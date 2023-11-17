@@ -128,7 +128,7 @@ runClient sc au client = runTCPClient host port $ runHTTP2Client
 defaultClient :: RequestHeaders -> Client ()
 defaultClient hd sendRequest = do
     let req = requestNoBody methodGet "/" hd
-    sendRequest req $ \rsp -> do
+    sendRequest req $ \rsp _ -> do
         responseStatus rsp `shouldBe` Just ok200
         fmap statusMessage (responseStatus rsp) `shouldBe` Just "OK"
 
@@ -136,7 +136,7 @@ concurrentClient :: MVar (Either HTTP2Error ()) -> Client ()
 concurrentClient resultVar sendRequest = do
     let req = requestNoBody methodGet "/" []
     void $ forkIO $ do
-        result <- E.try $ sendRequest req $ \_rsp -> return ()
+        result <- E.try $ sendRequest req $ \_rsp _ -> return ()
         putMVar resultVar result
     threadDelay 10000
 
