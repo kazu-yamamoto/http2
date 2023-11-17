@@ -192,6 +192,8 @@ processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{str
     tlr <- newIORef Nothing
     q <- newTQueueIO
     setStreamState ctx strm $ Open hcl (Body q mcl bodyLength tlr)
+    -- FLOW CONTROL: WINDOW_UPDATE 0: recv: announcing my limit properly
+    -- FLOW CONTROL: WINDOW_UPDATE: recv: announcing my limit properly
     bodySource <- mkSource q $ informWindowUpdate ctx strm
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx
@@ -457,6 +459,7 @@ stream
     s@(Open _ (Body q mcl bodyLength _))
     Stream{..} = do
         DataFrame body <- guardIt $ decodeDataFrame header bs
+        -- FLOW CONTROL: WINDOW_UPDATE 0: recv: rejecting if over my limit
         okc <- atomicModifyIORef' rxFlow $ checkRxLimit payloadLength
         unless okc $
             E.throwIO $
@@ -464,6 +467,7 @@ stream
                     EnhanceYourCalm
                     streamId
                     "exceeds connection flow-control limit"
+        -- FLOW CONTROL: WINDOW_UPDATE: recv: rejecting if over my limit
         oks <- atomicModifyIORef' streamRxFlow $ checkRxLimit payloadLength
         unless oks $
             E.throwIO $
