@@ -211,7 +211,7 @@ openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings, rxIniti
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (ftyp == FrameHeaders) $ do
         conc <- getOddConcurrency oddStreamTable
-        checkMyConcurrency sid mySettings conc
+        checkMyConcurrency sid mySettings (conc + 1)
     txws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newOddStream sid txws rxInitialWindow
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
@@ -223,7 +223,7 @@ openEvenStreamCacheCheck :: Context -> StreamId -> Method -> ByteString -> IO ()
 openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings, rxInitialWindow} sid method path = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     conc <- getEvenConcurrency evenStreamTable
-    checkMyConcurrency sid mySettings conc
+    checkMyConcurrency sid mySettings (conc + 1)
     txws <- initialWindowSize <$> readIORef peerSettings
     newstrm <- newEvenStream sid txws rxInitialWindow
     insertEvenCache evenStreamTable method path newstrm
@@ -235,7 +235,7 @@ checkMyConcurrency sid settings conc = do
     case mMaxConc of
         Nothing -> return ()
         Just maxConc ->
-            when (conc >= maxConc) $
+            when (conc > maxConc) $
                 E.throwIO $
                     StreamErrorIsSent RefusedStream sid "exceeds max concurrent"
 
