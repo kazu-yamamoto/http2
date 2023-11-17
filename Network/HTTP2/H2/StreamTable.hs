@@ -28,6 +28,7 @@ module Network.HTTP2.H2.StreamTable (
     insertEvenCache,
     deleteEvenCache,
     lookupEvenCache,
+    getEvenStreams,
 ) where
 
 import Control.Concurrent
@@ -177,3 +178,6 @@ deleteEvenCache var m path = atomically $ modifyTVar var $ \EvenStreamTable{..} 
 lookupEvenCache
     :: TVar EvenStreamTable -> Method -> ByteString -> IO (Maybe Stream)
 lookupEvenCache var m path = LRUCache.lookup (m, path) . evenCache <$> readTVarIO var
+
+getEvenStreams :: TVar EvenStreamTable -> IO (IntMap Stream)
+getEvenStreams var = evenTable <$> readTVarIO var

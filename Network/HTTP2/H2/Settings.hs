@@ -5,6 +5,7 @@ module Network.HTTP2.H2.Settings where
 
 import Data.IORef
 import UnliftIO.STM
+import Data.IntMap.Strict (IntMap)
 
 import Imports
 import Network.HTTP2.Frame
@@ -57,17 +58,23 @@ pendingMySettings Context{mySettingAlist, myFirstSettings, myPendingAlist} = do
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
 updatePeerSettings :: Context -> SettingsList -> IO ()
-updatePeerSettings Context{peerSettings, oddStreamTable} peerAlist = do
+updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAlist = do
     oldws <- initialWindowSize <$> readIORef peerSettings
     modifyIORef' peerSettings $ \old -> updateSettings old peerAlist
     newws <- initialWindowSize <$> readIORef peerSettings
+    -- FIXME: race condition
+    -- 1) newOddStream reads old peerSettings and
+    --    insert it to its stream table after adjusting.
+    -- 2) newOddStream reads new peerSettings and
+    --    insert it to its stream table before adjusting.
     let diff = newws - oldws
-    when (diff /= 0) $ updateAllOddStreamWindow (+ diff) oddStreamTable
+    when (diff /= 0) $ do
+        getOddStreams oddStreamTable >>= updateAllStreamWindow (+ diff)
+        getEvenStreams evenStreamTable >>= updateAllStreamWindow (+ diff)
 
 ----------------------------------------------------------------
 
-updateAllOddStreamWindow
-    :: (WindowSize -> WindowSize) -> TVar OddStreamTable -> IO ()
-updateAllOddStreamWindow adst var = do
-    strms <- getOddStreams var
+updateAllStreamWindow
+    :: (WindowSize -> WindowSize) -> IntMap Stream -> IO ()
+updateAllStreamWindow adst strms =
     forM_ strms $ \strm -> atomically $ modifyTVar (streamWindow strm) adst
