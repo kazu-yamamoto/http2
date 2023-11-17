@@ -299,6 +299,8 @@ control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirst
             case mAlist of
                 Nothing -> return () -- fixme
                 Just myAlist -> do
+                    -- My SETTINGS_INITIAL_WINDOW_SIZE is stored here.
+                    -- But we use rxInitialWindow even not acked.
                     modifyIORef' mySettings $ \old -> updateSettings old myAlist
                     writeIORef myPendingAlist Nothing
         else do

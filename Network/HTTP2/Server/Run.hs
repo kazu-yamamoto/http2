@@ -100,7 +100,14 @@ setup ServerConfig{..} conf@Config{..} = do
     serverInfo <- newServerInfo
     let myAlist = makeMySettingsList conf concurrentStreams windowSize
     ctx <-
-        newContext serverInfo 0 confBufferSize confMySockAddr confPeerSockAddr myAlist windowSize
+        newContext
+            serverInfo
+            0
+            confBufferSize
+            confMySockAddr
+            confPeerSockAddr
+            myAlist
+            windowSize
     -- Workers, worker manager and timer manager
     mgr <- start confTimeoutManager
     return (ctx, mgr)

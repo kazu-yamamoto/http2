@@ -4,8 +4,8 @@
 module Network.HTTP2.H2.Settings where
 
 import Data.IORef
-import UnliftIO.STM
 import Data.IntMap.Strict (IntMap)
+import UnliftIO.STM
 
 import Imports
 import Network.HTTP2.Frame
