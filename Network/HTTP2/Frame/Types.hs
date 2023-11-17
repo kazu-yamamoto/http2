@@ -5,6 +5,7 @@
 module Network.HTTP2.Frame.Types where
 
 import Data.Ix
+import Network.Control (WindowSize)
 import Text.Read
 import qualified Text.Read.Lex as L
 
@@ -211,9 +212,6 @@ updateSettings settings kvs = foldl' update settings kvs
     update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderListSize = Just x }
     update def _                                = def
 {- FOURMOLU_ENABLE -}
-
--- | The type for window size.
-type WindowSize = Int
 
 -- | The default initial window size.
 --

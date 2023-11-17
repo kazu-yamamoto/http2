@@ -133,6 +133,7 @@ module Network.HTTP2.Frame (
 ) where
 
 import qualified Data.ByteString as BS
+import Network.Control (WindowSize)
 
 import Imports
 import Network.HTTP2.Frame.Decode

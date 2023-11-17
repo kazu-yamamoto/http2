@@ -17,20 +17,20 @@ import Network.HTTP2.H2.Types
 
 getStreamWindowSize :: Stream -> IO WindowSize
 getStreamWindowSize Stream{streamTxFlow} =
-    txFlowWindow <$> readTVarIO streamTxFlow
+    txWindowSize <$> readTVarIO streamTxFlow
 
 getConnectionWindowSize :: Context -> IO WindowSize
 getConnectionWindowSize Context{txFlow} =
-    txFlowWindow <$> readTVarIO txFlow
+    txWindowSize <$> readTVarIO txFlow
 
 waitStreamWindowSize :: Stream -> IO ()
 waitStreamWindowSize Stream{streamTxFlow} = atomically $ do
-    w <- txFlowWindow <$> readTVar streamTxFlow
+    w <- txWindowSize <$> readTVar streamTxFlow
     checkSTM (w > 0)
 
 waitConnectionWindowSize :: Context -> STM ()
 waitConnectionWindowSize Context{txFlow} = do
-    w <- txFlowWindow <$> readTVar txFlow
+    w <- txWindowSize <$> readTVar txFlow
     checkSTM (w > 0)
 
 ----------------------------------------------------------------
@@ -39,7 +39,7 @@ waitConnectionWindowSize Context{txFlow} = do
 increaseWindowSize :: StreamId -> TVar TxFlow -> WindowSize -> IO ()
 increaseWindowSize sid tvar n = do
     atomically $ modifyTVar' tvar $ \flow -> flow{txfLimit = txfLimit flow + n}
-    w <- txFlowWindow <$> readTVarIO tvar
+    w <- txWindowSize <$> readTVarIO tvar
     when (isWindowOverflow w) $ do
         let msg = fromString ("window update for stream " ++ show sid ++ " is overflow")
             err =

@@ -14,6 +14,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Internal (unsafeCreate)
 import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N
+import Network.Control (WindowSize)
 
 import Imports
 import Network.HTTP2.Frame.Types
