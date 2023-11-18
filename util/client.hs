@@ -33,13 +33,13 @@ main = do
             freeSimpleConfig
             (\conf -> run (cliconf host) conf client)
     client :: Client ()
-    client sendRequest = do
+    client sendRequest _aux = do
         let req0 = requestNoBody methodGet "/" []
-            client0 = sendRequest req0 $ \rsp _aux -> do
+            client0 = sendRequest req0 $ \rsp -> do
                 print rsp
                 getResponseBodyChunk rsp >>= C8.putStrLn
             req1 = requestNoBody methodGet "/foo" []
-            client1 = sendRequest req1 $ \rsp _aux -> do
+            client1 = sendRequest req1 $ \rsp -> do
                 print rsp
                 getResponseBodyChunk rsp >>= C8.putStrLn
         ex <- E.try $ concurrently_ client0 client1

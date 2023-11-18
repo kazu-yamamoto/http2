@@ -52,31 +52,33 @@ defaultClientConfig =
 run :: ClientConfig -> Config -> Client a -> IO a
 run cconf@ClientConfig{..} conf client = do
     (ctx, mgr) <- setup cconf conf
-    let runClient = do
-            x <- client $ \req processRequest -> do
-                strm <- sendRequest ctx mgr scheme authority req
-                rsp <- getResponse strm
-                let serverMaxStreams = maxConcurrentStreams <$> readIORef (peerSettings ctx)
-                    possibleClientStream = do
-                        mx <- serverMaxStreams
-                        case mx of
-                            Nothing -> return Nothing
-                            Just x -> do
-                                n <- oddConc <$> readTVarIO (oddStreamTable ctx)
-                                return $ Just (x - n)
-                    aux =
-                        Aux
-                            { auxPossibleClientStreams = possibleClientStream
-                            , auxServerMaxStreams = serverMaxStreams
-                            }
-                processRequest rsp aux
-            waitCounter0 mgr
-            let frame = goawayFrame 0 NoError "graceful closing"
-            mvar <- newMVar ()
-            enqueueControl (controlQ ctx) $ CGoaway frame mvar
-            takeMVar mvar
-            return x
-    runH2 conf ctx mgr runClient
+    runH2 conf ctx mgr $ runClient ctx mgr
+  where
+    serverMaxStreams ctx = maxConcurrentStreams <$> readIORef (peerSettings ctx)
+    possibleClientStream ctx = do
+        mx <- serverMaxStreams ctx
+        case mx of
+            Nothing -> return Nothing
+            Just x -> do
+                n <- oddConc <$> readTVarIO (oddStreamTable ctx)
+                return $ Just (x - n)
+    aux ctx =
+        Aux
+            { auxPossibleClientStreams = possibleClientStream ctx
+            , auxServerMaxStreams = serverMaxStreams ctx
+            }
+    clientCore ctx mgr req processResponse = do
+        strm <- sendRequest ctx mgr scheme authority req
+        rsp <- getResponse strm
+        processResponse rsp
+    runClient ctx mgr = do
+        x <- client (clientCore ctx mgr) $ aux ctx
+        waitCounter0 mgr
+        let frame = goawayFrame 0 NoError "graceful closing"
+        mvar <- newMVar ()
+        enqueueControl (controlQ ctx) $ CGoaway frame mvar
+        takeMVar mvar
+        return x
 
 -- | Launching a receiver and a sender.
 runIO :: ClientConfig -> Config -> (ClientIO -> IO (IO a)) -> IO a

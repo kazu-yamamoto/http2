@@ -70,10 +70,10 @@ spec = do
                 threadDelay 10000
                 let maxConcurrentStreams = 64
 
-                resultVars <- runClient "http" "localhost" $ \sendReq -> do
+                resultVars <- runClient "http" "localhost" $ \sendReq aux -> do
                     for [1 .. (maxConcurrentStreams + 1) :: Int] $ \_ -> do
                         resultVar <- newEmptyMVar
-                        concurrentClient resultVar sendReq
+                        concurrentClient resultVar sendReq aux
                         pure resultVar
 
                 let acceptedRequestVars = take maxConcurrentStreams resultVars
@@ -126,17 +126,17 @@ runClient sc au client = runTCPClient host port $ runHTTP2Client
             )
 
 defaultClient :: RequestHeaders -> Client ()
-defaultClient hd sendRequest = do
+defaultClient hd sendRequest _aux = do
     let req = requestNoBody methodGet "/" hd
-    sendRequest req $ \rsp _ -> do
+    sendRequest req $ \rsp -> do
         responseStatus rsp `shouldBe` Just ok200
         fmap statusMessage (responseStatus rsp) `shouldBe` Just "OK"
 
 concurrentClient :: MVar (Either HTTP2Error ()) -> Client ()
-concurrentClient resultVar sendRequest = do
+concurrentClient resultVar sendRequest _aux = do
     let req = requestNoBody methodGet "/" []
     void $ forkIO $ do
-        result <- E.try $ sendRequest req $ \_rsp _ -> return ()
+        result <- E.try $ sendRequest req $ \_rsp -> return ()
         putMVar resultVar result
     threadDelay 10000
 

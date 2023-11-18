@@ -7,7 +7,7 @@ import Network.HTTP2.H2
 ----------------------------------------------------------------
 
 -- | Client type.
-type Client a = (forall b. Request -> (Response -> Aux -> IO b) -> IO b) -> IO a
+type Client a = (forall b. Request -> (Response -> IO b) -> IO b) -> Aux -> IO a
 
 -- | Request from client.
 newtype Request = Request OutObj deriving (Show)
