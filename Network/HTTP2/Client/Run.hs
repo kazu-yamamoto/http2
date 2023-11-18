@@ -57,8 +57,8 @@ run cconf@ClientConfig{..} conf client = do
     serverMaxStreams ctx = do
         mx <- maxConcurrentStreams <$> readIORef (peerSettings ctx)
         case mx of
-          Nothing -> return maxBound
-          Just x  -> return x
+            Nothing -> return maxBound
+            Just x -> return x
     possibleClientStream ctx = do
         x <- serverMaxStreams ctx
         n <- oddConc <$> readTVarIO (oddStreamTable ctx)
