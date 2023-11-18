@@ -54,14 +54,15 @@ run cconf@ClientConfig{..} conf client = do
     (ctx, mgr) <- setup cconf conf
     runH2 conf ctx mgr $ runClient ctx mgr
   where
-    serverMaxStreams ctx = maxConcurrentStreams <$> readIORef (peerSettings ctx)
-    possibleClientStream ctx = do
-        mx <- serverMaxStreams ctx
+    serverMaxStreams ctx = do
+        mx <- maxConcurrentStreams <$> readIORef (peerSettings ctx)
         case mx of
-            Nothing -> return Nothing
-            Just x -> do
-                n <- oddConc <$> readTVarIO (oddStreamTable ctx)
-                return $ Just (x - n)
+          Nothing -> return maxBound
+          Just x  -> return x
+    possibleClientStream ctx = do
+        x <- serverMaxStreams ctx
+        n <- oddConc <$> readTVarIO (oddStreamTable ctx)
+        return (x - n)
     aux ctx =
         Aux
             { auxPossibleClientStreams = possibleClientStream ctx

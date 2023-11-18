@@ -17,10 +17,10 @@ newtype Response = Response InpObj deriving (Show)
 
 -- | Additional information.
 data Aux = Aux
-    { auxPossibleClientStreams :: IO (Maybe Int)
+    { auxPossibleClientStreams :: IO Int
     -- ^ How many streams can be created without blocking.
-    -- 'Nothing' means infinity.
-    , auxServerMaxStreams :: IO (Maybe Int)
+    , auxServerMaxStreams :: IO Int
     -- ^ Getting server's SETTINGS_MAX_CONCURRENT_STREAMS.
-    --  'Nothing' means no limit.
+    --   If the server does not inform it,
+    --   'concurrentStreams' is used.
     }
