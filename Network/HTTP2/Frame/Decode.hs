@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -88,7 +89,7 @@ checkFrameHeader
     :: Settings
     -> (FrameType, FrameHeader)
     -> Either FrameDecodeError (FrameType, FrameHeader)
-checkFrameHeader Settings{..} typfrm@(typ, FrameHeader{..})
+checkFrameHeader Settings{maxFrameSize, enablePush} typfrm@(typ, FrameHeader{..})
     | payloadLength > maxFrameSize =
         Left $ FrameDecodeError FrameSizeError streamId "exceeds maximum frame size"
     | typ `elem` nonZeroFrameTypes && isControl streamId =
