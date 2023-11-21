@@ -14,15 +14,6 @@ import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
 
--- max: 2,147,483,647 (2^31-1) is too large.
--- def:        65,535 (2^16-1) it too small.
---          1,048,575 (2^20-1)
-properWindowSize :: WindowSize
-properWindowSize = 1048575
-
-properConcurrentStreams :: Int
-properConcurrentStreams = 64
-
 ----------------------------------------------------------------
 
 pendingMySettings :: Context -> IO [ByteString]

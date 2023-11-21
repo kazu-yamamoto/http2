@@ -7,6 +7,7 @@ module Network.HTTP2.Server.Run where
 import Control.Concurrent.STM
 import Control.Exception
 import Imports
+import Network.Control (defaultMaxStreamData, defaultMaxStreams)
 import Network.Socket (SockAddr)
 import UnliftIO.Async (concurrently_)
 
@@ -29,13 +30,13 @@ data ServerConfig = ServerConfig
 -- | The default server config.
 --
 -- >>> defaultServerConfig
--- ServerConfig {numberOfWorkers = 8, concurrentStreams = 64, windowSize = 1048575}
+-- ServerConfig {numberOfWorkers = 8, concurrentStreams = 64, windowSize = 262144}
 defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
         { numberOfWorkers = 8
-        , concurrentStreams = properConcurrentStreams
-        , windowSize = properWindowSize
+        , concurrentStreams = defaultMaxStreams
+        , windowSize = defaultMaxStreamData
         }
 
 ----------------------------------------------------------------
@@ -49,7 +50,7 @@ run sconf@ServerConfig{numberOfWorkers} conf server = do
         let wc = fromContext ctx
         setAction mgr $ worker wc mgr server
         replicateM_ numberOfWorkers $ spawnAction mgr
-        runArch conf ctx mgr
+        runH2 conf ctx mgr
 
 ----------------------------------------------------------------
 
@@ -81,7 +82,7 @@ runIO sconf conf@Config{..} action = do
                 enqueueOutput outputQ out
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
         io <- action $ ServerIO confMySockAddr confPeerSockAddr get putR putB
-        concurrently_ io $ runArch conf ctx mgr
+        concurrently_ io $ runH2 conf ctx mgr
 
 checkPreface :: Config -> IO Bool
 checkPreface conf@Config{..} = do
@@ -106,8 +107,8 @@ setup ServerConfig{..} conf@Config{..} = do
     mgr <- start confTimeoutManager
     return (ctx, mgr)
 
-runArch :: Config -> Context -> Manager -> IO ()
-runArch conf ctx mgr = do
+runH2 :: Config -> Context -> Manager -> IO ()
+runH2 conf ctx mgr = do
     let runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf mgr
         runBackgroundThreads = concurrently_ runReceiver runSender

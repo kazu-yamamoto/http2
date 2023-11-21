@@ -9,6 +9,7 @@ import Control.Concurrent.STM (check)
 import Control.Exception
 import Data.ByteString.Builder (Builder)
 import Data.IORef
+import Network.Control (defaultMaxStreamData, defaultMaxStreams)
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
@@ -37,15 +38,15 @@ data ClientConfig = ClientConfig
 -- | The default client config.
 --
 -- >>> defaultClientConfig
--- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, concurrentStreams = 64, windowSize = 1048575}
+-- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, concurrentStreams = 64, windowSize = 262144}
 defaultClientConfig :: ClientConfig
 defaultClientConfig =
     ClientConfig
         { scheme = "http"
         , authority = "localhost"
         , cacheLimit = 64
-        , concurrentStreams = properConcurrentStreams
-        , windowSize = properWindowSize
+        , concurrentStreams = defaultMaxStreams
+        , windowSize = defaultMaxStreamData
         }
 
 -- | Running HTTP/2 client.
