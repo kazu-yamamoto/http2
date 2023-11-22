@@ -210,9 +210,10 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
         writeTQueue outputQ $ Output newstrm req OObj (Just tbq) (return ())
 
 exchangeSettings :: Context -> IO ()
-exchangeSettings ctx@Context{..} = do
-    frames <- pendingMySettings ctx
-    let setframe = CFrames Nothing (connectionPreface : frames)
+exchangeSettings Context{..} = do
+    let frames = makeNegotiationFrames mySettings rxInitialWindow -- XXX conn window
+        setframe = CFrames Nothing (connectionPreface : frames)
+    writeIORef myFirstSettings True
     enqueueControl controlQ setframe
 
 data ClientIO = ClientIO

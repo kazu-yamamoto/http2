@@ -78,7 +78,7 @@ module Network.HTTP2.Frame (
         SettingsMaxConcurrentStreams,
         SettingsInitialWindowSize,
         SettingsMaxFrameSize,
-        SettingsMaxHeaderBlockSize
+        SettingsMaxHeaderListSize
     ),
     SettingsValue,
     fromSettingsKey,

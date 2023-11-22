@@ -15,6 +15,7 @@ import UnliftIO.STM
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
+import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
@@ -55,10 +56,8 @@ data Context = Context
     { role :: Role
     , roleInfo :: RoleInfo
     , -- Settings
-      mySettingAlist :: SettingsList -- to be myPendingAlist
+      mySettings :: Settings
     , myFirstSettings :: IORef Bool
-    , myPendingAlist :: IORef (Maybe SettingsList) -- to be mySettings
-    , mySettings :: IORef Settings
     , peerSettings :: IORef Settings
     , oddStreamTable :: TVar OddStreamTable
     , evenStreamTable :: TVar EvenStreamTable
@@ -97,15 +96,10 @@ newContext
     -> Int
     -> WindowSize
     -> IO Context
-newContext rinfo conf@Config{..} cacheSiz maxConc rxws =
-    Context rl rinfo settingAlist
+newContext rinfo Config{..} cacheSiz maxConc rxws =
+    Context rl rinfo initialSettings
         <$> newIORef False
-        <*> newIORef Nothing
-        -- The spec defines max concurrency is infinite unless
-        -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
-        -- But it is vulnerable, so we set the limitations.
-        <*> newIORef defaultSettings{maxConcurrentStreams = Just maxConc}
-        <*> newIORef defaultSettings{maxConcurrentStreams = Just maxConc}
+        <*> newIORef initialSettings
         <*> newTVarIO emptyOddStreamTable
         <*> newTVarIO (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing
@@ -138,7 +132,15 @@ newContext rinfo conf@Config{..} cacheSiz maxConc rxws =
     buflim
         | confBufferSize >= dlim = dlim
         | otherwise = confBufferSize
-    settingAlist = makeMySettingsList conf maxConc rxws
+    -- My: Use this even if ack has not been received yet.
+    -- Peer: The spec defines max concurrency is infinite unless
+    -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
+    -- But it is vulnerable, so we set the limitations.
+    initialSettings =
+        defaultSettings
+            { maxConcurrentStreams = Just maxConc
+            , initialWindowSize = rxws
+            }
 
 makeMySettingsList :: Config -> Int -> WindowSize -> [(SettingsKey, Int)]
 makeMySettingsList Config{..} maxConc winSiz = myInitialAlist
@@ -245,9 +247,9 @@ openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings, rxIn
     insertEvenCache evenStreamTable method path newstrm
 
 checkMyConcurrency
-    :: StreamId -> IORef Settings -> Int -> IO ()
+    :: StreamId -> Settings -> Int -> IO ()
 checkMyConcurrency sid settings conc = do
-    mMaxConc <- maxConcurrentStreams <$> readIORef settings
+    let mMaxConc = maxConcurrentStreams settings
     case mMaxConc of
         Nothing -> return ()
         Just maxConc ->

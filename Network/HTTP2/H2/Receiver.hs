@@ -120,8 +120,8 @@ processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     case checkFrameHeader typhdr of
         Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
         Right _ -> do
-            Settings{maxFrameSize, enablePush} <- readIORef mySettings
-            let sid = streamId header
+            let Settings{maxFrameSize, enablePush} = mySettings
+                sid = streamId header
             when (payloadLength header > maxFrameSize) $
                 E.throwIO $
                     ConnectionErrorIsSent FrameSizeError sid "exceeds maximum frame size"
@@ -296,7 +296,7 @@ getOddStream ctx ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> IO ()
-control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirstSettings, myPendingAlist, mySettings, controlQ, settingsRate} = do
+control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSettings, controlQ, settingsRate, mySettings, rxInitialWindow} = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     if testAck flags
@@ -304,14 +304,6 @@ control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirst
             when (peerAlist /= []) $
                 E.throwIO $
                     ConnectionErrorIsSent FrameSizeError streamId "ack settings has a body"
-            mAlist <- readIORef myPendingAlist
-            case mAlist of
-                Nothing -> return () -- fixme
-                Just myAlist -> do
-                    -- My SETTINGS_INITIAL_WINDOW_SIZE is stored here.
-                    -- But we use rxInitialWindow even not acked.
-                    modifyIORef' mySettings $ \old -> updateSettings old myAlist
-                    writeIORef myPendingAlist Nothing
         else do
             -- Settings Flood - CVE-2019-9515
             rate <- getRate settingsRate
@@ -326,8 +318,9 @@ control FrameSettings header@FrameHeader{flags, streamId} bs ctx@Context{myFirst
                     enqueueControl controlQ setframe
                 else do
                     -- Server side only
-                    frames <- pendingMySettings ctx
-                    let setframe = CFrames (Just peerAlist) (frames ++ [ack])
+                    let frames = makeNegotiationFrames mySettings rxInitialWindow -- XXX conn window
+                        setframe = CFrames (Just peerAlist) (frames ++ [ack])
+                    writeIORef myFirstSettings True
                     enqueueControl controlQ setframe
 control FramePing FrameHeader{flags, streamId} bs Context{controlQ, pingRate} =
     unless (testAck flags) $ do

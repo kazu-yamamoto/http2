@@ -129,8 +129,8 @@ pattern SettingsInitialWindowSize     = SettingsKey 4
 pattern SettingsMaxFrameSize         :: SettingsKey
 pattern SettingsMaxFrameSize          = SettingsKey 5 -- this means payload size
 
-pattern SettingsMaxHeaderBlockSize   :: SettingsKey
-pattern SettingsMaxHeaderBlockSize    = SettingsKey 6
+pattern SettingsMaxHeaderListSize    :: SettingsKey
+pattern SettingsMaxHeaderListSize     = SettingsKey 6
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -140,7 +140,7 @@ instance Show SettingsKey where
     show SettingsMaxConcurrentStreams = "SettingsMaxConcurrentStreams"
     show SettingsInitialWindowSize    = "SettingsInitialWindowSize"
     show SettingsMaxFrameSize         = "SettingsMaxFrameSize"
-    show SettingsMaxHeaderBlockSize   = "SettingsMaxHeaderBlockSize"
+    show SettingsMaxHeaderListSize    = "SettingsMaxHeaderListSize"
     show (SettingsKey x)              = "SettingsKey " ++ show x
 {- FOURMOLU_ENABLE -}
 
@@ -155,7 +155,7 @@ instance Read SettingsKey where
         readSK "SettingsMaxConcurrentStreams" = return SettingsMaxConcurrentStreams
         readSK "SettingsInitialWindowSize" = return SettingsInitialWindowSize
         readSK "SettingsMaxFrameSize" = return SettingsMaxFrameSize
-        readSK "SettingsMaxHeaderBlockSize" = return SettingsMaxHeaderBlockSize
+        readSK "SettingsMaxHeaderListSize" = return SettingsMaxHeaderListSize
         readSK "SettingsKey" = do
             Number ftyp <- lexP
             return $ SettingsKey $ fromIntegral $ fromJust $ L.numberToInteger ftyp
