@@ -117,10 +117,18 @@ processFrame Context{..} Config{..} (ftyp, FrameHeader{payloadLength, streamId})
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     -- My SETTINGS_MAX_FRAME_SIZE
     -- My SETTINGS_ENABLE_PUSH
-    settings <- readIORef mySettings
-    case checkFrameHeader settings typhdr of
+    case checkFrameHeader typhdr of
         Left (FrameDecodeError ec sid msg) -> E.throwIO $ ConnectionErrorIsSent ec sid msg
-        Right _ -> controlOrStream ctx conf ftyp header
+        Right _ -> do
+            Settings{maxFrameSize, enablePush} <- readIORef mySettings
+            let sid = streamId header
+            when (payloadLength header > maxFrameSize) $
+                E.throwIO $
+                    ConnectionErrorIsSent FrameSizeError sid "exceeds maximum frame size"
+            when (not enablePush && ftyp == FramePushPromise) $
+                E.throwIO $
+                    ConnectionErrorIsSent ProtocolError sid "push not enabled"
+            controlOrStream ctx conf ftyp header
 
 ----------------------------------------------------------------
 

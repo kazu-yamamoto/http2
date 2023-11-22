@@ -49,7 +49,7 @@ wireToCase CaseWire{wire_error = Nothing, ..} =
         }
   where
     -- fromJust is unsafe
-    frm = case decodeFrame defaultSettings $ B16.decodeLenient wire_hex of
+    frm = case decodeFrame $ B16.decodeLenient wire_hex of
         Left e -> error $ show e
         Right r -> r
 wireToCase CaseWire{wire_error = Just e, ..} =

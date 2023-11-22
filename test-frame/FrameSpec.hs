@@ -29,7 +29,7 @@ check file = do
         Left _ -> putStrLn $ "JSON error: " ++ file
         Right tc -> do
             let bin = B16.decodeLenient $ wire tc
-                erc = decodeFrame defaultSettings bin
+                erc = decodeFrame bin
             case erc of
                 Left fderr -> case err tc of
                     Nothing -> do

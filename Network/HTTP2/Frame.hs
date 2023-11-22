@@ -84,11 +84,6 @@ module Network.HTTP2.Frame (
     fromSettingsKey,
     toSettingsKey,
 
-    -- * Settings
-    Settings (..),
-    defaultSettings,
-    updateSettings,
-
     -- * Payload length
     defaultPayloadLength,
     maxPayloadLength,
