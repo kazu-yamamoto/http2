@@ -77,8 +77,6 @@ data Context = Context
     , -- the connection window for sending data
       txFlow :: TVar TxFlow
     , rxFlow :: IORef RxFlow
-    , -- This exists in mySettingAlist but lookup should be avoided.
-      rxInitialWindow :: WindowSize
     , pingRate :: Rate
     , settingsRate :: Rate
     , emptyFrameRate :: Rate
@@ -94,12 +92,16 @@ newContext
     -> Config
     -> Int
     -> Int
-    -> WindowSize
+    -> Settings
     -> IO Context
-newContext rinfo Config{..} cacheSiz maxConc rxws =
-    Context rl rinfo initialSettings
+newContext rinfo Config{..} cacheSiz connRxWS settings =
+    -- My: Use this even if ack has not been received yet.
+    Context rl rinfo settings
         <$> newIORef False
-        <*> newIORef initialSettings
+        -- Peer: The spec defines max concurrency is infinite unless
+        -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
+        -- But it is vulnerable, so we set the limitations.
+        <*> newIORef settings
         <*> newTVarIO emptyOddStreamTable
         <*> newTVarIO (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing
@@ -111,10 +113,9 @@ newContext rinfo Config{..} cacheSiz maxConc rxws =
         <*> newTQueueIO
         -- My SETTINGS_HEADER_TABLE_SIZE
         <*> newDynamicTableForEncoding defaultDynamicTableSize
-        <*> newDynamicTableForDecoding defaultDynamicTableSize 4096
-        <*> newTVarIO (newTxFlow defaultWindowSize)
-        <*> newIORef (newRxFlow rxws)
-        <*> return rxws
+        <*> newDynamicTableForDecoding (headerTableSize settings) 4096
+        <*> newTVarIO (newTxFlow defaultWindowSize) -- 64K
+        <*> newIORef (newRxFlow connRxWS)
         <*> newRate
         <*> newRate
         <*> newRate
@@ -132,15 +133,6 @@ newContext rinfo Config{..} cacheSiz maxConc rxws =
     buflim
         | confBufferSize >= dlim = dlim
         | otherwise = confBufferSize
-    -- My: Use this even if ack has not been received yet.
-    -- Peer: The spec defines max concurrency is infinite unless
-    -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
-    -- But it is vulnerable, so we set the limitations.
-    initialSettings =
-        defaultSettings
-            { maxConcurrentStreams = Just maxConc
-            , initialWindowSize = rxws
-            }
 
 makeMySettingsList :: Config -> Int -> WindowSize -> [(SettingsKey, Int)]
 makeMySettingsList Config{..} maxConc winSiz = myInitialAlist
@@ -225,25 +217,27 @@ closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc
 
 -- Server
 openOddStreamCheck :: Context -> StreamId -> FrameType -> IO Stream
-openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings, rxInitialWindow} sid ftyp = do
+openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings} sid ftyp = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (ftyp == FrameHeaders) $ do
         conc <- getOddConcurrency oddStreamTable
         checkMyConcurrency sid mySettings (conc + 1)
     txws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newOddStream sid txws rxInitialWindow
+    let rxws = initialWindowSize mySettings
+    newstrm <- newOddStream sid txws rxws
     when (ftyp == FrameHeaders || ftyp == FramePushPromise) $ opened ctx newstrm
     insertOdd oddStreamTable sid newstrm
     return newstrm
 
 -- Client
 openEvenStreamCacheCheck :: Context -> StreamId -> Method -> ByteString -> IO ()
-openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings, rxInitialWindow} sid method path = do
+openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings} sid method path = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     conc <- getEvenConcurrency evenStreamTable
     checkMyConcurrency sid mySettings (conc + 1)
     txws <- initialWindowSize <$> readIORef peerSettings
-    newstrm <- newEvenStream sid txws rxInitialWindow
+    let rxws = initialWindowSize mySettings
+    newstrm <- newEvenStream sid txws rxws
     insertEvenCache evenStreamTable method path newstrm
 
 checkMyConcurrency
@@ -262,14 +256,15 @@ checkMyConcurrency sid settings conc = do
 
 -- Clinet
 openOddStreamWait :: Context -> IO (StreamId, Stream)
-openOddStreamWait ctx@Context{oddStreamTable, peerSettings, rxInitialWindow} = do
+openOddStreamWait ctx@Context{oddStreamTable, mySettings, peerSettings} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
+    let rxws = initialWindowSize mySettings
     case mMaxConc of
         Nothing -> do
             sid <- atomically $ getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newOddStream sid txws rxInitialWindow
+            newstrm <- newOddStream sid txws rxws
             insertOdd oddStreamTable sid newstrm
             return (sid, newstrm)
         Just maxConc -> do
@@ -277,7 +272,7 @@ openOddStreamWait ctx@Context{oddStreamTable, peerSettings, rxInitialWindow} = d
                 waitIncOdd oddStreamTable maxConc
                 getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newOddStream sid txws rxInitialWindow
+            newstrm <- newOddStream sid txws rxws
             insertOdd' oddStreamTable sid newstrm
             return (sid, newstrm)
 
@@ -286,11 +281,12 @@ openEvenStreamWait :: Context -> IO (StreamId, Stream)
 openEvenStreamWait ctx@Context{..} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
+    let rxws = initialWindowSize mySettings
     case mMaxConc of
         Nothing -> do
             sid <- atomically $ getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newEvenStream sid txws rxInitialWindow
+            newstrm <- newEvenStream sid txws rxws
             insertEven evenStreamTable sid newstrm
             return (sid, newstrm)
         Just maxConc -> do
@@ -298,6 +294,6 @@ openEvenStreamWait ctx@Context{..} = do
                 waitIncEven evenStreamTable maxConc
                 getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newEvenStream sid txws rxInitialWindow
+            newstrm <- newEvenStream sid txws rxws
             insertEven' evenStreamTable sid newstrm
             return (sid, newstrm)

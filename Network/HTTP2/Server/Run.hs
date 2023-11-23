@@ -7,7 +7,7 @@ module Network.HTTP2.Server.Run where
 import Control.Concurrent.STM
 import Control.Exception
 import Imports
-import Network.Control (defaultMaxStreamData, defaultMaxStreams)
+import Network.Control (defaultMaxData)
 import Network.Socket (SockAddr)
 import UnliftIO.Async (concurrently_)
 
@@ -20,10 +20,10 @@ import Network.HTTP2.Server.Worker
 data ServerConfig = ServerConfig
     { numberOfWorkers :: Int
     -- ^ The number of workers
-    , concurrentStreams :: Int
-    -- ^ The maximum number of incoming streams on the net
-    , windowSize :: WindowSize
+    , connectionWindowSize :: WindowSize
     -- ^ The window size of incoming streams
+    , settings :: Settings
+    -- ^ Settings
     }
     deriving (Eq, Show)
 
@@ -35,8 +35,8 @@ defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
         { numberOfWorkers = 8
-        , concurrentStreams = defaultMaxStreams
-        , windowSize = defaultMaxStreamData
+        , connectionWindowSize = defaultMaxData
+        , settings = defaultSettings
         }
 
 ----------------------------------------------------------------
@@ -101,8 +101,8 @@ setup ServerConfig{..} conf@Config{..} = do
             serverInfo
             conf
             0
-            concurrentStreams
-            windowSize
+            connectionWindowSize
+            settings
     -- Workers, worker manager and timer manager
     mgr <- start confTimeoutManager
     return (ctx, mgr)

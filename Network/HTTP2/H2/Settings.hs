@@ -3,6 +3,8 @@
 
 module Network.HTTP2.H2.Settings where
 
+import Network.Control
+
 import Imports
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.EncodeFrame
@@ -18,14 +20,14 @@ data Settings = Settings
     , maxFrameSize :: Int
     , maxHeaderListSize :: Maybe Int
     }
-    deriving (Show)
+    deriving (Eq, Show)
 
 -- | The default settings.
 --
--- >>> defaultSettings
+-- >>> baseSettings
 -- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing}
-defaultSettings :: Settings
-defaultSettings =
+baseSettings :: Settings
+baseSettings =
     Settings
         { headerTableSize = 4096 -- defaultDynamicTableSize
         , enablePush = True
@@ -35,12 +37,23 @@ defaultSettings =
         , maxHeaderListSize = Nothing
         }
 
+-- | The default settings.
+--
+-- >>> defaultSettings
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing}
+defaultSettings :: Settings
+defaultSettings =
+    baseSettings
+        { maxConcurrentStreams = Just defaultMaxStreams
+        , initialWindowSize = defaultMaxStreamData
+        }
+
 ----------------------------------------------------------------
 
 -- | Updating settings.
 --
--- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
--- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Just 200}
+-- >>> fromSettingsList defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderListSize,200)]
+-- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 200}
 {- FOURMOLU_DISABLE -}
 fromSettingsList :: Settings -> SettingsList -> Settings
 fromSettingsList settings kvs = foldl' update settings kvs

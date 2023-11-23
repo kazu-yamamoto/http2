@@ -33,8 +33,8 @@ module Network.HTTP2.Server (
     ServerConfig,
     defaultServerConfig,
     numberOfWorkers,
-    concurrentStreams,
-    windowSize,
+    connectionWindowSize,
+    settings,
 
     -- * Common configuration
     Config (..),

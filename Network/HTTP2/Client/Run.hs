@@ -9,7 +9,7 @@ import Control.Concurrent.STM (check)
 import Control.Exception
 import Data.ByteString.Builder (Builder)
 import Data.IORef
-import Network.Control (defaultMaxStreamData, defaultMaxStreams)
+import Network.Control (defaultMaxData, RxFlow(..))
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
@@ -27,11 +27,11 @@ data ClientConfig = ClientConfig
     , authority :: Authority
     -- ^ Server name
     , cacheLimit :: Int
-    -- ^ How many pushed responses are contained in the cache
-    , concurrentStreams :: Int
     -- ^ The maximum number of incoming streams on the net
-    , windowSize :: WindowSize
-    -- ^ The window size of incoming streams
+    , connectionWindowSize :: WindowSize
+    -- ^ The window size of connection.
+    , settings :: Settings
+    -- ^ Settings
     }
     deriving (Eq, Show)
 
@@ -45,8 +45,8 @@ defaultClientConfig =
         { scheme = "http"
         , authority = "localhost"
         , cacheLimit = 64
-        , concurrentStreams = defaultMaxStreams
-        , windowSize = defaultMaxStreamData
+        , connectionWindowSize = defaultMaxData
+        , settings = defaultSettings
         }
 
 -- | Running HTTP/2 client.
@@ -111,8 +111,8 @@ setup ClientConfig{..} conf@Config{..} = do
             clientInfo
             conf
             cacheLimit
-            concurrentStreams
-            windowSize
+            connectionWindowSize
+            settings
     mgr <- start confTimeoutManager
     exchangeSettings ctx
     return (ctx, mgr)
@@ -211,7 +211,8 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do
-    let frames = makeNegotiationFrames mySettings rxInitialWindow -- XXX conn window
+    connRxWS <- rxfWindow <$> readIORef rxFlow
+    let frames = makeNegotiationFrames mySettings connRxWS
         setframe = CFrames Nothing (connectionPreface : frames)
     writeIORef myFirstSettings True
     enqueueControl controlQ setframe

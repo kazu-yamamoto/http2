@@ -296,7 +296,7 @@ getOddStream ctx ftyp streamId Nothing
 type Payload = ByteString
 
 control :: FrameType -> FrameHeader -> Payload -> Context -> IO ()
-control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSettings, controlQ, settingsRate, mySettings, rxInitialWindow} = do
+control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSettings, controlQ, settingsRate, mySettings, rxFlow} = do
     SettingsFrame peerAlist <- guardIt $ decodeSettingsFrame header bs
     traverse_ E.throwIO $ checkSettingsList peerAlist
     if testAck flags
@@ -318,7 +318,8 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
                     enqueueControl controlQ setframe
                 else do
                     -- Server side only
-                    let frames = makeNegotiationFrames mySettings rxInitialWindow -- XXX conn window
+                    connRxWS <- rxfWindow <$> readIORef rxFlow
+                    let frames = makeNegotiationFrames mySettings connRxWS
                         setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     writeIORef myFirstSettings True
                     enqueueControl controlQ setframe

@@ -52,8 +52,8 @@ module Network.HTTP2.Client (
     scheme,
     authority,
     cacheLimit,
-    concurrentStreams,
-    windowSize,
+    connectionWindowSize,
+    settings,
 
     -- * Common configuration
     Config (..),
