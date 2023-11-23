@@ -15,7 +15,8 @@ import Control.Concurrent.MVar (putMVar)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.Builder.Extra as B
-import Data.IORef (readIORef, writeIORef)
+import Data.IORef (modifyIORef', readIORef, writeIORef)
+import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Network.ByteOrder
 import qualified UnliftIO.Exception as E
@@ -32,6 +33,7 @@ import Network.HTTP2.H2.Manager hiding (start)
 import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
+import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
 
@@ -59,6 +61,27 @@ wrapException :: E.SomeException -> IO ()
 wrapException se
     | Just (e :: HTTP2Error) <- E.fromException se = E.throwIO e
     | otherwise = E.throwIO $ BadThingHappen se
+
+-- Peer SETTINGS_INITIAL_WINDOW_SIZE
+-- Adjusting initial window size for streams
+updatePeerSettings :: Context -> SettingsList -> IO ()
+updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAlist = do
+    oldws <- initialWindowSize <$> readIORef peerSettings
+    modifyIORef' peerSettings $ \old -> fromSettingsList old peerAlist
+    newws <- initialWindowSize <$> readIORef peerSettings
+    -- FIXME: race condition
+    -- 1) newOddStream reads old peerSettings and
+    --    insert it to its stream table after adjusting.
+    -- 2) newOddStream reads new peerSettings and
+    --    insert it to its stream table before adjusting.
+    let dif = newws - oldws
+    when (dif /= 0) $ do
+        getOddStreams oddStreamTable >>= updateAllStreamTxFlow dif
+        getEvenStreams evenStreamTable >>= updateAllStreamTxFlow dif
+  where
+    updateAllStreamTxFlow :: WindowSize -> IntMap Stream -> IO ()
+    updateAllStreamTxFlow siz strms =
+        forM_ strms $ \strm -> increaseStreamWindowSize strm siz
 
 frameSender :: Context -> Config -> Manager -> IO ()
 frameSender

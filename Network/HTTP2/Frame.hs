@@ -78,16 +78,11 @@ module Network.HTTP2.Frame (
         SettingsMaxConcurrentStreams,
         SettingsInitialWindowSize,
         SettingsMaxFrameSize,
-        SettingsMaxHeaderBlockSize
+        SettingsMaxHeaderListSize
     ),
     SettingsValue,
     fromSettingsKey,
     toSettingsKey,
-
-    -- * Settings
-    Settings (..),
-    defaultSettings,
-    updateSettings,
 
     -- * Payload length
     defaultPayloadLength,

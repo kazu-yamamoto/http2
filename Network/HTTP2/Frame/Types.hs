@@ -129,8 +129,8 @@ pattern SettingsInitialWindowSize     = SettingsKey 4
 pattern SettingsMaxFrameSize         :: SettingsKey
 pattern SettingsMaxFrameSize          = SettingsKey 5 -- this means payload size
 
-pattern SettingsMaxHeaderBlockSize   :: SettingsKey
-pattern SettingsMaxHeaderBlockSize    = SettingsKey 6
+pattern SettingsMaxHeaderListSize    :: SettingsKey
+pattern SettingsMaxHeaderListSize     = SettingsKey 6
 {- FOURMOLU_ENABLE -}
 
 {- FOURMOLU_DISABLE -}
@@ -140,7 +140,7 @@ instance Show SettingsKey where
     show SettingsMaxConcurrentStreams = "SettingsMaxConcurrentStreams"
     show SettingsInitialWindowSize    = "SettingsInitialWindowSize"
     show SettingsMaxFrameSize         = "SettingsMaxFrameSize"
-    show SettingsMaxHeaderBlockSize   = "SettingsMaxHeaderBlockSize"
+    show SettingsMaxHeaderListSize    = "SettingsMaxHeaderListSize"
     show (SettingsKey x)              = "SettingsKey " ++ show x
 {- FOURMOLU_ENABLE -}
 
@@ -155,7 +155,7 @@ instance Read SettingsKey where
         readSK "SettingsMaxConcurrentStreams" = return SettingsMaxConcurrentStreams
         readSK "SettingsInitialWindowSize" = return SettingsInitialWindowSize
         readSK "SettingsMaxFrameSize" = return SettingsMaxFrameSize
-        readSK "SettingsMaxHeaderBlockSize" = return SettingsMaxHeaderBlockSize
+        readSK "SettingsMaxHeaderListSize" = return SettingsMaxHeaderListSize
         readSK "SettingsKey" = do
             Number ftyp <- lexP
             return $ SettingsKey $ fromIntegral $ fromJust $ L.numberToInteger ftyp
@@ -166,52 +166,6 @@ type SettingsValue = Int -- Word32
 
 -- | Association list of SETTINGS.
 type SettingsList = [(SettingsKey, SettingsValue)]
-
-----------------------------------------------------------------
-
--- | Cooked version of settings. This is suitable to be stored in a HTTP/2 context.
-data Settings = Settings
-    { headerTableSize :: Int
-    , enablePush :: Bool
-    , maxConcurrentStreams :: Maybe Int
-    , initialWindowSize :: WindowSize
-    , maxFrameSize :: Int
-    , maxHeaderListSize :: Maybe Int
-    }
-    deriving (Show)
-
--- | The default settings.
---
--- >>> defaultSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing}
-defaultSettings :: Settings
-defaultSettings =
-    Settings
-        { headerTableSize = 4096 -- defaultDynamicTableSize
-        , enablePush = True
-        , maxConcurrentStreams = Nothing
-        , initialWindowSize = defaultWindowSize
-        , maxFrameSize = defaultPayloadLength
-        , maxHeaderListSize = Nothing
-        }
-
--- | Updating settings.
---
--- >>> updateSettings defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderBlockSize,200)]
--- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Just 200}
-{- FOURMOLU_DISABLE -}
-updateSettings :: Settings -> SettingsList -> Settings
-updateSettings settings kvs = foldl' update settings kvs
-  where
-    update def (SettingsHeaderTableSize,x)      = def { headerTableSize = x }
-    -- fixme: x should be 0 or 1
-    update def (SettingsEnablePush,x)           = def { enablePush = x > 0 }
-    update def (SettingsMaxConcurrentStreams,x) = def { maxConcurrentStreams = Just x }
-    update def (SettingsInitialWindowSize,x)    = def { initialWindowSize = x }
-    update def (SettingsMaxFrameSize,x)         = def { maxFrameSize = x }
-    update def (SettingsMaxHeaderBlockSize,x)   = def { maxHeaderListSize = Just x }
-    update def _                                = def
-{- FOURMOLU_ENABLE -}
 
 -- | The default initial window size.
 --

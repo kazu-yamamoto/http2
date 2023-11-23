@@ -7,6 +7,7 @@ module Network.HTTP2.Server.Run where
 import Control.Concurrent.STM
 import Control.Exception
 import Imports
+import Network.Control (defaultMaxData)
 import Network.Socket (SockAddr)
 import UnliftIO.Async (concurrently_)
 
@@ -19,23 +20,23 @@ import Network.HTTP2.Server.Worker
 data ServerConfig = ServerConfig
     { numberOfWorkers :: Int
     -- ^ The number of workers
-    , concurrentStreams :: Int
-    -- ^ The maximum number of incoming streams on the net
-    , windowSize :: WindowSize
+    , connectionWindowSize :: WindowSize
     -- ^ The window size of incoming streams
+    , settings :: Settings
+    -- ^ Settings
     }
     deriving (Eq, Show)
 
 -- | The default server config.
 --
 -- >>> defaultServerConfig
--- ServerConfig {numberOfWorkers = 8, concurrentStreams = 64, windowSize = 1048575}
+-- ServerConfig {numberOfWorkers = 8, connectionWindowSize = 1048576, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing}}
 defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
         { numberOfWorkers = 8
-        , concurrentStreams = properConcurrentStreams
-        , windowSize = properWindowSize
+        , connectionWindowSize = defaultMaxData
+        , settings = defaultSettings
         }
 
 ----------------------------------------------------------------
@@ -49,7 +50,7 @@ run sconf@ServerConfig{numberOfWorkers} conf server = do
         let wc = fromContext ctx
         setAction mgr $ worker wc mgr server
         replicateM_ numberOfWorkers $ spawnAction mgr
-        runArch conf ctx mgr
+        runH2 conf ctx mgr
 
 ----------------------------------------------------------------
 
@@ -81,7 +82,7 @@ runIO sconf conf@Config{..} action = do
                 enqueueOutput outputQ out
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
         io <- action $ ServerIO confMySockAddr confPeerSockAddr get putR putB
-        concurrently_ io $ runArch conf ctx mgr
+        concurrently_ io $ runH2 conf ctx mgr
 
 checkPreface :: Config -> IO Bool
 checkPreface conf@Config{..} = do
@@ -100,14 +101,14 @@ setup ServerConfig{..} conf@Config{..} = do
             serverInfo
             conf
             0
-            concurrentStreams
-            windowSize
+            connectionWindowSize
+            settings
     -- Workers, worker manager and timer manager
     mgr <- start confTimeoutManager
     return (ctx, mgr)
 
-runArch :: Config -> Context -> Manager -> IO ()
-runArch conf ctx mgr = do
+runH2 :: Config -> Context -> Manager -> IO ()
+runH2 conf ctx mgr = do
     let runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf mgr
         runBackgroundThreads = concurrently_ runReceiver runSender

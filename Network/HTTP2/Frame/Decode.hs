@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -47,14 +48,12 @@ instance Exception FrameDecodeError
 -- So, this function is not useful for real applications
 -- but useful for testing.
 decodeFrame
-    :: Settings
-    -- ^ HTTP/2 settings
-    -> ByteString
+    :: ByteString
     -- ^ Input byte-stream
     -> Either FrameDecodeError Frame
     -- ^ Decoded frame
-decodeFrame settings bs =
-    checkFrameHeader settings (decodeFrameHeader bs0)
+decodeFrame bs =
+    checkFrameHeader (decodeFrameHeader bs0)
         >>= \(typ, header) ->
             decodeFramePayload typ header bs1
                 >>= \payload -> return $ Frame header payload
@@ -82,15 +81,12 @@ decodeFrameHeader (PS fptr off _) = unsafeDupablePerformIO $ withForeignPtr fptr
 
 -- | Checking a frame header and reporting an error if any.
 --
--- >>> checkFrameHeader defaultSettings (FrameData,(FrameHeader 100 0 0))
+-- >>> checkFrameHeader (FrameData,(FrameHeader 100 0 0))
 -- Left (FrameDecodeError ProtocolError 0 "cannot used in control stream")
 checkFrameHeader
-    :: Settings
-    -> (FrameType, FrameHeader)
+    :: (FrameType, FrameHeader)
     -> Either FrameDecodeError (FrameType, FrameHeader)
-checkFrameHeader Settings{..} typfrm@(typ, FrameHeader{..})
-    | payloadLength > maxFrameSize =
-        Left $ FrameDecodeError FrameSizeError streamId "exceeds maximum frame size"
+checkFrameHeader typfrm@(typ, FrameHeader{..})
     | typ `elem` nonZeroFrameTypes && isControl streamId =
         Left $ FrameDecodeError ProtocolError streamId "cannot used in control stream"
     | typ `elem` zeroFrameTypes && not (isControl streamId) =
@@ -141,8 +137,6 @@ checkFrameHeader Settings{..} typfrm@(typ, FrameHeader{..})
                     streamId
                     "payload length must be 0 if ack flag is set"
     checkType FramePushPromise
-        | not enablePush =
-            Left $ FrameDecodeError ProtocolError streamId "push not enabled" -- checkme
         | isServerInitiated streamId =
             Left $
                 FrameDecodeError

@@ -34,7 +34,7 @@ spec = do
                 wire = encodeFrame einfo payload
                 frame =
                     fromRight (error "encode/decodes frames properly") $
-                        decodeFrame defaultSettings wire
+                        decodeFrame wire
                 payload' = framePayload frame
             payload' `shouldBe` payload
         it "encode/decodes padded frames properly" $ do
@@ -48,6 +48,6 @@ spec = do
                 wire = encodeFrame einfo payload
                 frame =
                     fromRight (error "encode/decodes padded frames properly") $
-                        decodeFrame defaultSettings wire
+                        decodeFrame wire
                 payload' = framePayload frame
             payload' `shouldBe` payload

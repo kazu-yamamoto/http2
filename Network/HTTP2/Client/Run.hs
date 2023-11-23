@@ -9,6 +9,7 @@ import Control.Concurrent.STM (check)
 import Control.Exception
 import Data.ByteString.Builder (Builder)
 import Data.IORef
+import Network.Control (RxFlow (..), defaultMaxData)
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
@@ -26,26 +27,26 @@ data ClientConfig = ClientConfig
     , authority :: Authority
     -- ^ Server name
     , cacheLimit :: Int
-    -- ^ How many pushed responses are contained in the cache
-    , concurrentStreams :: Int
     -- ^ The maximum number of incoming streams on the net
-    , windowSize :: WindowSize
-    -- ^ The window size of incoming streams
+    , connectionWindowSize :: WindowSize
+    -- ^ The window size of connection.
+    , settings :: Settings
+    -- ^ Settings
     }
     deriving (Eq, Show)
 
 -- | The default client config.
 --
 -- >>> defaultClientConfig
--- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, concurrentStreams = 64, windowSize = 1048575}
+-- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, connectionWindowSize = 1048576, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing}}
 defaultClientConfig :: ClientConfig
 defaultClientConfig =
     ClientConfig
         { scheme = "http"
         , authority = "localhost"
         , cacheLimit = 64
-        , concurrentStreams = properConcurrentStreams
-        , windowSize = properWindowSize
+        , connectionWindowSize = defaultMaxData
+        , settings = defaultSettings
         }
 
 -- | Running HTTP/2 client.
@@ -110,8 +111,8 @@ setup ClientConfig{..} conf@Config{..} = do
             clientInfo
             conf
             cacheLimit
-            concurrentStreams
-            windowSize
+            connectionWindowSize
+            settings
     mgr <- start confTimeoutManager
     exchangeSettings ctx
     return (ctx, mgr)
@@ -209,9 +210,11 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
         writeTQueue outputQ $ Output newstrm req OObj (Just tbq) (return ())
 
 exchangeSettings :: Context -> IO ()
-exchangeSettings ctx@Context{..} = do
-    frames <- pendingMySettings ctx
-    let setframe = CFrames Nothing (connectionPreface : frames)
+exchangeSettings Context{..} = do
+    connRxWS <- rxfWindow <$> readIORef rxFlow
+    let frames = makeNegotiationFrames mySettings connRxWS
+        setframe = CFrames Nothing (connectionPreface : frames)
+    writeIORef myFirstSettings True
     enqueueControl controlQ setframe
 
 data ClientIO = ClientIO

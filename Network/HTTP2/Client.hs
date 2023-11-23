@@ -52,8 +52,18 @@ module Network.HTTP2.Client (
     scheme,
     authority,
     cacheLimit,
-    concurrentStreams,
-    windowSize,
+    connectionWindowSize,
+    settings,
+
+    -- * HTTP\/2 setting
+    Settings,
+    defaultSettings,
+    headerTableSize,
+    enablePush,
+    maxConcurrentStreams,
+    initialWindowSize,
+    maxFrameSize,
+    maxHeaderListSize,
 
     -- * Common configuration
     Config (..),

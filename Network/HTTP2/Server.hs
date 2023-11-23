@@ -33,8 +33,18 @@ module Network.HTTP2.Server (
     ServerConfig,
     defaultServerConfig,
     numberOfWorkers,
-    concurrentStreams,
-    windowSize,
+    connectionWindowSize,
+    settings,
+
+    -- * HTTP\/2 setting
+    Settings,
+    defaultSettings,
+    headerTableSize,
+    enablePush,
+    maxConcurrentStreams,
+    initialWindowSize,
+    maxFrameSize,
+    maxHeaderListSize,
 
     -- * Common configuration
     Config (..),
