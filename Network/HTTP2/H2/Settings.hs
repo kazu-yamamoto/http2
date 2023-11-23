@@ -14,11 +14,17 @@ import Network.HTTP2.H2.EncodeFrame
 -- | Cooked version of settings. This is suitable to be stored in a HTTP/2 context.
 data Settings = Settings
     { headerTableSize :: Int
+    -- ^ SETTINGS_HEADER_TABLE_SIZE
     , enablePush :: Bool
+    -- ^ SETTINGS_ENABLE_PUSH
     , maxConcurrentStreams :: Maybe Int
+    -- ^ SETTINGS_MAX_CONCURRENT_STREAMS
     , initialWindowSize :: WindowSize
+    -- ^ SETTINGS_INITIAL_WINDOW_SIZE
     , maxFrameSize :: Int
+    -- ^ SETTINGS_MAX_FRAME_SIZE
     , maxHeaderListSize :: Maybe Int
+    -- ^ SETTINGS_MAX_HEADER_LIST_SIZE
     }
     deriving (Eq, Show)
 

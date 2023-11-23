@@ -9,7 +9,7 @@ import Control.Concurrent.STM (check)
 import Control.Exception
 import Data.ByteString.Builder (Builder)
 import Data.IORef
-import Network.Control (defaultMaxData, RxFlow(..))
+import Network.Control (RxFlow (..), defaultMaxData)
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
@@ -38,7 +38,7 @@ data ClientConfig = ClientConfig
 -- | The default client config.
 --
 -- >>> defaultClientConfig
--- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, concurrentStreams = 64, windowSize = 262144}
+-- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, connectionWindowSize = 1048576, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing}}
 defaultClientConfig :: ClientConfig
 defaultClientConfig =
     ClientConfig

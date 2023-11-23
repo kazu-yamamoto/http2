@@ -55,6 +55,16 @@ module Network.HTTP2.Client (
     connectionWindowSize,
     settings,
 
+    -- * HTTP\/2 setting
+    Settings,
+    defaultSettings,
+    headerTableSize,
+    enablePush,
+    maxConcurrentStreams,
+    initialWindowSize,
+    maxFrameSize,
+    maxHeaderListSize,
+
     -- * Common configuration
     Config (..),
     allocSimpleConfig,

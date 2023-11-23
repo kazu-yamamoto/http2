@@ -68,15 +68,15 @@ spec = do
         it "respects max concurrent streams setting" $
             E.bracket (forkIO $ runServer irresponsiveServer) killThread $ \_ -> do
                 threadDelay 10000
-                let maxConcurrentStreams = 64
+                let maxConc = 64
 
                 resultVars <- runClient "http" "localhost" $ \sendReq aux -> do
-                    for [1 .. (maxConcurrentStreams + 1) :: Int] $ \_ -> do
+                    for [1 .. (maxConc + 1) :: Int] $ \_ -> do
                         resultVar <- newEmptyMVar
                         concurrentClient resultVar sendReq aux
                         pure resultVar
 
-                let acceptedRequestVars = take maxConcurrentStreams resultVars
+                let acceptedRequestVars = take maxConc resultVars
                 acceptedResults <- for acceptedRequestVars (timeout 1000000 . takeMVar)
                 for_ acceptedResults $ \case
                     Nothing -> expectationFailure "Exception was not raised"
@@ -84,7 +84,7 @@ spec = do
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
-                let waitingRequestVars = drop maxConcurrentStreams resultVars
+                let waitingRequestVars = drop maxConc resultVars
                 waitingResults <- for waitingRequestVars (timeout 1000000 . takeMVar)
                 for_ waitingResults $ \case
                     Nothing -> pure ()
