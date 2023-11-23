@@ -12,6 +12,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.Foldable (for_)
+import Data.Maybe
 import Data.Traversable (for)
 import Network.HTTP.Types
 import Network.Run.TCP
@@ -68,7 +69,7 @@ spec = do
         it "respects max concurrent streams setting" $
             E.bracket (forkIO $ runServer irresponsiveServer) killThread $ \_ -> do
                 threadDelay 10000
-                let maxConc = 64
+                let maxConc = fromJust $ maxConcurrentStreams defaultSettings
 
                 resultVars <- runClient "http" "localhost" $ \sendReq aux -> do
                     for [1 .. (maxConc + 1) :: Int] $ \_ -> do
