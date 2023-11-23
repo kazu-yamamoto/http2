@@ -137,7 +137,7 @@ toSettingsList s s0 =
 makeNegotiationFrames :: Settings -> WindowSize -> [ByteString]
 makeNegotiationFrames settings connWindowSize = frame1 : frames
   where
-    alist = toSettingsList settings defaultSettings
+    alist = toSettingsList settings baseSettings
     frame1 = settingsFrame id alist
     frames =
         if connWindowSize /= defaultWindowSize
