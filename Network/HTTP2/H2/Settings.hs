@@ -38,8 +38,8 @@ baseSettings =
         { headerTableSize = 4096 -- defaultDynamicTableSize
         , enablePush = True
         , maxConcurrentStreams = Nothing
-        , initialWindowSize = defaultWindowSize
-        , maxFrameSize = defaultPayloadLength
+        , initialWindowSize = defaultWindowSize -- 64K (65,535)
+        , maxFrameSize = defaultPayloadLength -- 2^14 (16,384)
         , maxHeaderListSize = Nothing
         }
 
