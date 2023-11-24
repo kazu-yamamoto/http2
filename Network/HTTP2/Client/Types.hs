@@ -22,5 +22,5 @@ data Aux = Aux
     , auxServerMaxStreams :: IO Int
     -- ^ Getting server's SETTINGS_MAX_CONCURRENT_STREAMS.
     --   If the server does not inform it,
-    --   'concurrentStreams' is used.
+    --   'maxBound' is used.
     }
