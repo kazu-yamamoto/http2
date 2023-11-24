@@ -6,6 +6,7 @@
 --  Example:
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
+-- > {-# LANGUAGE RankNTypes #-}
 -- >
 -- > module Main where
 -- >
@@ -27,6 +28,7 @@
 -- >     runHTTP2Client host s = E.bracket (allocSimpleConfig s 4096)
 -- >                                       freeSimpleConfig
 -- >                                       (\conf -> run (cliconf host) conf client)
+-- >     client :: Client ()
 -- >     client sendRequest _aux = do
 -- >         let req0 = requestNoBody methodGet "/" []
 -- >             client0 = sendRequest req0 $ \rsp -> do
