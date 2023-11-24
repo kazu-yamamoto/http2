@@ -104,7 +104,6 @@ module Network.HTTP2.Client (
     -- * Aux
     Aux,
     auxPossibleClientStreams,
-    auxServerMaxStreams,
 
     -- * Types
     Method,

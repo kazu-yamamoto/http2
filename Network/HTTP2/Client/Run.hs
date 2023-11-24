@@ -67,7 +67,6 @@ run cconf@ClientConfig{..} conf client = do
     aux ctx =
         Aux
             { auxPossibleClientStreams = possibleClientStream ctx
-            , auxServerMaxStreams = serverMaxStreams ctx
             }
     clientCore ctx mgr req processResponse = do
         strm <- sendRequest ctx mgr scheme authority req

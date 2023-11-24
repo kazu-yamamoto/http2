@@ -1,6 +1,9 @@
 module Network.HTTP2.Client.Internal (
     Request (..),
     Response (..),
+    ClientConfig (..),
+    Settings (..),
+    Aux (..),
 
     -- * Low level
     Stream,
