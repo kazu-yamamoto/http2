@@ -11,7 +11,7 @@ import Network.HTTP2.H2.EncodeFrame
 
 ----------------------------------------------------------------
 
--- | Cooked version of settings. This is suitable to be stored in a HTTP/2 context.
+-- | HTTP\/2 settings. See <https://datatracker.ietf.org/doc/html/rfc9113#name-defined-settings>.
 data Settings = Settings
     { headerTableSize :: Int
     -- ^ SETTINGS_HEADER_TABLE_SIZE
