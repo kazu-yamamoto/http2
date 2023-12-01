@@ -37,6 +37,18 @@ data ClientConfig = ClientConfig
 
 -- | The default client config.
 --
+-- The @authority@ field will be used to set the HTTP2 @:authority@
+-- pseudo-header. In most cases you will want to override it to be equal to
+-- @host@.
+--
+-- Further background on @authority@:
+-- [RFC 3986](https://datatracker.ietf.org/doc/html/rfc3986#section-3.2) also
+-- allows @host:port@, and most servers will accept this too. However, when
+-- using TLS, many servers will expect the TLS SNI server name and the
+-- @:authority@ pseudo-header to be equal, and for TLS SNI the server name
+-- should not include the port. Note that HTTP2 explicitly /disallows/ using
+-- @userinfo\@@ as part of the authority.
+--
 -- >>> defaultClientConfig
 -- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, connectionWindowSize = 1048576, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing}}
 defaultClientConfig :: ClientConfig
