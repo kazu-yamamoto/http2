@@ -1,3 +1,7 @@
+## 5.0.1
+
+* Allowing bytestring 0.12.
+
 ## 5.0.0
 
 * Using the network-control package.
