@@ -117,7 +117,7 @@ library
         base >=4.9 && <5,
         array >= 0.5 && < 0.6,
         async >= 2.2 && < 2.3,
-        bytestring >= 0.10 && < 0.12,
+        bytestring >= 0.10 && < 0.13,
         containers >= 0.6 && < 0.7,
         stm >= 2.5 && < 2.6,
         case-insensitive >= 1.2 && < 1.3,
