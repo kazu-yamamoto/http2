@@ -175,7 +175,20 @@ setPeerStreamID ctx sid = writeIORef (peerStreamId ctx) sid
 
 {-# INLINE setStreamState #-}
 setStreamState :: Context -> Stream -> StreamState -> IO ()
-setStreamState _ Stream{streamState} val = writeIORef streamState val
+setStreamState _ Stream{streamState} newState = do
+    oldState <- readIORef streamState
+    case (oldState, newState) of
+      (Open _ (Body q _ _ _), Open _ (Body q' _ _ _)) | q == q' ->
+        -- The stream stays open with the same body; nothing to do
+        return ()
+      (Open _ (Body q _ _ _), _) ->
+        -- The stream is either closed, or is open with a /new/ body
+        -- We need to close the old queue so that any reads from it won't block
+        atomically $ writeTQueue q $ Left $ toException ConnectionIsClosed
+      _otherwise ->
+        -- The stream wasn't open to start with; nothing to do
+        return ()
+    writeIORef streamState newState
 
 opened :: Context -> Stream -> IO ()
 opened ctx strm = setStreamState ctx strm (Open Nothing JustOpened)
