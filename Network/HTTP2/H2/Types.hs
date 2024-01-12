@@ -28,7 +28,7 @@ import Network.HTTP2.H2.File
 type Scheme = ByteString
 
 -- | Authority.
-type Authority = ByteString
+type Authority = String
 
 -- | Path.
 type Path = ByteString

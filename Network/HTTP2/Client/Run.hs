@@ -14,11 +14,13 @@ import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
 import UnliftIO.STM
+import qualified Data.ByteString.UTF8 as UTF8
 
 import Imports
 import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
+import Network.HTTP.Types (Header)
 
 -- | Client configuration
 data ClientConfig = ClientConfig
@@ -172,11 +174,12 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
             -- Otherwise, it would be re-enqueue because of empty
             -- resulting in out-of-order.
             -- To implement this, 'tbqNonEmpty' is used.
-            let hdr1
+            let hdr1, hdr2 :: [Header]
+                hdr1
                     | scheme /= "" = (":scheme", scheme) : hdr0
                     | otherwise = hdr0
                 hdr2
-                    | auth /= "" = (":authority", auth) : hdr1
+                    | auth /= "" = (":authority", UTF8.fromString auth) : hdr1
                     | otherwise = hdr1
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit

@@ -8,9 +8,7 @@ module HTTP2.ClientSpec where
 import Control.Concurrent
 import qualified Control.Exception as E
 import Control.Monad
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString)
-import qualified Data.ByteString.Char8 as C8
 import Data.Foldable (for_)
 import Data.Maybe
 import Data.Traversable (for)
@@ -32,16 +30,13 @@ port = show $ unsafePerformIO (randomPort <$> getStdGen)
 host :: String
 host = "127.0.0.1"
 
-host' :: ByteString
-host' = C8.pack host
-
 spec :: Spec
 spec = do
     describe "client" $ do
         it "receives an error if scheme is missing" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient "" host' (defaultClient []) `shouldThrow` connectionError
+                runClient "" host (defaultClient []) `shouldThrow` connectionError
 
         it "receives an error if authority is missing" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
@@ -51,7 +46,7 @@ spec = do
         it "receives an error if authority and host are different" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient "http" host' (defaultClient [("Host", "foo")])
+                runClient "http" host (defaultClient [("Host", "foo")])
                     `shouldThrow` connectionError
 
         it "does not deadlock (in concurrent setting)" $

@@ -15,6 +15,7 @@ import Network.Control
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
+import qualified Data.ByteString.UTF8 as UTF8
 
 import Imports hiding (delete, insert)
 import Network.HPACK
@@ -365,7 +366,7 @@ push header@FrameHeader{streamId} bs ctx = do
     (_, vt) <- hpackDecodeHeader frag streamId ctx
     let ClientInfo{..} = toClientInfo $ roleInfo ctx
     when
-        ( getHeaderValue tokenAuthority vt == Just authority
+        ( getHeaderValue tokenAuthority vt == Just (UTF8.fromString authority)
             && getHeaderValue tokenScheme vt == Just scheme
         )
         $ do

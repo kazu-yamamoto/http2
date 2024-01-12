@@ -32,7 +32,7 @@ data ServerInfo = ServerInfo
 
 data ClientInfo = ClientInfo
     { scheme :: ByteString
-    , authority :: ByteString
+    , authority :: Authority
     }
 
 toServerInfo :: RoleInfo -> ServerInfo
@@ -46,7 +46,7 @@ toClientInfo _ = error "toClientInfo"
 newServerInfo :: IO RoleInfo
 newServerInfo = RIS . ServerInfo <$> newTQueueIO
 
-newClientInfo :: ByteString -> ByteString -> RoleInfo
+newClientInfo :: ByteString -> Authority -> RoleInfo
 newClientInfo scm auth = RIC $ ClientInfo scm auth
 
 ----------------------------------------------------------------
