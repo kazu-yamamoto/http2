@@ -118,6 +118,7 @@ module Network.HTTP2.Server (
 import Data.ByteString.Builder (Builder)
 import Data.IORef (readIORef)
 import qualified Network.HTTP.Types as H
+import qualified Data.ByteString.UTF8 as UTF8
 
 import Imports
 import Network.HPACK
@@ -147,7 +148,7 @@ requestPath (Request req) = getHeaderValue tokenPath vt
 
 -- | Getting the authority from a request.
 requestAuthority :: Request -> Maybe Authority
-requestAuthority (Request req) = getHeaderValue tokenAuthority vt
+requestAuthority (Request req) = UTF8.toString <$> getHeaderValue tokenAuthority vt
   where
     (_, vt) = inpObjHeaders req
 

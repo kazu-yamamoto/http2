@@ -177,7 +177,7 @@ runClient :: (Socket -> BufferSize -> IO Config) -> IO ()
 runClient allocConfig =
     runTCPClient host port $ runHTTP2Client
   where
-    auth = C8.pack host
+    auth = host
     cliconf = C.defaultClientConfig{C.authority = auth}
     runHTTP2Client s =
         E.bracket
@@ -315,7 +315,7 @@ runAttack :: (C.ClientIO -> IO ()) -> IO ()
 runAttack attack =
     runTCPClient host port $ runHTTP2Client
   where
-    auth = C8.pack host
+    auth = host
     cliconf = C.defaultClientConfig{C.authority = auth}
     runHTTP2Client s =
         E.bracket

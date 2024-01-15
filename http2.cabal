@@ -127,7 +127,8 @@ library
         network-control >= 0.0.2 && < 0.1,
         unix-time >= 0.4.11 && < 0.5,
         time-manager >= 0.0.1 && < 0.1,
-        unliftio >= 0.2 && < 0.3
+        unliftio >= 0.2 && < 0.3,
+        utf8-string >= 1.0 && < 1.1
 
 executable client
     main-is:            client.hs
