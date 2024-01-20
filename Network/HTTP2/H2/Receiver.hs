@@ -290,7 +290,11 @@ getOddStream ctx ftyp streamId Nothing
                 when (ftyp == FrameHeaders) $ setPeerStreamID ctx streamId
                 -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: recv: rejecting if over my limit
                 Just <$> openOddStreamCheck ctx streamId ftyp
-    | otherwise = undefined -- never reach
+    | otherwise =
+        -- We received a frame from the server on an unknown stream
+        -- (likely a previously created and then subsequently reset stream).
+        -- We just drop it.
+        return Nothing
 
 ----------------------------------------------------------------
 
