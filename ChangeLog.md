@@ -1,3 +1,10 @@
+## 5.1.0
+
+* BREAKING CHANGE: Use String for Authority
+  [#105](https://github.com/kazu-yamamoto/http2/pull/105)
+* Properly close streams
+  [#104](https://github.com/kazu-yamamoto/http2/pull/104)
+
 ## 5.0.1
 
 * Allowing bytestring 0.12.
