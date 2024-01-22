@@ -1,5 +1,7 @@
 ## 5.1.0
 
+* Drop frames after reset
+  [#106](https://github.com/kazu-yamamoto/http2/pull/106)
 * BREAKING CHANGE: Use String for Authority
   [#105](https://github.com/kazu-yamamoto/http2/pull/105)
 * Properly close streams
