@@ -558,16 +558,27 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
 
-    -- The spec mandates (section 8.1):
+    -- HTTP2 spec, section 5.1, "Stream States":
     --
-    -- > When this is true, a server MAY request that the client abort
-    -- > transmission of a request without error by sending a RST_STREAM with an
-    -- > error code of NO_ERROR after sending a complete response (i.e., a frame
-    -- > with the END_STREAM flag).
+    -- > A stream in the "open" state may be used by both peers to send frames
+    -- > of any type. (..) From this state, either endpoint can send a frame
+    -- > with an END_STREAM flag set, which causes the stream to transition into
+    -- > one of the "half-closed" states.  An endpoint sending an END_STREAM
+    -- > flag causes the stream state to become "half-closed (local)"; an
+    -- > endpoint receiving an END_STREAM flag causes the stream state to become
+    -- > "half-closed (remote)".
     --
-    -- We check the first part ("after sending a complete response") by checking
-    -- the current stream state.
+    -- Crucially (for the specific case we're dealing with here), it continues:
+    --
+    -- > /Either endpoint/ can send a RST_STREAM frame from this state, causing
+    -- > it to transition immediately to "closed".
+    --
+    -- (emphasis not in original). This justifies the two non-error cases,
+    -- below. (Section 8.1 of the spec is also relevant, but it is less explicit
+    -- about the /either endpoint/ part.)
     case (s, err) of
+        (Open (Just _) _, NoError) ->  -- HalfClosedLocal
+            return (Closed cc)
         (HalfClosedRemote, NoError) ->
             return (Closed cc)
         _otherwise -> do
