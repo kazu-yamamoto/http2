@@ -1,3 +1,8 @@
+## 5.1.1
+
+* Deal with RST_STREAM in HalfClosedLocal state
+  [#107](https://github.com/kazu-yamamoto/http2/pull/107)
+
 ## 5.1.0
 
 * Drop frames after reset
