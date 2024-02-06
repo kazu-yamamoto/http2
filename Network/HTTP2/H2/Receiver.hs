@@ -557,6 +557,7 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
             ConnectionErrorIsSent EnhanceYourCalm streamId "too many rst_stream"
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
     let cc = Reset err
+    closed ctx strm cc
 
     -- HTTP2 spec, section 5.1, "Stream States":
     --
@@ -582,7 +583,6 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
         (HalfClosedRemote, NoError) ->
             return (Closed cc)
         _otherwise -> do
-            closed ctx strm cc
             E.throwIO $ StreamErrorIsReceived err streamId
 
 -- (No state transition)
