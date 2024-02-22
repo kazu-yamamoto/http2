@@ -25,13 +25,15 @@ data Settings = Settings
     -- ^ SETTINGS_MAX_FRAME_SIZE
     , maxHeaderListSize :: Maybe Int
     -- ^ SETTINGS_MAX_HEADER_LIST_SIZE
+    , pingRateLimit :: Int
+    -- ^ Maximum number of pings allowed per second (CVE-2019-9512)
     }
     deriving (Eq, Show)
 
 -- | The default settings.
 --
 -- >>> baseSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}
 baseSettings :: Settings
 baseSettings =
     Settings
@@ -41,12 +43,13 @@ baseSettings =
         , initialWindowSize = defaultWindowSize -- 64K (65,535)
         , maxFrameSize = defaultPayloadLength -- 2^14 (16,384)
         , maxHeaderListSize = Nothing
+        , pingRateLimit = 10
         }
 
 -- | The default settings.
 --
 -- >>> defaultSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}
 defaultSettings :: Settings
 defaultSettings =
     baseSettings
@@ -59,7 +62,7 @@ defaultSettings =
 -- | Updating settings.
 --
 -- >>> fromSettingsList defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderListSize,200)]
--- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 200}
+-- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 200, pingRateLimit = 10}
 {- FOURMOLU_DISABLE -}
 fromSettingsList :: Settings -> SettingsList -> Settings
 fromSettingsList settings kvs = foldl' update settings kvs
