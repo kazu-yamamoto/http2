@@ -1,3 +1,8 @@
+## 5.1.2
+
+* Make ping rate limit configurable
+  [#108](https://github.com/kazu-yamamoto/http2/pull/108)
+
 ## 5.1.1
 
 * Deal with RST_STREAM in HalfClosedLocal state
