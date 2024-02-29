@@ -345,15 +345,7 @@ rapidPing C.ClientIO{..} = do
     let einfo = EncodeInfo defaultFlags 0 Nothing
         opaque64 = "01234567"
         bs = encodeFrame einfo $ PingFrame opaque64
-    cioWriteBytes bs
-    cioWriteBytes bs
-    cioWriteBytes bs
-    cioWriteBytes bs
-    cioWriteBytes bs
-    cioWriteBytes bs
-    cioWriteBytes bs
-    cioWriteBytes bs
-    cioWriteBytes bs
+    replicateM_ 20 $ cioWriteBytes bs
 
 rapidEmptyHeader :: C.ClientIO -> IO ()
 rapidEmptyHeader C.ClientIO{..} = do

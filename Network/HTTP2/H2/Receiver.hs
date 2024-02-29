@@ -39,9 +39,6 @@ continuationLimit = 10
 headerFragmentLimit :: Int
 headerFragmentLimit = 51200 -- 50K
 
-pingRateLimit :: Int
-pingRateLimit = 4
-
 settingsRateLimit :: Int
 settingsRateLimit = 4
 
@@ -328,11 +325,10 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
                         setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     writeIORef myFirstSettings True
                     enqueueControl controlQ setframe
-control FramePing FrameHeader{flags, streamId} bs Context{controlQ, pingRate} =
+control FramePing FrameHeader{flags, streamId} bs Context{mySettings, controlQ, pingRate} =
     unless (testAck flags) $ do
-        -- Ping Flood - CVE-2019-9512
         rate <- getRate pingRate
-        if rate > pingRateLimit
+        if rate > pingRateLimit mySettings
             then E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many ping"
             else do
                 let frame = pingFrame bs
