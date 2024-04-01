@@ -1,3 +1,8 @@
+## 5.1.3
+
+* Defining SendRequest type synonym.
+  [#111](https://github.com/kazu-yamamoto/http2/pull/111)
+
 ## 5.1.2
 
 * Make ping rate limit configurable
