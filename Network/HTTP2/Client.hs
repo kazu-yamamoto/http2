@@ -75,6 +75,7 @@ module Network.HTTP2.Client (
 
     -- * HTTP\/2 client
     Client,
+    SendRequest,
 
     -- * Request
     Request,
