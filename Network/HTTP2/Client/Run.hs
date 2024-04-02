@@ -8,19 +8,19 @@ module Network.HTTP2.Client.Run where
 import Control.Concurrent.STM (check)
 import Control.Exception
 import Data.ByteString.Builder (Builder)
+import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control (RxFlow (..), defaultMaxData)
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
 import UnliftIO.STM
-import qualified Data.ByteString.UTF8 as UTF8
 
 import Imports
+import Network.HTTP.Types (Header)
 import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
-import Network.HTTP.Types (Header)
 
 -- | Client configuration
 data ClientConfig = ClientConfig
@@ -225,7 +225,7 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do
-    connRxWS <- rxfWindow <$> readIORef rxFlow
+    connRxWS <- rxfBufSize <$> readIORef rxFlow
     let frames = makeNegotiationFrames mySettings connRxWS
         setframe = CFrames Nothing (connectionPreface : frames)
     writeIORef myFirstSettings True

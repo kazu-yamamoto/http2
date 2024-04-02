@@ -10,12 +10,12 @@ module Network.HTTP2.H2.Receiver (
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Short as Short
+import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
-import qualified Data.ByteString.UTF8 as UTF8
 
 import Imports hiding (delete, insert)
 import Network.HPACK
@@ -320,7 +320,7 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
                     enqueueControl controlQ setframe
                 else do
                     -- Server side only
-                    connRxWS <- rxfWindow <$> readIORef rxFlow
+                    connRxWS <- rxfBufSize <$> readIORef rxFlow
                     let frames = makeNegotiationFrames mySettings connRxWS
                         setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     writeIORef myFirstSettings True
@@ -445,7 +445,6 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx (Open _ (Body q _
             atomically $ writeTQueue q $ Right ""
             return HalfClosedRemote
         else -- we don't support continuation here.
-
             E.throwIO $
                 ConnectionErrorIsSent
                     ProtocolError
@@ -574,7 +573,8 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     -- below. (Section 8.1 of the spec is also relevant, but it is less explicit
     -- about the /either endpoint/ part.)
     case (s, err) of
-        (Open (Just _) _, NoError) ->  -- HalfClosedLocal
+        (Open (Just _) _, NoError) ->
+            -- HalfClosedLocal
             return (Closed cc)
         (HalfClosedRemote, NoError) ->
             return (Closed cc)
