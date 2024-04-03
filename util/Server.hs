@@ -9,18 +9,15 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.ByteString.Builder (byteString)
 import qualified Data.ByteString.Char8 as C8
-import Network.HPACK
-import Network.HPACK.Token
 import Network.HTTP.Types
 import Network.HTTP2.Server
 
 server :: Server
-server req _aux sendResponse = case getHeaderValue tokenMethod vt of
-    Just "GET" -> sendResponse responseHello []
+server req _aux sendResponse = case requestMethod req of
+    Just "GET"
+        | requestPath req == Just "/" -> sendResponse responseHello []
     Just "POST" -> sendResponse (responseEcho req) []
     _ -> sendResponse response404 []
-  where
-    (_, vt) = requestHeaders req
 
 responseHello :: Response
 responseHello = responseBuilder ok200 header body
@@ -29,7 +26,10 @@ responseHello = responseBuilder ok200 header body
     body = byteString "Hello, world!\n"
 
 response404 :: Response
-response404 = responseNoBody notFound404 []
+response404 = responseBuilder notFound404 header body
+  where
+    header = [("Content-Type", "text/plain")]
+    body = byteString "Not found\n"
 
 responseEcho :: Request -> Response
 responseEcho req = setResponseTrailersMaker h2rsp maker

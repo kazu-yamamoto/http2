@@ -13,9 +13,6 @@ import System.Exit
 
 import Network.HTTP2.Client
 
-serverName :: String
-serverName = "127.0.0.1"
-
 main :: IO ()
 main = do
     args <- getArgs
@@ -24,7 +21,7 @@ main = do
         _ -> do
             putStrLn "client <addr> <port>"
             exitFailure
-    runTCPClient serverName port $ runHTTP2Client host
+    runTCPClient host port $ runHTTP2Client host
   where
     cliconf host = defaultClientConfig{authority = host}
     runHTTP2Client host s =
@@ -36,13 +33,13 @@ main = do
     client sendRequest _aux = do
         let req0 = requestNoBody methodGet "/" []
             client0 = sendRequest req0 $ \rsp -> do
-                print rsp
+                print $ responseStatus rsp
                 getResponseBodyChunk rsp >>= C8.putStrLn
-            req1 = requestNoBody methodGet "/foo" []
+            req1 = requestNoBody methodGet "/notfound" []
             client1 = sendRequest req1 $ \rsp -> do
-                print rsp
+                print $ responseStatus rsp
                 getResponseBodyChunk rsp >>= C8.putStrLn
         ex <- E.try $ concurrently_ client0 client1
         case ex of
             Left e -> print (e :: HTTP2Error)
-            Right () -> putStrLn "OK"
+            Right () -> putStrLn "Connection is closed"
