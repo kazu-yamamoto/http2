@@ -130,8 +130,8 @@ library
         unliftio >= 0.2 && < 0.3,
         utf8-string >= 1.0 && < 1.1
 
-executable client
-    main-is:            client.hs
+executable h2c-client
+    main-is:            h2c-client.hs
     hs-source-dirs:     util
     default-language:   Haskell2010
     default-extensions: Strict StrictData
@@ -149,8 +149,8 @@ executable client
     else
         buildable: False
 
-executable server
-    main-is:            server.hs
+executable h2c-server
+    main-is:            h2c-server.hs
     hs-source-dirs:     util
     default-language:   Haskell2010
     default-extensions: Strict StrictData
