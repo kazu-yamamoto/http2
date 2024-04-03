@@ -1,3 +1,7 @@
+## 5.1.4
+
+* Using network-control v0.1.
+
 ## 5.1.3
 
 * Defining SendRequest type synonym.
