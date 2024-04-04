@@ -10,17 +10,20 @@ import Network.HTTP.Types
 
 import Network.HTTP2.Client
 
-client :: Client ()
-client sendRequest _aux = do
-    let req0 = requestNoBody methodGet "/" []
-        client0 = sendRequest req0 $ \rsp -> do
-            print $ responseStatus rsp
-            getResponseBodyChunk rsp >>= C8.putStrLn
-        req1 = requestNoBody methodGet "/notfound" []
-        client1 = sendRequest req1 $ \rsp -> do
-            print $ responseStatus rsp
-            getResponseBodyChunk rsp >>= C8.putStrLn
-    ex <- E.try $ concurrently_ client0 client1
+client :: Int -> [Path] -> Client ()
+client n0 paths sendRequest _aux = do
+    ex <- E.try $ foldr1 concurrently_ $ map (client' n0 sendRequest) paths
     case ex of
         Right () -> return ()
         Left e -> print (e :: HTTP2Error)
+
+client' :: Int -> SendRequest -> Path -> IO ()
+client' n0 sendRequest path = loop n0
+  where
+    req = requestNoBody methodGet path []
+    loop 0 = return ()
+    loop n = do
+        sendRequest req $ \rsp -> do
+            print $ responseStatus rsp
+            getResponseBodyChunk rsp >>= C8.putStrLn
+        loop (n - 1)
