@@ -134,6 +134,7 @@ executable h2c-client
     main-is:            h2c-client.hs
     hs-source-dirs:     util
     default-language:   Haskell2010
+    other-modules:      Client
     default-extensions: Strict StrictData
     ghc-options:        -Wall -threaded -rtsopts
     build-depends:
