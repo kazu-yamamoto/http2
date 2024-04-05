@@ -10,7 +10,6 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Data.IORef
-import Network.HTTP.Semantics.Internal
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T

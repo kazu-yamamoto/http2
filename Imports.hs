@@ -14,6 +14,7 @@ module Imports (
     module Data.String,
     module Data.Word,
     module Numeric,
+    module Network.HTTP.Semantics.Internal,
     GCBuffer,
     withForeignPtr,
     mallocPlainForeignPtrBytes,
@@ -35,6 +36,7 @@ import Data.String
 import Data.Word
 import Foreign.ForeignPtr
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+import Network.HTTP.Semantics.Internal
 import Numeric
 
 type GCBuffer = ForeignPtr Word8

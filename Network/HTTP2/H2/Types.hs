@@ -9,7 +9,6 @@ import Data.ByteString.Builder (Builder)
 import Data.IORef
 import Data.Typeable
 import Network.Control
-import Network.HTTP.Semantics.Internal
 import Network.Socket hiding (Stream)
 import System.IO.Unsafe
 import qualified System.TimeManager as T

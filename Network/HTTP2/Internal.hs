@@ -21,8 +21,7 @@ module Network.HTTP2.Internal (
     module Network.HTTP2.H2.Manager,
 ) where
 
-import Network.HTTP.Semantics.Internal
-
+import Imports
 import Network.HTTP2.H2.File
 import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Sender

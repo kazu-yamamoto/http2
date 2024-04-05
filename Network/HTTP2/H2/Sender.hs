@@ -19,12 +19,11 @@ import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Network.ByteOrder
-import Network.HTTP.Semantics.Internal
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports
-import Network.HPACK (TokenHeaderList, setLimitForEncoding, toHeaderTable)
+import Network.HPACK (setLimitForEncoding, toHeaderTable)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame

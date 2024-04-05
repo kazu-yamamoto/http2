@@ -30,27 +30,6 @@ import Data.Typeable
 import Network.ByteOrder (Buffer, BufferOverrun (..), BufferSize)
 
 import Imports
-import Network.HTTP.Semantics.Token (Token)
-
-----------------------------------------------------------------
-
--- | Header name.
-type HeaderName = ByteString
-
--- | Header value.
-type HeaderValue = ByteString
-
--- | Header.
-type Header = (HeaderName, HeaderValue)
-
--- | Header list.
-type HeaderList = [Header]
-
--- | TokenBased header.
-type TokenHeader = (Token, HeaderValue)
-
--- | TokenBased header list.
-type TokenHeaderList = [TokenHeader]
 
 ----------------------------------------------------------------
 

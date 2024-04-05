@@ -1,8 +1,8 @@
 module Network.HTTP2.H2.File where
 
-import Network.HTTP.Semantics.Internal
 import System.IO
 
+import Imports
 import Network.HPACK
 
 -- | Position read for files.

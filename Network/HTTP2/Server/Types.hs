@@ -1,6 +1,5 @@
 module Network.HTTP2.Server.Types where
 
-import Network.HTTP.Semantics.Internal
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 

@@ -15,7 +15,6 @@ module Network.HPACK.HeaderBlock.Decode (
 ) where
 
 import Control.Exception (catch, throwIO)
-import Data.Array (Array)
 import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
@@ -30,13 +29,8 @@ import Network.HPACK.Builder
 import Network.HPACK.HeaderBlock.Integer
 import Network.HPACK.Huffman
 import Network.HPACK.Table
-import Network.HTTP.Semantics.Token
 import Network.HPACK.Types
-
--- | An array to get 'HeaderValue' quickly.
---   'getHeaderValue' should be used.
---   Internally, the key is 'tokenIx'.
-type ValueTable = Array Int (Maybe HeaderValue)
+import Network.HTTP.Semantics.Token
 
 -- | Accessing 'HeaderValue' with 'Token'.
 {-# INLINE getHeaderValue #-}
@@ -333,9 +327,6 @@ isTableSizeUpdate :: Word8 -> Bool
 isTableSizeUpdate w = w .&. 0xe0 == 0x20
 
 ----------------------------------------------------------------
-
--- | A pair of token list and value table.
-type HeaderTable = (TokenHeaderList, ValueTable)
 
 -- | Converting a header list of the http-types style to
 --   'TokenHeaderList' and 'ValueTable'.

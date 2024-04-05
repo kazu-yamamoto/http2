@@ -145,13 +145,11 @@ module Network.HTTP2.Client (
     defaultPositionReadMaker,
 ) where
 
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.IORef (readIORef)
-import Network.HTTP.Semantics.Internal
 import Network.HTTP.Types
 
-import Network.HPACK
+import Imports
 import Network.HTTP2.Client.Run
 import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
