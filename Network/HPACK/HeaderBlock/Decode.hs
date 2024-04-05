@@ -15,7 +15,7 @@ module Network.HPACK.HeaderBlock.Decode (
 ) where
 
 import Control.Exception (catch, throwIO)
-import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
+import Data.Array.Base (unsafeRead, unsafeWrite)
 import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
 import qualified Data.ByteString as BS
@@ -31,11 +31,6 @@ import Network.HPACK.Huffman
 import Network.HPACK.Table
 import Network.HPACK.Types
 import Network.HTTP.Semantics.Token
-
--- | Accessing 'HeaderValue' with 'Token'.
-{-# INLINE getHeaderValue #-}
-getHeaderValue :: Token -> ValueTable -> Maybe HeaderValue
-getHeaderValue t tbl = tbl `unsafeAt` tokenIx t
 
 ----------------------------------------------------------------
 

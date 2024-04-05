@@ -10,13 +10,14 @@ module Network.HTTP2.H2 (
     module Network.HTTP2.H2.Receiver,
     module Network.HTTP2.H2.Sender,
     module Network.HTTP2.H2.Settings,
-    module Network.HTTP2.H2.Status,
+    module Network.HTTP.Semantics.Status,
     module Network.HTTP2.H2.Stream,
     module Network.HTTP2.H2.StreamTable,
     module Network.HTTP2.H2.Types,
     module Network.HTTP2.H2.Window,
 ) where
 
+import Network.HTTP.Semantics.Status
 import Network.HTTP2.H2.Config
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
@@ -28,7 +29,6 @@ import Network.HTTP2.H2.ReadN
 import Network.HTTP2.H2.Receiver
 import Network.HTTP2.H2.Sender
 import Network.HTTP2.H2.Settings
-import Network.HTTP2.H2.Status
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types

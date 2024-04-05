@@ -96,7 +96,6 @@ library
         Network.HTTP2.H2.Receiver
         Network.HTTP2.H2.Sender
         Network.HTTP2.H2.Settings
-        Network.HTTP2.H2.Status
         Network.HTTP2.H2.Stream
         Network.HTTP2.H2.StreamTable
         Network.HTTP2.H2.Types

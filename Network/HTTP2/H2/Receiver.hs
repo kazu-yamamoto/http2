@@ -18,7 +18,6 @@ import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (delete, insert)
-import Network.HPACK
 import Network.HTTP.Semantics.Token
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
