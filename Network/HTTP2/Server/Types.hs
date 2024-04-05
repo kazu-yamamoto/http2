@@ -1,10 +1,10 @@
 module Network.HTTP2.Server.Types where
 
+import Network.HTTP.Semantics.Internal
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 
 import Imports
-import Network.HTTP2.H2
 
 ----------------------------------------------------------------
 

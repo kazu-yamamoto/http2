@@ -19,6 +19,7 @@ import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Network.ByteOrder
+import Network.HTTP.Semantics.Internal
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 

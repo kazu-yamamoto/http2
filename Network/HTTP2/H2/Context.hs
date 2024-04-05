@@ -7,6 +7,7 @@ module Network.HTTP2.H2.Context where
 import Control.Exception
 import Data.IORef
 import Network.Control
+import Network.HTTP.Semantics.Internal
 import Network.HTTP.Types (Method)
 import Network.Socket (SockAddr)
 import qualified UnliftIO.Exception as E
@@ -178,16 +179,17 @@ setStreamState :: Context -> Stream -> StreamState -> IO ()
 setStreamState _ Stream{streamState} newState = do
     oldState <- readIORef streamState
     case (oldState, newState) of
-      (Open _ (Body q _ _ _), Open _ (Body q' _ _ _)) | q == q' ->
-        -- The stream stays open with the same body; nothing to do
-        return ()
-      (Open _ (Body q _ _ _), _) ->
-        -- The stream is either closed, or is open with a /new/ body
-        -- We need to close the old queue so that any reads from it won't block
-        atomically $ writeTQueue q $ Left $ toException ConnectionIsClosed
-      _otherwise ->
-        -- The stream wasn't open to start with; nothing to do
-        return ()
+        (Open _ (Body q _ _ _), Open _ (Body q' _ _ _))
+            | q == q' ->
+                -- The stream stays open with the same body; nothing to do
+                return ()
+        (Open _ (Body q _ _ _), _) ->
+            -- The stream is either closed, or is open with a /new/ body
+            -- We need to close the old queue so that any reads from it won't block
+            atomically $ writeTQueue q $ Left $ toException ConnectionIsClosed
+        _otherwise ->
+            -- The stream wasn't open to start with; nothing to do
+            return ()
     writeIORef streamState newState
 
 opened :: Context -> Stream -> IO ()

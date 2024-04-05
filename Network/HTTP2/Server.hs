@@ -116,13 +116,14 @@ module Network.HTTP2.Server (
 ) where
 
 import Data.ByteString.Builder (Builder)
-import Data.IORef (readIORef)
-import qualified Network.HTTP.Types as H
 import qualified Data.ByteString.UTF8 as UTF8
+import Data.IORef (readIORef)
+import Network.HTTP.Semantics.Internal
+import qualified Network.HTTP.Types as H
 
 import Imports
 import Network.HPACK
-import Network.HPACK.Token
+import Network.HTTP.Semantics.Token
 import Network.HTTP2.Frame.Types
 import Network.HTTP2.H2
 import Network.HTTP2.Server.Run (

@@ -56,7 +56,6 @@ library
         Network.HPACK
         Network.HPACK.Internal
         Network.HPACK.Table
-        Network.HPACK.Token
         Network.HTTP2.Client
         Network.HTTP2.Client.Internal
         Network.HTTP2.Frame
@@ -121,6 +120,7 @@ library
         containers >=0.6 && <0.7,
         stm >=2.5 && <2.6,
         case-insensitive >=1.2 && <1.3,
+        http-semantics,
         http-types >=0.12 && <0.13,
         network >=3.1,
         network-byte-order >=0.1.7 && <0.2,

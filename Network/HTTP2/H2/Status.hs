@@ -13,7 +13,7 @@ import qualified Network.HTTP.Types as H
 
 import Imports
 import Network.HPACK
-import Network.HPACK.Token
+import Network.HTTP.Semantics.Token
 
 ----------------------------------------------------------------
 

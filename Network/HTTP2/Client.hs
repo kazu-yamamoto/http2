@@ -148,6 +148,7 @@ module Network.HTTP2.Client (
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder (Builder)
 import Data.IORef (readIORef)
+import Network.HTTP.Semantics.Internal
 import Network.HTTP.Types
 
 import Network.HPACK

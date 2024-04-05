@@ -27,7 +27,7 @@ import Test.Hspec
 
 import Network.HPACK
 import Network.HPACK.Internal
-import Network.HPACK.Token
+import Network.HTTP.Semantics.Token
 import qualified Network.HTTP2.Client as C
 import qualified Network.HTTP2.Client.Internal as C
 import Network.HTTP2.Frame

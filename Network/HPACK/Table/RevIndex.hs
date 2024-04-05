@@ -24,7 +24,7 @@ import qualified Data.Map.Strict as M
 import Imports
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Static
-import Network.HPACK.Token
+import Network.HTTP.Semantics.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------

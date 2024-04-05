@@ -2,18 +2,6 @@ module Network.HTTP2.Internal (
     -- * File
     module Network.HTTP2.H2.File,
 
-    -- * Types
-    Scheme,
-    Authority,
-    Path,
-
-    -- * Request and response
-    InpObj (..),
-    InpBody,
-    OutObj (..),
-    OutBody (..),
-    FileSpec (..),
-
     -- * Sender
     Next (..),
     BytesFilled,
@@ -32,6 +20,8 @@ module Network.HTTP2.Internal (
     -- * Thread Manager
     module Network.HTTP2.H2.Manager,
 ) where
+
+import Network.HTTP.Semantics.Internal
 
 import Network.HTTP2.H2.File
 import Network.HTTP2.H2.Manager

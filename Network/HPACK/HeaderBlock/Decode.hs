@@ -30,7 +30,7 @@ import Network.HPACK.Builder
 import Network.HPACK.HeaderBlock.Integer
 import Network.HPACK.Huffman
 import Network.HPACK.Table
-import Network.HPACK.Token
+import Network.HTTP.Semantics.Token
 import Network.HPACK.Types
 
 -- | An array to get 'HeaderValue' quickly.

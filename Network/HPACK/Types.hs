@@ -30,7 +30,7 @@ import Data.Typeable
 import Network.ByteOrder (Buffer, BufferOverrun (..), BufferSize)
 
 import Imports
-import Network.HPACK.Token (Token)
+import Network.HTTP.Semantics.Token (Token)
 
 ----------------------------------------------------------------
 

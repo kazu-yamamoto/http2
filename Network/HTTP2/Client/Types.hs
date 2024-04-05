@@ -2,6 +2,8 @@
 
 module Network.HTTP2.Client.Types where
 
+import Network.HTTP.Semantics.Internal
+
 import Network.HTTP2.H2
 
 ----------------------------------------------------------------
