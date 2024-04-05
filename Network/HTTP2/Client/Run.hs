@@ -11,6 +11,7 @@ import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control (RxFlow (..), defaultMaxData)
+import Network.HTTP.Semantics.Client
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
@@ -18,7 +19,6 @@ import UnliftIO.STM
 
 import Imports hiding (Header)
 import Network.HTTP.Types (Header)
-import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
 

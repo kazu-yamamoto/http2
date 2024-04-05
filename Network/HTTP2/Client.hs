@@ -147,11 +147,11 @@ module Network.HTTP2.Client (
 
 import Data.ByteString.Builder (Builder)
 import Data.IORef (readIORef)
+import Network.HTTP.Semantics.Client
 import Network.HTTP.Types
 
 import Imports
 import Network.HTTP2.Client.Run
-import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
 import Network.HTTP2.H2 hiding (authority, scheme)
 

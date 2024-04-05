@@ -118,6 +118,7 @@ module Network.HTTP2.Server (
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef (readIORef)
+import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Token
 import qualified Network.HTTP.Types as H
 
@@ -130,7 +131,6 @@ import Network.HTTP2.Server.Run (
     defaultServerConfig,
     run,
  )
-import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 

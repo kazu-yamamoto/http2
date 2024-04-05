@@ -10,6 +10,7 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Data.IORef
+import Network.HTTP.Semantics.Server
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
@@ -22,7 +23,6 @@ import Network.HPACK
 import Network.HTTP.Semantics.Token
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
-import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 
