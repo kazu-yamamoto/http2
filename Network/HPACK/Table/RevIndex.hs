@@ -20,11 +20,11 @@ import Data.Function (on)
 import Data.IORef
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import Network.HTTP.Semantics
 
 import Imports
 import Network.HPACK.Table.Entry
 import Network.HPACK.Table.Static
-import Network.HTTP.Semantics.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------

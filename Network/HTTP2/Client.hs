@@ -110,4 +110,3 @@ import Network.HTTP.Semantics.Client
 import Imports
 import Network.HTTP2.Client.Run
 import Network.HTTP2.Frame
-import Network.HTTP2.H2 hiding (authority, scheme)

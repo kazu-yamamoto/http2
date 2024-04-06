@@ -88,11 +88,9 @@ library
         Network.HTTP2.H2.Config
         Network.HTTP2.H2.Context
         Network.HTTP2.H2.EncodeFrame
-        Network.HTTP2.H2.File
         Network.HTTP2.H2.HPACK
         Network.HTTP2.H2.Manager
         Network.HTTP2.H2.Queue
-        Network.HTTP2.H2.ReadN
         Network.HTTP2.H2.Receiver
         Network.HTTP2.H2.Sender
         Network.HTTP2.H2.Settings

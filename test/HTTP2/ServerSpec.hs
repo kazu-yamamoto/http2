@@ -16,6 +16,7 @@ import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder, byteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
+import Network.HTTP.Semantics
 import Network.HTTP.Types
 import Network.Run.TCP
 import Network.Socket
@@ -27,7 +28,6 @@ import Test.Hspec
 
 import Network.HPACK
 import Network.HPACK.Internal
-import Network.HTTP.Semantics.Token
 import qualified Network.HTTP2.Client as C
 import qualified Network.HTTP2.Client.Internal as C
 import Network.HTTP2.Frame

@@ -23,6 +23,7 @@ import qualified Data.ByteString.Char8 as B8
 import Data.CaseInsensitive (CI (..))
 import Data.Char (isUpper)
 import Network.ByteOrder
+import Network.HTTP.Semantics
 
 import Imports hiding (empty)
 import Network.HPACK.Builder
@@ -30,7 +31,6 @@ import Network.HPACK.HeaderBlock.Integer
 import Network.HPACK.Huffman
 import Network.HPACK.Table
 import Network.HPACK.Types
-import Network.HTTP.Semantics.Token
 
 ----------------------------------------------------------------
 

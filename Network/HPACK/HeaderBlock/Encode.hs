@@ -17,12 +17,12 @@ import Foreign.Marshal.Alloc (free, mallocBytes)
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (minusPtr)
 import Network.ByteOrder
+import Network.HTTP.Semantics
 
 import Imports
 import Network.HPACK.HeaderBlock.Integer
 import Network.HPACK.Huffman
 import Network.HPACK.Table
-import Network.HTTP.Semantics.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------

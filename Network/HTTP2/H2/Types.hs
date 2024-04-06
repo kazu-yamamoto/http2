@@ -9,6 +9,7 @@ import Data.ByteString.Builder (Builder)
 import Data.IORef
 import Data.Typeable
 import Network.Control
+import Network.HTTP.Semantics.Client
 import Network.Socket hiding (Stream)
 import System.IO.Unsafe
 import qualified System.TimeManager as T
@@ -19,7 +20,6 @@ import UnliftIO.STM
 import Imports
 import Network.HPACK
 import Network.HTTP2.Frame
-import Network.HTTP2.H2.File
 
 ----------------------------------------------------------------
 

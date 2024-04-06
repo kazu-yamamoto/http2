@@ -12,11 +12,11 @@ module Network.HTTP2.H2.HPACK (
 
 import qualified Control.Exception as E
 import Network.ByteOrder
+import Network.HTTP.Semantics
 import qualified Network.HTTP.Types as H
 
 import Imports
 import Network.HPACK
-import Network.HTTP.Semantics.Token
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.Types

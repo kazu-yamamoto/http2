@@ -10,8 +10,8 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Data.IORef
+import Network.HTTP.Semantics
 import Network.HTTP.Semantics.Server
-import Network.HTTP.Semantics.Token
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T

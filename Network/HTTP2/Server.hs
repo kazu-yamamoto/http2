@@ -51,20 +51,10 @@ module Network.HTTP2.Server (
     allocSimpleConfig,
     freeSimpleConfig,
     module Network.HTTP.Semantics.Server,
-
-    -- * RecvN
-    defaultReadN,
-
-    -- * Position read for files
-    PositionReadMaker,
-    PositionRead,
-    Sentinel (..),
-    defaultPositionReadMaker,
 ) where
 
 import Network.HTTP.Semantics.Server
 
-import Network.HTTP2.H2
 import Network.HTTP2.Server.Run (
     ServerConfig (..),
     defaultServerConfig,

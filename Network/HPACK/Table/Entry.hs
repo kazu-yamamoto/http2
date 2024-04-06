@@ -26,8 +26,8 @@ module Network.HPACK.Table.Entry (
 ) where
 
 import qualified Data.ByteString as BS
-import Network.HTTP.Semantics.Token
 import Network.HPACK.Types
+import Network.HTTP.Semantics
 
 ----------------------------------------------------------------
 

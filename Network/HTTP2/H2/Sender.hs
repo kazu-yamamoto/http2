@@ -19,6 +19,7 @@ import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Network.ByteOrder
+import Network.HTTP.Semantics.Client
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
@@ -27,7 +28,6 @@ import Network.HPACK (setLimitForEncoding, toHeaderTable)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
-import Network.HTTP2.H2.File
 import Network.HTTP2.H2.HPACK
 import Network.HTTP2.H2.Manager hiding (start)
 import Network.HTTP2.H2.Queue

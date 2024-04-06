@@ -13,12 +13,12 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
+import Network.HTTP.Semantics
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (delete, insert)
-import Network.HTTP.Semantics.Token
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame

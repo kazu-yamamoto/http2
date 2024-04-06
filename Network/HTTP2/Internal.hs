@@ -1,7 +1,4 @@
 module Network.HTTP2.Internal (
-    -- * File
-    module Network.HTTP2.H2.File,
-
     -- * Sender
     Next (..),
     BytesFilled,
@@ -22,7 +19,6 @@ module Network.HTTP2.Internal (
 ) where
 
 import Imports
-import Network.HTTP2.H2.File
 import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Sender
 import Network.HTTP2.H2.Types
