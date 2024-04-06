@@ -55,6 +55,7 @@ module Network.HTTP2.Server (
 
 import Network.HTTP.Semantics.Server
 
+import Network.HTTP2.H2
 import Network.HTTP2.Server.Run (
     ServerConfig (..),
     defaultServerConfig,

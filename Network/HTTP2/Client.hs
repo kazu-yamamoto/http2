@@ -47,8 +47,6 @@ module Network.HTTP2.Client (
     run,
 
     -- * Client configuration
-    Scheme,
-    Authority,
     ClientConfig,
     defaultClientConfig,
     scheme,
@@ -94,19 +92,10 @@ module Network.HTTP2.Client (
         InadequateSecurity,
         HTTP11Required
     ),
-
-    -- * RecvN
-    defaultReadN,
-
-    -- * Position read for files
-    PositionReadMaker,
-    PositionRead,
-    Sentinel (..),
-    defaultPositionReadMaker,
 ) where
 
 import Network.HTTP.Semantics.Client
 
-import Imports
 import Network.HTTP2.Client.Run
 import Network.HTTP2.Frame
+import Network.HTTP2.H2 hiding (authority, scheme)
