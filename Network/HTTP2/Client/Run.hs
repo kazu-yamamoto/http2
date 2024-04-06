@@ -12,6 +12,7 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control (RxFlow (..), defaultMaxData)
 import Network.HTTP.Semantics.Client
+import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent

@@ -5,11 +5,11 @@
 module Network.HTTP2.H2.Types where
 
 import qualified Control.Exception as E
-import Data.ByteString.Builder (Builder)
 import Data.IORef
 import Data.Typeable
 import Network.Control
 import Network.HTTP.Semantics.Client
+import Network.HTTP.Semantics.IO
 import Network.Socket hiding (Stream)
 import System.IO.Unsafe
 import qualified System.TimeManager as T
@@ -185,29 +185,10 @@ data OutputType
 
 ----------------------------------------------------------------
 
-type DynaNext = Buffer -> BufferSize -> WindowSize -> IO Next
-
-type BytesFilled = Int
-
-data Next
-    = Next
-        BytesFilled -- payload length
-        Bool -- require flushing
-        (Maybe DynaNext)
-
-----------------------------------------------------------------
-
 data Control
     = CFinish HTTP2Error
     | CFrames (Maybe SettingsList) [ByteString]
     | CGoaway ByteString (MVar ())
-
-----------------------------------------------------------------
-
-data StreamingChunk
-    = StreamingFinished (IO ())
-    | StreamingFlush
-    | StreamingBuilder Builder
 
 ----------------------------------------------------------------
 

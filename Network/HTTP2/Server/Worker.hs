@@ -11,6 +11,7 @@ module Network.HTTP2.Server.Worker (
 
 import Data.IORef
 import Network.HTTP.Semantics
+import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import qualified Network.HTTP.Types as H
 import Network.Socket (SockAddr)

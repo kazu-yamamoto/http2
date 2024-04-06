@@ -12,6 +12,7 @@ import Data.ByteString.Builder (byteString)
 import Data.Foldable (for_)
 import Data.Maybe
 import Data.Traversable (for)
+import Network.HTTP.Semantics
 import Network.HTTP.Types
 import Network.Run.TCP
 import System.IO.Unsafe (unsafePerformIO)
