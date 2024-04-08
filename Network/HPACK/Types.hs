@@ -2,10 +2,7 @@
 
 module Network.HPACK.Types (
     -- * Header
-    HeaderName,
-    HeaderValue,
-    Header,
-    HeaderList,
+    FieldValue,
     TokenHeader,
     TokenHeaderList,
 

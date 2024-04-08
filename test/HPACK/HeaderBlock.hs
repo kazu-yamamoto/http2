@@ -4,14 +4,14 @@ module HPACK.HeaderBlock where
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Base16
-import Network.HPACK
+import Network.HTTP.Types
 
 fromHexString :: ByteString -> ByteString
 fromHexString = decodeLenient
 
 ----------------------------------------------------------------
 
-d41h :: HeaderList
+d41h :: [Header]
 d41h =
     [ (":method", "GET")
     , (":scheme", "http")
@@ -22,7 +22,7 @@ d41h =
 d41b :: ByteString
 d41b = fromHexString "828684418cf1e3c2e5f23a6ba0ab90f4ff"
 
-d42h :: HeaderList
+d42h :: [Header]
 d42h =
     [ (":method", "GET")
     , (":scheme", "http")
@@ -34,7 +34,7 @@ d42h =
 d42b :: ByteString
 d42b = fromHexString "828684be5886a8eb10649cbf"
 
-d43h :: HeaderList
+d43h :: [Header]
 d43h =
     [ (":method", "GET")
     , (":scheme", "https")
@@ -48,7 +48,7 @@ d43b = fromHexString "828785bf408825a849e95ba97d7f8925a849e95bb8e8b4bf"
 
 ----------------------------------------------------------------
 
-d61h :: HeaderList
+d61h :: [Header]
 d61h =
     [ (":status", "302")
     , ("cache-control", "private")
@@ -61,7 +61,7 @@ d61b =
     fromHexString
         "488264025885aec3771a4b6196d07abe941054d444a8200595040b8166e082a62d1bff6e919d29ad171863c78f0b97c8e9ae82ae43d3"
 
-d62h :: HeaderList
+d62h :: [Header]
 d62h =
     [ (":status", "307")
     , ("cache-control", "private")
@@ -72,7 +72,7 @@ d62h =
 d62b :: ByteString
 d62b = fromHexString "4883640effc1c0bf"
 
-d63h :: HeaderList
+d63h :: [Header]
 d63h =
     [ (":status", "200")
     , ("cache-control", "private")
@@ -89,7 +89,7 @@ d63b =
 
 ----------------------------------------------------------------
 
-d81h :: HeaderList
+d81h :: [Header]
 d81h =
     [ (":status", "403")
     , ("server", "nginx/1.14.0")

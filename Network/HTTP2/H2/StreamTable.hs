@@ -38,7 +38,6 @@ import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import Network.Control (LRUCache)
 import qualified Network.Control as LRUCache
-import Network.HTTP.Types (Method)
 
 import Imports
 import Network.HTTP2.H2.Types (Stream (..))

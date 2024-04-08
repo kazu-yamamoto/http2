@@ -151,7 +151,7 @@ responseEcho req = setResponseTrailersMaker h2rsp maker
   where
     h2rsp = responseStreaming ok200 header streamingBody
     header = [("Content-Type", "text/plain")]
-    mhx = getHeaderValue (toToken "X-Tag") (snd (requestHeaders req))
+    mhx = getFieldValue (toToken "X-Tag") (snd (requestHeaders req))
     streamingBody write _flush = do
         loop
         mt <- getRequestTrailers req
@@ -308,7 +308,7 @@ client5 sendRequest _aux = do
                 | otherwise = pure ()
         go (100 :: Int)
 
-firstTrailerValue :: HeaderTable -> HeaderValue
+firstTrailerValue :: TokenHeaderTable -> FieldValue
 firstTrailerValue = snd . Prelude.head . fst
 
 runAttack :: (C.ClientIO -> IO ()) -> IO ()

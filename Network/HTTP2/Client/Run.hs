@@ -18,8 +18,7 @@ import UnliftIO.Async
 import UnliftIO.Concurrent
 import UnliftIO.STM
 
-import Imports hiding (Header)
-import Network.HTTP.Types (Header)
+import Imports
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
 

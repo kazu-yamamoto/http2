@@ -18,7 +18,7 @@ import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports
-import Network.HPACK (setLimitForEncoding, toHeaderTable)
+import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
@@ -145,7 +145,7 @@ frameSender
                                     | otherwise = confBufferSize
                             writeIORef outputBufferLimit buflim
                     -- Peer SETTINGS_HEADER_TABLE_SIZE
-                    case lookup SettingsHeaderTableSize peerAlist of
+                    case lookup SettingsTokenHeaderTableSize peerAlist of
                         Nothing -> return ()
                         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
@@ -174,7 +174,7 @@ frameSender
                 endOfStream = case body of
                     OutBodyNone -> True
                     _ -> False
-            (ths, _) <- toHeaderTable $ fixHeaders hdr
+            (ths, _) <- toTokenHeaderTable $ fixHeaders hdr
             off' <- headerContinue sid ths endOfStream off0
             -- halfClosedLocal calls closed which removes
             -- the stream from stream table.
@@ -339,7 +339,7 @@ frameSender
               where
                 handleTrailers Nothing off0 = return off0
                 handleTrailers (Just trailers) off0 = do
-                    (ths, _) <- toHeaderTable trailers
+                    (ths, _) <- toTokenHeaderTable trailers
                     headerContinue streamNumber ths True {- endOfStream -} off0
         fillDataHeaderEnqueueNext
             _

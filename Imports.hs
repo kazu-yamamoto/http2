@@ -15,6 +15,8 @@ module Imports (
     module Data.Word,
     module Numeric,
     module Network.HTTP.Semantics,
+    module Network.HTTP.Types,
+    module Data.CaseInsensitive,
     GCBuffer,
     withForeignPtr,
     mallocPlainForeignPtrBytes,
@@ -25,6 +27,7 @@ import Control.Monad
 import Data.Bits hiding (Bits)
 import Data.ByteString.Internal (ByteString (..))
 import Data.ByteString.Short (ShortByteString)
+import Data.CaseInsensitive (foldedCase, mk, original)
 import Data.Either
 import Data.Foldable
 import Data.Int
@@ -37,6 +40,7 @@ import Data.Word
 import Foreign.ForeignPtr
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Network.HTTP.Semantics
+import Network.HTTP.Types
 import Numeric
 
 type GCBuffer = ForeignPtr Word8

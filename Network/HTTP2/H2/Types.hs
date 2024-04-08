@@ -106,14 +106,14 @@ data OpenState
         Int -- Total size
         Int -- The number of continuation frames
         Bool -- End of stream
-    | NoBody HeaderTable
-    | HasBody HeaderTable
+    | NoBody TokenHeaderTable
+    | HasBody TokenHeaderTable
     | Body
         (TQueue (Either SomeException ByteString))
         (Maybe Int) -- received Content-Length
         -- compared the body length for error checking
         (IORef Int) -- actual body length
-        (IORef (Maybe HeaderTable)) -- trailers
+        (IORef (Maybe TokenHeaderTable)) -- trailers
 
 data ClosedCode
     = Finished

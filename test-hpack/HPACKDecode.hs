@@ -87,12 +87,12 @@ test conf c dyntbl = do
     inp = B16.decodeLenient wirehex
     hs = headers c
 
--- | Printing 'HeaderList'.
-printHeaderList :: HeaderList -> IO ()
+-- | Printing '[Header]'.
+printHeaderList :: [Header] -> IO ()
 printHeaderList hs = mapM_ printHeader hs
   where
     printHeader (k, v) = do
-        B8.putStr k
+        B8.putStr $ original k
         putStr ": "
         B8.putStr v
         putStr "\n"

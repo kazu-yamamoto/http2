@@ -156,9 +156,9 @@ printEntry (i, e) = do
     putStr "] (s = "
     putStr $ show $ entrySize e
     putStr ") "
-    BS.putStr $ entryHeaderName e
+    BS.putStr $ original $ entryHeaderName e
     putStr ": "
-    BS.putStrLn $ entryHeaderValue e
+    BS.putStrLn $ entryFieldValue e
 
 ----------------------------------------------------------------
 

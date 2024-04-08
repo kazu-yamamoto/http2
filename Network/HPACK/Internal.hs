@@ -17,7 +17,7 @@ import Network.HPACK.HeaderBlock.Decode (
     decodeSimple,
     decodeSophisticated,
     decodeString,
-    toHeaderTable,
+    toTokenHeaderTable,
  )
 import Network.HPACK.HeaderBlock.Encode (encodeS, encodeString)
 import Network.HPACK.HeaderBlock.Integer

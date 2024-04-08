@@ -13,7 +13,7 @@ import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
-import qualified Network.HTTP.Types as H
+import Network.HTTP.Types
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 import UnliftIO.Exception (SomeException (..))
@@ -87,16 +87,16 @@ pushStream WorkerConf{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         (pid, newstrm) <- makePushStream pstrm pp
-        let scheme = fromJust $ getHeaderValue tokenScheme reqvt
+        let scheme = fromJust $ getFieldValue tokenScheme reqvt
             -- fixme: this value can be Nothing
             auth =
                 fromJust
-                    ( getHeaderValue tokenAuthority reqvt
-                        <|> getHeaderValue tokenHost reqvt
+                    ( getFieldValue tokenAuthority reqvt
+                        <|> getFieldValue tokenHost reqvt
                     )
             path = promiseRequestPath pp
             promiseRequest =
-                [ (tokenMethod, H.methodGet)
+                [ (tokenMethod, methodGet)
                 , (tokenScheme, scheme)
                 , (tokenAuthority, auth)
                 , (tokenPath, path)

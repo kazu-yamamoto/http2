@@ -6,7 +6,7 @@
 module JSON (
     Test (..),
     Case (..),
-    HeaderList,
+    Header,
 ) where
 
 #if __GLASGOW_HASKELL__ < 709
@@ -44,7 +44,7 @@ data Test = Test
 data Case = Case
     { size :: Maybe Int
     , wire :: ByteString
-    , headers :: HeaderList
+    , headers :: [Header]
     , seqno :: Maybe Int
     }
     deriving (Show)
@@ -87,24 +87,25 @@ instance ToJSON Case where
             , "seqno" .= no
             ]
 
-instance {-# OVERLAPPING #-} FromJSON HeaderList where
+instance {-# OVERLAPPING #-} FromJSON [Header] where
     parseJSON (Array a) = mapM parseJSON $ V.toList a
     parseJSON _ = mzero
 
-instance {-# OVERLAPPING #-} ToJSON HeaderList where
+instance {-# OVERLAPPING #-} ToJSON [Header] where
     toJSON hs = toJSON $ map toJSON hs
 
 instance {-# OVERLAPPING #-} FromJSON Header where
-    parseJSON (Array a) = pure (toKey (a ! 0), toValue (a ! 1)) -- old
+    parseJSON (Array a) = pure (mk $ toKey (a ! 0), toValue (a ! 1)) -- old
       where
         toKey = toValue
-    parseJSON (Object o) = pure (textToByteString (Key.toText k), toValue v) -- new
+    parseJSON (Object o) = pure (mk $ textToByteString $ Key.toText k, toValue v) -- new
       where
         (k, v) = head $ H.toList o
     parseJSON _ = mzero
 
 instance {-# OVERLAPPING #-} ToJSON Header where
-    toJSON (k, v) = object [Key.fromText (byteStringToText k) .= byteStringToText v]
+    toJSON (k, v) =
+        object [Key.fromText (byteStringToText $ foldedCase k) .= byteStringToText v]
 
 textToByteString :: Text -> ByteString
 textToByteString = B8.pack . T.unpack

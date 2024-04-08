@@ -5,9 +5,9 @@ module Network.HPACK.HeaderBlock.Decode (
     decodeHeader,
     decodeTokenHeader,
     ValueTable,
-    HeaderTable,
-    toHeaderTable,
-    getHeaderValue,
+    TokenHeaderTable,
+    toTokenHeaderTable,
+    getFieldValue,
     decodeString,
     decodeS,
     decodeSophisticated,
@@ -20,7 +20,6 @@ import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as B8
-import Data.CaseInsensitive (CI (..))
 import Data.Char (isUpper)
 import Network.ByteOrder
 import Network.HTTP.Semantics
@@ -34,7 +33,7 @@ import Network.HPACK.Types
 
 ----------------------------------------------------------------
 
--- | Converting the HPACK format to 'HeaderList'.
+-- | Converting the HPACK format to '[Header]'.
 --
 --   * Headers are decoded as is.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
@@ -43,7 +42,7 @@ decodeHeader
     :: DynamicTable
     -> ByteString
     -- ^ An HPACK format
-    -> IO HeaderList
+    -> IO [Header]
 decodeHeader dyntbl inp = decodeHPACK dyntbl inp (decodeSimple (toTokenHeader dyntbl))
 
 -- | Converting the HPACK format to 'TokenHeaderList'
@@ -64,7 +63,7 @@ decodeTokenHeader
     :: DynamicTable
     -> ByteString
     -- ^ An HPACK format
-    -> IO HeaderTable
+    -> IO TokenHeaderTable
 decodeTokenHeader dyntbl inp =
     decodeHPACK dyntbl inp (decodeSophisticated (toTokenHeader dyntbl)) `catch` \BufferOverrun -> throwIO HeaderBlockTruncated
 
@@ -85,7 +84,7 @@ decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
                 ff rbuf (-1)
                 dec rbuf
 
--- | Converting to 'HeaderList'.
+-- | Converting to '[Header]'.
 --
 --   * Headers are decoded as is.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
@@ -93,7 +92,7 @@ decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
 decodeSimple
     :: (Word8 -> ReadBuffer -> IO TokenHeader)
     -> ReadBuffer
-    -> IO HeaderList
+    -> IO [Header]
 decodeSimple decTokenHeader rbuf = go empty
   where
     go builder = do
@@ -106,7 +105,7 @@ decodeSimple decTokenHeader rbuf = go empty
                 go builder'
             else do
                 let tvs = run builder
-                    kvs = map (\(t, v) -> let k = tokenFoldedKey t in (k, v)) tvs
+                    kvs = map (\(t, v) -> let k = tokenKey t in (k, v)) tvs
                 return kvs
 
 headerLimit :: Int
@@ -130,7 +129,7 @@ headerLimit = 200
 decodeSophisticated
     :: (Word8 -> ReadBuffer -> IO TokenHeader)
     -> ReadBuffer
-    -> IO HeaderTable
+    -> IO TokenHeaderTable
 decodeSophisticated decTokenHeader rbuf = do
     -- using maxTokenIx to reduce condition
     arr <- IOA.newArray (minTokenIx, maxTokenIx) Nothing
@@ -138,7 +137,7 @@ decodeSophisticated decTokenHeader rbuf = do
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
   where
-    pseudoNormal :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
+    pseudoNormal :: IOA.IOArray Int (Maybe FieldValue) -> IO TokenHeaderList
     pseudoNormal arr = pseudo
       where
         pseudo = do
@@ -325,18 +324,17 @@ isTableSizeUpdate w = w .&. 0xe0 == 0x20
 
 -- | Converting a header list of the http-types style to
 --   'TokenHeaderList' and 'ValueTable'.
-toHeaderTable :: [(CI HeaderName, HeaderValue)] -> IO HeaderTable
-toHeaderTable kvs = do
+toTokenHeaderTable :: [Header] -> IO TokenHeaderTable
+toTokenHeaderTable kvs = do
     arr <- IOA.newArray (minTokenIx, maxTokenIx) Nothing
     tvs <- conv arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
   where
-    conv :: IOA.IOArray Int (Maybe HeaderValue) -> IO TokenHeaderList
+    conv :: IOA.IOArray Int (Maybe FieldValue) -> IO TokenHeaderList
     conv arr = go kvs empty
       where
-        go
-            :: [(CI HeaderName, HeaderValue)] -> Builder TokenHeader -> IO TokenHeaderList
+        go :: [Header] -> Builder TokenHeader -> IO TokenHeaderList
         go [] builder = return $ run builder
         go ((k, v) : xs) builder = do
             let t = toToken (foldedCase k)

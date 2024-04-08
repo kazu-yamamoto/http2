@@ -13,7 +13,7 @@ module Network.HTTP2.H2.HPACK (
 import qualified Control.Exception as E
 import Network.ByteOrder
 import Network.HTTP.Semantics
-import qualified Network.HTTP.Types as H
+import Network.HTTP.Types
 
 import Imports
 import Network.HPACK
@@ -26,17 +26,17 @@ import Network.HTTP2.H2.Types
 
 ----------------------------------------------------------------
 
-fixHeaders :: H.ResponseHeaders -> H.ResponseHeaders
+fixHeaders :: ResponseHeaders -> ResponseHeaders
 fixHeaders hdr = deleteUnnecessaryHeaders hdr
 
-deleteUnnecessaryHeaders :: H.ResponseHeaders -> H.ResponseHeaders
+deleteUnnecessaryHeaders :: ResponseHeaders -> ResponseHeaders
 deleteUnnecessaryHeaders hdr = filter del hdr
   where
     del (k, _) = k `notElem` headersToBeRemoved
 
-headersToBeRemoved :: [H.HeaderName]
+headersToBeRemoved :: [HeaderName]
 headersToBeRemoved =
-    [ H.hConnection
+    [ hConnection
     , "Transfer-Encoding"
     -- Keep-Alive
     -- Proxy-Connection
@@ -71,7 +71,7 @@ hpackEncodeHeaderLoop Context{..} buf siz hs =
 ----------------------------------------------------------------
 
 hpackDecodeHeader
-    :: HeaderBlockFragment -> StreamId -> Context -> IO HeaderTable
+    :: HeaderBlockFragment -> StreamId -> Context -> IO TokenHeaderTable
 hpackDecodeHeader hdrblk sid ctx = do
     tbl@(_, vt) <- hpackDecodeTrailer hdrblk sid ctx
     if isClient ctx || checkRequestHeader vt
@@ -79,7 +79,7 @@ hpackDecodeHeader hdrblk sid ctx = do
         else E.throwIO $ StreamErrorIsSent ProtocolError sid "illegal header"
 
 hpackDecodeTrailer
-    :: HeaderBlockFragment -> StreamId -> Context -> IO HeaderTable
+    :: HeaderBlockFragment -> StreamId -> Context -> IO TokenHeaderTable
 hpackDecodeTrailer hdrblk sid Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
     handl IllegalHeaderName =
@@ -101,14 +101,14 @@ checkRequestHeader reqvt
     | just mTE (/= "trailers") = False
     | otherwise = checkAuth mAuthority mHost
   where
-    mStatus = getHeaderValue tokenStatus reqvt
-    mScheme = getHeaderValue tokenScheme reqvt
-    mPath = getHeaderValue tokenPath reqvt
-    mMethod = getHeaderValue tokenMethod reqvt
-    mConnection = getHeaderValue tokenConnection reqvt
-    mTE = getHeaderValue tokenTE reqvt
-    mAuthority = getHeaderValue tokenAuthority reqvt
-    mHost = getHeaderValue tokenHost reqvt
+    mStatus = getFieldValue tokenStatus reqvt
+    mScheme = getFieldValue tokenScheme reqvt
+    mPath = getFieldValue tokenPath reqvt
+    mMethod = getFieldValue tokenMethod reqvt
+    mConnection = getFieldValue tokenConnection reqvt
+    mTE = getFieldValue tokenTE reqvt
+    mAuthority = getFieldValue tokenAuthority reqvt
+    mHost = getFieldValue tokenHost reqvt
 
 checkAuth :: Maybe ByteString -> Maybe ByteString -> Bool
 checkAuth Nothing Nothing = False

@@ -12,6 +12,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.List
 import Data.Maybe (fromJust)
+import Network.HPACK
 import System.Directory
 import System.FilePath
 
@@ -81,7 +82,7 @@ getHeaderSize file = do
     let len = sum $ map toT $ cases tc
     return len
   where
-    toT (Case _ _ hs _) = sum $ map (\(x, y) -> BS.length x + BS.length y) hs
+    toT (Case _ _ hs _) = sum $ map (\(x, y) -> BS.length (foldedCase x) + BS.length y) hs
 
 getHeaderLen :: FilePath -> IO Int
 getHeaderLen file = do
