@@ -9,6 +9,7 @@ import Control.Exception
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.Server
+import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
 import UnliftIO.Async (concurrently_)
 

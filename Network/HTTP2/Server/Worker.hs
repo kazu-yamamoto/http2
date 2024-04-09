@@ -13,6 +13,7 @@ import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
+import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T

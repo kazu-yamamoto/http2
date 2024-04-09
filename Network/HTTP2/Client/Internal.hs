@@ -12,6 +12,7 @@ module Network.HTTP2.Client.Internal (
 ) where
 
 import Network.HTTP.Semantics.Client
+import Network.HTTP.Semantics.Client.Internal
 
 import Network.HTTP2.Client.Run
 import Network.HTTP2.H2
