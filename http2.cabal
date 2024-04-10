@@ -56,6 +56,7 @@ library
         Network.HPACK
         Network.HPACK.Internal
         Network.HPACK.Table
+        Network.HPACK.Token
         Network.HTTP2.Client
         Network.HTTP2.Client.Internal
         Network.HTTP2.Frame

@@ -42,6 +42,7 @@ module Network.HPACK (
     ValueTable,
     TokenHeaderTable,
     getFieldValue,
+    getHeaderValue,
 
     -- * Basic types
     Size,
