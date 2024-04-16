@@ -10,10 +10,10 @@ module Network.HTTP2.H2.HPACK (
     fixHeaders,
 ) where
 
-import qualified Control.Exception as E
 import Network.ByteOrder
 import Network.HTTP.Semantics
 import Network.HTTP.Types
+import qualified UnliftIO.Exception as E
 
 import Imports
 import Network.HPACK

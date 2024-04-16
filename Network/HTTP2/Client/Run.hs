@@ -6,7 +6,6 @@
 module Network.HTTP2.Client.Run where
 
 import Control.Concurrent.STM (check)
-import Control.Exception
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
@@ -17,6 +16,7 @@ import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
+import UnliftIO.Exception
 import UnliftIO.STM
 
 import Imports

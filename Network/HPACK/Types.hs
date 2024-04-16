@@ -22,9 +22,8 @@ module Network.HPACK.Types (
     BufferOverrun (..),
 ) where
 
-import Control.Exception as E
-import Data.Typeable
 import Network.ByteOrder (Buffer, BufferOverrun (..), BufferSize)
+import UnliftIO.Exception as E
 
 import Imports
 

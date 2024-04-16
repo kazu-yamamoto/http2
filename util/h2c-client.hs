@@ -3,13 +3,13 @@
 
 module Main where
 
-import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP2.Client
 import Network.Run.TCP (runTCPClient)
 import System.Console.GetOpt
 import System.Environment
 import System.Exit
+import qualified UnliftIO.Exception as E
 
 import Client
 

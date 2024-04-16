@@ -24,12 +24,12 @@ module Network.HTTP2.Frame.Decode (
     decodeContinuationFrame,
 ) where
 
-import Control.Exception (Exception)
 import Data.Array (Array, listArray, (!))
 import qualified Data.ByteString as BS
 import Foreign.Ptr (Ptr, plusPtr)
 import qualified Network.ByteOrder as N
 import System.IO.Unsafe (unsafeDupablePerformIO)
+import UnliftIO.Exception (Exception)
 
 import Imports
 import Network.HTTP2.Frame.Types

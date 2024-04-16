@@ -7,7 +7,7 @@
 -- > {-# LANGUAGE OverloadedStrings #-}
 -- > module Main (main) where
 -- >
--- > import qualified Control.Exception as E
+-- > import qualified UnliftIO.Exception as E
 -- > import Data.ByteString.Builder (byteString)
 -- > import Network.HTTP.Types (ok200)
 -- > import Network.Run.TCP (runTCPServer) -- network-run

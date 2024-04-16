@@ -139,7 +139,8 @@ executable h2c-client
         bytestring,
         http-types,
         http2,
-        network-run
+        network-run,
+        unliftio
 
     if flag(devel)
 
@@ -159,7 +160,8 @@ executable h2c-server
         crypton,
         http2,
         http-types,
-        network-run
+        network-run,
+        unliftio
 
     if flag(devel)
 
@@ -216,6 +218,7 @@ executable hpack-debug
         http2,
         network-byte-order,
         text,
+        unliftio,
         unordered-containers,
         vector,
         word8
@@ -309,6 +312,7 @@ test-suite spec
         network,
         network-run >=0.1.0,
         random,
+        unliftio,
         typed-process
 
 test-suite spec2
@@ -357,6 +361,7 @@ test-suite hpack
         hspec >=1.3,
         http2,
         text,
+        unliftio,
         unordered-containers,
         vector
 

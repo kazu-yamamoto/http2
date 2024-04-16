@@ -10,11 +10,11 @@
 -- >
 -- > module Main where
 -- >
--- > import Control.Concurrent.Async
--- > import qualified Control.Exception as E
 -- > import qualified Data.ByteString.Char8 as C8
 -- > import Network.HTTP.Types
 -- > import Network.Run.TCP (runTCPClient) -- network-run
+-- > import UnliftIO.Async -- unliftio
+-- > import qualified UnliftIO.Exception as E -- unliftio
 -- >
 -- > import Network.HTTP2.Client
 -- >

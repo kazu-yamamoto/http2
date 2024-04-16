@@ -14,7 +14,6 @@ module Network.HPACK.HeaderBlock.Decode (
     decodeSimple, -- testing
 ) where
 
-import Control.Exception (catch, throwIO)
 import Data.Array.Base (unsafeRead, unsafeWrite)
 import qualified Data.Array.IO as IOA
 import qualified Data.Array.Unsafe as Unsafe
@@ -23,6 +22,7 @@ import qualified Data.ByteString.Char8 as B8
 import Data.Char (isUpper)
 import Network.ByteOrder
 import Network.HTTP.Semantics
+import UnliftIO.Exception (catch, throwIO)
 
 import Imports hiding (empty)
 import Network.HPACK.Builder

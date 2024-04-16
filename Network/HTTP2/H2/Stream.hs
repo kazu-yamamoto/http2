@@ -3,12 +3,12 @@
 
 module Network.HTTP2.H2.Stream where
 
-import Control.Exception
 import Control.Monad
 import Data.IORef
 import Data.Maybe (fromMaybe)
 import Network.Control
 import UnliftIO.Concurrent
+import UnliftIO.Exception
 import UnliftIO.STM
 
 import Network.HTTP2.Frame

@@ -4,10 +4,10 @@
 
 module Network.HTTP2.H2.Context where
 
-import Control.Exception
 import Data.IORef
 import Network.Control
 import Network.Socket (SockAddr)
+import UnliftIO.Exception
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 

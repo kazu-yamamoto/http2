@@ -4,7 +4,6 @@
 
 module Network.HTTP2.H2.Types where
 
-import qualified Control.Exception as E
 import Data.IORef
 import Data.Typeable
 import Network.Control
@@ -15,6 +14,7 @@ import System.IO.Unsafe
 import qualified System.TimeManager as T
 import UnliftIO.Concurrent
 import UnliftIO.Exception (SomeException)
+import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports

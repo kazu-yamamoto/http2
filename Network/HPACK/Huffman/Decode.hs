@@ -9,11 +9,11 @@ module Network.HPACK.Huffman.Decode (
     GCBuffer,
 ) where
 
-import Control.Exception (throwIO)
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
 import qualified Data.ByteString as BS
 import Network.ByteOrder
+import UnliftIO.Exception (throwIO)
 
 import Imports
 import Network.HPACK.Huffman.Bit
