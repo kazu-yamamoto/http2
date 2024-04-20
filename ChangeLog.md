@@ -1,3 +1,13 @@
+## 5.2.0
+
+* Using http-semantics
+  [#114](https://github.com/kazu-yamamoto/http2/pull/114)
+* `Header` of `http-types` should be used as high-level header.
+* `TokenHeader` of `http-semantics` should be used as low-level header.
+* Breaking change: `encodeHeader` takes `Header` of `http-types`.
+* Breaking change: `decodeHeader` returns `Header` of `http-types`.
+* Breaking change: `HeaderName` as `ByteString` is removed.
+
 ## 5.1.4
 
 * Using network-control v0.1.
