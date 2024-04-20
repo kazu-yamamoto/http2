@@ -12,13 +12,13 @@ module HPACKDecode (
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Control.Exception
 import Control.Monad (when)
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8 as B8
 import Data.List (sort)
 import Network.HPACK
 import Network.HPACK.Table
+import UnliftIO.Exception
 
 import JSON
 
@@ -87,12 +87,12 @@ test conf c dyntbl = do
     inp = B16.decodeLenient wirehex
     hs = headers c
 
--- | Printing 'HeaderList'.
-printHeaderList :: HeaderList -> IO ()
+-- | Printing '[Header]'.
+printHeaderList :: [Header] -> IO ()
 printHeaderList hs = mapM_ printHeader hs
   where
     printHeader (k, v) = do
-        B8.putStr k
+        B8.putStr $ original k
         putStr ": "
         B8.putStr v
         putStr "\n"

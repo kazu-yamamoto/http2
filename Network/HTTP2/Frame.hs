@@ -73,7 +73,7 @@ module Network.HTTP2.Frame (
     SettingsList,
     SettingsKey (
         SettingsKey,
-        SettingsHeaderTableSize,
+        SettingsTokenHeaderTableSize,
         SettingsEnablePush,
         SettingsMaxConcurrentStreams,
         SettingsInitialWindowSize,

@@ -20,7 +20,7 @@ import JSON
 
 data Conf = Conf
     { debug :: Bool
-    , enc :: DynamicTable -> HeaderList -> IO ByteString
+    , enc :: DynamicTable -> [Header] -> IO ByteString
     }
 
 run :: Bool -> EncodeStrategy -> Test -> IO [ByteString]

@@ -2,10 +2,10 @@
 
 module Main where
 
-import Control.Exception
 import Data.ByteString (ByteString)
 import Gauge.Main
 import Network.HPACK
+import UnliftIO.Exception
 
 ----------------------------------------------------------------
 

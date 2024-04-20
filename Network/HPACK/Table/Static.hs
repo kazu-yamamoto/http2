@@ -9,6 +9,7 @@ module Network.HPACK.Table.Static (
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
 import Network.HPACK.Table.Entry
+import Network.HTTP.Types (Header)
 
 ----------------------------------------------------------------
 

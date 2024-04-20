@@ -6,8 +6,6 @@
 module HTTP2.ServerSpec where
 
 import Control.Concurrent
-import Control.Concurrent.Async
-import qualified Control.Exception as E
 import Control.Monad
 import Crypto.Hash (Context, SHA1) -- cryptonite
 import qualified Crypto.Hash as CH
@@ -16,6 +14,7 @@ import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder, byteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
+import Network.HTTP.Semantics
 import Network.HTTP.Types
 import Network.Run.TCP
 import Network.Socket
@@ -24,10 +23,11 @@ import System.IO
 import System.IO.Unsafe
 import System.Random
 import Test.Hspec
+import UnliftIO.Async
+import qualified UnliftIO.Exception as E
 
 import Network.HPACK
 import Network.HPACK.Internal
-import Network.HPACK.Token
 import qualified Network.HTTP2.Client as C
 import qualified Network.HTTP2.Client.Internal as C
 import Network.HTTP2.Frame
@@ -151,7 +151,7 @@ responseEcho req = setResponseTrailersMaker h2rsp maker
   where
     h2rsp = responseStreaming ok200 header streamingBody
     header = [("Content-Type", "text/plain")]
-    mhx = getHeaderValue (toToken "X-Tag") (snd (requestHeaders req))
+    mhx = getFieldValue (toToken "X-Tag") (snd (requestHeaders req))
     streamingBody write _flush = do
         loop
         mt <- getRequestTrailers req
@@ -308,7 +308,7 @@ client5 sendRequest _aux = do
                 | otherwise = pure ()
         go (100 :: Int)
 
-firstTrailerValue :: HeaderTable -> HeaderValue
+firstTrailerValue :: TokenHeaderTable -> FieldValue
 firstTrailerValue = snd . Prelude.head . fst
 
 runAttack :: (C.ClientIO -> IO ()) -> IO ()

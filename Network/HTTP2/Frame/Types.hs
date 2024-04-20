@@ -114,8 +114,8 @@ maxSettingsKey :: SettingsKey
 maxSettingsKey = SettingsKey 6
 
 {- FOURMOLU_DISABLE -}
-pattern SettingsHeaderTableSize      :: SettingsKey
-pattern SettingsHeaderTableSize       = SettingsKey 1
+pattern SettingsTokenHeaderTableSize :: SettingsKey
+pattern SettingsTokenHeaderTableSize  = SettingsKey 1
 
 pattern SettingsEnablePush           :: SettingsKey
 pattern SettingsEnablePush            = SettingsKey 2
@@ -135,7 +135,7 @@ pattern SettingsMaxHeaderListSize     = SettingsKey 6
 
 {- FOURMOLU_DISABLE -}
 instance Show SettingsKey where
-    show SettingsHeaderTableSize      = "SettingsHeaderTableSize"
+    show SettingsTokenHeaderTableSize = "SettingsTokenHeaderTableSize"
     show SettingsEnablePush           = "SettingsEnablePush"
     show SettingsMaxConcurrentStreams = "SettingsMaxConcurrentStreams"
     show SettingsInitialWindowSize    = "SettingsInitialWindowSize"
@@ -150,7 +150,7 @@ instance Read SettingsKey where
         Ident idnt <- lexP
         readSK idnt
       where
-        readSK "SettingsHeaderTableSize" = return SettingsHeaderTableSize
+        readSK "SettingsTokenHeaderTableSize" = return SettingsTokenHeaderTableSize
         readSK "SettingsEnablePush" = return SettingsEnablePush
         readSK "SettingsMaxConcurrentStreams" = return SettingsMaxConcurrentStreams
         readSK "SettingsInitialWindowSize" = return SettingsInitialWindowSize

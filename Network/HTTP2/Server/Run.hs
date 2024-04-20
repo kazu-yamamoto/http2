@@ -5,15 +5,16 @@
 module Network.HTTP2.Server.Run where
 
 import Control.Concurrent.STM
-import Control.Exception
 import Imports
 import Network.Control (defaultMaxData)
+import Network.HTTP.Semantics.Server
+import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
 import UnliftIO.Async (concurrently_)
+import UnliftIO.Exception
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
-import Network.HTTP2.Server.Types
 import Network.HTTP2.Server.Worker
 
 -- | Server configuration

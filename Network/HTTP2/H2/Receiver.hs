@@ -13,13 +13,12 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
+import Network.HTTP.Semantics
 import UnliftIO.Concurrent
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (delete, insert)
-import Network.HPACK
-import Network.HPACK.Token
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
@@ -173,7 +172,7 @@ controlOrStream ctx@Context{..} Config{..} ftyp header@FrameHeader{streamId, pay
 processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
 -- Transition (process1)
 processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
-    let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
+    let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
     when (just mcl (/= (0 :: Int))) $
         E.throwIO $
             StreamErrorIsSent
@@ -192,7 +191,7 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
 
 -- Transition (process2)
 processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} _streamId = do
-    let mcl = fst <$> (getHeaderValue tokenContentLength reqvt >>= C8.readInt)
+    let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     q <- newTQueueIO
@@ -366,12 +365,12 @@ push header@FrameHeader{streamId} bs ctx = do
     (_, vt) <- hpackDecodeHeader frag streamId ctx
     let ClientInfo{..} = toClientInfo $ roleInfo ctx
     when
-        ( getHeaderValue tokenAuthority vt == Just (UTF8.fromString authority)
-            && getHeaderValue tokenScheme vt == Just scheme
+        ( getFieldValue tokenAuthority vt == Just (UTF8.fromString authority)
+            && getFieldValue tokenScheme vt == Just scheme
         )
         $ do
-            let mmethod = getHeaderValue tokenMethod vt
-                mpath = getHeaderValue tokenPath vt
+            let mmethod = getFieldValue tokenMethod vt
+                mpath = getFieldValue tokenPath vt
             case (mmethod, mpath) of
                 (Just method, Just path) ->
                     -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: recv: rejecting if over my limit

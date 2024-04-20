@@ -10,7 +10,11 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Data.IORef
-import qualified Network.HTTP.Types as H
+import Network.HTTP.Semantics
+import Network.HTTP.Semantics.IO
+import Network.HTTP.Semantics.Server
+import Network.HTTP.Semantics.Server.Internal
+import Network.HTTP.Types
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 import UnliftIO.Exception (SomeException (..))
@@ -18,11 +22,8 @@ import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (insert)
-import Network.HPACK
-import Network.HPACK.Token
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
-import Network.HTTP2.Server.Types
 
 ----------------------------------------------------------------
 
@@ -87,16 +88,16 @@ pushStream WorkerConf{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         (pid, newstrm) <- makePushStream pstrm pp
-        let scheme = fromJust $ getHeaderValue tokenScheme reqvt
+        let scheme = fromJust $ getFieldValue tokenScheme reqvt
             -- fixme: this value can be Nothing
             auth =
                 fromJust
-                    ( getHeaderValue tokenAuthority reqvt
-                        <|> getHeaderValue tokenHost reqvt
+                    ( getFieldValue tokenAuthority reqvt
+                        <|> getFieldValue tokenHost reqvt
                     )
             path = promiseRequestPath pp
             promiseRequest =
-                [ (tokenMethod, H.methodGet)
+                [ (tokenMethod, methodGet)
                 , (tokenScheme, scheme)
                 , (tokenAuthority, auth)
                 , (tokenPath, path)

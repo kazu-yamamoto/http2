@@ -67,7 +67,6 @@ library
     other-modules:
         Imports
         Network.HPACK.Builder
-        Network.HTTP2.Client.Types
         Network.HTTP2.Client.Run
         Network.HPACK.HeaderBlock
         Network.HPACK.HeaderBlock.Decode
@@ -90,15 +89,12 @@ library
         Network.HTTP2.H2.Config
         Network.HTTP2.H2.Context
         Network.HTTP2.H2.EncodeFrame
-        Network.HTTP2.H2.File
         Network.HTTP2.H2.HPACK
         Network.HTTP2.H2.Manager
         Network.HTTP2.H2.Queue
-        Network.HTTP2.H2.ReadN
         Network.HTTP2.H2.Receiver
         Network.HTTP2.H2.Sender
         Network.HTTP2.H2.Settings
-        Network.HTTP2.H2.Status
         Network.HTTP2.H2.Stream
         Network.HTTP2.H2.StreamTable
         Network.HTTP2.H2.Types
@@ -107,7 +103,6 @@ library
         Network.HTTP2.Frame.Encode
         Network.HTTP2.Frame.Types
         Network.HTTP2.Server.Run
-        Network.HTTP2.Server.Types
         Network.HTTP2.Server.Worker
 
     default-language:   Haskell2010
@@ -118,15 +113,16 @@ library
         array >=0.5 && <0.6,
         async >=2.2 && <2.3,
         bytestring >=0.10,
-        containers >=0.6 && <0.7,
-        stm >=2.5 && <2.6,
         case-insensitive >=1.2 && <1.3,
+        containers >=0.6 && <0.7,
+        http-semantics,
         http-types >=0.12 && <0.13,
         network >=3.1,
         network-byte-order >=0.1.7 && <0.2,
         network-control >=0.1 && <0.2,
-        unix-time >=0.4.11 && <0.5,
+        stm >=2.5 && <2.6,
         time-manager >=0.0.1 && <0.1,
+        unix-time >=0.4.11 && <0.5,
         unliftio >=0.2 && <0.3,
         utf8-string >=1.0 && <1.1
 
@@ -143,7 +139,8 @@ executable h2c-client
         bytestring,
         http-types,
         http2,
-        network-run
+        network-run,
+        unliftio
 
     if flag(devel)
 
@@ -163,7 +160,8 @@ executable h2c-server
         crypton,
         http2,
         http-types,
-        network-run
+        network-run,
+        unliftio
 
     if flag(devel)
 
@@ -187,7 +185,6 @@ executable hpack-encode
         array,
         base16-bytestring >=1.0,
         bytestring,
-        case-insensitive,
         containers,
         http2,
         network-byte-order,
@@ -217,11 +214,11 @@ executable hpack-debug
         array,
         base16-bytestring >=1.0,
         bytestring,
-        case-insensitive,
         containers,
         http2,
         network-byte-order,
         text,
+        unliftio,
         unordered-containers,
         vector,
         word8
@@ -244,7 +241,6 @@ executable hpack-stat
         aeson-pretty,
         array,
         bytestring,
-        case-insensitive,
         containers,
         directory,
         filepath,
@@ -310,11 +306,13 @@ test-suite spec
         bytestring,
         crypton,
         hspec >=1.3,
+        http-semantics,
         http-types,
         http2,
         network,
         network-run >=0.1.0,
         random,
+        unliftio,
         typed-process
 
 test-suite spec2
@@ -363,6 +361,7 @@ test-suite hpack
         hspec >=1.3,
         http2,
         text,
+        unliftio,
         unordered-containers,
         vector
 

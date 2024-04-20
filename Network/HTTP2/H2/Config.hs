@@ -2,13 +2,12 @@ module Network.HTTP2.H2.Config where
 
 import Data.IORef
 import Foreign.Marshal.Alloc (free, mallocBytes)
+import Network.HTTP.Semantics.Client
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
 import qualified System.TimeManager as T
 
 import Network.HPACK
-import Network.HTTP2.H2.File
-import Network.HTTP2.H2.ReadN
 import Network.HTTP2.H2.Types
 
 -- | Making simple configuration whose IO is not efficient.

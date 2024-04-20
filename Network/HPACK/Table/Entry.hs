@@ -4,9 +4,7 @@ module Network.HPACK.Table.Entry (
     -- * Type
     Size,
     Entry (..),
-    Header, -- re-exporting
-    HeaderName, -- re-exporting
-    HeaderValue, -- re-exporting
+    FieldValue, -- re-exporting
     Index, -- re-exporting
 
     -- * Header and Entry
@@ -18,7 +16,7 @@ module Network.HPACK.Table.Entry (
     entryTokenHeader,
     entryToken,
     entryHeaderName,
-    entryHeaderValue,
+    entryFieldValue,
 
     -- * For initialization
     dummyEntry,
@@ -26,8 +24,10 @@ module Network.HPACK.Table.Entry (
 ) where
 
 import qualified Data.ByteString as BS
-import Network.HPACK.Token
 import Network.HPACK.Types
+import Network.HTTP.Semantics
+
+import Imports
 
 ----------------------------------------------------------------
 
@@ -35,7 +35,7 @@ import Network.HPACK.Types
 type Size = Int
 
 -- | Type for table entry. Size includes the 32 bytes magic number.
-data Entry = Entry Size Token HeaderValue deriving (Show)
+data Entry = Entry Size Token FieldValue deriving (Show)
 
 ----------------------------------------------------------------
 
@@ -44,11 +44,11 @@ headerSizeMagicNumber = 32
 
 headerSize :: Header -> Size
 headerSize (k, v) =
-    BS.length k
+    BS.length (foldedCase k)
         + BS.length v
         + headerSizeMagicNumber
 
-headerSize' :: Token -> HeaderValue -> Size
+headerSize' :: Token -> FieldValue -> Size
 headerSize' t v =
     BS.length (tokenFoldedKey t)
         + BS.length v
@@ -60,10 +60,10 @@ headerSize' t v =
 toEntry :: Header -> Entry
 toEntry kv@(k, v) = Entry siz t v
   where
-    t = toToken k
+    t = toToken $ foldedCase k
     siz = headerSize kv
 
-toEntryToken :: Token -> HeaderValue -> Entry
+toEntryToken :: Token -> FieldValue -> Entry
 toEntryToken t v = Entry siz t v
   where
     siz = headerSize' t v
@@ -84,11 +84,11 @@ entryToken (Entry _ t _) = t
 
 -- | Getting 'HeaderName'.
 entryHeaderName :: Entry -> HeaderName
-entryHeaderName (Entry _ t _) = tokenFoldedKey t
+entryHeaderName (Entry _ t _) = tokenKey t -- xxx
 
--- | Getting 'HeaderValue'.
-entryHeaderValue :: Entry -> HeaderValue
-entryHeaderValue (Entry _ _ v) = v
+-- | Getting 'FieldValue'.
+entryFieldValue :: Entry -> FieldValue
+entryFieldValue (Entry _ _ v) = v
 
 ----------------------------------------------------------------
 

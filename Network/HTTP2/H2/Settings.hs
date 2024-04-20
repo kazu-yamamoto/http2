@@ -67,7 +67,7 @@ defaultSettings =
 fromSettingsList :: Settings -> SettingsList -> Settings
 fromSettingsList settings kvs = foldl' update settings kvs
   where
-    update def (SettingsHeaderTableSize,x)      = def { headerTableSize = x }
+    update def (SettingsTokenHeaderTableSize,x)      = def { headerTableSize = x }
     -- fixme: x should be 0 or 1
     update def (SettingsEnablePush,x)           = def { enablePush = x > 0 }
     update def (SettingsMaxConcurrentStreams,x) = def { maxConcurrentStreams = Just x }
@@ -101,7 +101,7 @@ toSettingsList s s0 =
             s
             s0
             headerTableSize
-            SettingsHeaderTableSize
+            SettingsTokenHeaderTableSize
             id
         , diff
             s

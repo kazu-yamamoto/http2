@@ -5,6 +5,10 @@ module Network.HPACK (
     -- * Encoding and decoding
     encodeHeader,
     decodeHeader,
+    Header,
+    original,
+    foldedCase,
+    mk,
 
     -- * Encoding and decoding with token
     encodeTokenHeader,
@@ -28,37 +32,30 @@ module Network.HPACK (
     DecodeError (..),
     BufferOverrun (..),
 
-    -- * Headers
-    HeaderList,
-    Header,
-    HeaderName,
-    HeaderValue,
-    TokenHeaderList,
+    -- * Token header
+    FieldValue,
     TokenHeader,
+    TokenHeaderList,
+    toTokenHeaderTable,
 
     -- * Value table
     ValueTable,
-    HeaderTable,
+    TokenHeaderTable,
+    getFieldValue,
     getHeaderValue,
-    toHeaderTable,
 
     -- * Basic types
     Size,
     Index,
     Buffer,
     BufferSize,
-
-    -- * Re-exports
-    original,
-    foldedCase,
-    mk,
 ) where
 
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import Data.CaseInsensitive
 
+import Imports
 import Network.HPACK.HeaderBlock
 import Network.HPACK.Table
 import Network.HPACK.Types

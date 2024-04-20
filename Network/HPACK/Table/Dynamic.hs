@@ -24,11 +24,11 @@ module Network.HPACK.Table.Dynamic (
     getRevIndex,
 ) where
 
-import Control.Exception (throwIO)
 import Data.Array.Base (unsafeRead, unsafeWrite)
 import Data.Array.IO (IOArray, newArray)
 import qualified Data.ByteString.Char8 as BS
 import Data.IORef
+import UnliftIO.Exception (throwIO)
 
 import Imports
 import Network.HPACK.Huffman
@@ -156,9 +156,9 @@ printEntry (i, e) = do
     putStr "] (s = "
     putStr $ show $ entrySize e
     putStr ") "
-    BS.putStr $ entryHeaderName e
+    BS.putStr $ original $ entryHeaderName e
     putStr ": "
-    BS.putStrLn $ entryHeaderValue e
+    BS.putStrLn $ entryFieldValue e
 
 ----------------------------------------------------------------
 

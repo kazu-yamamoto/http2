@@ -21,13 +21,13 @@ module Network.HTTP2.H2.Manager (
     waitCounter0,
 ) where
 
-import Control.Exception
 import Data.Foldable
 import Data.IORef
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified System.TimeManager as T
 import UnliftIO.Concurrent
+import UnliftIO.Exception
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 

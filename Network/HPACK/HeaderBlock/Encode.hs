@@ -8,8 +8,6 @@ module Network.HPACK.HeaderBlock.Encode (
     encodeS,
 ) where
 
-import Control.Exception (bracket, throwIO)
-import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (create)
 import Data.IORef
@@ -17,12 +15,14 @@ import Foreign.Marshal.Alloc (free, mallocBytes)
 import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (minusPtr)
 import Network.ByteOrder
+import Network.HTTP.Semantics
+import UnliftIO.Exception (bracket, throwIO)
+import qualified UnliftIO.Exception as E
 
 import Imports
 import Network.HPACK.HeaderBlock.Integer
 import Network.HPACK.Huffman
 import Network.HPACK.Table
-import Network.HPACK.Token
 import Network.HPACK.Types
 
 ----------------------------------------------------------------
@@ -41,7 +41,7 @@ changeTableSize dyntbl wbuf = do
 
 ----------------------------------------------------------------
 
--- | Converting 'HeaderList' to the HPACK format.
+-- | Converting '[Header]' to the HPACK format.
 --   This function has overhead of allocating/freeing a temporary buffer.
 --   'BufferOverrun' will be thrown if the temporary buffer is too small.
 encodeHeader
@@ -49,14 +49,17 @@ encodeHeader
     -> Size
     -- ^ The size of a temporary buffer.
     -> DynamicTable
-    -> HeaderList
+    -> [Header]
     -> IO ByteString
     -- ^ An HPACK format
 encodeHeader stgy siz dyntbl hs = encodeHeader' stgy siz dyntbl hs'
   where
-    hs' = map (\(k, v) -> let t = toToken k in (t, v)) hs
+    mk' (k, v) = (t, v)
+      where
+        t = toToken $ foldedCase k
+    hs' = map mk' hs
 
--- | Converting 'HeaderList' to the HPACK format.
+-- | Converting 'TokenHeaderList' to the HPACK format.
 --   'BufferOverrun' will be thrown if the temporary buffer is too small.
 encodeHeader'
     :: EncodeStrategy
@@ -135,26 +138,26 @@ encodeTokenHeader buf siz EncodeStrategy{..} first dyntbl hs0 = do
 ----------------------------------------------------------------
 
 naiveStep
-    :: (HeaderName -> HeaderValue -> IO ()) -> Token -> HeaderValue -> IO ()
+    :: (FieldName -> FieldValue -> IO ()) -> Token -> FieldValue -> IO ()
 naiveStep fe t v = fe (tokenFoldedKey t) v
 
 ----------------------------------------------------------------
 
-staticStep :: FA -> FD -> FE -> Token -> HeaderValue -> IO ()
+staticStep :: FA -> FD -> FE -> Token -> FieldValue -> IO ()
 staticStep fa fd fe t v = lookupRevIndex' t v fa fd fe
 
 ----------------------------------------------------------------
 
-linearStep :: RevIndex -> FA -> FB -> FC -> FD -> Token -> HeaderValue -> IO ()
+linearStep :: RevIndex -> FA -> FB -> FC -> FD -> Token -> FieldValue -> IO ()
 linearStep rev fa fb fc fd t v = lookupRevIndex t v fa fb fc fd rev
 
 ----------------------------------------------------------------
 
 type FA = HIndex -> IO ()
-type FB = HeaderValue -> Entry -> HIndex -> IO ()
-type FC = HeaderName -> HeaderValue -> Entry -> IO ()
-type FD = HeaderValue -> HIndex -> IO ()
-type FE = HeaderName -> HeaderValue -> IO ()
+type FB = FieldValue -> Entry -> HIndex -> IO ()
+type FC = FieldName -> FieldValue -> Entry -> IO ()
+type FD = FieldValue -> HIndex -> IO ()
+type FE = FieldName -> FieldValue -> IO ()
 
 -- 6.1.  Indexed Header Field Representation
 -- Indexed Header Field
@@ -194,7 +197,7 @@ literalHeaderFieldWithoutIndexingNewName _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
 literalHeaderFieldWithoutIndexingNewName'
-    :: DynamicTable -> WriteBuffer -> Bool -> HeaderName -> HeaderValue -> IO ()
+    :: DynamicTable -> WriteBuffer -> Bool -> FieldName -> FieldValue -> IO ()
 literalHeaderFieldWithoutIndexingNewName' _ wbuf huff k v =
     newName wbuf huff set0000 k v
 
@@ -211,14 +214,14 @@ index wbuf i = encodeI wbuf set1 7 i
 -- Using Huffman encoding
 {-# INLINE indexedName #-}
 indexedName
-    :: WriteBuffer -> Bool -> Int -> Setter -> HeaderValue -> Index -> IO ()
+    :: WriteBuffer -> Bool -> Int -> Setter -> FieldValue -> Index -> IO ()
 indexedName wbuf huff n set v idx = do
     encodeI wbuf set n idx
     encStr wbuf huff v
 
 -- Using Huffman encoding
 {-# INLINE newName #-}
-newName :: WriteBuffer -> Bool -> Setter -> HeaderName -> HeaderValue -> IO ()
+newName :: WriteBuffer -> Bool -> Setter -> FieldName -> FieldValue -> IO ()
 newName wbuf huff set k v = do
     write8 wbuf $ set 0
     encStr wbuf huff k

@@ -6,19 +6,20 @@
 module Network.HTTP2.Client.Run where
 
 import Control.Concurrent.STM (check)
-import Control.Exception
 import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control (RxFlow (..), defaultMaxData)
+import Network.HTTP.Semantics.Client
+import Network.HTTP.Semantics.Client.Internal
+import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import UnliftIO.Async
 import UnliftIO.Concurrent
+import UnliftIO.Exception
 import UnliftIO.STM
 
 import Imports
-import Network.HTTP.Types (Header)
-import Network.HTTP2.Client.Types
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
 

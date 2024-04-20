@@ -2,10 +2,7 @@
 
 module Network.HPACK.Types (
     -- * Header
-    HeaderName,
-    HeaderValue,
-    Header,
-    HeaderList,
+    FieldValue,
     TokenHeader,
     TokenHeaderList,
 
@@ -25,32 +22,10 @@ module Network.HPACK.Types (
     BufferOverrun (..),
 ) where
 
-import Control.Exception as E
-import Data.Typeable
 import Network.ByteOrder (Buffer, BufferOverrun (..), BufferSize)
+import UnliftIO.Exception as E
 
 import Imports
-import Network.HPACK.Token (Token)
-
-----------------------------------------------------------------
-
--- | Header name.
-type HeaderName = ByteString
-
--- | Header value.
-type HeaderValue = ByteString
-
--- | Header.
-type Header = (HeaderName, HeaderValue)
-
--- | Header list.
-type HeaderList = [Header]
-
--- | TokenBased header.
-type TokenHeader = (Token, HeaderValue)
-
--- | TokenBased header list.
-type TokenHeaderList = [TokenHeader]
 
 ----------------------------------------------------------------
 

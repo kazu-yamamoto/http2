@@ -5,12 +5,12 @@ module HPACK.EncodeSpec where
 #if __GLASGOW_HASKELL__ < 709
 import Control.Applicative ((<$>))
 #endif
-import qualified Control.Exception as E
 import Data.Bits
 import qualified Data.ByteString as BS
 import Data.Maybe (fromMaybe)
 import Network.HPACK
 import Test.Hspec
+import qualified UnliftIO.Exception as E
 
 spec :: Spec
 spec = do
@@ -41,7 +41,7 @@ run msz stgy lens0 = do
         withDynamicTableForDecoding sz 4096 $ \dtbl ->
             go etbl dtbl hdrs lens0 `shouldReturn` True
   where
-    go :: DynamicTable -> DynamicTable -> [HeaderList] -> [Int] -> IO Bool
+    go :: DynamicTable -> DynamicTable -> [[Header]] -> [Int] -> IO Bool
     go _ _ [] _ = return True
     go etbl dtbl (h : hs) lens = do
         bs <-
@@ -74,7 +74,7 @@ runNotIndexed stgy = do
     hdrs <- read <$> readFile "bench-hpack/headers.hs"
     withDynamicTableForEncoding 0 $ \etbl ->
         withDynamicTableForDecoding 0 4096 $ \dtbl ->
-            mapM_ (go etbl dtbl) (hdrs :: [HeaderList])
+            mapM_ (go etbl dtbl) (hdrs :: [[Header]])
   where
     go etbl _dtbl h = do
         print h
