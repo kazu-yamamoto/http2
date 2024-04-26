@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               http2
-version:            5.2.0
+version:            5.2.1
 license:            BSD3
 license-file:       LICENSE
 maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>
@@ -121,7 +121,7 @@ library
         network-byte-order >=0.1.7 && <0.2,
         network-control >=0.1 && <0.2,
         stm >=2.5 && <2.6,
-        time-manager >=0.0.1 && <0.1,
+        time-manager >=0.1 && <0.2,
         unix-time >=0.4.11 && <0.5,
         unliftio >=0.2 && <0.3,
         utf8-string >=1.0 && <1.1

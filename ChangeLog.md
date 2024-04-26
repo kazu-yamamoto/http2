@@ -1,3 +1,8 @@
+## 5.2.1
+
+* Using time-manager v0.1.0.
+  [#115](https://github.com/kazu-yamamoto/http2/pull/115)
+
 ## 5.2.0
 
 * Using http-semantics
