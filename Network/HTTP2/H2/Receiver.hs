@@ -180,7 +180,7 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
                 streamId
                 "no body but content-length is not zero"
     tlr <- newIORef Nothing
-    let inpObj = InpObj tbl (Just 0) (return "") tlr
+    let inpObj = InpObj tbl (Just 0) (return (mempty, True)) tlr
     if isServer ctx
         then do
             let si = toServerInfo roleInfo
@@ -441,7 +441,7 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx (Open _ (Body q _
         then do
             tbl <- hpackDecodeTrailer frag streamId ctx
             writeIORef tlr (Just tbl)
-            atomically $ writeTQueue q $ Right ""
+            atomically $ writeTQueue q $ Right (mempty, True)
             return HalfClosedRemote
         else -- we don't support continuation here.
             E.throwIO $
@@ -486,7 +486,7 @@ stream
                     E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty data"
             else do
                 writeIORef bodyLength len
-                atomically $ writeTQueue q $ Right body
+                atomically $ writeTQueue q $ Right (body, endOfStream)
         if endOfStream
             then do
                 case mcl of
@@ -499,7 +499,7 @@ stream
                                     streamId
                                     "actual body length is not the same as content-length"
                 -- no trailers
-                atomically $ writeTQueue q $ Right ""
+                atomically $ writeTQueue q $ Right (mempty, True)
                 return HalfClosedRemote
             else return s
 
@@ -615,26 +615,26 @@ stream x FrameHeader{streamId} _ _ _ _ =
 data Source
     = Source
         (Int -> IO ())
-        (TQueue (Either E.SomeException ByteString))
+        (TQueue (Either E.SomeException (ByteString, Bool)))
         (IORef ByteString)
         (IORef Bool)
 
 mkSource
-    :: TQueue (Either E.SomeException ByteString) -> (Int -> IO ()) -> IO Source
+    :: TQueue (Either E.SomeException (ByteString, Bool)) -> (Int -> IO ()) -> IO Source
 mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
 
-readSource :: Source -> IO ByteString
+readSource :: Source -> IO (ByteString, Bool)
 readSource (Source inform q refBS refEOF) = do
     eof <- readIORef refEOF
     if eof
-        then return ""
+        then return (mempty, True)
         else do
-            bs <- readBS
+            (bs, isEOF) <- readBS
             let len = BS.length bs
             inform len
-            return bs
+            return (bs, isEOF)
   where
-    readBS :: IO ByteString
+    readBS :: IO (ByteString, Bool)
     readBS = do
         bs0 <- readIORef refBS
         if bs0 == ""
@@ -644,9 +644,9 @@ readSource (Source inform q refBS refEOF) = do
                     Left err -> do
                         writeIORef refEOF True
                         E.throwIO err
-                    Right bs -> do
-                        when (bs == "") $ writeIORef refEOF True
-                        return bs
+                    Right (bs, isEOF) -> do
+                        writeIORef refEOF isEOF
+                        return (bs, isEOF)
             else do
                 writeIORef refBS ""
-                return bs0
+                return (bs0, False)

@@ -109,7 +109,7 @@ data OpenState
     | NoBody TokenHeaderTable
     | HasBody TokenHeaderTable
     | Body
-        (TQueue (Either SomeException ByteString))
+        (TQueue (Either SomeException (ByteString, Bool)))
         (Maybe Int) -- received Content-Length
         -- compared the body length for error checking
         (IORef Int) -- actual body length
