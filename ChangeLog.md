@@ -1,3 +1,8 @@
+## 5.2.2
+
+* Mark final chunk as final
+  [#116](https://github.com/kazu-yamamoto/http2/pull/116)
+
 ## 5.2.1
 
 * Using time-manager v0.1.0.
