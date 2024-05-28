@@ -85,7 +85,7 @@ closeAllStreams ovar evar mErr' = do
                     mErr
         case st of
             Open _ (Body q _ _ _) ->
-                atomically $ writeTQueue q $ maybe (Right mempty) Left mErr
+                atomically $ writeTQueue q $ maybe (Right (mempty, True)) Left mErr
             _otherwise ->
                 return ()
     mErr :: Maybe SomeException
