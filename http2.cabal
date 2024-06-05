@@ -139,7 +139,7 @@ executable h2c-client
         bytestring,
         http-types,
         http2,
-        network-run,
+        network-run >= 0.3 && <0.4,
         unliftio
 
     if flag(devel)
