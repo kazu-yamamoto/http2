@@ -194,10 +194,12 @@ frameSender
                     let next = fillBuilderBodyGetNext builder
                         out' = out{outputType = ONext next tlrmkr}
                     output out' off lim
-                OutBodyStreaming _ ->
-                    output (setNextForStreaming mtbq tlrmkr out) off lim
-                OutBodyStreamingUnmask _ ->
-                    output (setNextForStreaming mtbq tlrmkr out) off lim
+                OutBodyStreaming _ -> do
+                    let out' = out{outputType = nextForStreaming mtbq tlrmkr}
+                    output out' off lim
+                OutBodyStreamingUnmask _ -> do
+                    let out' = out{outputType = nextForStreaming mtbq tlrmkr}
+                    output out' off lim
         output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.
@@ -208,16 +210,15 @@ frameSender
         output _ _ _ = undefined -- never reach
 
         ----------------------------------------------------------------
-        setNextForStreaming
+        nextForStreaming
             :: Maybe (TBQueue StreamingChunk)
             -> TrailersMaker
-            -> Output Stream
-            -> Output Stream
-        setNextForStreaming mtbq tlrmkr out =
+            -> OutputType
+        nextForStreaming mtbq tlrmkr =
             let tbq = fromJust mtbq
                 takeQ = atomically $ tryReadTBQueue tbq
                 next = fillStreamBodyGetNext takeQ
-             in out{outputType = ONext next tlrmkr}
+             in ONext next tlrmkr
 
         ----------------------------------------------------------------
         outputOrEnqueueAgain :: Output Stream -> Offset -> IO Offset
