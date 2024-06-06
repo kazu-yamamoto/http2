@@ -180,6 +180,7 @@ frameSender
             -- the stream from stream table.
             when endOfStream $ halfClosedLocal ctx strm Finished
             off <- flushIfNecessary off'
+            let setOutputType otyp = out{outputType = otyp}
             case body of
                 OutBodyNone -> return off
                 OutBodyFile (FileSpec path fileoff bytecount) -> do
@@ -188,17 +189,17 @@ frameSender
                         Closer closer -> timeoutClose mgr closer
                         Refresher refresher -> return refresher
                     let next = fillFileBodyGetNext pread fileoff bytecount refresh
-                        out' = out{outputType = ONext next tlrmkr}
+                        out' = setOutputType $ ONext next tlrmkr
                     output out' off lim
                 OutBodyBuilder builder -> do
                     let next = fillBuilderBodyGetNext builder
-                        out' = out{outputType = ONext next tlrmkr}
+                        out' = setOutputType $ ONext next tlrmkr
                     output out' off lim
                 OutBodyStreaming _ -> do
-                    let out' = out{outputType = nextForStreaming mtbq tlrmkr}
+                    let out' = setOutputType $ nextForStreaming mtbq tlrmkr
                     output out' off lim
                 OutBodyStreamingUnmask _ -> do
-                    let out' = out{outputType = nextForStreaming mtbq tlrmkr}
+                    let out' = setOutputType $ nextForStreaming mtbq tlrmkr
                     output out' off lim
         output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
             -- Creating a push promise header
