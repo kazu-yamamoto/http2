@@ -168,8 +168,8 @@ frameSender
                 sentinel
                 out
                 reqflush
-        output (Output strm obj OObj mtbq sentinel) off0 lim = do
-            outputObj strm obj mtbq sentinel off0 lim
+        output (Output strm obj OObj mtbq sentinel) off0 _lim = do
+            outputObj strm obj mtbq sentinel off0
         output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.
@@ -186,9 +186,8 @@ frameSender
             -> Maybe (TBQueue StreamingChunk)
             -> IO ()
             -> Offset
-            -> WindowSize
             -> IO Offset
-        outputObj strm obj@(OutObj hdr body tlrmkr) mtbq sentinel off0 lim = do
+        outputObj strm obj@(OutObj hdr body tlrmkr) mtbq sentinel off0 = do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = case body of
@@ -210,17 +209,17 @@ frameSender
                         Refresher refresher -> return refresher
                     let next = fillFileBodyGetNext pread fileoff bytecount refresh
                         out' = setOutputType $ ONext next tlrmkr
-                    output out' off lim
+                    outputOrEnqueueAgain out' off
                 OutBodyBuilder builder -> do
                     let next = fillBuilderBodyGetNext builder
                         out' = setOutputType $ ONext next tlrmkr
-                    output out' off lim
+                    outputOrEnqueueAgain out' off
                 OutBodyStreaming _ -> do
                     let out' = setOutputType $ nextForStreaming mtbq tlrmkr
-                    output out' off lim
+                    outputOrEnqueueAgain out' off
                 OutBodyStreamingUnmask _ -> do
                     let out' = setOutputType $ nextForStreaming mtbq tlrmkr
-                    output out' off lim
+                    outputOrEnqueueAgain out' off
 
         ----------------------------------------------------------------
         nextForStreaming
@@ -235,7 +234,7 @@ frameSender
 
         ----------------------------------------------------------------
         outputOrEnqueueAgain :: Output Stream -> Offset -> IO Offset
-        outputOrEnqueueAgain out@(Output strm _ otyp _ _) off = E.handle resetStream $ do
+        outputOrEnqueueAgain out@(Output strm obj otyp mtbq sentinel) off = E.handle resetStream $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then return off
@@ -244,11 +243,14 @@ frameSender
                         -- Checking if all push are done.
                         forkAndEnqueueWhenReady wait outputQ out{outputType = OObj} mgr
                         return off
+                    OObj ->
+                        -- Send headers immediately, without waiting for data
+                        -- No need to check the streaming window (applies to DATA frames only)
+                        outputObj strm obj mtbq sentinel off
                     _ -> case mtbq of
                         Just tbq -> checkStreaming tbq
                         _ -> checkStreamWindowSize
           where
-            mtbq = outputStrmQ out
             checkStreaming tbq = do
                 isEmpty <- atomically $ isEmptyTBQueue tbq
                 if isEmpty
