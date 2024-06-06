@@ -168,7 +168,27 @@ frameSender
                 sentinel
                 out
                 reqflush
-        output (Output strm obj@(OutObj hdr body tlrmkr) OObj mtbq sentinel) off0 lim = do
+        output (Output strm obj OObj mtbq sentinel) off0 lim = do
+            outputObj strm obj mtbq sentinel off0 lim
+        output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
+            -- Creating a push promise header
+            -- Frame id should be associated stream id from the client.
+            let sid = streamNumber strm
+            len <- pushPromise pid sid ths off0
+            off <- flushIfNecessary $ off0 + frameHeaderLength + len
+            output out{outputType = OObj} off lim
+        output _ _ _ = undefined -- never reach
+
+        ----------------------------------------------------------------
+        outputObj
+            :: Stream
+            -> OutObj
+            -> Maybe (TBQueue StreamingChunk)
+            -> IO ()
+            -> Offset
+            -> WindowSize
+            -> IO Offset
+        outputObj strm obj@(OutObj hdr body tlrmkr) mtbq sentinel off0 lim = do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = case body of
@@ -201,14 +221,6 @@ frameSender
                 OutBodyStreamingUnmask _ -> do
                     let out' = setOutputType $ nextForStreaming mtbq tlrmkr
                     output out' off lim
-        output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
-            -- Creating a push promise header
-            -- Frame id should be associated stream id from the client.
-            let sid = streamNumber strm
-            len <- pushPromise pid sid ths off0
-            off <- flushIfNecessary $ off0 + frameHeaderLength + len
-            output out{outputType = OObj} off lim
-        output _ _ _ = undefined -- never reach
 
         ----------------------------------------------------------------
         nextForStreaming
