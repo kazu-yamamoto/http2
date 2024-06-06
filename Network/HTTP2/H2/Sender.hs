@@ -168,7 +168,7 @@ frameSender
                 sentinel
                 out
                 reqflush
-        output out@(Output strm (OutObj hdr body tlrmkr) OObj mtbq _) off0 lim = do
+        output (Output strm obj@(OutObj hdr body tlrmkr) OObj mtbq sentinel) off0 lim = do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = case body of
@@ -180,7 +180,7 @@ frameSender
             -- the stream from stream table.
             when endOfStream $ halfClosedLocal ctx strm Finished
             off <- flushIfNecessary off'
-            let setOutputType otyp = out{outputType = otyp}
+            let setOutputType otyp = Output strm obj otyp mtbq sentinel
             case body of
                 OutBodyNone -> return off
                 OutBodyFile (FileSpec path fileoff bytecount) -> do
