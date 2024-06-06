@@ -170,11 +170,6 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
             -- the ordering of responses can be out-of-order.
             -- But for clients, the ordering must be maintained.
             -- To implement this, 'outputQStreamID' is used.
-            -- Also, for 'OutBodyStreaming', TBQ must not be empty
-            -- when its 'Output' is enqueued into 'outputQ'.
-            -- Otherwise, it would be re-enqueue because of empty
-            -- resulting in out-of-order.
-            -- To implement this, 'tbqNonEmpty' is used.
             let hdr1, hdr2 :: [Header]
                 hdr1
                     | scheme /= "" = (":scheme", scheme) : hdr0
@@ -208,19 +203,15 @@ sendStreaming
     -> IO ()
 sendStreaming Context{..} mgr req sid newstrm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    tbqNonEmpty <- newTVarIO False
     forkManagedUnmask mgr $ \unmask -> do
-        let push b = atomically $ do
-                writeTBQueue tbq (StreamingBuilder b)
-                writeTVar tbqNonEmpty True
+        let push b = atomically $ writeTBQueue tbq (StreamingBuilder b)
             flush = atomically $ writeTBQueue tbq StreamingFlush
             finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
         incCounter mgr
         strmbdy unmask push flush `finally` finished
     atomically $ do
         sidOK <- readTVar outputQStreamID
-        ready <- readTVar tbqNonEmpty
-        check (sidOK == sid && ready)
+        check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
         writeTQueue outputQ $ Output newstrm req OObj (Just tbq) (return ())
 
