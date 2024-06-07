@@ -620,7 +620,9 @@ data Source
         (IORef Bool)
 
 mkSource
-    :: TQueue (Either E.SomeException (ByteString, Bool)) -> (Int -> IO ()) -> IO Source
+    :: TQueue (Either E.SomeException (ByteString, Bool))
+    -> (Int -> IO ())
+    -> IO Source
 mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
 
 readSource :: Source -> IO (ByteString, Bool)
