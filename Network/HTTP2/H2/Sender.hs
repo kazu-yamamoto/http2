@@ -157,7 +157,7 @@ frameSender
             let payloadOff = off0 + frameHeaderLength
                 datBuf = confWriteBuffer `plusPtr` payloadOff
                 datBufSiz = buflim - payloadOff
-            Next datPayloadLen reqflush mnext <- curr datBuf datBufSiz lim -- checkme
+            Next datPayloadLen reqflush mnext <- curr datBuf (min datBufSiz lim)
             NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
             fillDataHeaderEnqueueNext
                 strm
