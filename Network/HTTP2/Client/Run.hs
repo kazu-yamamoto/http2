@@ -6,7 +6,6 @@
 module Network.HTTP2.Client.Run where
 
 import Control.Concurrent.STM (check)
-import Data.ByteString.Builder (Builder)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control (RxFlow (..), defaultMaxData)
@@ -182,8 +181,8 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
             (sid, newstrm) <- openOddStreamWait ctx
             case outObjBody req of
                 OutBodyStreaming strmbdy ->
-                    sendStreaming ctx mgr req' sid newstrm $ \unmask push flush ->
-                        unmask $ strmbdy push flush
+                    sendStreaming ctx mgr req' sid newstrm $ \iface ->
+                        outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
                 OutBodyStreamingUnmask strmbdy ->
                     sendStreaming ctx mgr req' sid newstrm strmbdy
                 _ -> atomically $ do
@@ -199,16 +198,24 @@ sendStreaming
     -> OutObj
     -> StreamId
     -> Stream
-    -> ((forall x. IO x -> IO x) -> (Builder -> IO ()) -> IO () -> IO ())
+    -> (OutBodyIface -> IO ())
     -> IO ()
 sendStreaming Context{..} mgr req sid newstrm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManagedUnmask mgr $ \unmask -> do
-        let push b = atomically $ writeTBQueue tbq (StreamingBuilder b)
-            flush = atomically $ writeTBQueue tbq StreamingFlush
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
+        decrementedCounter <- newIORef False
+        let decCounterOnce = do
+              alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)
+              unless alreadyDecremented $ decCounter mgr
+        let iface = OutBodyIface {
+                outBodyUnmask = unmask
+              , outBodyPush = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
+              , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b (Just decCounterOnce))
+              , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
+              }
+            finished = atomically $ writeTBQueue tbq $ StreamingFinished decCounterOnce
         incCounter mgr
-        strmbdy unmask push flush `finally` finished
+        strmbdy iface `finally` finished
     atomically $ do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)

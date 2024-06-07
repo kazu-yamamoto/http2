@@ -150,7 +150,7 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
         writeOutputQ $ Output strm rsp otyp (Just tbq) (return ())
         let push b = do
                 T.pause th
-                atomically $ writeTBQueue tbq (StreamingBuilder b)
+                atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
                 T.resume th
             flush = atomically $ writeTBQueue tbq StreamingFlush
             finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
