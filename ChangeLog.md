@@ -1,3 +1,10 @@
+## 5.2.3
+
+* Update for latest http-semantics
+  [#120](https://github.com/kazu-yamamoto/http2/pull/120)
+* Enable containers 0.7 (ghc 9.10)
+  [#117](https://github.com/kazu-yamamoto/http2/pull/117)
+
 ## 5.2.2
 
 * Mark final chunk as final
