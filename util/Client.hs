@@ -25,9 +25,8 @@ client :: Options -> [Path] -> Client ()
 client Options{..} paths sendRequest _aux = do
     let cli
             | optPerformance /= 0 = clientPF optPerformance sendRequest
-            | otherwise =
-                foldr1 concurrently_ $ map (clientNReqs optNumOfReqs sendRequest) paths
-    ex <- E.try cli
+            | otherwise = clientNReqs optNumOfReqs sendRequest
+    ex <- E.try $ mapConcurrently_ cli paths
     case ex of
         Right () -> return ()
         Left e -> print (e :: HTTP2Error)
@@ -43,8 +42,9 @@ clientNReqs n0 sendRequest path = loop n0
             getResponseBodyChunk rsp >>= C8.putStrLn
         loop (n - 1)
 
-clientPF :: Int -> SendRequest -> IO ()
-clientPF n sendRequest = do
+-- Path is dummy
+clientPF :: Int -> SendRequest -> Path -> IO ()
+clientPF n sendRequest _ = do
     t1 <- getUnixTime
     sendRequest req loop
     t2 <- getUnixTime
