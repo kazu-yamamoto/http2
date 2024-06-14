@@ -140,6 +140,7 @@ executable h2c-client
         http-types,
         http2,
         network-run >= 0.3 && <0.4,
+        unix-time,
         unliftio
 
     if flag(devel)

@@ -13,15 +13,11 @@ import qualified UnliftIO.Exception as E
 
 import Client
 
-data Options = Options
-    { optNumOfReqs :: Int
-    }
-    deriving (Show)
-
 defaultOptions :: Options
 defaultOptions =
     Options
-        { optNumOfReqs = 1
+        { optPerformance = 0
+        , optNumOfReqs = 1
         }
 
 usage :: String
@@ -30,6 +26,11 @@ usage = "Usage: h2c-client [OPTION] addr port [path]"
 options :: [OptDescr (Options -> Options)]
 options =
     [ Option
+        ['t']
+        ["performance"]
+        (ReqArg (\n o -> o{optPerformance = read n}) "<size>")
+        "measure performance"
+    , Option
         ['n']
         ["number-of-requests"]
         (ReqArg (\n o -> o{optNumOfReqs = read n}) "<n>")
@@ -51,7 +52,7 @@ clientOpts argv =
 main :: IO ()
 main = do
     args <- getArgs
-    (Options{..}, ips) <- clientOpts args
+    (opts, ips) <- clientOpts args
     (host, port, paths) <- case ips of
         [] -> showUsageAndExit usage
         _ : [] -> showUsageAndExit usage
@@ -62,4 +63,4 @@ main = do
         E.bracket
             (allocSimpleConfig s 4096)
             freeSimpleConfig
-            (\conf -> run cliconf conf $ client optNumOfReqs paths)
+            (\conf -> run cliconf conf $ client opts paths)
