@@ -2,6 +2,7 @@
 
 * Update for latest http-semantics
   [#122](https://github.com/kazu-yamamoto/http2/pull/122)
+* 
 
 ## 5.2.3
 
