@@ -100,7 +100,7 @@ newContext rinfo Config{..} cacheSiz connRxWS settings =
         -- Peer: The spec defines max concurrency is infinite unless
         -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
         -- But it is vulnerable, so we set the limitations.
-        <*> newIORef settings
+        <*> newIORef baseSettings{maxConcurrentStreams = Just defaultMaxStreams}
         <*> newTVarIO emptyOddStreamTable
         <*> newTVarIO (emptyEvenStreamTable cacheSiz)
         <*> newIORef Nothing
