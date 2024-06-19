@@ -2,7 +2,7 @@
 
 * Update for latest http-semantics
   [#122](https://github.com/kazu-yamamoto/http2/pull/122)
-* 
+* Measuring performance concurrently for h2c-client
 
 ## 5.2.3
 
