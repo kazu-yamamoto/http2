@@ -1,3 +1,8 @@
+## 5.2.5
+
+* Setting peer initial window size properly.
+  [#123](https://github.com/kazu-yamamoto/http2/pull/123)
+
 ## 5.2.4
 
 * Update for latest http-semantics
