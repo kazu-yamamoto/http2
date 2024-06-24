@@ -1,5 +1,9 @@
 ## 5.2.6
 
+* Recover rxflow on closing.
+  [#126](https://github.com/kazu-yamamoto/http2/pull/126)
+* Fixing ClientSpec for stream errors.
+* Allowing negative window. (h2spec http2/6.9.2)
 * Update for latest http-semantics
   [#122](https://github.com/kazu-yamamoto/http2/pull/124)
 
