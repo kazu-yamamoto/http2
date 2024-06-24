@@ -86,7 +86,7 @@ run cconf@ClientConfig{..} conf client = do
         strm <- sendRequest ctx mgr scheme authority req
         rsp <- getResponse strm
         x <- processResponse rsp
-        adjustRxWindow (rxFlow ctx) strm
+        adjustRxWindow ctx strm
         return x
     runClient ctx mgr = do
         x <- client (clientCore ctx mgr) $ aux ctx

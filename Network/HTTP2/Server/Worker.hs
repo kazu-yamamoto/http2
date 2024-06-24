@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -10,13 +9,11 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Data.IORef
-import Network.Control
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
-import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 import UnliftIO.Exception (SomeException (..))
 import qualified UnliftIO.Exception as E
@@ -34,9 +31,6 @@ data WorkerConf a = WorkerConf
     , workerCleanup :: a -> IO ()
     , isPushable :: IO Bool
     , makePushStream :: a -> PushPromise -> IO (StreamId, a)
-    , mySockAddr :: SockAddr
-    , peerSockAddr :: SockAddr
-    , connRxFlow :: IORef RxFlow
     }
 
 fromContext :: Context -> WorkerConf Stream
@@ -56,9 +50,6 @@ fromContext ctx@Context{..} =
             (_, newstrm) <- openEvenStreamWait ctx
             let pid = streamNumber pstrm
             return (pid, newstrm)
-        , mySockAddr = mySockAddr
-        , peerSockAddr = peerSockAddr
-        , connRxFlow = rxFlow
         }
 
 ----------------------------------------------------------------
@@ -165,8 +156,8 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
     (_, reqvt) = inpObjHeaders req
 
 -- | Worker for server applications.
-worker :: WorkerConf Stream -> Manager -> Server -> Action
-worker wc@WorkerConf{..} mgr server = do
+worker :: Context -> WorkerConf Stream -> Manager -> Server -> Action
+worker ctx@Context{..} wc@WorkerConf{..} mgr server = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
     timeoutKillThread mgr $ go sinfo tcont
@@ -182,7 +173,7 @@ worker wc@WorkerConf{..} mgr server = do
             T.tickle th
             let aux = Aux th mySockAddr peerSockAddr
             r <- server (Request req') aux $ response wc mgr th tcont strm (Request req')
-            adjustRxWindow connRxFlow strm
+            adjustRxWindow ctx strm
             return r
         cont1 <- case ex of
             Right () -> return True
