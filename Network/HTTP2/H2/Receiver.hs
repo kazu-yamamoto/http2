@@ -612,17 +612,9 @@ stream x FrameHeader{streamId} _ _ _ _ =
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
-data Source
-    = Source
-        (Int -> IO ())
-        (TQueue (Either E.SomeException (ByteString, Bool)))
-        (IORef ByteString)
-        (IORef Bool)
+data Source = Source (Int -> IO ()) RxQ (IORef ByteString) (IORef Bool)
 
-mkSource
-    :: TQueue (Either E.SomeException (ByteString, Bool))
-    -> (Int -> IO ())
-    -> IO Source
+mkSource :: RxQ -> (Int -> IO ()) -> IO Source
 mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
 
 readSource :: Source -> IO (ByteString, Bool)

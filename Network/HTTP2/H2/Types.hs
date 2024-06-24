@@ -149,6 +149,8 @@ instance Show StreamState where
 
 ----------------------------------------------------------------
 
+type RxQ = TQueue (Either E.SomeException (ByteString, Bool))
+
 data Stream = Stream
     { streamNumber :: StreamId
     , streamState :: IORef StreamState
