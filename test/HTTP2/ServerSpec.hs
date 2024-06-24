@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module HTTP2.ServerSpec where
+module HTTP2.ServerSpec (spec) where
 
 import Control.Concurrent
 import Control.Monad

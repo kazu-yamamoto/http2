@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
-module HTTP2.ClientSpec where
+module HTTP2.ClientSpec (spec) where
 
 import Control.Concurrent
 import Control.Monad
@@ -37,18 +37,18 @@ spec = do
         it "receives an error if scheme is missing" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient "" host (defaultClient []) `shouldThrow` connectionError
+                runClient "" host (defaultClient []) `shouldThrow` streamError
 
         it "receives an error if authority is missing" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
-                runClient "http" "" (defaultClient []) `shouldThrow` connectionError
+                runClient "http" "" (defaultClient []) `shouldThrow` streamError
 
         it "receives an error if authority and host are different" $
             E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
                 threadDelay 10000
                 runClient "http" host (defaultClient [("Host", "foo")])
-                    `shouldThrow` connectionError
+                    `shouldThrow` streamError
 
         it "does not deadlock (in concurrent setting)" $
             E.bracket (forkIO $ runServer irresponsiveServer) killThread $ \_ -> do
@@ -137,6 +137,7 @@ concurrentClient resultVar sendRequest _aux = do
         putMVar resultVar result
     threadDelay 10000
 
-connectionError :: Selector HTTP2Error
-connectionError ConnectionErrorIsReceived{} = True
-connectionError _ = False
+streamError :: Selector HTTP2Error
+streamError StreamErrorIsReceived{} = True
+streamError ConnectionErrorIsReceived{} = True
+streamError _ = False
