@@ -49,7 +49,7 @@ run sconf@ServerConfig{numberOfWorkers} conf server = do
     when ok $ do
         (ctx, mgr) <- setup sconf conf
         let wc = fromContext ctx
-        setAction mgr $ worker wc mgr server
+        setAction mgr $ worker ctx wc mgr server
         replicateM_ numberOfWorkers $ spawnAction mgr
         runH2 conf ctx mgr
 

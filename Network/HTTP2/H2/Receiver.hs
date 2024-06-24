@@ -190,11 +190,12 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
     return False
 
 -- Transition (process2)
-processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} _streamId = do
+processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
     let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     q <- newTQueueIO
+    writeIORef streamRxQ $ Just q
     setStreamState ctx strm $ Open hcl (Body q mcl bodyLength tlr)
     -- FLOW CONTROL: WINDOW_UPDATE 0: recv: announcing my limit properly
     -- FLOW CONTROL: WINDOW_UPDATE: recv: announcing my limit properly
@@ -612,17 +613,9 @@ stream x FrameHeader{streamId} _ _ _ _ =
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
-data Source
-    = Source
-        (Int -> IO ())
-        (TQueue (Either E.SomeException (ByteString, Bool)))
-        (IORef ByteString)
-        (IORef Bool)
+data Source = Source (Int -> IO ()) RxQ (IORef ByteString) (IORef Bool)
 
-mkSource
-    :: TQueue (Either E.SomeException (ByteString, Bool))
-    -> (Int -> IO ())
-    -> IO Source
+mkSource :: RxQ -> (Int -> IO ()) -> IO Source
 mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
 
 readSource :: Source -> IO (ByteString, Bool)

@@ -85,7 +85,9 @@ run cconf@ClientConfig{..} conf client = do
     clientCore ctx mgr req processResponse = do
         strm <- sendRequest ctx mgr scheme authority req
         rsp <- getResponse strm
-        processResponse rsp
+        x <- processResponse rsp
+        adjustRxWindow ctx strm
+        return x
     runClient ctx mgr = do
         x <- client (clientCore ctx mgr) $ aux ctx
         waitCounter0 mgr
@@ -205,14 +207,15 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
     forkManagedUnmask mgr $ \unmask -> do
         decrementedCounter <- newIORef False
         let decCounterOnce = do
-              alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)
-              unless alreadyDecremented $ decCounter mgr
-        let iface = OutBodyIface {
-                outBodyUnmask = unmask
-              , outBodyPush = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
-              , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b (Just decCounterOnce))
-              , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
-              }
+                alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)
+                unless alreadyDecremented $ decCounter mgr
+        let iface =
+                OutBodyIface
+                    { outBodyUnmask = unmask
+                    , outBodyPush = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
+                    , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b (Just decCounterOnce))
+                    , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
+                    }
             finished = atomically $ writeTBQueue tbq $ StreamingFinished decCounterOnce
         incCounter mgr
         strmbdy iface `finally` finished

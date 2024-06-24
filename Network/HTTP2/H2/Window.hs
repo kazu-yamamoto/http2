@@ -1,8 +1,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.HTTP2.H2.Window where
 
+import qualified Data.ByteString as BS
 import Data.IORef
 import Network.Control
 import qualified UnliftIO.Exception as E
@@ -79,3 +80,24 @@ informWindowUpdate Context{controlQ, rxFlow} Stream{streamNumber, streamRxFlow} 
         let frame = windowUpdateFrame streamNumber ws
             cframe = CFrames Nothing [frame]
         enqueueControl controlQ cframe
+
+adjustRxWindow :: Context -> Stream -> IO ()
+adjustRxWindow ctx stream@Stream{streamRxQ} = do
+    mq <- readIORef streamRxQ
+    case mq of
+        Nothing -> return ()
+        Just q -> do
+            len <- readQ q
+            informWindowUpdate ctx stream len
+  where
+    readQ q = atomically $ loop 0
+      where
+        loop !total = do
+            meb <- tryReadTQueue q
+            case meb of
+                Just (Right (bs, _)) -> loop (total + BS.length bs)
+                Just le@(Left _) -> do
+                    -- reserving HTTP2Error
+                    writeTQueue q le
+                    return total
+                _ -> return total
