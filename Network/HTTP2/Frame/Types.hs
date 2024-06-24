@@ -190,7 +190,7 @@ maxWindowSize = 2147483647
 -- >>> isWindowOverflow (maxWindowSize + 1)
 -- True
 isWindowOverflow :: WindowSize -> Bool
-isWindowOverflow w = testBit w 31
+isWindowOverflow w = w > maxWindowSize
 
 -- | Default concurrency.
 --
