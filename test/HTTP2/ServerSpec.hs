@@ -237,10 +237,10 @@ client3 sendRequest _aux = do
                 FileSpec "test/inputFile" 0 1012731
         req = C.setRequestTrailersMaker req0 maker
     sendRequest req $ \rsp -> do
-        let comsumeBody = do
+        let consumeBody = do
                 bs <- C.getResponseBodyChunk rsp
-                when (bs /= "") comsumeBody
-        comsumeBody
+                when (bs /= "") consumeBody
+        consumeBody
         mt <- C.getResponseTrailers rsp
         firstTrailerValue <$> mt `shouldBe` Just hx
   where
@@ -258,10 +258,10 @@ client3' sendRequest _aux = do
             withFile "test/inputFile" ReadMode sendFile
         req = C.setRequestTrailersMaker req0 maker
     sendRequest req $ \rsp -> do
-        let comsumeBody = do
+        let consumeBody = do
                 bs <- C.getResponseBodyChunk rsp
-                when (bs /= "") comsumeBody
-        comsumeBody
+                when (bs /= "") consumeBody
+        consumeBody
         mt <- C.getResponseTrailers rsp
         firstTrailerValue <$> mt `shouldBe` Just hx
   where
@@ -278,10 +278,10 @@ client3'' sendRequest _axu = do
             write $ byteString tag
         req = C.setRequestTrailersMaker req0 maker
     sendRequest req $ \rsp -> do
-        let comsumeBody = do
+        let consumeBody = do
                 bs <- C.getResponseBodyChunk rsp
-                when (bs /= "") comsumeBody
-        comsumeBody
+                when (bs /= "") consumeBody
+        consumeBody
         mt <- C.getResponseTrailers rsp
         firstTrailerValue <$> mt `shouldBe` Just hx
   where
