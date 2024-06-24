@@ -10,6 +10,7 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Data.IORef
+import Network.Control
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
@@ -35,6 +36,7 @@ data WorkerConf a = WorkerConf
     , makePushStream :: a -> PushPromise -> IO (StreamId, a)
     , mySockAddr :: SockAddr
     , peerSockAddr :: SockAddr
+    , connRxFlow :: IORef RxFlow
     }
 
 fromContext :: Context -> WorkerConf Stream
@@ -56,6 +58,7 @@ fromContext ctx@Context{..} =
             return (pid, newstrm)
         , mySockAddr = mySockAddr
         , peerSockAddr = peerSockAddr
+        , connRxFlow = rxFlow
         }
 
 ----------------------------------------------------------------
@@ -162,7 +165,7 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
     (_, reqvt) = inpObjHeaders req
 
 -- | Worker for server applications.
-worker :: WorkerConf a -> Manager -> Server -> Action
+worker :: WorkerConf Stream -> Manager -> Server -> Action
 worker wc@WorkerConf{..} mgr server = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
@@ -178,7 +181,9 @@ worker wc@WorkerConf{..} mgr server = do
             T.resume th
             T.tickle th
             let aux = Aux th mySockAddr peerSockAddr
-            server (Request req') aux $ response wc mgr th tcont strm (Request req')
+            r <- server (Request req') aux $ response wc mgr th tcont strm (Request req')
+            adjustRxWindow connRxFlow strm
+            return r
         cont1 <- case ex of
             Right () -> return True
             Left e@(SomeException _)

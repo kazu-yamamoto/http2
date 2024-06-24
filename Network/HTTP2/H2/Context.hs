@@ -4,6 +4,7 @@
 
 module Network.HTTP2.H2.Context where
 
+import qualified Data.ByteString as BS
 import Data.IORef
 import Network.Control
 import Network.Socket (SockAddr)
@@ -210,6 +211,32 @@ closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc
   where
     err :: SomeException
     err = toException (closedCodeToError streamNumber cc)
+
+----------------------------------------------------------------
+
+adjustRxWindow :: IORef RxFlow -> Stream -> IO ()
+adjustRxWindow refRx Stream{streamRxQ} = do
+    mq <- readIORef streamRxQ
+    case mq of
+        Nothing -> return ()
+        Just q -> do
+            len <- readQ q
+            when (len > 0) $
+                void $
+                    atomicModifyIORef refRx $
+                        maybeOpenRxWindow len FCTWindowUpdate
+  where
+    readQ q = atomically $ loop 0
+      where
+        loop total = do
+            meb <- tryReadTQueue q
+            case meb of
+                Just (Right (bs, _)) -> loop (total + BS.length bs)
+                Just le@(Left _) -> do
+                    -- reserving HTTP2Error
+                    writeTQueue q le
+                    return total
+                _ -> return total
 
 ----------------------------------------------------------------
 -- From peer

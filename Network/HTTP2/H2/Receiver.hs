@@ -190,11 +190,12 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
     return False
 
 -- Transition (process2)
-processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} _streamId = do
+processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
     let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     q <- newTQueueIO
+    writeIORef streamRxQ $ Just q
     setStreamState ctx strm $ Open hcl (Body q mcl bodyLength tlr)
     -- FLOW CONTROL: WINDOW_UPDATE 0: recv: announcing my limit properly
     -- FLOW CONTROL: WINDOW_UPDATE: recv: announcing my limit properly

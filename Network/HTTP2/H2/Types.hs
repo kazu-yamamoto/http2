@@ -157,6 +157,7 @@ data Stream = Stream
     , streamInput :: MVar (Either SomeException InpObj) -- Client only
     , streamTxFlow :: TVar TxFlow
     , streamRxFlow :: IORef RxFlow
+    , streamRxQ :: IORef (Maybe RxQ)
     }
 
 instance Show Stream where
