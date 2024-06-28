@@ -6,9 +6,13 @@ import Data.Maybe
 import GHC.Conc.Sync
 
 monitor :: IO () -> IO ()
-monitor action = forever $ do
-    action
-    threadSummary >>= mapM (putStrLn . showT)
+monitor action = do
+    tid <- myThreadId
+    labelThread tid "H2 monitor"
+    forever $ do
+        action
+        threadSummary >>= mapM_ (putStrLn . showT)
+        putStr "\n"
   where
     showT (i, l, s) = i ++ " " ++ l ++ ": " ++ show s
 

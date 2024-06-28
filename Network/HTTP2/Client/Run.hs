@@ -204,7 +204,7 @@ sendStreaming
     -> IO ()
 sendStreaming Context{..} mgr req sid newstrm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManagedUnmask mgr $ \unmask -> do
+    forkManagedUnmask mgr "H2 sendStreaming" $ \unmask -> do
         decrementedCounter <- newIORef False
         let decCounterOnce = do
                 alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)

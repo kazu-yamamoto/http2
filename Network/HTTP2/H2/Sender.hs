@@ -74,7 +74,9 @@ frameSender :: Context -> Config -> Manager -> IO ()
 frameSender
     ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
     Config{..}
-    mgr = loop 0 `E.catch` wrapException
+    mgr = do
+        labelMe "fromSender"
+        loop 0 `E.catch` wrapException
       where
         ----------------------------------------------------------------
         loop :: Offset -> IO ()

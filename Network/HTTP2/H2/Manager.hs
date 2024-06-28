@@ -55,7 +55,9 @@ start timmgr = do
     q <- newTQueueIO
     ref <- newIORef noAction
     cnt <- newTVarIO 0
-    void $ forkIO $ go q Set.empty ref
+    void $ forkIO $ do
+        labelMe "H2 thread manager"
+        go q Set.empty ref
     return $ Manager q ref cnt timmgr
   where
     go q tset0 ref = do
@@ -101,14 +103,16 @@ spawnAction (Manager q _ _ _) = atomically $ writeTQueue q Spawn
 -- This guarantees that the thread ID is added to the manager's queue before
 -- the thread starts, and is removed again when the thread terminates
 -- (normally or abnormally).
-forkManaged :: Manager -> IO () -> IO ()
-forkManaged mgr io =
-    forkManagedUnmask mgr $ \unmask -> unmask io
+forkManaged :: Manager -> String -> IO () -> IO ()
+forkManaged mgr label io =
+    forkManagedUnmask mgr label $ \unmask -> unmask io
 
 -- | Like 'forkManaged', but run action with exceptions masked
-forkManagedUnmask :: Manager -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
-forkManagedUnmask mgr io =
+forkManagedUnmask
+    :: Manager -> String -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
+forkManagedUnmask mgr label io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> do
+        labelMe label
         addMyId mgr
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
