@@ -4,6 +4,7 @@
 
 module Main (main) where
 
+import Control.Concurrent
 import Network.HTTP2.Server
 import Network.Run.TCP
 import System.Console.GetOpt
@@ -11,6 +12,7 @@ import System.Environment
 import System.Exit
 import qualified UnliftIO.Exception as E
 
+import Monitor
 import Server
 
 options :: [OptDescr (Options -> Options)]
@@ -43,6 +45,7 @@ main = do
     (host, port) <- case ips of
         [h, p] -> return (h, p)
         _ -> showUsageAndExit usage
+    _ <- forkIO $ monitor $ threadDelay 1000000
     runTCPServer (Just host) port $ \s ->
         E.bracket
             (allocSimpleConfig s 4096)
