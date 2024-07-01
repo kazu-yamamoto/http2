@@ -132,7 +132,7 @@ response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = case o
     (_, reqvt) = inpObjHeaders req
 
 -- | Worker for server applications.
-worker :: WorkerConf Stream -> Server -> Context -> Stream -> InpObj -> Action
+worker :: WorkerConf Stream -> Server -> Context -> Stream -> InpObj -> IO ()
 worker wc server ctx@Context{..} strm req =
     timeoutKillThread threadManager $ \th -> do
         -- FIXME: exception
