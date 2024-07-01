@@ -170,8 +170,6 @@ instance Show Stream where
 
 ----------------------------------------------------------------
 
-data Input a = Input a InpObj
-
 data Output a = Output
     { outputStream :: a
     , outputObject :: OutObj

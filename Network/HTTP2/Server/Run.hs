@@ -44,13 +44,15 @@ defaultServerConfig =
 
 -- | Running HTTP/2 server.
 run :: ServerConfig -> Config -> Server -> IO ()
-run sconf@ServerConfig{numberOfWorkers} conf server = do
+run sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
-        ctx <- setup sconf conf
-        let wc = fromContext ctx
-        setAction (threadManager ctx) $ worker ctx wc server
-        replicateM_ numberOfWorkers $ spawnAction $ threadManager ctx
+        let lnch ctx strm inpObj = do
+                let label = "Worker for stream " ++ show (streamNumber strm)
+                    wc = fromContext ctx
+                forkManaged (threadManager ctx) label $
+                    worker wc server ctx strm inpObj
+        ctx <- setup sconf conf lnch
         runH2 conf ctx
 
 ----------------------------------------------------------------
@@ -73,11 +75,12 @@ runIO
 runIO sconf conf@Config{..} action = do
     ok <- checkPreface conf
     when ok $ do
-        ctx@Context{..} <- setup sconf conf
-        let ServerInfo{..} = toServerInfo roleInfo
-            get = do
-                Input strm inObj <- atomically $ readTQueue inputQ
-                return (streamNumber strm, strm, Request inObj)
+        inpQ <- newTQueueIO
+        let lnch _ strm inpObj = atomically $ writeTQueue inpQ (strm, inpObj)
+        ctx@Context{..} <- setup sconf conf lnch
+        let get = do
+                (strm, inpObj) <- atomically $ readTQueue inpQ
+                return (streamNumber strm, strm, Request inpObj)
             putR strm (Response outObj) = do
                 let out = Output strm outObj OObj Nothing (return ())
                 enqueueOutput outputQ out
@@ -94,9 +97,9 @@ checkPreface conf@Config{..} = do
             return False
         else return True
 
-setup :: ServerConfig -> Config -> IO Context
-setup ServerConfig{..} conf@Config{..} = do
-    serverInfo <- newServerInfo
+setup :: ServerConfig -> Config -> Launch -> IO Context
+setup ServerConfig{..} conf@Config{..} lnch = do
+    let serverInfo = newServerInfo lnch
     newContext
         serverInfo
         conf

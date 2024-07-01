@@ -27,8 +27,10 @@ data Role = Client | Server deriving (Eq, Show)
 
 data RoleInfo = RIS ServerInfo | RIC ClientInfo
 
+type Launch = Context -> Stream -> InpObj -> IO ()
+
 data ServerInfo = ServerInfo
-    { inputQ :: TQueue (Input Stream)
+    { launch :: Launch
     }
 
 data ClientInfo = ClientInfo
@@ -44,8 +46,8 @@ toClientInfo :: RoleInfo -> ClientInfo
 toClientInfo (RIC x) = x
 toClientInfo _ = error "toClientInfo"
 
-newServerInfo :: IO RoleInfo
-newServerInfo = RIS . ServerInfo <$> newTQueueIO
+newServerInfo :: Launch -> RoleInfo
+newServerInfo = RIS . ServerInfo
 
 newClientInfo :: ByteString -> Authority -> RoleInfo
 newClientInfo scm auth = RIC $ ClientInfo scm auth
