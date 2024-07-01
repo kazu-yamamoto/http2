@@ -50,7 +50,9 @@ rstRateLimit = 4
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> Config -> IO ()
-frameReceiver ctx@Context{..} conf@Config{..} = loop 0 `E.catch` sendGoaway
+frameReceiver ctx@Context{..} conf@Config{..} = do
+    labelMe "frameReceiver"
+    loop 0 `E.catch` sendGoaway
   where
     loop :: Int -> IO ()
     loop n

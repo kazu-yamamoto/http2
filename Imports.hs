@@ -20,6 +20,7 @@ module Imports (
     GCBuffer,
     withForeignPtr,
     mallocPlainForeignPtrBytes,
+    labelMe,
 ) where
 
 import Control.Applicative
@@ -38,9 +39,15 @@ import Data.Ord
 import Data.String
 import Data.Word
 import Foreign.ForeignPtr
+import GHC.Conc.Sync
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Network.HTTP.Semantics
 import Network.HTTP.Types
 import Numeric
 
 type GCBuffer = ForeignPtr Word8
+
+labelMe :: String -> IO ()
+labelMe l = do
+    tid <- myThreadId
+    labelThread tid l

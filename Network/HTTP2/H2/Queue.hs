@@ -11,7 +11,7 @@ import Network.HTTP2.H2.Types
 forkAndEnqueueWhenReady
     :: IO () -> TQueue (Output Stream) -> Output Stream -> Manager -> IO ()
 forkAndEnqueueWhenReady wait outQ out mgr =
-    forkManaged mgr $ do
+    forkManaged mgr "H2 forkAndEnqueueWhenReady" $ do
         wait
         enqueueOutput outQ out
 
