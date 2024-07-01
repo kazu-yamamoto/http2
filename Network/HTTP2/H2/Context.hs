@@ -72,7 +72,7 @@ data Context = Context
     , myStreamId :: TVar StreamId
     , peerStreamId :: IORef StreamId
     , outputBufferLimit :: IORef Int
-    , outputQ :: TQueue (Output Stream)
+    , outputQ :: TQueue Output
     , outputQStreamID :: TVar StreamId
     , controlQ :: TQueue Control
     , encodeDynamicTable :: DynamicTable

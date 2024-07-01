@@ -24,13 +24,13 @@ import Network.HTTP2.H2
 
 ----------------------------------------------------------------
 
-data WorkerConf a = WorkerConf
-    { writeOutputQ :: Output a -> IO ()
+data WorkerConf = WorkerConf
+    { writeOutputQ :: Output -> IO ()
     , isPushable :: IO Bool
-    , makePushStream :: a -> PushPromise -> IO (StreamId, a)
+    , makePushStream :: Stream -> PushPromise -> IO (StreamId, Stream)
     }
 
-fromContext :: Context -> WorkerConf Stream
+fromContext :: Context -> WorkerConf
 fromContext ctx@Context{..} =
     WorkerConf
         { writeOutputQ = enqueueOutput outputQ
@@ -47,8 +47,8 @@ fromContext ctx@Context{..} =
 ----------------------------------------------------------------
 
 pushStream
-    :: WorkerConf a
-    -> a -- parent stream
+    :: WorkerConf
+    -> Stream -- parent stream
     -> ValueTable -- request
     -> [PushPromise]
     -> IO OutputType
@@ -98,10 +98,10 @@ pushStream WorkerConf{..} pstrm reqvt pps0
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 response
-    :: WorkerConf a
+    :: WorkerConf
     -> Manager
     -> T.Handle
-    -> a
+    -> Stream
     -> Request
     -> Response
     -> [PushPromise]
@@ -132,7 +132,7 @@ response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = case o
     (_, reqvt) = inpObjHeaders req
 
 -- | Worker for server applications.
-worker :: WorkerConf Stream -> Server -> Context -> Stream -> InpObj -> IO ()
+worker :: WorkerConf -> Server -> Context -> Stream -> InpObj -> IO ()
 worker wc server ctx@Context{..} strm req =
     timeoutKillThread threadManager $ \th -> do
         -- FIXME: exception

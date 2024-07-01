@@ -41,7 +41,7 @@ waitStreaming tbq = atomically $ do
 
 data Switch
     = C Control
-    | O (Output Stream)
+    | O Output
     | Flush
 
 wrapException :: E.SomeException -> IO ()
@@ -151,7 +151,7 @@ frameSender
                         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
         ----------------------------------------------------------------
-        output :: Output Stream -> Offset -> WindowSize -> IO Offset
+        output :: Output -> Offset -> WindowSize -> IO Offset
         output out@(Output strm OutObj{} (ONext curr tlrmkr) _ sentinel) off0 lim = do
             -- Data frame payload
             buflim <- readIORef outputBufferLimit
@@ -234,7 +234,7 @@ frameSender
              in ONext next tlrmkr
 
         ----------------------------------------------------------------
-        outputOrEnqueueAgain :: Output Stream -> Offset -> IO Offset
+        outputOrEnqueueAgain :: Output -> Offset -> IO Offset
         outputOrEnqueueAgain out@(Output strm obj otyp mtbq sentinel) off = E.handle resetStream $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
@@ -324,7 +324,7 @@ frameSender
             -> Maybe DynaNext
             -> (Maybe ByteString -> IO NextTrailersMaker)
             -> IO ()
-            -> Output Stream
+            -> Output
             -> Bool
             -> IO Offset
         fillDataHeaderEnqueueNext

@@ -170,8 +170,8 @@ instance Show Stream where
 
 ----------------------------------------------------------------
 
-data Output a = Output
-    { outputStream :: a
+data Output = Output
+    { outputStream :: Stream
     , outputObject :: OutObj
     , outputType :: OutputType
     , outputStrmQ :: Maybe (TBQueue StreamingChunk)
