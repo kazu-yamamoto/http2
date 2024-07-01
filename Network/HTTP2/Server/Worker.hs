@@ -26,7 +26,6 @@ import Network.HTTP2.H2
 
 data WorkerConf a = WorkerConf
     { writeOutputQ :: Output a -> IO ()
-    , workerCleanup :: a -> IO ()
     , isPushable :: IO Bool
     , makePushStream :: a -> PushPromise -> IO (StreamId, a)
     }
@@ -35,10 +34,6 @@ fromContext :: Context -> WorkerConf Stream
 fromContext ctx@Context{..} =
     WorkerConf
         { writeOutputQ = enqueueOutput outputQ
-        , workerCleanup = \strm -> do
-            closed ctx strm Killed
-            let frame = resetFrame InternalError $ streamNumber strm
-            enqueueControl controlQ $ CFrames Nothing [frame]
         , -- Peer SETTINGS_ENABLE_PUSH
           isPushable = enablePush <$> readIORef peerSettings
         , -- Peer SETTINGS_INITIAL_WINDOW_SIZE
