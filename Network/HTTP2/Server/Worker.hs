@@ -156,11 +156,11 @@ response wc@WorkerConf{..} mgr th tconf strm (Request req) (Response rsp) pps = 
     (_, reqvt) = inpObjHeaders req
 
 -- | Worker for server applications.
-worker :: Context -> WorkerConf Stream -> Manager -> Server -> Action
-worker ctx@Context{..} wc@WorkerConf{..} mgr server = do
+worker :: Context -> WorkerConf Stream -> Server -> Action
+worker ctx@Context{..} wc@WorkerConf{..} server = do
     sinfo <- newStreamInfo
     tcont <- newThreadContinue
-    timeoutKillThread mgr $ go sinfo tcont
+    timeoutKillThread threadManager $ go sinfo tcont
   where
     go sinfo tcont th = do
         setThreadContinue tcont True
@@ -172,7 +172,9 @@ worker ctx@Context{..} wc@WorkerConf{..} mgr server = do
             T.resume th
             T.tickle th
             let aux = Aux th mySockAddr peerSockAddr
-            r <- server (Request req') aux $ response wc mgr th tcont strm (Request req')
+            r <-
+                server (Request req') aux $
+                    response wc threadManager th tcont strm (Request req')
             adjustRxWindow ctx strm
             return r
         cont1 <- case ex of

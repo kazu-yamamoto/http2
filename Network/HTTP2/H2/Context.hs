@@ -7,6 +7,7 @@ module Network.HTTP2.H2.Context where
 import Data.IORef
 import Network.Control
 import Network.Socket (SockAddr)
+import qualified System.TimeManager as T
 import UnliftIO.Exception
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
@@ -14,6 +15,7 @@ import UnliftIO.STM
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
+import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
@@ -82,6 +84,7 @@ data Context = Context
     , rstRate :: Rate
     , mySockAddr :: SockAddr
     , peerSockAddr :: SockAddr
+    , threadManager :: Manager
     }
 
 ----------------------------------------------------------------
@@ -92,8 +95,9 @@ newContext
     -> Int
     -> Int
     -> Settings
+    -> T.Manager
     -> IO Context
-newContext rinfo Config{..} cacheSiz connRxWS settings =
+newContext rinfo Config{..} cacheSiz connRxWS settings timmgr =
     -- My: Use this even if ack has not been received yet.
     Context rl rinfo settings
         <$> newIORef False
@@ -121,6 +125,7 @@ newContext rinfo Config{..} cacheSiz connRxWS settings =
         <*> newRate
         <*> return confMySockAddr
         <*> return confPeerSockAddr
+        <*> start timmgr
   where
     rl = case rinfo of
         RIC{} -> Client

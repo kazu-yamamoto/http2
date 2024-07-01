@@ -47,11 +47,11 @@ run :: ServerConfig -> Config -> Server -> IO ()
 run sconf@ServerConfig{numberOfWorkers} conf server = do
     ok <- checkPreface conf
     when ok $ do
-        (ctx, mgr) <- setup sconf conf
+        ctx <- setup sconf conf
         let wc = fromContext ctx
-        setAction mgr $ worker ctx wc mgr server
-        replicateM_ numberOfWorkers $ spawnAction mgr
-        runH2 conf ctx mgr
+        setAction (threadManager ctx) $ worker ctx wc server
+        replicateM_ numberOfWorkers $ spawnAction $ threadManager ctx
+        runH2 conf ctx
 
 ----------------------------------------------------------------
 
@@ -73,7 +73,7 @@ runIO
 runIO sconf conf@Config{..} action = do
     ok <- checkPreface conf
     when ok $ do
-        (ctx@Context{..}, mgr) <- setup sconf conf
+        ctx@Context{..} <- setup sconf conf
         let ServerInfo{..} = toServerInfo roleInfo
             get = do
                 Input strm inObj <- atomically $ readTQueue inputQ
@@ -83,7 +83,7 @@ runIO sconf conf@Config{..} action = do
                 enqueueOutput outputQ out
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
         io <- action $ ServerIO confMySockAddr confPeerSockAddr get putR putB
-        concurrently_ io $ runH2 conf ctx mgr
+        concurrently_ io $ runH2 conf ctx
 
 checkPreface :: Config -> IO Bool
 checkPreface conf@Config{..} = do
@@ -94,24 +94,22 @@ checkPreface conf@Config{..} = do
             return False
         else return True
 
-setup :: ServerConfig -> Config -> IO (Context, Manager)
+setup :: ServerConfig -> Config -> IO Context
 setup ServerConfig{..} conf@Config{..} = do
     serverInfo <- newServerInfo
-    ctx <-
-        newContext
-            serverInfo
-            conf
-            0
-            connectionWindowSize
-            settings
-    -- Workers, worker manager and timer manager
-    mgr <- start confTimeoutManager
-    return (ctx, mgr)
+    newContext
+        serverInfo
+        conf
+        0
+        connectionWindowSize
+        settings
+        confTimeoutManager
 
-runH2 :: Config -> Context -> Manager -> IO ()
-runH2 conf ctx mgr = do
-    let runReceiver = frameReceiver ctx conf
-        runSender = frameSender ctx conf mgr
+runH2 :: Config -> Context -> IO ()
+runH2 conf ctx = do
+    let mgr = threadManager ctx
+        runReceiver = frameReceiver ctx conf
+        runSender = frameSender ctx conf
         runBackgroundThreads = concurrently_ runReceiver runSender
     stopAfter mgr runBackgroundThreads $ \res -> do
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $

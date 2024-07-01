@@ -66,8 +66,8 @@ defaultClientConfig =
 -- | Running HTTP/2 client.
 run :: ClientConfig -> Config -> Client a -> IO a
 run cconf@ClientConfig{..} conf client = do
-    (ctx, mgr) <- setup cconf conf
-    runH2 conf ctx mgr $ runClient ctx mgr
+    ctx <- setup cconf conf
+    runH2 conf ctx $ runClient ctx
   where
     serverMaxStreams ctx = do
         mx <- maxConcurrentStreams <$> readIORef (peerSettings ctx)
@@ -88,7 +88,8 @@ run cconf@ClientConfig{..} conf client = do
         x <- processResponse rsp
         adjustRxWindow ctx strm
         return x
-    runClient ctx mgr = do
+    runClient ctx = do
+        let mgr = threadManager ctx
         x <- client (clientCore ctx mgr) $ aux ctx
         waitCounter0 mgr
         let frame = goawayFrame 0 NoError "graceful closing"
@@ -100,16 +101,16 @@ run cconf@ClientConfig{..} conf client = do
 -- | Launching a receiver and a sender.
 runIO :: ClientConfig -> Config -> (ClientIO -> IO (IO a)) -> IO a
 runIO cconf@ClientConfig{..} conf@Config{..} action = do
-    (ctx@Context{..}, mgr) <- setup cconf conf
+    ctx@Context{..} <- setup cconf conf
     let putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
         putR req = do
-            strm <- sendRequest ctx mgr scheme authority req
+            strm <- sendRequest ctx threadManager scheme authority req
             return (streamNumber strm, strm)
         get = getResponse
         create = openOddStreamWait ctx
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
-    runH2 conf ctx mgr runClient
+    runH2 conf ctx runClient
 
 getResponse :: Stream -> IO Response
 getResponse strm = do
@@ -118,7 +119,7 @@ getResponse strm = do
         Left err -> throwIO err
         Right rsp -> return $ Response rsp
 
-setup :: ClientConfig -> Config -> IO (Context, Manager)
+setup :: ClientConfig -> Config -> IO Context
 setup ClientConfig{..} conf@Config{..} = do
     let clientInfo = newClientInfo scheme authority
     ctx <-
@@ -128,12 +129,12 @@ setup ClientConfig{..} conf@Config{..} = do
             cacheLimit
             connectionWindowSize
             settings
-    mgr <- start confTimeoutManager
+            confTimeoutManager
     exchangeSettings ctx
-    return (ctx, mgr)
+    return ctx
 
-runH2 :: Config -> Context -> Manager -> IO a -> IO a
-runH2 conf ctx mgr runClient =
+runH2 :: Config -> Context -> IO a -> IO a
+runH2 conf ctx runClient = do
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
             either Just (const Nothing) res
@@ -145,8 +146,9 @@ runH2 conf ctx mgr runClient =
             Right (Right x) ->
                 return x
   where
+    mgr = threadManager ctx
     runReceiver = frameReceiver ctx conf
-    runSender = frameSender ctx conf mgr
+    runSender = frameSender ctx conf
     runBackgroundThreads = concurrently_ runReceiver runSender
 
 sendRequest

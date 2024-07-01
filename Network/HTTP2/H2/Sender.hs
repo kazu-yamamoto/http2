@@ -70,11 +70,10 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
     updateAllStreamTxFlow siz strms =
         forM_ strms $ \strm -> increaseStreamWindowSize strm siz
 
-frameSender :: Context -> Config -> Manager -> IO ()
+frameSender :: Context -> Config -> IO ()
 frameSender
-    ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
-    Config{..}
-    mgr = do
+    ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit, threadManager}
+    Config{..} = do
         labelMe "fromSender"
         loop 0 `E.catch` wrapException
       where
@@ -207,7 +206,7 @@ frameSender
                 OutBodyFile (FileSpec path fileoff bytecount) -> do
                     (pread, sentinel') <- confPositionReadMaker path
                     refresh <- case sentinel' of
-                        Closer closer -> timeoutClose mgr closer
+                        Closer closer -> timeoutClose threadManager closer
                         Refresher refresher -> return refresher
                     let next = fillFileBodyGetNext pread fileoff bytecount refresh
                         out' = setOutputType $ ONext next tlrmkr
@@ -243,7 +242,7 @@ frameSender
                 else case otyp of
                     OWait wait -> do
                         -- Checking if all push are done.
-                        forkAndEnqueueWhenReady wait outputQ out{outputType = OObj} mgr
+                        forkAndEnqueueWhenReady wait outputQ out{outputType = OObj} threadManager
                         return off
                     OObj ->
                         -- Send headers immediately, without waiting for data
@@ -257,7 +256,7 @@ frameSender
                 isEmpty <- atomically $ isEmptyTBQueue tbq
                 if isEmpty
                     then do
-                        forkAndEnqueueWhenReady (waitStreaming tbq) outputQ out mgr
+                        forkAndEnqueueWhenReady (waitStreaming tbq) outputQ out threadManager
                         return off
                     else checkStreamWindowSize
             -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
@@ -265,7 +264,7 @@ frameSender
                 sws <- getStreamWindowSize strm
                 if sws == 0
                     then do
-                        forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out mgr
+                        forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out threadManager
                         return off
                     else do
                         cws <- getConnectionWindowSize ctx -- not 0
