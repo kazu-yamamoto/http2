@@ -142,11 +142,9 @@ worker wc server ctx@Context{..} strm req =
         T.tickle th
         let aux = Aux th mySockAddr peerSockAddr
             request = Request req'
-        r <-
-            server request aux $
-                response wc threadManager th strm request
+        server request aux $
+            response wc threadManager th strm request
         adjustRxWindow ctx strm
-        return r
   where
     pauseRequestBody th = req{inpObjBody = readBody'}
       where
