@@ -8,6 +8,7 @@ module Network.HTTP2.Server.Worker (
     fromContext,
 ) where
 
+import Control.Concurrent
 import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
@@ -48,12 +49,13 @@ fromContext ctx@Context{..} =
 
 pushStream
     :: WorkerConf
+    -> Manager
     -> Stream -- parent stream
     -> ValueTable -- request
     -> [PushPromise]
     -> IO (Maybe (IO ()))
-pushStream _ _ _ [] = return Nothing
-pushStream WorkerConf{..} pstrm reqvt pps0
+pushStream _ _ _ _ [] = return Nothing
+pushStream WorkerConf{..} mgr pstrm reqvt pps0
     | len == 0 = return Nothing
     | otherwise = do
         pushable <- isPushable
@@ -74,25 +76,29 @@ pushStream WorkerConf{..} pstrm reqvt pps0
         checkSTM (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
-        (pid, newstrm) <- makePushStream pstrm pp
-        let scheme = fromJust $ getFieldValue tokenScheme reqvt
-            -- fixme: this value can be Nothing
-            auth =
-                fromJust
-                    ( getFieldValue tokenAuthority reqvt
-                        <|> getFieldValue tokenHost reqvt
-                    )
-            path = promiseRequestPath pp
-            promiseRequest =
-                [ (tokenMethod, methodGet)
-                , (tokenScheme, scheme)
-                , (tokenAuthority, auth)
-                , (tokenPath, path)
-                ]
-            ot = OPush promiseRequest pid
-            Response rsp = promiseResponse pp
-            out = Output newstrm rsp ot Nothing $ increment tvar
-        writeOutputQ out
+        forkManaged mgr "H2 push" $ do
+            var <- newEmptyMVar
+            (pid, newstrm) <- makePushStream pstrm pp
+            let scheme = fromJust $ getFieldValue tokenScheme reqvt
+                -- fixme: this value can be Nothing
+                auth =
+                    fromJust
+                        ( getFieldValue tokenAuthority reqvt
+                            <|> getFieldValue tokenHost reqvt
+                        )
+                path = promiseRequestPath pp
+                promiseRequest =
+                    [ (tokenMethod, methodGet)
+                    , (tokenScheme, scheme)
+                    , (tokenAuthority, auth)
+                    , (tokenPath, path)
+                    ]
+                ot = OPush promiseRequest pid
+                Response rsp = promiseResponse pp
+                out = Output newstrm rsp ot Nothing (putMVar var ())
+            writeOutputQ out
+            takeMVar var
+            increment tvar
         push tvar pps (n + 1)
 
 -- | This function is passed to workers.
@@ -108,7 +114,7 @@ response
     -> [PushPromise]
     -> IO ()
 response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = do
-    mwait <- pushStream wc strm reqvt pps
+    mwait <- pushStream wc mgr strm reqvt pps
     case mwait of
         Nothing -> return ()
         Just wait -> wait -- all pushes are sent
@@ -126,7 +132,9 @@ response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = do
         OutBodyStreamingUnmask _ ->
             error "response: server does not support OutBodyStreamingUnmask"
         _ -> return Nothing
-    writeOutputQ $ Output strm rsp OObj mtbq (return ())
+    var <- newEmptyMVar
+    writeOutputQ $ Output strm rsp OObj mtbq (putMVar var ())
+    takeMVar var
   where
     (_, reqvt) = inpObjHeaders req
 

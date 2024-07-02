@@ -175,7 +175,7 @@ data Output = Output
     , outputObject :: OutObj
     , outputType :: OutputType
     , outputStrmQ :: Maybe (TBQueue StreamingChunk)
-    , outputPushInc :: IO ()
+    , outputSync :: IO ()
     }
 
 data OutputType
