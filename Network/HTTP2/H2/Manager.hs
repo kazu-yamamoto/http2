@@ -82,13 +82,15 @@ forkManaged mgr label io =
 forkManagedUnmask
     :: Manager -> String -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
 forkManagedUnmask mgr label io =
-    void $ mask_ $ forkIOWithUnmask $ \unmask -> do
+    void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handleSyncOrAsync handler $ do
         labelMe label
         addMyId mgr
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
         io unmask `catch` \(_e :: SomeException) -> return ()
         deleteMyId mgr
+  where
+    handler (E.SomeException _) = return ()
 
 -- | Adding my thread id to the kill-thread list on stopping.
 --
