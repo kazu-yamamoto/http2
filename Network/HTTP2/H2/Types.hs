@@ -175,12 +175,12 @@ data Output = Output
     , outputObject :: OutObj
     , outputType :: OutputType
     , outputStrmQ :: Maybe (TBQueue StreamingChunk)
-    , outputSentinel :: IO ()
+    , outputPushInc :: IO ()
     }
 
 data OutputType
     = OObj
-    | OWait (IO ())
+    | OWait (IO ()) -- PushInc waiter
     | OPush TokenHeaderList StreamId -- associated stream id from client
     | ONext DynaNext TrailersMaker
 
