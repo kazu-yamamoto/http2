@@ -49,9 +49,8 @@ run sconf conf server = do
     when ok $ do
         let lnch ctx strm inpObj = do
                 let label = "Worker for stream " ++ show (streamNumber strm)
-                    wc = fromContext ctx
                 forkManaged (threadManager ctx) label $
-                    worker wc server ctx strm inpObj
+                    worker server ctx strm inpObj
         ctx <- setup sconf conf lnch
         runH2 conf ctx
 
@@ -82,7 +81,7 @@ runIO sconf conf@Config{..} action = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
                 return (streamNumber strm, strm, Request inpObj)
             putR strm (Response outObj) = do
-                let out = Output strm outObj OObj Nothing (return ())
+                let out = Output strm (OObj outObj) Nothing (\_ -> return ())
                 enqueueOutput outputQ out
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
             serverIO =

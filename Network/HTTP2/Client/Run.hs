@@ -189,11 +189,13 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
                         outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
                 OutBodyStreamingUnmask strmbdy ->
                     sendStreaming ctx mgr req' sid newstrm strmbdy
-                _ -> atomically $ do
-                    sidOK <- readTVar outputQStreamID
-                    check (sidOK == sid)
-                    writeTVar outputQStreamID (sid + 2)
-                    writeTQueue outputQ $ Output newstrm req' OObj Nothing (return ())
+                _ -> do
+                    atomically $ do
+                        sidOK <- readTVar outputQStreamID
+                        check (sidOK == sid)
+                        writeTVar outputQStreamID (sid + 2)
+                    forkManaged threadManager "H2 client" $
+                        syncWithSender ctx newstrm (OObj req') Nothing
             return newstrm
 
 sendStreaming
@@ -204,7 +206,7 @@ sendStreaming
     -> Stream
     -> (OutBodyIface -> IO ())
     -> IO ()
-sendStreaming Context{..} mgr req sid newstrm strmbdy = do
+sendStreaming ctx@Context{..} mgr req sid newstrm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManagedUnmask mgr "H2 sendStreaming" $ \unmask -> do
         decrementedCounter <- newIORef False
@@ -225,7 +227,8 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
-        writeTQueue outputQ $ Output newstrm req OObj (Just tbq) (return ())
+    forkManaged threadManager "H2 client streaming" $
+        syncWithSender ctx newstrm (OObj req) (Just tbq)
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do

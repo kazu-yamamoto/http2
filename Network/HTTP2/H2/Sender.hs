@@ -152,7 +152,7 @@ frameSender
 
         ----------------------------------------------------------------
         output :: Output -> Offset -> WindowSize -> IO Offset
-        output out@(Output strm OutObj{} (ONext curr tlrmkr) _ sync) off0 lim = do
+        output out@(Output strm (ONext curr tlrmkr) _ sync) off0 lim = do
             -- Data frame payload
             buflim <- readIORef outputBufferLimit
             let payloadOff = off0 + frameHeaderLength
@@ -169,25 +169,26 @@ frameSender
                 sync
                 out
                 reqflush
-        output (Output strm obj OObj mtbq sync) off0 _lim = do
+        output (Output strm (OObj obj) mtbq sync) off0 _lim = do
             outputObj strm obj mtbq sync off0
-        output out@(Output strm _ (OPush ths pid) _ _) off0 lim = do
+        output (Output strm (OPush ths pid) _ sync) off0 _lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.
             let sid = streamNumber strm
             len <- pushPromise pid sid ths off0
             off <- flushIfNecessary $ off0 + frameHeaderLength + len
-            output out{outputType = OObj} off lim
+            sync Done
+            return off
 
         ----------------------------------------------------------------
         outputObj
             :: Stream
             -> OutObj
             -> Maybe (TBQueue StreamingChunk)
-            -> IO ()
+            -> (Sync -> IO ())
             -> Offset
             -> IO Offset
-        outputObj strm obj@(OutObj hdr body tlrmkr) mtbq sync off0 = do
+        outputObj strm (OutObj hdr body tlrmkr) mtbq sync off0 = do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = case body of
@@ -199,7 +200,7 @@ frameSender
             -- the stream from stream table.
             when endOfStream $ halfClosedLocal ctx strm Finished
             off <- flushIfNecessary off'
-            let setOutputType otyp = Output strm obj otyp mtbq sync
+            let setOutputType otyp = Output strm otyp mtbq sync
             case body of
                 OutBodyNone -> return off
                 OutBodyFile (FileSpec path fileoff bytecount) -> do
@@ -234,12 +235,12 @@ frameSender
 
         ----------------------------------------------------------------
         outputOrEnqueueAgain :: Output -> Offset -> IO Offset
-        outputOrEnqueueAgain out@(Output strm obj otyp mtbq sync) off = E.handle resetStream $ do
+        outputOrEnqueueAgain out@(Output strm otyp mtbq sync) off = E.handle resetStream $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then return off
                 else case otyp of
-                    OObj ->
+                    OObj obj ->
                         -- Send headers immediately, without waiting for data
                         -- No need to check the streaming window (applies to DATA frames only)
                         outputObj strm obj mtbq sync off
@@ -251,7 +252,7 @@ frameSender
                 isEmpty <- atomically $ isEmptyTBQueue tbq
                 if isEmpty
                     then do
-                        forkAndEnqueueWhenReady (waitStreaming tbq) outputQ out threadManager
+                        sync $ Cont (waitStreaming tbq) otyp
                         return off
                     else checkStreamWindowSize
             -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
@@ -259,7 +260,7 @@ frameSender
                 sws <- getStreamWindowSize strm
                 if sws == 0
                     then do
-                        forkAndEnqueueWhenReady (waitStreamWindowSize strm) outputQ out threadManager
+                        sync $ Cont (waitStreamWindowSize strm) otyp
                         return off
                     else do
                         cws <- getConnectionWindowSize ctx -- not 0
@@ -318,7 +319,7 @@ frameSender
             -> Int
             -> Maybe DynaNext
             -> (Maybe ByteString -> IO NextTrailersMaker)
-            -> IO ()
+            -> (Sync -> IO ())
             -> Output
             -> Bool
             -> IO Offset
@@ -340,7 +341,7 @@ frameSender
                         else return (Just trailers, defaultFlags)
                 fillFrameHeader FrameData datPayloadLen streamNumber flag buf
                 off'' <- handleTrailers mtrailers off'
-                sync
+                sync Done
                 halfClosedLocal ctx strm Finished
                 decreaseWindowSize ctx strm datPayloadLen
                 if reqflush

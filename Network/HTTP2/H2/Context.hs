@@ -4,8 +4,10 @@
 
 module Network.HTTP2.H2.Context where
 
+import Control.Concurrent
 import Data.IORef
 import Network.Control
+import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
 import UnliftIO.Exception
@@ -16,6 +18,7 @@ import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Manager
+import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
@@ -303,3 +306,23 @@ openEvenStreamWait ctx@Context{..} = do
             newstrm <- newEvenStream sid txws rxws
             insertEven' evenStreamTable sid newstrm
             return (sid, newstrm)
+
+syncWithSender
+    :: Context
+    -> Stream
+    -> OutputType
+    -> Maybe (TBQueue StreamingChunk)
+    -> IO ()
+syncWithSender Context{..} strm otyp mtbq = do
+    var <- newEmptyMVar
+    enqueueOutput outputQ $ Output strm otyp mtbq (putMVar var)
+    loop var
+  where
+    loop var = do
+        s <- takeMVar var
+        case s of
+            Done -> return ()
+            Cont wait newotyp -> do
+                wait
+                enqueueOutput outputQ $ Output strm newotyp mtbq (putMVar var)
+                loop var
