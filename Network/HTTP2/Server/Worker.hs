@@ -112,16 +112,9 @@ response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = do
     case mwait of
         Nothing -> return ()
         Just wait -> wait -- all pushes are sent
-    case outObjBody rsp of
-        OutBodyNone ->
-            writeOutputQ $ Output strm rsp OObj Nothing (return ())
-        OutBodyBuilder _ -> do
-            writeOutputQ $ Output strm rsp OObj Nothing (return ())
-        OutBodyFile _ -> do
-            writeOutputQ $ Output strm rsp OObj Nothing (return ())
+    mtbq <- case outObjBody rsp of
         OutBodyStreaming strmbdy -> do
             tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-            writeOutputQ $ Output strm rsp OObj (Just tbq) (return ())
             let push b = do
                     T.pause th
                     atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
@@ -129,8 +122,11 @@ response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = do
                 flush = atomically $ writeTBQueue tbq StreamingFlush
                 finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
             forkManaged mgr "H2 streaming" (strmbdy push flush `E.finally` finished)
+            return $ Just tbq
         OutBodyStreamingUnmask _ ->
             error "response: server does not support OutBodyStreamingUnmask"
+        _ -> return Nothing
+    writeOutputQ $ Output strm rsp OObj mtbq (return ())
   where
     (_, reqvt) = inpObjHeaders req
 
