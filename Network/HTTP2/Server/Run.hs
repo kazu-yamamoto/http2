@@ -85,7 +85,15 @@ runIO sconf conf@Config{..} action = do
                 let out = Output strm outObj OObj Nothing (return ())
                 enqueueOutput outputQ out
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
-        io <- action $ ServerIO confMySockAddr confPeerSockAddr get putR putB
+            serverIO =
+                ServerIO
+                    { sioMySockAddr = confMySockAddr
+                    , sioPeerSockAddr = confPeerSockAddr
+                    , sioReadRequest = get
+                    , sioWriteResponse = putR
+                    , sioWriteBytes = putB
+                    }
+        io <- action serverIO
         concurrently_ io $ runH2 conf ctx
 
 checkPreface :: Config -> IO Bool
