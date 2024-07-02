@@ -204,8 +204,8 @@ frameSender
             case body of
                 OutBodyNone -> return off
                 OutBodyFile (FileSpec path fileoff bytecount) -> do
-                    (pread, sentinel') <- confPositionReadMaker path
-                    refresh <- case sentinel' of
+                    (pread, closerOrRefresher) <- confPositionReadMaker path
+                    refresh <- case closerOrRefresher of
                         Closer closer -> timeoutClose threadManager closer
                         Refresher refresher -> return refresher
                     let next = fillFileBodyGetNext pread fileoff bytecount refresh
