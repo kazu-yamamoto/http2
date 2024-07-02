@@ -51,10 +51,10 @@ pushStream
     -> Stream -- parent stream
     -> ValueTable -- request
     -> [PushPromise]
-    -> IO OutputType
-pushStream _ _ _ [] = return OObj
+    -> IO (Maybe (IO ()))
+pushStream _ _ _ [] = return Nothing
 pushStream WorkerConf{..} pstrm reqvt pps0
-    | len == 0 = return OObj
+    | len == 0 = return Nothing
     | otherwise = do
         pushable <- isPushable
         if pushable
@@ -62,12 +62,13 @@ pushStream WorkerConf{..} pstrm reqvt pps0
                 tvar <- newTVarIO 0
                 lim <- push tvar pps0 0
                 if lim == 0
-                    then return OObj
-                    else return $ OWait (waiter lim tvar)
-            else return OObj
+                    then return Nothing
+                    else return $ Just $ waiter lim tvar
+            else return Nothing
   where
     len = length pps0
     increment tvar = atomically $ modifyTVar' tvar (+ 1)
+    -- Checking if all push are done.
     waiter lim tvar = atomically $ do
         n <- readTVar tvar
         checkSTM (n >= lim)
@@ -106,28 +107,30 @@ response
     -> Response
     -> [PushPromise]
     -> IO ()
-response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = case outObjBody rsp of
-    OutBodyNone ->
-        writeOutputQ $ Output strm rsp OObj Nothing (return ())
-    OutBodyBuilder _ -> do
-        otyp <- pushStream wc strm reqvt pps
-        writeOutputQ $ Output strm rsp otyp Nothing (return ())
-    OutBodyFile _ -> do
-        otyp <- pushStream wc strm reqvt pps
-        writeOutputQ $ Output strm rsp otyp Nothing (return ())
-    OutBodyStreaming strmbdy -> do
-        otyp <- pushStream wc strm reqvt pps
-        tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-        writeOutputQ $ Output strm rsp otyp (Just tbq) (return ())
-        let push b = do
-                T.pause th
-                atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
-                T.resume th
-            flush = atomically $ writeTBQueue tbq StreamingFlush
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
-        strmbdy push flush `E.finally` finished
-    OutBodyStreamingUnmask _ ->
-        error "response: server does not support OutBodyStreamingUnmask"
+response wc@WorkerConf{..} mgr th strm (Request req) (Response rsp) pps = do
+    mwait <- pushStream wc strm reqvt pps
+    case mwait of
+        Nothing -> return ()
+        Just wait -> wait -- all pushes are sent
+    case outObjBody rsp of
+        OutBodyNone ->
+            writeOutputQ $ Output strm rsp OObj Nothing (return ())
+        OutBodyBuilder _ -> do
+            writeOutputQ $ Output strm rsp OObj Nothing (return ())
+        OutBodyFile _ -> do
+            writeOutputQ $ Output strm rsp OObj Nothing (return ())
+        OutBodyStreaming strmbdy -> do
+            tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+            writeOutputQ $ Output strm rsp OObj (Just tbq) (return ())
+            let push b = do
+                    T.pause th
+                    atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
+                    T.resume th
+                flush = atomically $ writeTBQueue tbq StreamingFlush
+                finished = atomically $ writeTBQueue tbq $ StreamingFinished (decCounter mgr)
+            forkManaged mgr "H2 streaming" (strmbdy push flush `E.finally` finished)
+        OutBodyStreamingUnmask _ ->
+            error "response: server does not support OutBodyStreamingUnmask"
   where
     (_, reqvt) = inpObjHeaders req
 

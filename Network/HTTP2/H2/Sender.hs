@@ -178,7 +178,6 @@ frameSender
             len <- pushPromise pid sid ths off0
             off <- flushIfNecessary $ off0 + frameHeaderLength + len
             output out{outputType = OObj} off lim
-        output _ _ _ = undefined -- never reach
 
         ----------------------------------------------------------------
         outputObj
@@ -240,10 +239,6 @@ frameSender
             if isHalfClosedLocal state
                 then return off
                 else case otyp of
-                    OWait wait -> do
-                        -- Checking if all push are done.
-                        forkAndEnqueueWhenReady wait outputQ out{outputType = OObj} threadManager
-                        return off
                     OObj ->
                         -- Send headers immediately, without waiting for data
                         -- No need to check the streaming window (applies to DATA frames only)

@@ -180,7 +180,6 @@ data Output = Output
 
 data OutputType
     = OObj
-    | OWait (IO ()) -- PushInc waiter
     | OPush TokenHeaderList StreamId -- associated stream id from client
     | ONext DynaNext TrailersMaker
 
