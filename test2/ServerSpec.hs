@@ -34,7 +34,7 @@ runServer = runTCPServer (Just host) port runHTTP2Server
         E.bracket
             (allocSimpleConfig s 4096)
             freeSimpleConfig
-            (`run` server)
+            (\conf -> run defaultServerConfig conf server)
 
 server :: Server
 server req _aux sendResponse = case requestMethod req of

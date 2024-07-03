@@ -333,7 +333,8 @@ test-suite spec2
         http-types,
         http2,
         network-run >=0.1.0,
-        typed-process
+        typed-process,
+        unliftio
 
     if flag(h2spec)
 
