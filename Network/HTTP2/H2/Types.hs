@@ -170,21 +170,18 @@ instance Show Stream where
 
 ----------------------------------------------------------------
 
-data Input a = Input a InpObj
-
-data Output a = Output
-    { outputStream :: a
-    , outputObject :: OutObj
+data Output = Output
+    { outputStream :: Stream
     , outputType :: OutputType
-    , outputStrmQ :: Maybe (TBQueue StreamingChunk)
-    , outputSentinel :: IO ()
+    , outputSync :: Maybe OutputType -> IO Bool
     }
 
 data OutputType
-    = OObj
-    | OWait (IO ())
+    = OHeader [Header] (Maybe DynaNext) TrailersMaker
     | OPush TokenHeaderList StreamId -- associated stream id from client
     | ONext DynaNext TrailersMaker
+
+data Sync = Done | Cont (IO ()) OutputType
 
 ----------------------------------------------------------------
 

@@ -185,8 +185,8 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
     let inpObj = InpObj tbl (Just 0) (return (mempty, True)) tlr
     if isServer ctx
         then do
-            let si = toServerInfo roleInfo
-            atomically $ writeTQueue (inputQ si) $ Input strm inpObj
+            let ServerInfo{..} = toServerInfo roleInfo
+            launch ctx strm inpObj
         else putMVar streamInput $ Right inpObj
     halfClosedRemote ctx strm
     return False
@@ -205,8 +205,8 @@ processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{str
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx
         then do
-            let si = toServerInfo roleInfo
-            atomically $ writeTQueue (inputQ si) $ Input strm inpObj
+            let ServerInfo{..} = toServerInfo roleInfo
+            launch ctx strm inpObj
         else putMVar streamInput $ Right inpObj
     return False
 

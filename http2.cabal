@@ -97,6 +97,7 @@ library
         Network.HTTP2.H2.Settings
         Network.HTTP2.H2.Stream
         Network.HTTP2.H2.StreamTable
+        Network.HTTP2.H2.Sync
         Network.HTTP2.H2.Types
         Network.HTTP2.H2.Window
         Network.HTTP2.Frame.Decode
@@ -332,7 +333,8 @@ test-suite spec2
         http-types,
         http2,
         network-run >=0.1.0,
-        typed-process
+        typed-process,
+        unliftio
 
     if flag(h2spec)
 

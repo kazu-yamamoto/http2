@@ -52,7 +52,7 @@ data ClientConfig = ClientConfig
 -- @userinfo\@@ as part of the authority.
 --
 -- >>> defaultClientConfig
--- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, connectionWindowSize = 1048576, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}}
+-- ClientConfig {scheme = "http", authority = "localhost", cacheLimit = 64, connectionWindowSize = 16777216, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}}
 defaultClientConfig :: ClientConfig
 defaultClientConfig =
     ClientConfig
@@ -66,8 +66,8 @@ defaultClientConfig =
 -- | Running HTTP/2 client.
 run :: ClientConfig -> Config -> Client a -> IO a
 run cconf@ClientConfig{..} conf client = do
-    (ctx, mgr) <- setup cconf conf
-    runH2 conf ctx mgr $ runClient ctx mgr
+    ctx <- setup cconf conf
+    runH2 conf ctx $ runClient ctx
   where
     serverMaxStreams ctx = do
         mx <- maxConcurrentStreams <$> readIORef (peerSettings ctx)
@@ -82,15 +82,15 @@ run cconf@ClientConfig{..} conf client = do
         Aux
             { auxPossibleClientStreams = possibleClientStream ctx
             }
-    clientCore ctx mgr req processResponse = do
-        strm <- sendRequest ctx mgr scheme authority req
+    clientCore ctx req processResponse = do
+        strm <- sendRequest conf ctx scheme authority req
         rsp <- getResponse strm
         x <- processResponse rsp
         adjustRxWindow ctx strm
         return x
-    runClient ctx mgr = do
-        x <- client (clientCore ctx mgr) $ aux ctx
-        waitCounter0 mgr
+    runClient ctx = do
+        x <- client (clientCore ctx) $ aux ctx
+        waitCounter0 $ threadManager ctx
         let frame = goawayFrame 0 NoError "graceful closing"
         mvar <- newMVar ()
         enqueueControl (controlQ ctx) $ CGoaway frame mvar
@@ -100,16 +100,16 @@ run cconf@ClientConfig{..} conf client = do
 -- | Launching a receiver and a sender.
 runIO :: ClientConfig -> Config -> (ClientIO -> IO (IO a)) -> IO a
 runIO cconf@ClientConfig{..} conf@Config{..} action = do
-    (ctx@Context{..}, mgr) <- setup cconf conf
+    ctx@Context{..} <- setup cconf conf
     let putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
         putR req = do
-            strm <- sendRequest ctx mgr scheme authority req
+            strm <- sendRequest conf ctx scheme authority req
             return (streamNumber strm, strm)
         get = getResponse
         create = openOddStreamWait ctx
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
-    runH2 conf ctx mgr runClient
+    runH2 conf ctx runClient
 
 getResponse :: Stream -> IO Response
 getResponse strm = do
@@ -118,7 +118,7 @@ getResponse strm = do
         Left err -> throwIO err
         Right rsp -> return $ Response rsp
 
-setup :: ClientConfig -> Config -> IO (Context, Manager)
+setup :: ClientConfig -> Config -> IO Context
 setup ClientConfig{..} conf@Config{..} = do
     let clientInfo = newClientInfo scheme authority
     ctx <-
@@ -128,12 +128,12 @@ setup ClientConfig{..} conf@Config{..} = do
             cacheLimit
             connectionWindowSize
             settings
-    mgr <- start confTimeoutManager
+            confTimeoutManager
     exchangeSettings ctx
-    return (ctx, mgr)
+    return ctx
 
-runH2 :: Config -> Context -> Manager -> IO a -> IO a
-runH2 conf ctx mgr runClient =
+runH2 :: Config -> Context -> IO a -> IO a
+runH2 conf ctx runClient = do
     stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
             either Just (const Nothing) res
@@ -145,18 +145,19 @@ runH2 conf ctx mgr runClient =
             Right (Right x) ->
                 return x
   where
+    mgr = threadManager ctx
     runReceiver = frameReceiver ctx conf
-    runSender = frameSender ctx conf mgr
+    runSender = frameSender ctx conf
     runBackgroundThreads = concurrently_ runReceiver runSender
 
 sendRequest
-    :: Context
-    -> Manager
+    :: Config
+    -> Context
     -> Scheme
     -> Authority
     -> Request
     -> IO Stream
-sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
+sendRequest conf ctx@Context{..} scheme auth (Request req) = do
     -- Checking push promises
     let hdr0 = outObjHeaders req
         method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr0
@@ -181,34 +182,58 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
             (sid, newstrm) <- openOddStreamWait ctx
-            case outObjBody req of
-                OutBodyStreaming strmbdy ->
-                    sendStreaming ctx mgr req' sid newstrm $ \iface ->
-                        outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
-                OutBodyStreamingUnmask strmbdy ->
-                    sendStreaming ctx mgr req' sid newstrm strmbdy
-                _ -> atomically $ do
-                    sidOK <- readTVar outputQStreamID
-                    check (sidOK == sid)
-                    writeTVar outputQStreamID (sid + 2)
-                    writeTQueue outputQ $ Output newstrm req' OObj Nothing (return ())
+            sendHeaderBody conf ctx sid newstrm req'
             return newstrm
+
+sendHeaderBody :: Config -> Context -> StreamId -> Stream -> OutObj -> IO ()
+sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
+    (mnext, mtbq) <- case outObjBody of
+        OutBodyNone -> return (Nothing, Nothing)
+        OutBodyFile (FileSpec path fileoff bytecount) -> do
+            (pread, closerOrRefresher) <- confPositionReadMaker path
+            refresh <- case closerOrRefresher of
+                Closer closer -> timeoutClose threadManager closer
+                Refresher refresher -> return refresher
+            let next = fillFileBodyGetNext pread fileoff bytecount refresh
+            return (Just next, Nothing)
+        OutBodyBuilder builder -> do
+            let next = fillBuilderBodyGetNext builder
+            return (Just next, Nothing)
+        OutBodyStreaming strmbdy -> do
+            q <- sendStreaming ctx $ \iface ->
+                outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
+            let next = nextForStreaming q
+            return (Just next, Just q)
+        OutBodyStreamingUnmask strmbdy -> do
+            q <- sendStreaming ctx strmbdy
+            let next = nextForStreaming q
+            return (Just next, Just q)
+    atomically $ do
+        sidOK <- readTVar outputQStreamID
+        check (sidOK == sid)
+        writeTVar outputQStreamID (sid + 2)
+    forkManaged threadManager "H2 client send" $
+        syncWithSender ctx newstrm (OHeader outObjHeaders mnext outObjTrailers) mtbq
+  where
+    nextForStreaming
+        :: TBQueue StreamingChunk
+        -> DynaNext
+    nextForStreaming tbq =
+        let takeQ = atomically $ tryReadTBQueue tbq
+            next = fillStreamBodyGetNext takeQ
+         in next
 
 sendStreaming
     :: Context
-    -> Manager
-    -> OutObj
-    -> StreamId
-    -> Stream
     -> (OutBodyIface -> IO ())
-    -> IO ()
-sendStreaming Context{..} mgr req sid newstrm strmbdy = do
+    -> IO (TBQueue StreamingChunk)
+sendStreaming Context{..} strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManagedUnmask mgr "H2 sendStreaming" $ \unmask -> do
+    forkManagedUnmask threadManager "H2 client sendStreaming" $ \unmask -> do
         decrementedCounter <- newIORef False
         let decCounterOnce = do
                 alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)
-                unless alreadyDecremented $ decCounter mgr
+                unless alreadyDecremented $ decCounter threadManager
         let iface =
                 OutBodyIface
                     { outBodyUnmask = unmask
@@ -217,13 +242,9 @@ sendStreaming Context{..} mgr req sid newstrm strmbdy = do
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     }
             finished = atomically $ writeTBQueue tbq $ StreamingFinished decCounterOnce
-        incCounter mgr
+        incCounter threadManager
         strmbdy iface `finally` finished
-    atomically $ do
-        sidOK <- readTVar outputQStreamID
-        check (sidOK == sid)
-        writeTVar outputQStreamID (sid + 2)
-        writeTQueue outputQ $ Output newstrm req OObj (Just tbq) (return ())
+    return tbq
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do

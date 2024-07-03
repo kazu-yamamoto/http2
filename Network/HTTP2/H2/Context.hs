@@ -7,6 +7,7 @@ module Network.HTTP2.H2.Context where
 import Data.IORef
 import Network.Control
 import Network.Socket (SockAddr)
+import qualified System.TimeManager as T
 import UnliftIO.Exception
 import qualified UnliftIO.Exception as E
 import UnliftIO.STM
@@ -14,6 +15,7 @@ import UnliftIO.STM
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
+import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
@@ -25,8 +27,10 @@ data Role = Client | Server deriving (Eq, Show)
 
 data RoleInfo = RIS ServerInfo | RIC ClientInfo
 
+type Launch = Context -> Stream -> InpObj -> IO ()
+
 data ServerInfo = ServerInfo
-    { inputQ :: TQueue (Input Stream)
+    { launch :: Launch
     }
 
 data ClientInfo = ClientInfo
@@ -42,8 +46,8 @@ toClientInfo :: RoleInfo -> ClientInfo
 toClientInfo (RIC x) = x
 toClientInfo _ = error "toClientInfo"
 
-newServerInfo :: IO RoleInfo
-newServerInfo = RIS . ServerInfo <$> newTQueueIO
+newServerInfo :: Launch -> RoleInfo
+newServerInfo = RIS . ServerInfo
 
 newClientInfo :: ByteString -> Authority -> RoleInfo
 newClientInfo scm auth = RIC $ ClientInfo scm auth
@@ -68,7 +72,7 @@ data Context = Context
     , myStreamId :: TVar StreamId
     , peerStreamId :: IORef StreamId
     , outputBufferLimit :: IORef Int
-    , outputQ :: TQueue (Output Stream)
+    , outputQ :: TQueue Output
     , outputQStreamID :: TVar StreamId
     , controlQ :: TQueue Control
     , encodeDynamicTable :: DynamicTable
@@ -82,6 +86,7 @@ data Context = Context
     , rstRate :: Rate
     , mySockAddr :: SockAddr
     , peerSockAddr :: SockAddr
+    , threadManager :: Manager
     }
 
 ----------------------------------------------------------------
@@ -92,8 +97,9 @@ newContext
     -> Int
     -> Int
     -> Settings
+    -> T.Manager
     -> IO Context
-newContext rinfo Config{..} cacheSiz connRxWS settings =
+newContext rinfo Config{..} cacheSiz connRxWS settings timmgr =
     -- My: Use this even if ack has not been received yet.
     Context rl rinfo settings
         <$> newIORef False
@@ -121,6 +127,7 @@ newContext rinfo Config{..} cacheSiz connRxWS settings =
         <*> newRate
         <*> return confMySockAddr
         <*> return confPeerSockAddr
+        <*> start timmgr
   where
     rl = case rinfo of
         RIC{} -> Client

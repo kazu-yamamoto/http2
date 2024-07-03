@@ -7,6 +7,7 @@ module Network.HTTP2.Server.Run where
 import Control.Concurrent.STM
 import Imports
 import Network.Control (defaultMaxData)
+import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
@@ -31,7 +32,7 @@ data ServerConfig = ServerConfig
 -- | The default server config.
 --
 -- >>> defaultServerConfig
--- ServerConfig {numberOfWorkers = 8, connectionWindowSize = 1048576, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}}
+-- ServerConfig {numberOfWorkers = 8, connectionWindowSize = 16777216, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}}
 defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
@@ -44,14 +45,15 @@ defaultServerConfig =
 
 -- | Running HTTP/2 server.
 run :: ServerConfig -> Config -> Server -> IO ()
-run sconf@ServerConfig{numberOfWorkers} conf server = do
+run sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
-        (ctx, mgr) <- setup sconf conf
-        let wc = fromContext ctx
-        setAction mgr $ worker ctx wc mgr server
-        replicateM_ numberOfWorkers $ spawnAction mgr
-        runH2 conf ctx mgr
+        let lnch ctx strm inpObj = do
+                let label = "Worker for stream " ++ show (streamNumber strm)
+                forkManaged (threadManager ctx) label $
+                    worker conf server ctx strm inpObj
+        ctx <- setup sconf conf lnch
+        runH2 conf ctx
 
 ----------------------------------------------------------------
 
@@ -60,6 +62,8 @@ data ServerIO = ServerIO
     , sioPeerSockAddr :: SockAddr
     , sioReadRequest :: IO (StreamId, Stream, Request)
     , sioWriteResponse :: Stream -> Response -> IO ()
+    -- ^ 'Response' MUST be created with 'responseBuilder'.
+    -- Others are not supported.
     , sioWriteBytes :: ByteString -> IO ()
     }
 
@@ -73,17 +77,31 @@ runIO
 runIO sconf conf@Config{..} action = do
     ok <- checkPreface conf
     when ok $ do
-        (ctx@Context{..}, mgr) <- setup sconf conf
-        let ServerInfo{..} = toServerInfo roleInfo
-            get = do
-                Input strm inObj <- atomically $ readTQueue inputQ
-                return (streamNumber strm, strm, Request inObj)
-            putR strm (Response outObj) = do
-                let out = Output strm outObj OObj Nothing (return ())
-                enqueueOutput outputQ out
+        inpQ <- newTQueueIO
+        let lnch _ strm inpObj = atomically $ writeTQueue inpQ (strm, inpObj)
+        ctx@Context{..} <- setup sconf conf lnch
+        let get = do
+                (strm, inpObj) <- atomically $ readTQueue inpQ
+                return (streamNumber strm, strm, Request inpObj)
+            putR strm (Response OutObj{..}) = do
+                case outObjBody of
+                    OutBodyBuilder builder -> do
+                        let next = fillBuilderBodyGetNext builder
+                            sync _ = return True
+                            out = OHeader outObjHeaders (Just next) outObjTrailers
+                        enqueueOutput outputQ $ Output strm out sync
+                    _ -> error "Response other than OutBodyBuilder is not supported"
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
-        io <- action $ ServerIO confMySockAddr confPeerSockAddr get putR putB
-        concurrently_ io $ runH2 conf ctx mgr
+            serverIO =
+                ServerIO
+                    { sioMySockAddr = confMySockAddr
+                    , sioPeerSockAddr = confPeerSockAddr
+                    , sioReadRequest = get
+                    , sioWriteResponse = putR
+                    , sioWriteBytes = putB
+                    }
+        io <- action serverIO
+        concurrently_ io $ runH2 conf ctx
 
 checkPreface :: Config -> IO Bool
 checkPreface conf@Config{..} = do
@@ -94,24 +112,22 @@ checkPreface conf@Config{..} = do
             return False
         else return True
 
-setup :: ServerConfig -> Config -> IO (Context, Manager)
-setup ServerConfig{..} conf@Config{..} = do
-    serverInfo <- newServerInfo
-    ctx <-
-        newContext
-            serverInfo
-            conf
-            0
-            connectionWindowSize
-            settings
-    -- Workers, worker manager and timer manager
-    mgr <- start confTimeoutManager
-    return (ctx, mgr)
+setup :: ServerConfig -> Config -> Launch -> IO Context
+setup ServerConfig{..} conf@Config{..} lnch = do
+    let serverInfo = newServerInfo lnch
+    newContext
+        serverInfo
+        conf
+        0
+        connectionWindowSize
+        settings
+        confTimeoutManager
 
-runH2 :: Config -> Context -> Manager -> IO ()
-runH2 conf ctx mgr = do
-    let runReceiver = frameReceiver ctx conf
-        runSender = frameSender ctx conf mgr
+runH2 :: Config -> Context -> IO ()
+runH2 conf ctx = do
+    let mgr = threadManager ctx
+        runReceiver = frameReceiver ctx conf
+        runSender = frameSender ctx conf
         runBackgroundThreads = concurrently_ runReceiver runSender
     stopAfter mgr runBackgroundThreads $ \res -> do
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
