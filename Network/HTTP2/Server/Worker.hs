@@ -86,7 +86,7 @@ pushStream ctx@Context{..} pstrm reqvt pps0
 -- | This function is passed to workers.
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
-response
+sendResponse
     :: Context
     -> T.Handle
     -> Stream
@@ -94,7 +94,7 @@ response
     -> Response
     -> [PushPromise]
     -> IO ()
-response ctx th strm (Request req) (Response rsp) pps = do
+sendResponse ctx th strm (Request req) (Response rsp) pps = do
     mwait <- pushStream ctx strm reqvt pps
     case mwait of
         Nothing -> return ()
@@ -123,7 +123,7 @@ processBody ctx@Context{..} th strm rsp = do
                 (strmbdy push flush `E.finally` finished)
             return $ Just tbq
         OutBodyStreamingUnmask _ ->
-            error "response: server does not support OutBodyStreamingUnmask"
+            error "sendResponse: server does not support OutBodyStreamingUnmask"
         _ -> return Nothing
     syncWithSender ctx strm (OObj rsp) mtbq
 
@@ -138,7 +138,7 @@ worker server ctx@Context{..} strm req =
         T.tickle th
         let aux = Aux th mySockAddr peerSockAddr
             request = Request req'
-        server request aux $ response ctx th strm request
+        server request aux $ sendResponse ctx th strm request
         adjustRxWindow ctx strm
   where
     pauseRequestBody th = req{inpObjBody = readBody'}
