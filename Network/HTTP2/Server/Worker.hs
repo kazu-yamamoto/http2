@@ -80,7 +80,7 @@ pushStream ctx@Context{..} pstrm reqvt pps0
                     Response rsp = promiseResponse pp
                 syncWithSender ctx newstrm ot Nothing
                 increment tvar
-                processBody ctx th newstrm rsp
+                sendHeaderBody ctx th newstrm rsp
         push tvar pps (n + 1)
 
 -- | This function is passed to workers.
@@ -99,33 +99,45 @@ sendResponse ctx th strm (Request req) (Response rsp) pps = do
     case mwait of
         Nothing -> return ()
         Just wait -> wait -- all pushes are sent
-    processBody ctx th strm rsp
+    sendHeaderBody ctx th strm rsp
   where
     (_, reqvt) = inpObjHeaders req
 
-processBody :: Context -> T.Handle -> Stream -> OutObj -> IO ()
-processBody ctx@Context{..} th strm rsp = do
+sendHeaderBody :: Context -> T.Handle -> Stream -> OutObj -> IO ()
+sendHeaderBody ctx@Context{..} th strm rsp = do
     mtbq <- case outObjBody rsp of
-        OutBodyStreaming strmbdy -> do
-            tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-            let push b = do
-                    T.pause th
-                    atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
-                    T.resume th
-                flush = atomically $ writeTBQueue tbq StreamingFlush
-                finished =
-                    atomically $
-                        writeTBQueue tbq $
-                            StreamingFinished (decCounter threadManager)
-            forkManaged
-                threadManager
-                "H2 streaming"
-                (strmbdy push flush `E.finally` finished)
-            return $ Just tbq
+        OutBodyStreaming strmbdy ->
+            sendStreaming Context{..} th $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
         OutBodyStreamingUnmask _ ->
             error "sendResponse: server does not support OutBodyStreamingUnmask"
         _ -> return Nothing
     syncWithSender ctx strm (OObj rsp) mtbq
+
+sendStreaming
+    :: Context
+    -> T.Handle
+    -> (OutBodyIface -> IO ())
+    -> IO (Maybe (TBQueue StreamingChunk))
+sendStreaming Context{..} th strmbdy = do
+    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    forkManaged threadManager "H2 streaming" $ do
+        let iface =
+                OutBodyIface
+                    { outBodyUnmask = id
+                    , outBodyPush = \b -> do
+                        T.pause th
+                        atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
+                        T.resume th
+                    , outBodyPushFinal = \b -> do
+                        -- not used
+                        T.pause th
+                        atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
+                        T.resume th
+                    , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
+                    }
+            finished = atomically $ writeTBQueue tbq $ StreamingFinished $ decCounter threadManager
+        strmbdy iface `E.finally` finished
+    return $ Just tbq
 
 -- | Worker for server applications.
 worker :: Server -> Context -> Stream -> InpObj -> IO ()
