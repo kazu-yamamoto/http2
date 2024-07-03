@@ -61,6 +61,8 @@ data ServerIO = ServerIO
     , sioPeerSockAddr :: SockAddr
     , sioReadRequest :: IO (StreamId, Stream, Request)
     , sioWriteResponse :: Stream -> Response -> IO ()
+    -- ^ 'Response' MUST be created with 'responseBuilder'.
+    -- Others are not supported.
     , sioWriteBytes :: ByteString -> IO ()
     }
 
