@@ -136,6 +136,7 @@ sendStreaming Context{..} th strmbdy = do
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     }
             finished = atomically $ writeTBQueue tbq $ StreamingFinished $ decCounter threadManager
+        incCounter threadManager
         strmbdy iface `E.finally` finished
     return $ Just tbq
 
