@@ -59,7 +59,7 @@ pushStream ctx@Context{..} pstrm reqvt pps0
         checkSTM (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
-        forkManaged threadManager "H2 push" $ do
+        forkManaged threadManager "H2 server push" $ do
             timeoutKillThread threadManager $ \th -> do
                 (pid, newstrm) <- makePushStream ctx pstrm
                 let scheme = fromJust $ getFieldValue tokenScheme reqvt
@@ -120,7 +120,7 @@ sendStreaming
     -> IO (Maybe (TBQueue StreamingChunk))
 sendStreaming Context{..} th strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManaged threadManager "H2 streaming" $ do
+    forkManaged threadManager "H2 server sendStreaming" $ do
         let iface =
                 OutBodyIface
                     { outBodyUnmask = id

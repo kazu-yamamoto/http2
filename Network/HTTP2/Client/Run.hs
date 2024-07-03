@@ -181,20 +181,24 @@ sendRequest ctx@Context{..} scheme auth (Request req) = do
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
             (sid, newstrm) <- openOddStreamWait ctx
-            mtbq <- case outObjBody req of
-                OutBodyStreaming strmbdy ->
-                    sendStreaming ctx $ \iface ->
-                        outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
-                OutBodyStreamingUnmask strmbdy ->
-                    sendStreaming ctx strmbdy
-                _ -> return Nothing
-            atomically $ do
-                sidOK <- readTVar outputQStreamID
-                check (sidOK == sid)
-                writeTVar outputQStreamID (sid + 2)
-            forkManaged threadManager "H2 client" $
-                syncWithSender ctx newstrm (OObj req') mtbq
+            sendHeaderBody ctx sid newstrm req'
             return newstrm
+
+sendHeaderBody :: Context -> StreamId -> Stream -> OutObj -> IO ()
+sendHeaderBody ctx@Context{..} sid newstrm req = do
+    mtbq <- case outObjBody req of
+        OutBodyStreaming strmbdy ->
+            sendStreaming ctx $ \iface ->
+                outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
+        OutBodyStreamingUnmask strmbdy ->
+            sendStreaming ctx strmbdy
+        _ -> return Nothing
+    atomically $ do
+        sidOK <- readTVar outputQStreamID
+        check (sidOK == sid)
+        writeTVar outputQStreamID (sid + 2)
+    forkManaged threadManager "H2 client send" $
+        syncWithSender ctx newstrm (OObj req) mtbq
 
 sendStreaming
     :: Context
@@ -202,7 +206,7 @@ sendStreaming
     -> IO (Maybe (TBQueue StreamingChunk))
 sendStreaming Context{..} strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManagedUnmask threadManager "H2 sendStreaming" $ \unmask -> do
+    forkManagedUnmask threadManager "H2 client sendStreaming" $ \unmask -> do
         decrementedCounter <- newIORef False
         let decCounterOnce = do
                 alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)
