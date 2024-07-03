@@ -161,28 +161,18 @@ frameSender
                         -- Send headers immediately, without waiting for data
                         -- No need to check the streaming window (applies to DATA frames only)
                         outputHeader strm obj mtbq sync off
-                    _ -> case mtbq of
-                        Just tbq -> checkStreaming tbq
-                        _ -> checkStreamWindowSize
+                    _ -> do
+                        mwait <- checkOpen strm otyp mtbq
+                        case mwait of
+                            Just wait -> do
+                                sync wait
+                                return off
+                            Nothing -> do
+                                sws <- getStreamWindowSize strm
+                                cws <- getConnectionWindowSize ctx -- not 0
+                                let lim = min cws sws
+                                output out off lim
           where
-            checkStreaming tbq = do
-                isEmpty <- atomically $ isEmptyTBQueue tbq
-                if isEmpty
-                    then do
-                        sync $ Cont (waitStreaming tbq) otyp
-                        return off
-                    else checkStreamWindowSize
-            -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
-            checkStreamWindowSize = do
-                sws <- getStreamWindowSize strm
-                if sws == 0
-                    then do
-                        sync $ Cont (waitStreamWindowSize strm) otyp
-                        return off
-                    else do
-                        cws <- getConnectionWindowSize ctx -- not 0
-                        let lim = min cws sws
-                        output out off lim
             resetStream e = do
                 closed ctx strm (ResetByMe e)
                 let rst = resetFrame InternalError $ streamNumber strm
@@ -420,3 +410,21 @@ frameSender
                     , flags = flag
                     , streamId = sid
                     }
+
+checkOpen :: Stream -> OutputType -> Maybe (TBQueue a) -> IO (Maybe Sync)
+checkOpen strm otyp mtbq = case mtbq of
+    Just tbq -> checkStreaming tbq
+    _ -> checkStreamWindowSize
+  where
+    checkStreaming tbq = do
+        isEmpty <- atomically $ isEmptyTBQueue tbq
+        if isEmpty
+            then do
+                return $ Just $ Cont (waitStreaming tbq) otyp
+            else checkStreamWindowSize
+    -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
+    checkStreamWindowSize = do
+        sws <- getStreamWindowSize strm
+        if sws == 0
+            then return $ Just $ Cont (waitStreamWindowSize strm) otyp
+            else return Nothing
