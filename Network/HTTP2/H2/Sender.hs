@@ -250,8 +250,6 @@ frameSender
                 sync
                 out
                 reqflush
-        output (Output strm (OObj obj) mtbq sync) off0 _lim = do
-            outputHeader strm obj mtbq sync off0
         output (Output strm (OPush ths pid) _ sync) off0 _lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.
@@ -260,6 +258,9 @@ frameSender
             off <- flushIfNecessary $ off0 + frameHeaderLength + len
             sync Done
             return off
+        output (Output strm (OObj obj) mtbq sync) off0 _lim = do
+            -- fixme: never reach?
+            outputHeader strm obj mtbq sync off0
 
         ----------------------------------------------------------------
         nextForStreaming
