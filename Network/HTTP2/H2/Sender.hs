@@ -413,8 +413,8 @@ frameSender
 
 checkOpen :: Stream -> OutputType -> Maybe (TBQueue a) -> IO (Maybe Sync)
 checkOpen strm otyp mtbq = case mtbq of
+    Nothing -> checkStreamWindowSize
     Just tbq -> checkStreaming tbq
-    _ -> checkStreamWindowSize
   where
     checkStreaming tbq = do
         isEmpty <- atomically $ isEmptyTBQueue tbq
@@ -425,6 +425,6 @@ checkOpen strm otyp mtbq = case mtbq of
     -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
     checkStreamWindowSize = do
         sws <- getStreamWindowSize strm
-        if sws == 0
+        if sws <= 0
             then return $ Just $ Cont (waitStreamWindowSize strm) otyp
             else return Nothing
