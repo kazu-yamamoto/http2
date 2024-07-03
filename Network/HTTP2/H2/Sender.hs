@@ -151,44 +151,53 @@ frameSender
                         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
         ----------------------------------------------------------------
-        output :: Output -> Offset -> WindowSize -> IO Offset
-        output out@(Output strm (ONext curr tlrmkr) _ sync) off0 lim = do
-            -- Data frame payload
-            buflim <- readIORef outputBufferLimit
-            let payloadOff = off0 + frameHeaderLength
-                datBuf = confWriteBuffer `plusPtr` payloadOff
-                datBufSiz = buflim - payloadOff
-            Next datPayloadLen reqflush mnext <- curr datBuf (min datBufSiz lim)
-            NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-            fillDataHeaderEnqueueNext
-                strm
-                off0
-                datPayloadLen
-                mnext
-                tlrmkr'
-                sync
-                out
-                reqflush
-        output (Output strm (OObj obj) mtbq sync) off0 _lim = do
-            outputObj strm obj mtbq sync off0
-        output (Output strm (OPush ths pid) _ sync) off0 _lim = do
-            -- Creating a push promise header
-            -- Frame id should be associated stream id from the client.
-            let sid = streamNumber strm
-            len <- pushPromise pid sid ths off0
-            off <- flushIfNecessary $ off0 + frameHeaderLength + len
-            sync Done
-            return off
+        outputOrEnqueueAgain :: Output -> Offset -> IO Offset
+        outputOrEnqueueAgain out@(Output strm otyp mtbq sync) off = E.handle resetStream $ do
+            state <- readStreamState strm
+            if isHalfClosedLocal state
+                then return off
+                else case otyp of
+                    OObj obj ->
+                        -- Send headers immediately, without waiting for data
+                        -- No need to check the streaming window (applies to DATA frames only)
+                        outputHeader strm obj mtbq sync off
+                    _ -> case mtbq of
+                        Just tbq -> checkStreaming tbq
+                        _ -> checkStreamWindowSize
+          where
+            checkStreaming tbq = do
+                isEmpty <- atomically $ isEmptyTBQueue tbq
+                if isEmpty
+                    then do
+                        sync $ Cont (waitStreaming tbq) otyp
+                        return off
+                    else checkStreamWindowSize
+            -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
+            checkStreamWindowSize = do
+                sws <- getStreamWindowSize strm
+                if sws == 0
+                    then do
+                        sync $ Cont (waitStreamWindowSize strm) otyp
+                        return off
+                    else do
+                        cws <- getConnectionWindowSize ctx -- not 0
+                        let lim = min cws sws
+                        output out off lim
+            resetStream e = do
+                closed ctx strm (ResetByMe e)
+                let rst = resetFrame InternalError $ streamNumber strm
+                enqueueControl controlQ $ CFrames Nothing [rst]
+                return off
 
         ----------------------------------------------------------------
-        outputObj
+        outputHeader
             :: Stream
             -> OutObj
             -> Maybe (TBQueue StreamingChunk)
             -> (Sync -> IO ())
             -> Offset
             -> IO Offset
-        outputObj strm (OutObj hdr body tlrmkr) mtbq sync off0 = do
+        outputHeader strm (OutObj hdr body tlrmkr) mtbq sync off0 = do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = case body of
@@ -223,6 +232,36 @@ frameSender
                     outputOrEnqueueAgain out' off
 
         ----------------------------------------------------------------
+        output :: Output -> Offset -> WindowSize -> IO Offset
+        output out@(Output strm (ONext curr tlrmkr) _ sync) off0 lim = do
+            -- Data frame payload
+            buflim <- readIORef outputBufferLimit
+            let payloadOff = off0 + frameHeaderLength
+                datBuf = confWriteBuffer `plusPtr` payloadOff
+                datBufSiz = buflim - payloadOff
+            Next datPayloadLen reqflush mnext <- curr datBuf (min datBufSiz lim)
+            NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
+            fillDataHeaderEnqueueNext
+                strm
+                off0
+                datPayloadLen
+                mnext
+                tlrmkr'
+                sync
+                out
+                reqflush
+        output (Output strm (OObj obj) mtbq sync) off0 _lim = do
+            outputHeader strm obj mtbq sync off0
+        output (Output strm (OPush ths pid) _ sync) off0 _lim = do
+            -- Creating a push promise header
+            -- Frame id should be associated stream id from the client.
+            let sid = streamNumber strm
+            len <- pushPromise pid sid ths off0
+            off <- flushIfNecessary $ off0 + frameHeaderLength + len
+            sync Done
+            return off
+
+        ----------------------------------------------------------------
         nextForStreaming
             :: Maybe (TBQueue StreamingChunk)
             -> TrailersMaker
@@ -232,45 +271,6 @@ frameSender
                 takeQ = atomically $ tryReadTBQueue tbq
                 next = fillStreamBodyGetNext takeQ
              in ONext next tlrmkr
-
-        ----------------------------------------------------------------
-        outputOrEnqueueAgain :: Output -> Offset -> IO Offset
-        outputOrEnqueueAgain out@(Output strm otyp mtbq sync) off = E.handle resetStream $ do
-            state <- readStreamState strm
-            if isHalfClosedLocal state
-                then return off
-                else case otyp of
-                    OObj obj ->
-                        -- Send headers immediately, without waiting for data
-                        -- No need to check the streaming window (applies to DATA frames only)
-                        outputObj strm obj mtbq sync off
-                    _ -> case mtbq of
-                        Just tbq -> checkStreaming tbq
-                        _ -> checkStreamWindowSize
-          where
-            checkStreaming tbq = do
-                isEmpty <- atomically $ isEmptyTBQueue tbq
-                if isEmpty
-                    then do
-                        sync $ Cont (waitStreaming tbq) otyp
-                        return off
-                    else checkStreamWindowSize
-            -- FLOW CONTROL: WINDOW_UPDATE: send: respecting peer's limit
-            checkStreamWindowSize = do
-                sws <- getStreamWindowSize strm
-                if sws == 0
-                    then do
-                        sync $ Cont (waitStreamWindowSize strm) otyp
-                        return off
-                    else do
-                        cws <- getConnectionWindowSize ctx -- not 0
-                        let lim = min cws sws
-                        output out off lim
-            resetStream e = do
-                closed ctx strm (ResetByMe e)
-                let rst = resetFrame InternalError $ streamNumber strm
-                enqueueControl controlQ $ CFrames Nothing [rst]
-                return off
 
         ----------------------------------------------------------------
         headerContinue :: StreamId -> TokenHeaderList -> Bool -> Offset -> IO Offset
