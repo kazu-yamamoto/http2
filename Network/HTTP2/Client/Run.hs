@@ -185,28 +185,27 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
             (sid, newstrm) <- openOddStreamWait ctx
             case outObjBody req of
                 OutBodyStreaming strmbdy ->
-                    sendStreaming ctx mgr req' sid newstrm $ \iface ->
+                    sendStreaming ctx mgr req' newstrm $ \iface ->
                         outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
                 OutBodyStreamingUnmask strmbdy ->
-                    sendStreaming ctx mgr req' sid newstrm strmbdy
+                    sendStreaming ctx mgr req' newstrm strmbdy
                 _ -> do
-                    atomically $ do
-                        sidOK <- readTVar outputQStreamID
-                        check (sidOK == sid)
-                        writeTVar outputQStreamID (sid + 2)
                     forkManaged threadManager "H2 client" $
                         syncWithSender ctx newstrm (OObj req') Nothing
+            atomically $ do
+                sidOK <- readTVar outputQStreamID
+                check (sidOK == sid)
+                writeTVar outputQStreamID (sid + 2)
             return newstrm
 
 sendStreaming
     :: Context
     -> Manager
     -> OutObj
-    -> StreamId
     -> Stream
     -> (OutBodyIface -> IO ())
     -> IO ()
-sendStreaming ctx@Context{..} mgr req sid newstrm strmbdy = do
+sendStreaming ctx@Context{..} mgr req newstrm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManagedUnmask mgr "H2 sendStreaming" $ \unmask -> do
         decrementedCounter <- newIORef False
@@ -223,10 +222,6 @@ sendStreaming ctx@Context{..} mgr req sid newstrm strmbdy = do
             finished = atomically $ writeTBQueue tbq $ StreamingFinished decCounterOnce
         incCounter mgr
         strmbdy iface `finally` finished
-    atomically $ do
-        sidOK <- readTVar outputQStreamID
-        check (sidOK == sid)
-        writeTVar outputQStreamID (sid + 2)
     forkManaged threadManager "H2 client streaming" $
         syncWithSender ctx newstrm (OObj req) (Just tbq)
 
