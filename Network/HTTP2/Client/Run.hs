@@ -83,7 +83,7 @@ run cconf@ClientConfig{..} conf client = do
             { auxPossibleClientStreams = possibleClientStream ctx
             }
     clientCore ctx req processResponse = do
-        strm <- sendRequest ctx scheme authority req
+        strm <- sendRequest conf ctx scheme authority req
         rsp <- getResponse strm
         x <- processResponse rsp
         adjustRxWindow ctx strm
@@ -103,7 +103,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
     ctx@Context{..} <- setup cconf conf
     let putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
         putR req = do
-            strm <- sendRequest ctx scheme authority req
+            strm <- sendRequest conf ctx scheme authority req
             return (streamNumber strm, strm)
         get = getResponse
         create = openOddStreamWait ctx
@@ -151,12 +151,13 @@ runH2 conf ctx runClient = do
     runBackgroundThreads = concurrently_ runReceiver runSender
 
 sendRequest
-    :: Context
+    :: Config
+    -> Context
     -> Scheme
     -> Authority
     -> Request
     -> IO Stream
-sendRequest ctx@Context{..} scheme auth (Request req) = do
+sendRequest conf ctx@Context{..} scheme auth (Request req) = do
     -- Checking push promises
     let hdr0 = outObjHeaders req
         method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr0
@@ -181,29 +182,51 @@ sendRequest ctx@Context{..} scheme auth (Request req) = do
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
             (sid, newstrm) <- openOddStreamWait ctx
-            sendHeaderBody ctx sid newstrm req'
+            sendHeaderBody conf ctx sid newstrm req'
             return newstrm
 
-sendHeaderBody :: Context -> StreamId -> Stream -> OutObj -> IO ()
-sendHeaderBody ctx@Context{..} sid newstrm req = do
-    mtbq <- case outObjBody req of
-        OutBodyStreaming strmbdy ->
-            sendStreaming ctx $ \iface ->
+sendHeaderBody :: Config -> Context -> StreamId -> Stream -> OutObj -> IO ()
+sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
+    (mnext, mtbq) <- case outObjBody of
+        OutBodyNone -> return (Nothing, Nothing)
+        OutBodyFile (FileSpec path fileoff bytecount) -> do
+            (pread, closerOrRefresher) <- confPositionReadMaker path
+            refresh <- case closerOrRefresher of
+                Closer closer -> timeoutClose threadManager closer
+                Refresher refresher -> return refresher
+            let next = fillFileBodyGetNext pread fileoff bytecount refresh
+            return (Just next, Nothing)
+        OutBodyBuilder builder -> do
+            let next = fillBuilderBodyGetNext builder
+            return (Just next, Nothing)
+        OutBodyStreaming strmbdy -> do
+            q <- sendStreaming ctx $ \iface ->
                 outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
-        OutBodyStreamingUnmask strmbdy ->
-            sendStreaming ctx strmbdy
-        _ -> return Nothing
+            let next = nextForStreaming q
+            return (Just next, Just q)
+        OutBodyStreamingUnmask strmbdy -> do
+            q <- sendStreaming ctx strmbdy
+            let next = nextForStreaming q
+            return (Just next, Just q)
     atomically $ do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
     forkManaged threadManager "H2 client send" $
-        syncWithSender ctx newstrm (OObj req) mtbq
+        syncWithSender ctx newstrm (OHeader outObjHeaders mnext outObjTrailers) mtbq
+  where
+    nextForStreaming
+        :: TBQueue StreamingChunk
+        -> DynaNext
+    nextForStreaming tbq =
+        let takeQ = atomically $ tryReadTBQueue tbq
+            next = fillStreamBodyGetNext takeQ
+         in next
 
 sendStreaming
     :: Context
     -> (OutBodyIface -> IO ())
-    -> IO (Maybe (TBQueue StreamingChunk))
+    -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManagedUnmask threadManager "H2 client sendStreaming" $ \unmask -> do
@@ -221,7 +244,7 @@ sendStreaming Context{..} strmbdy = do
             finished = atomically $ writeTBQueue tbq $ StreamingFinished decCounterOnce
         incCounter threadManager
         strmbdy iface `finally` finished
-    return $ Just tbq
+    return tbq
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do

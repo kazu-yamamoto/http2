@@ -32,13 +32,14 @@ makePushStream ctx pstrm = do
 ----------------------------------------------------------------
 
 pushStream
-    :: Context
+    :: Config
+    -> Context
     -> Stream -- parent stream
     -> ValueTable -- request
     -> [PushPromise]
     -> IO (Maybe (IO ()))
-pushStream _ _ _ [] = return Nothing
-pushStream ctx@Context{..} pstrm reqvt pps0
+pushStream _ _ _ _ [] = return Nothing
+pushStream conf ctx@Context{..} pstrm reqvt pps0
     | len == 0 = return Nothing
     | otherwise = do
         pushable <- enablePush <$> readIORef peerSettings
@@ -80,44 +81,64 @@ pushStream ctx@Context{..} pstrm reqvt pps0
                     Response rsp = promiseResponse pp
                 syncWithSender ctx newstrm ot Nothing
                 increment tvar
-                sendHeaderBody ctx th newstrm rsp
+                sendHeaderBody conf ctx th newstrm rsp
         push tvar pps (n + 1)
 
 -- | This function is passed to workers.
 --   They also pass 'Response's from a server to this function.
 --   This function enqueues commands for the HTTP/2 sender.
 sendResponse
-    :: Context
+    :: Config
+    -> Context
     -> T.Handle
     -> Stream
     -> Request
     -> Response
     -> [PushPromise]
     -> IO ()
-sendResponse ctx th strm (Request req) (Response rsp) pps = do
-    mwait <- pushStream ctx strm reqvt pps
+sendResponse conf ctx th strm (Request req) (Response rsp) pps = do
+    mwait <- pushStream conf ctx strm reqvt pps
     case mwait of
         Nothing -> return ()
         Just wait -> wait -- all pushes are sent
-    sendHeaderBody ctx th strm rsp
+    sendHeaderBody conf ctx th strm rsp
   where
     (_, reqvt) = inpObjHeaders req
 
-sendHeaderBody :: Context -> T.Handle -> Stream -> OutObj -> IO ()
-sendHeaderBody ctx@Context{..} th strm rsp = do
-    mtbq <- case outObjBody rsp of
-        OutBodyStreaming strmbdy ->
-            sendStreaming Context{..} th $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
-        OutBodyStreamingUnmask _ ->
-            error "sendResponse: server does not support OutBodyStreamingUnmask"
-        _ -> return Nothing
-    syncWithSender ctx strm (OObj rsp) mtbq
+sendHeaderBody :: Config -> Context -> T.Handle -> Stream -> OutObj -> IO ()
+sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
+    (mnext, mtbq) <- case outObjBody of
+        OutBodyNone -> return (Nothing, Nothing)
+        OutBodyFile (FileSpec path fileoff bytecount) -> do
+            (pread, closerOrRefresher) <- confPositionReadMaker path
+            refresh <- case closerOrRefresher of
+                Closer closer -> timeoutClose threadManager closer
+                Refresher refresher -> return refresher
+            let next = fillFileBodyGetNext pread fileoff bytecount refresh
+            return (Just next, Nothing)
+        OutBodyBuilder builder -> do
+            let next = fillBuilderBodyGetNext builder
+            return (Just next, Nothing)
+        OutBodyStreaming strmbdy -> do
+            q <- sendStreaming ctx th $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
+            let next = nextForStreaming q
+            return (Just next, Just q)
+        OutBodyStreamingUnmask _ -> error "OutBodyStreamingUnmask is not supported in server"
+    syncWithSender ctx strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
+  where
+    nextForStreaming
+        :: TBQueue StreamingChunk
+        -> DynaNext
+    nextForStreaming tbq =
+        let takeQ = atomically $ tryReadTBQueue tbq
+            next = fillStreamBodyGetNext takeQ
+         in next
 
 sendStreaming
     :: Context
     -> T.Handle
     -> (OutBodyIface -> IO ())
-    -> IO (Maybe (TBQueue StreamingChunk))
+    -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} th strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManaged threadManager "H2 server sendStreaming" $ do
@@ -138,11 +159,11 @@ sendStreaming Context{..} th strmbdy = do
             finished = atomically $ writeTBQueue tbq $ StreamingFinished $ decCounter threadManager
         incCounter threadManager
         strmbdy iface `E.finally` finished
-    return $ Just tbq
+    return tbq
 
 -- | Worker for server applications.
-worker :: Server -> Context -> Stream -> InpObj -> IO ()
-worker server ctx@Context{..} strm req =
+worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
+worker conf server ctx@Context{..} strm req =
     timeoutKillThread threadManager $ \th -> do
         -- FIXME: exception
         T.pause th
@@ -151,7 +172,7 @@ worker server ctx@Context{..} strm req =
         T.tickle th
         let aux = Aux th mySockAddr peerSockAddr
             request = Request req'
-        server request aux $ sendResponse ctx th strm request
+        server request aux $ sendResponse conf ctx th strm request
         adjustRxWindow ctx strm
   where
     pauseRequestBody th = req{inpObjBody = readBody'}

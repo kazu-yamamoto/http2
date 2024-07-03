@@ -7,6 +7,7 @@ module Network.HTTP2.Server.Run where
 import Control.Concurrent.STM
 import Imports
 import Network.Control (defaultMaxData)
+import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
@@ -50,7 +51,7 @@ run sconf conf server = do
         let lnch ctx strm inpObj = do
                 let label = "Worker for stream " ++ show (streamNumber strm)
                 forkManaged (threadManager ctx) label $
-                    worker server ctx strm inpObj
+                    worker conf server ctx strm inpObj
         ctx <- setup sconf conf lnch
         runH2 conf ctx
 
@@ -82,9 +83,14 @@ runIO sconf conf@Config{..} action = do
         let get = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
                 return (streamNumber strm, strm, Request inpObj)
-            putR strm (Response outObj) = do
-                let out = Output strm (OObj outObj) Nothing (\_ -> return ())
-                enqueueOutput outputQ out
+            putR strm (Response OutObj{..}) = do
+                case outObjBody of
+                    OutBodyBuilder builder -> do
+                        let next = fillBuilderBodyGetNext builder
+                            sync _ = return True
+                            out = OHeader outObjHeaders (Just next) outObjTrailers
+                        enqueueOutput outputQ $ Output strm out sync
+                    _ -> error "Response other than OutBodyBuilder is not supported"
             putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
             serverIO =
                 ServerIO
