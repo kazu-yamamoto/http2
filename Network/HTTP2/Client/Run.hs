@@ -82,16 +82,15 @@ run cconf@ClientConfig{..} conf client = do
         Aux
             { auxPossibleClientStreams = possibleClientStream ctx
             }
-    clientCore ctx mgr req processResponse = do
-        strm <- sendRequest ctx mgr scheme authority req
+    clientCore ctx req processResponse = do
+        strm <- sendRequest ctx scheme authority req
         rsp <- getResponse strm
         x <- processResponse rsp
         adjustRxWindow ctx strm
         return x
     runClient ctx = do
-        let mgr = threadManager ctx
-        x <- client (clientCore ctx mgr) $ aux ctx
-        waitCounter0 mgr
+        x <- client (clientCore ctx) $ aux ctx
+        waitCounter0 $ threadManager ctx
         let frame = goawayFrame 0 NoError "graceful closing"
         mvar <- newMVar ()
         enqueueControl (controlQ ctx) $ CGoaway frame mvar
@@ -104,7 +103,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
     ctx@Context{..} <- setup cconf conf
     let putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
         putR req = do
-            strm <- sendRequest ctx threadManager scheme authority req
+            strm <- sendRequest ctx scheme authority req
             return (streamNumber strm, strm)
         get = getResponse
         create = openOddStreamWait ctx
@@ -153,12 +152,11 @@ runH2 conf ctx runClient = do
 
 sendRequest
     :: Context
-    -> Manager
     -> Scheme
     -> Authority
     -> Request
     -> IO Stream
-sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
+sendRequest ctx@Context{..} scheme auth (Request req) = do
     -- Checking push promises
     let hdr0 = outObjHeaders req
         method = fromMaybe (error "sendRequest:method") $ lookup ":method" hdr0
@@ -183,35 +181,32 @@ sendRequest ctx@Context{..} mgr scheme auth (Request req) = do
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
             (sid, newstrm) <- openOddStreamWait ctx
-            case outObjBody req of
+            mtbq <- case outObjBody req of
                 OutBodyStreaming strmbdy ->
-                    sendStreaming ctx mgr req' newstrm $ \iface ->
+                    sendStreaming ctx $ \iface ->
                         outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
                 OutBodyStreamingUnmask strmbdy ->
-                    sendStreaming ctx mgr req' newstrm strmbdy
-                _ -> do
-                    forkManaged threadManager "H2 client" $
-                        syncWithSender ctx newstrm (OObj req') Nothing
+                    sendStreaming ctx strmbdy
+                _ -> return Nothing
             atomically $ do
                 sidOK <- readTVar outputQStreamID
                 check (sidOK == sid)
                 writeTVar outputQStreamID (sid + 2)
+            forkManaged threadManager "H2 client" $
+                syncWithSender ctx newstrm (OObj req') mtbq
             return newstrm
 
 sendStreaming
     :: Context
-    -> Manager
-    -> OutObj
-    -> Stream
     -> (OutBodyIface -> IO ())
-    -> IO ()
-sendStreaming ctx@Context{..} mgr req newstrm strmbdy = do
+    -> IO (Maybe (TBQueue StreamingChunk))
+sendStreaming Context{..} strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManagedUnmask mgr "H2 sendStreaming" $ \unmask -> do
+    forkManagedUnmask threadManager "H2 sendStreaming" $ \unmask -> do
         decrementedCounter <- newIORef False
         let decCounterOnce = do
                 alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)
-                unless alreadyDecremented $ decCounter mgr
+                unless alreadyDecremented $ decCounter threadManager
         let iface =
                 OutBodyIface
                     { outBodyUnmask = unmask
@@ -220,10 +215,9 @@ sendStreaming ctx@Context{..} mgr req newstrm strmbdy = do
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     }
             finished = atomically $ writeTBQueue tbq $ StreamingFinished decCounterOnce
-        incCounter mgr
+        incCounter threadManager
         strmbdy iface `finally` finished
-    forkManaged threadManager "H2 client streaming" $
-        syncWithSender ctx newstrm (OObj req) (Just tbq)
+    return $ Just tbq
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do
