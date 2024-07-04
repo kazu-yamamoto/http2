@@ -3,6 +3,7 @@
 
 module Main where
 
+import Control.Concurrent
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP2.Client
 import Network.Run.TCP (runTCPClient)
@@ -12,6 +13,7 @@ import System.Exit
 import qualified UnliftIO.Exception as E
 
 import Client
+import Monitor
 
 defaultOptions :: Options
 defaultOptions =
@@ -51,6 +53,7 @@ clientOpts argv =
 
 main :: IO ()
 main = do
+    labelMe "h2c-client main"
     args <- getArgs
     (opts, ips) <- clientOpts args
     (host, port, paths) <- case ips of
@@ -59,6 +62,7 @@ main = do
         h : p : [] -> return (h, p, ["/"])
         h : p : ps -> return (h, p, C8.pack <$> ps)
     let cliconf = defaultClientConfig{authority = host}
+    _ <- forkIO $ monitor $ threadDelay 1000000
     runTCPClient host port $ \s ->
         E.bracket
             (allocSimpleConfig s 4096)

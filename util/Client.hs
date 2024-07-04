@@ -15,6 +15,8 @@ import qualified UnliftIO.Exception as E
 
 import Network.HTTP2.Client
 
+import Monitor
+
 data Options = Options
     { optPerformance :: Int
     , optNumOfReqs :: Int
@@ -23,6 +25,7 @@ data Options = Options
 
 client :: Options -> [Path] -> Client ()
 client Options{..} paths sendRequest _aux = do
+    labelMe "h2c client"
     let cli
             | optPerformance /= 0 = clientPF optPerformance sendRequest
             | otherwise = clientNReqs optNumOfReqs sendRequest
@@ -32,7 +35,9 @@ client Options{..} paths sendRequest _aux = do
         Left e -> print (e :: HTTP2Error)
 
 clientNReqs :: Int -> SendRequest -> Path -> IO ()
-clientNReqs n0 sendRequest path = loop n0
+clientNReqs n0 sendRequest path = do
+    labelMe "h2c clinet N requests"
+    loop n0
   where
     req = requestNoBody methodGet path []
     loop 0 = return ()
@@ -45,6 +50,7 @@ clientNReqs n0 sendRequest path = loop n0
 -- Path is dummy
 clientPF :: Int -> SendRequest -> Path -> IO ()
 clientPF n sendRequest _ = do
+    labelMe "h2c clinet performance"
     t1 <- getUnixTime
     sendRequest req loop
     t2 <- getUnixTime

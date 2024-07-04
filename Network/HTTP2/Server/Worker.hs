@@ -120,7 +120,7 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
             let next = fillBuilderBodyGetNext builder
             return (Just next, Nothing)
         OutBodyStreaming strmbdy -> do
-            q <- sendStreaming ctx th $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
+            q <- sendStreaming ctx strm th $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
             let next = nextForStreaming q
             return (Just next, Just q)
         OutBodyStreamingUnmask _ -> error "OutBodyStreamingUnmask is not supported in server"
@@ -136,12 +136,14 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
 
 sendStreaming
     :: Context
+    -> Stream
     -> T.Handle
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
-sendStreaming Context{..} th strmbdy = do
+sendStreaming Context{..} strm th strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManaged threadManager "H2 server sendStreaming" $ do
+    let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
+    forkManaged threadManager label $ do
         let iface =
                 OutBodyIface
                     { outBodyUnmask = id

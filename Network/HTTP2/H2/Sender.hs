@@ -67,7 +67,7 @@ frameSender :: Context -> Config -> IO ()
 frameSender
     ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
     Config{..} = do
-        labelMe "fromSender"
+        labelMe "H2 sender"
         loop 0 `E.catch` wrapException
       where
         ----------------------------------------------------------------
