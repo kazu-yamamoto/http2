@@ -13,7 +13,7 @@ import Data.Maybe
 import Data.Traversable (for)
 import Network.HTTP.Semantics
 import Network.HTTP.Types
-import Network.Run.TCP
+import Network.Run.TCP hiding (defaultSettings)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random
 import System.Timeout (timeout)
