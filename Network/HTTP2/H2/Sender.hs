@@ -187,7 +187,9 @@ frameSender
             off' <- headerContinue sid ths endOfStream off0
             -- halfClosedLocal calls closed which removes
             -- the stream from stream table.
-            when endOfStream $ halfClosedLocal ctx strm Finished
+            when endOfStream $ do
+                halfClosedLocal ctx strm Finished
+                void $ sync Nothing
             off <- flushIfNecessary off'
             case mnext of
                 Nothing -> return off
