@@ -12,8 +12,6 @@ module Network.HTTP2.H2.Manager (
     timeoutKillThread,
     timeoutClose,
     KilledByHttp2ThreadManager (..),
-    incCounter,
-    decCounter,
     waitCounter0,
 ) where
 
@@ -85,10 +83,12 @@ forkManagedUnmask mgr label io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handleSyncOrAsync handler $ do
         labelMe label
         addMyId mgr
+        incCounter mgr
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
         io unmask `catch` \(_e :: SomeException) -> return ()
         deleteMyId mgr
+        decCounter mgr
   where
     handler (E.SomeException _) = return ()
 

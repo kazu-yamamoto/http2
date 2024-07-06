@@ -234,19 +234,14 @@ sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     forkManagedUnmask threadManager label $ \unmask -> do
-        decrementedCounter <- newIORef False
-        let decCounterOnce = do
-                alreadyDecremented <- atomicModifyIORef decrementedCounter $ \b -> (True, b)
-                unless alreadyDecremented $ decCounter threadManager
         let iface =
                 OutBodyIface
                     { outBodyUnmask = unmask
-                    , outBodyPush = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
-                    , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq (StreamingBuilder b (Just decCounterOnce))
+                    , outBodyPush = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b Nothing
+                    , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b Nothing
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     }
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished decCounterOnce
-        incCounter threadManager
+            finished = atomically $ writeTBQueue tbq $ StreamingFinished (return ())
         strmbdy iface `finally` finished
     return tbq
 
