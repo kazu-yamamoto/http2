@@ -188,7 +188,6 @@ data Sync = Done | Cont (IO ()) OutputType
 data Control
     = CFinish HTTP2Error
     | CFrames (Maybe SettingsList) [ByteString]
-    | CGoaway ByteString (MVar ())
 
 ----------------------------------------------------------------
 

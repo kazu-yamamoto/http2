@@ -60,15 +60,15 @@ frameReceiver ctx@Context{..} conf@Config{..} = do
         -- to destroy the thread trees.
         hd <- confReadN frameHeaderLength
         if BS.null hd
-            then enqueueControl controlQ CFinish
+            then enqueueControl controlQ $ CFinish ConnectionIsTimeout
             else do
                 processFrame ctx conf $ decodeFrameHeader hd
                 loop
 
     sendGoaway se
-        | Just e@ConnectionIsClosed <- E.fromException se = do
+        | Just ConnectionIsClosed <- E.fromException se = do
             waitCounter0 threadManager
-            enqueueControl controlQ $ CFinish e
+            enqueueControl controlQ $ CFinish ConnectionIsClosed
         | Just e@(ConnectionErrorIsReceived _ _ _) <- E.fromException se =
             enqueueControl controlQ $ CFinish e
         | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do

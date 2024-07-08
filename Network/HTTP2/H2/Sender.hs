@@ -7,7 +7,6 @@ module Network.HTTP2.H2.Sender (
     frameSender,
 ) where
 
-import Control.Concurrent.MVar (putMVar)
 import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -39,6 +38,8 @@ data Switch
 
 wrapException :: E.SomeException -> IO ()
 wrapException se
+    | Just GoAwayIsSent <- E.fromException se = return ()
+    | Just ConnectionIsClosed <- E.fromException se = return ()
     | Just (e :: HTTP2Error) <- E.fromException se = E.throwIO e
     | otherwise = E.throwIO $ BadThingHappen se
 
@@ -65,10 +66,10 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
 
 frameSender :: Context -> Config -> IO ()
 frameSender
-    ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
+    ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit, senderDone}
     Config{..} = do
         labelMe "H2 sender"
-        loop 0 `E.catch` wrapException
+        (loop 0 `E.finally` setSenderDone) `E.catch` wrapException
       where
         ----------------------------------------------------------------
         loop :: Offset -> IO ()
@@ -114,12 +115,6 @@ frameSender
         -- called with off == 0
         control :: Control -> IO ()
         control (CFinish e) = E.throwIO e
-        control (CGoaway bs mvar) = do
-            buf <- copyAll [bs] confWriteBuffer
-            let off = buf `minusPtr` confWriteBuffer
-            flushN off
-            putMVar mvar ()
-            E.throwIO GoAwayIsSent
         control (CFrames ms xs) = do
             buf <- copyAll xs confWriteBuffer
             let off = buf `minusPtr` confWriteBuffer
@@ -373,3 +368,5 @@ frameSender
                     , flags = flag
                     , streamId = sid
                     }
+
+        setSenderDone = atomically $ writeTVar senderDone True

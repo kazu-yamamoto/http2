@@ -88,14 +88,19 @@ run cconf@ClientConfig{..} conf client = do
         x <- processResponse rsp
         adjustRxWindow ctx strm
         return x
-    runClient ctx = do
-        x <- client (clientCore ctx) $ aux ctx
-        waitCounter0 $ threadManager ctx
-        let frame = goawayFrame 0 NoError "graceful closing"
-        mvar <- newMVar ()
-        enqueueControl (controlQ ctx) $ CGoaway frame mvar
-        takeMVar mvar
-        return x
+    runClient ctx = wrapClinet ctx $ client (clientCore ctx) $ aux ctx
+
+wrapClinet :: Context -> IO a -> IO a
+wrapClinet ctx client = do
+    x <- client
+    waitCounter0 $ threadManager ctx
+    let frame = goawayFrame 0 NoError "graceful closing"
+    enqueueControl (controlQ ctx) $ CFrames Nothing [frame]
+    enqueueControl (controlQ ctx) $ CFinish GoAwayIsSent
+    atomically $ do
+        done <- readTVar $ senderDone ctx
+        check done
+    return x
 
 -- | Launching a receiver and a sender.
 runIO :: ClientConfig -> Config -> (ClientIO -> IO (IO a)) -> IO a
@@ -107,8 +112,9 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
             return (streamNumber strm, strm)
         get = getResponse
         create = openOddStreamWait ctx
-    runClient <-
-        action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
+    runClient <- do
+        act <- action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
+        return $ wrapClinet ctx act
     runH2 conf ctx runClient
 
 getResponse :: Stream -> IO Response

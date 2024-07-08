@@ -87,6 +87,7 @@ data Context = Context
     , mySockAddr :: SockAddr
     , peerSockAddr :: SockAddr
     , threadManager :: Manager
+    , senderDone :: TVar Bool
     }
 
 ----------------------------------------------------------------
@@ -128,6 +129,7 @@ newContext rinfo Config{..} cacheSiz connRxWS settings timmgr =
         <*> return confMySockAddr
         <*> return confPeerSockAddr
         <*> start timmgr
+        <*> newTVarIO False
   where
     rl = case rinfo of
         RIC{} -> Client
