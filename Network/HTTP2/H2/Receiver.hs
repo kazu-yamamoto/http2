@@ -53,22 +53,17 @@ rstRateLimit = 4
 frameReceiver :: Context -> Config -> IO ()
 frameReceiver ctx@Context{..} conf@Config{..} = do
     labelMe "H2 receiver"
-    loop 0 `E.catch` sendGoaway
+    loop `E.catch` sendGoaway
   where
-    loop :: Int -> IO ()
-    loop n
-        | n == 6 = do
-            yield
-            loop 0
-        | otherwise = do
-            -- If 'confReadN' is timeouted, an exception is thrown
-            -- to destroy the thread trees.
-            hd <- confReadN frameHeaderLength
-            if BS.null hd
-                then enqueueControl controlQ $ CFinish ConnectionIsClosed
-                else do
-                    processFrame ctx conf $ decodeFrameHeader hd
-                    loop (n + 1)
+    loop = do
+        -- If 'confReadN' is timeouted, an exception is thrown
+        -- to destroy the thread trees.
+        hd <- confReadN frameHeaderLength
+        if BS.null hd
+            then enqueueControl controlQ CFinish
+            else do
+                processFrame ctx conf $ decodeFrameHeader hd
+                loop
 
     sendGoaway se
         | Just e@ConnectionIsClosed <- E.fromException se = do
