@@ -23,6 +23,7 @@ import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.HPACK
+import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
@@ -60,6 +61,8 @@ frameReceiver ctx@Context{..} conf@Config{..} = do
             yield
             loop 0
         | otherwise = do
+            -- If 'confReadN' is timeouted, an exception is thrown
+            -- to destroy the thread trees.
             hd <- confReadN frameHeaderLength
             if BS.null hd
                 then enqueueControl controlQ $ CFinish ConnectionIsClosed
@@ -68,7 +71,8 @@ frameReceiver ctx@Context{..} conf@Config{..} = do
                     loop (n + 1)
 
     sendGoaway se
-        | Just e@ConnectionIsClosed <- E.fromException se =
+        | Just e@ConnectionIsClosed <- E.fromException se = do
+            waitCounter0 threadManager
             enqueueControl controlQ $ CFinish e
         | Just e@(ConnectionErrorIsReceived _ _ _) <- E.fromException se =
             enqueueControl controlQ $ CFinish e
