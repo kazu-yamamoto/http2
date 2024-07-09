@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Network.HTTP2.H2.Sync (makeSync, syncWithSender) where
+module Network.HTTP2.H2.Sync (prepareSync, syncWithSender) where
 
 import Control.Concurrent
 import Network.HTTP.Semantics.IO
@@ -11,26 +11,32 @@ import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
 
+prepareSync
+    :: Stream
+    -> OutputType
+    -> Maybe (TBQueue StreamingChunk)
+    -> IO ((MVar Sync, Maybe OutputType -> IO Bool), Output)
+prepareSync strm otyp mtbq = do
+    var <- newEmptyMVar
+    let sync = makeSync strm mtbq (putMVar var)
+        out = Output strm otyp sync
+    return ((var, sync), out)
+
 syncWithSender
     :: Context
     -> Stream
-    -> OutputType
-    -> Maybe (TBQueue StreamingChunk)
+    -> (MVar Sync, Maybe OutputType -> IO Bool)
     -> IO ()
-syncWithSender Context{..} strm otyp mtbq = do
-    var <- newEmptyMVar
-    let sync = makeSync strm mtbq (putMVar var)
-    enqueueOutput outputQ $ Output strm otyp sync
-    loop var sync
+syncWithSender Context{..} strm (var, sync) = loop
   where
-    loop var sync = do
+    loop = do
         s <- takeMVar var
         case s of
             Done -> return ()
             Cont wait newotyp -> do
                 wait
                 enqueueOutput outputQ $ Output strm newotyp sync
-                loop var sync
+                loop
 
 makeSync
     :: Stream

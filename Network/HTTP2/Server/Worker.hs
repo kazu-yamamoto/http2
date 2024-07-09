@@ -79,7 +79,9 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                         ]
                     ot = OPush promiseRequest pid
                     Response rsp = promiseResponse pp
-                syncWithSender ctx newstrm ot Nothing
+                (vc, out) <- prepareSync newstrm ot Nothing
+                enqueueOutput outputQ out
+                syncWithSender ctx newstrm vc
                 increment tvar
                 sendHeaderBody conf ctx th newstrm rsp
         push tvar pps (n + 1)
@@ -124,7 +126,10 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
             let next = nextForStreaming q
             return (Just next, Just q)
         OutBodyStreamingUnmask _ -> error "OutBodyStreamingUnmask is not supported in server"
-    syncWithSender ctx strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
+    (vc, out) <-
+        prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
+    enqueueOutput outputQ out
+    syncWithSender ctx strm vc
   where
     nextForStreaming
         :: TBQueue StreamingChunk
