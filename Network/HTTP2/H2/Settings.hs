@@ -27,13 +27,19 @@ data Settings = Settings
     -- ^ SETTINGS_MAX_HEADER_LIST_SIZE
     , pingRateLimit :: Int
     -- ^ Maximum number of pings allowed per second (CVE-2019-9512)
+    , emptyFrameRateLimit :: Int
+    -- ^ Maximum number of empty data frames allowed per second (CVE-2019-9518)
+    , settingsRateLimit :: Int
+    -- ^ Maximum number of settings frames allowed per second (CVE-2019-9515)
+    , rstRateLimit :: Int
+    -- ^ Maximum number of reset frames allowed per second (CVE-2023-44487)
     }
     deriving (Eq, Show)
 
 -- | The default settings.
 --
 -- >>> baseSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Nothing, initialWindowSize = 65535, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}
 baseSettings :: Settings
 baseSettings =
     Settings
@@ -44,12 +50,15 @@ baseSettings =
         , maxFrameSize = defaultPayloadLength -- 2^14 (16,384)
         , maxHeaderListSize = Nothing
         , pingRateLimit = 10
+        , emptyFrameRateLimit = 4
+        , settingsRateLimit = 4
+        , rstRateLimit = 4
         }
 
 -- | The default settings.
 --
 -- >>> defaultSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}
 defaultSettings :: Settings
 defaultSettings =
     baseSettings
@@ -62,7 +71,7 @@ defaultSettings =
 -- | Updating settings.
 --
 -- >>> fromSettingsList defaultSettings [(SettingsEnablePush,0),(SettingsMaxHeaderListSize,200)]
--- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 200, pingRateLimit = 10}
+-- Settings {headerTableSize = 4096, enablePush = False, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 200, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}
 {- FOURMOLU_DISABLE -}
 fromSettingsList :: Settings -> SettingsList -> Settings
 fromSettingsList settings kvs = foldl' update settings kvs

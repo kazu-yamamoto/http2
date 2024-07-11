@@ -39,15 +39,6 @@ continuationLimit = 10
 headerFragmentLimit :: Int
 headerFragmentLimit = 51200 -- 50K
 
-settingsRateLimit :: Int
-settingsRateLimit = 4
-
-emptyFrameRateLimit :: Int
-emptyFrameRateLimit = 4
-
-rstRateLimit :: Int
-rstRateLimit = 4
-
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> Config -> IO ()
@@ -310,7 +301,7 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
         else do
             -- Settings Flood - CVE-2019-9515
             rate <- getRate settingsRate
-            when (rate > settingsRateLimit) $
+            when (rate > settingsRateLimit mySettings) $
                 E.throwIO $
                     ConnectionErrorIsSent EnhanceYourCalm streamId "too many settings"
             let ack = settingsFrame setAck []
@@ -413,7 +404,7 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
         then do
             -- Empty Frame Flooding - CVE-2019-9518
             rate <- getRate $ emptyFrameRate ctx
-            if rate > emptyFrameRateLimit
+            if rate > emptyFrameRateLimit (mySettings ctx)
                 then
                     E.throwIO $
                         ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty headers"
@@ -457,7 +448,7 @@ stream
     FrameData
     header@FrameHeader{flags, payloadLength, streamId}
     bs
-    Context{emptyFrameRate, rxFlow}
+    Context{emptyFrameRate, rxFlow, mySettings}
     s@(Open _ (Body q mcl bodyLength _))
     Stream{..} = do
         DataFrame body <- guardIt $ decodeDataFrame header bs
@@ -484,7 +475,7 @@ stream
         if body == ""
             then unless endOfStream $ do
                 rate <- getRate emptyFrameRate
-                when (rate > emptyFrameRateLimit) $ do
+                when (rate > emptyFrameRateLimit mySettings) $ do
                     E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty data"
             else do
                 writeIORef bodyLength len
@@ -512,7 +503,7 @@ stream FrameContinuation FrameHeader{flags, streamId} frag ctx s@(Open hcl (Cont
         then do
             -- Empty Frame Flooding - CVE-2019-9518
             rate <- getRate $ emptyFrameRate ctx
-            if rate > emptyFrameRateLimit
+            if rate > emptyFrameRateLimit (mySettings ctx)
                 then
                     E.throwIO $
                         ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty continuation"
@@ -548,7 +539,7 @@ stream FrameWindowUpdate header bs _ s strm = do
 stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     -- Rapid Rest: CVE-2023-44487
     rate <- getRate $ rstRate ctx
-    when (rate > rstRateLimit) $
+    when (rate > rstRateLimit (mySettings ctx)) $
         E.throwIO $
             ConnectionErrorIsSent EnhanceYourCalm streamId "too many rst_stream"
     RSTStreamFrame err <- guardIt $ decodeRSTStreamFrame header bs
