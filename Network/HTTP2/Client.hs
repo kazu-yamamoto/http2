@@ -64,7 +64,13 @@ module Network.HTTP2.Client (
     initialWindowSize,
     maxFrameSize,
     maxHeaderListSize,
+
+    -- ** Rate limits
     pingRateLimit,
+    settingsRateLimit,
+    emptyFrameRateLimit,
+    rstRateLimit,
+
 
     -- * Common configuration
     Config (..),

@@ -46,6 +46,12 @@ module Network.HTTP2.Server (
     maxFrameSize,
     maxHeaderListSize,
 
+    -- ** Rate limits
+    pingRateLimit,
+    settingsRateLimit,
+    emptyFrameRateLimit,
+    rstRateLimit,
+
     -- * Common configuration
     Config (..),
     allocSimpleConfig,
