@@ -125,7 +125,10 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
             q <- sendStreaming ctx strm th $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
             let next = nextForStreaming q
             return (Just next, Just q)
-        OutBodyStreamingUnmask _ -> error "OutBodyStreamingUnmask is not supported in server"
+        OutBodyStreamingIface strmbdy -> do
+            q <- sendStreaming ctx strm th strmbdy
+            let next = nextForStreaming q
+            return (Just next, Just q)
     (vc, out) <-
         prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
     enqueueOutput outputQ out
@@ -154,16 +157,15 @@ sendStreaming Context{..} strm th strmbdy = do
                     { outBodyUnmask = id
                     , outBodyPush = \b -> do
                         T.pause th
-                        atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
+                        atomically $ writeTBQueue tbq (StreamingBuilder b NotEndOfStream)
                         T.resume th
                     , outBodyPushFinal = \b -> do
-                        -- not used
                         T.pause th
-                        atomically $ writeTBQueue tbq (StreamingBuilder b Nothing)
+                        atomically $ writeTBQueue tbq (StreamingBuilder b (EndOfStream Nothing))
                         T.resume th
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     }
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished (return ())
+            finished = atomically $ writeTBQueue tbq $ StreamingFinished Nothing
         strmbdy iface `E.finally` finished
     return tbq
 
