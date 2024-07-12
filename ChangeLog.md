@@ -1,3 +1,15 @@
+# ChangeLog for http2
+
+## 5.3.0
+
+* New server architecture: spawning worker on demand instead of the
+  worker pool. This reduce huge numbers of threads for streaming into
+  only 2. No API changes but workers do not terminate quicly. Rather
+  workers collaborate with the sender after queuing a response and
+  finish after all response data are sent.
+* All threads are labeled with `labelThread`. You can see them by
+  `listThreas` if necessary.
+
 ## 5.2.6
 
 * Recover rxflow on closing.
