@@ -212,7 +212,7 @@ sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
                 outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
             let next = nextForStreaming q
             return (Just next, Just q)
-        OutBodyStreamingUnmask strmbdy -> do
+        OutBodyStreamingIface strmbdy -> do
             q <- sendStreaming ctx newstrm strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
@@ -245,11 +245,11 @@ sendStreaming Context{..} strm strmbdy = do
         let iface =
                 OutBodyIface
                     { outBodyUnmask = unmask
-                    , outBodyPush = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b Nothing
-                    , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b Nothing
+                    , outBodyPush = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b NotEndOfStream
+                    , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     }
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished (return ())
+            finished = atomically $ writeTBQueue tbq $ StreamingFinished Nothing
         strmbdy iface `finally` finished
     return tbq
 
