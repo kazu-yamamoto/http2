@@ -79,16 +79,23 @@ start timmgr = do
                 go q threadMap
 
 -- | Stopping the manager.
-stopAfter :: Manager -> IO a -> (Either SomeException a -> IO b) -> IO b
+--
+-- The action is run in the scope of an exception handler that catches all
+-- exceptions (including asynchronous ones); this allows the cleanup handler
+-- to cleanup in all circumstances. If an exception is caught, it is rethrown
+-- after the cleanup is complete.
+stopAfter :: Manager -> IO a -> (Maybe SomeException -> IO ()) -> IO a
 stopAfter (Manager q _ _) action cleanup = do
     mask $ \unmask -> do
-        ma <- try $ unmask action
+        ma <- trySyncOrAsync $ unmask action
         signalTimeoutsDisabled <- newEmptyMVar
         atomically $ writeTQueue q $ Stop signalTimeoutsDisabled (either Just (const Nothing) ma)
         -- This call to takeMVar /will/ eventually succeed, because the Manager
         -- thread cannot be killed (see comment on 'go' in 'start').
         takeMVar signalTimeoutsDisabled
-        cleanup ma
+        case ma of
+          Left err -> cleanup (Just err) >> throwIO err
+          Right a  -> cleanup Nothing    >> return a
 
 ----------------------------------------------------------------
 
@@ -111,7 +118,7 @@ forkManagedUnmask mgr label io =
         incCounter mgr
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
-        io unmask `catch` \(_e :: SomeException) -> return ()
+        io unmask `catchSyncOrAsync` \(_e :: SomeException) -> return ()
         deleteMyId mgr
         decCounter mgr
   where
