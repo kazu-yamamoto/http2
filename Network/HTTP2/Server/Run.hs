@@ -12,7 +12,6 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
 import UnliftIO.Async (concurrently_)
-import UnliftIO.Exception
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -129,14 +128,8 @@ runH2 conf ctx = do
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
         runBackgroundThreads = concurrently_ runReceiver runSender
-    stopAfter mgr runBackgroundThreads $ \res -> do
-        closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
-            either Just (const Nothing) res
-        case res of
-            Left err ->
-                throwIO err
-            Right x ->
-                return x
+    stopAfter mgr runBackgroundThreads $ \res ->
+        closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- connClose must not be called here since Run:fork calls it
 goaway :: Config -> ErrorCode -> ByteString -> IO ()

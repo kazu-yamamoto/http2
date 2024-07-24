@@ -140,16 +140,8 @@ setup ClientConfig{..} conf@Config{..} = do
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
-    stopAfter mgr (race runBackgroundThreads runClient) $ \res -> do
-        closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) $
-            either Just (const Nothing) res
-        case res of
-            Left err ->
-                throwIO err
-            Right (Left ()) ->
-                undefined -- never reach
-            Right (Right x) ->
-                return x
+    stopAfter mgr (clientResult <$> race runBackgroundThreads runClient) $ \res ->
+        closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx
     runReceiver = frameReceiver ctx conf
@@ -157,6 +149,10 @@ runH2 conf ctx runClient = do
     runBackgroundThreads = do
         labelMe "H2 runBackgroundThreads"
         concurrently_ runReceiver runSender
+
+    clientResult :: Either () a -> a
+    clientResult (Left ()) = undefined -- unreachable
+    clientResult (Right a) = a
 
 sendRequest
     :: Config

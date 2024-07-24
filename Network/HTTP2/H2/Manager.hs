@@ -28,22 +28,22 @@ import Imports
 
 ----------------------------------------------------------------
 
-data Command =
-    Stop (MVar ()) (Maybe SomeException)
-  | Add ThreadId
-  | RegisterTimeout ThreadId T.Handle
-  | Delete ThreadId
+data Command
+    = Stop (MVar ()) (Maybe SomeException)
+    | Add ThreadId
+    | RegisterTimeout ThreadId T.Handle
+    | Delete ThreadId
 
 -- | Manager to manage the thread and the timer.
 data Manager = Manager (TQueue Command) (TVar Int) T.Manager
 
-data TimeoutHandle =
-    ThreadWithTimeout T.Handle
-  | ThreadWithoutTimeout
+data TimeoutHandle
+    = ThreadWithTimeout T.Handle
+    | ThreadWithoutTimeout
 
 cancelTimeout :: TimeoutHandle -> IO ()
 cancelTimeout (ThreadWithTimeout h) = T.cancel h
-cancelTimeout ThreadWithoutTimeout  = return ()
+cancelTimeout ThreadWithoutTimeout = return ()
 
 type ManagedThreads = Map ThreadId TimeoutHandle
 
@@ -79,16 +79,25 @@ start timmgr = do
                 go q threadMap
 
 -- | Stopping the manager.
-stopAfter :: Manager -> IO a -> (Either SomeException a -> IO b) -> IO b
+--
+-- The action is run in the scope of an exception handler that catches all
+-- exceptions (including asynchronous ones); this allows the cleanup handler
+-- to cleanup in all circumstances. If an exception is caught, it is rethrown
+-- after the cleanup is complete.
+stopAfter :: Manager -> IO a -> (Maybe SomeException -> IO ()) -> IO a
 stopAfter (Manager q _ _) action cleanup = do
     mask $ \unmask -> do
-        ma <- try $ unmask action
+        ma <- trySyncOrAsync $ unmask action
         signalTimeoutsDisabled <- newEmptyMVar
-        atomically $ writeTQueue q $ Stop signalTimeoutsDisabled (either Just (const Nothing) ma)
+        atomically $
+            writeTQueue q $
+                Stop signalTimeoutsDisabled (either Just (const Nothing) ma)
         -- This call to takeMVar /will/ eventually succeed, because the Manager
         -- thread cannot be killed (see comment on 'go' in 'start').
         takeMVar signalTimeoutsDisabled
-        cleanup ma
+        case ma of
+            Left err -> cleanup (Just err) >> throwIO err
+            Right a -> cleanup Nothing >> return a
 
 ----------------------------------------------------------------
 
@@ -111,7 +120,7 @@ forkManagedUnmask mgr label io =
         incCounter mgr
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
-        io unmask `catch` \(_e :: SomeException) -> return ()
+        io unmask `catchSyncOrAsync` \(_e :: SomeException) -> return ()
         deleteMyId mgr
         decCounter mgr
   where
@@ -159,17 +168,17 @@ kill signalTimeoutsDisabled threadMap err = do
     forM_ (Map.elems threadMap) cancelTimeout
     putMVar signalTimeoutsDisabled ()
     forM_ (Map.keys threadMap) $ \tid ->
-      E.throwTo tid $ KilledByHttp2ThreadManager err
+        E.throwTo tid $ KilledByHttp2ThreadManager err
 
 -- | Killing the IO action of the second argument on timeout.
 timeoutKillThread :: Manager -> (T.Handle -> IO a) -> IO a
 timeoutKillThread (Manager q _ tmgr) action = E.bracket register T.cancel action
   where
     register = do
-      h <- T.registerKillThread tmgr (return ())
-      tid <- myThreadId
-      atomically $ writeTQueue q (RegisterTimeout tid h)
-      return h
+        h <- T.registerKillThread tmgr (return ())
+        tid <- myThreadId
+        atomically $ writeTQueue q (RegisterTimeout tid h)
+        return h
 
 -- | Registering closer for a resource and
 --   returning a timer refresher.
