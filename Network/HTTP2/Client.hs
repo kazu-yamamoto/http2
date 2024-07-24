@@ -71,7 +71,6 @@ module Network.HTTP2.Client (
     emptyFrameRateLimit,
     rstRateLimit,
 
-
     -- * Common configuration
     Config (..),
     allocSimpleConfig,
