@@ -1,5 +1,12 @@
 # ChangeLog for http2
 
+## 5.3.1
+
+* Fix treatment of async exceptions
+  [#138](https://github.com/kazu-yamamoto/http2/pull/138)
+* Avoid race condition
+  [#137](https://github.com/kazu-yamamoto/http2/pull/137)
+
 ## 5.3.0
 
 * New server architecture: spawning worker on demand instead of the
