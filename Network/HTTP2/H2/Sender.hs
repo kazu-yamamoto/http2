@@ -282,17 +282,23 @@ frameSender
             _
             reqflush = do
                 let buf = confWriteBuffer `plusPtr` off
-                    off' = off + frameHeaderLength + datPayloadLen
                 (mtrailers, flag) <- do
                     Trailers trailers <- tlrmkr Nothing
                     if null trailers
                         then return (Nothing, setEndStream defaultFlags)
                         else return (Just trailers, defaultFlags)
-                fillFrameHeader FrameData datPayloadLen streamNumber flag buf
+                -- Avoid sending an empty data frame before trailers at the end
+                -- of a stream
+                off' <-
+                  if datPayloadLen /= 0 || isNothing mtrailers then do
+                    decreaseWindowSize ctx strm datPayloadLen
+                    fillFrameHeader FrameData datPayloadLen streamNumber flag buf
+                    return $ off + frameHeaderLength + datPayloadLen
+                  else
+                    return off
                 off'' <- handleTrailers mtrailers off'
                 _ <- sync Nothing
                 halfClosedLocal ctx strm Finished
-                decreaseWindowSize ctx strm datPayloadLen
                 if reqflush
                     then do
                         flushN off''
