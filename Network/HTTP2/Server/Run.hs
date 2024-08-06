@@ -64,6 +64,7 @@ data ServerIO = ServerIO
     -- ^ 'Response' MUST be created with 'responseBuilder'.
     -- Others are not supported.
     , sioWriteBytes :: ByteString -> IO ()
+    -- ^ Writing raw bytes including a frame header.
     }
 
 -- | Launching a receiver and a sender without workers.
