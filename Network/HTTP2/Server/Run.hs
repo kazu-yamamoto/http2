@@ -56,15 +56,13 @@ run sconf conf server = do
 
 ----------------------------------------------------------------
 
-data ServerIO = ServerIO
+data ServerIO a = ServerIO
     { sioMySockAddr :: SockAddr
     , sioPeerSockAddr :: SockAddr
-    , sioReadRequest :: IO (StreamId, Stream, Request)
-    , sioWriteResponse :: Stream -> Response -> IO ()
+    , sioReadRequest :: IO (a, Request)
+    , sioWriteResponse :: a -> Response -> IO ()
     -- ^ 'Response' MUST be created with 'responseBuilder'.
     -- Others are not supported.
-    , sioWriteBytes :: ByteString -> IO ()
-    -- ^ Writing raw bytes including a frame header.
     }
 
 -- | Launching a receiver and a sender without workers.
@@ -72,7 +70,7 @@ data ServerIO = ServerIO
 runIO
     :: ServerConfig
     -> Config
-    -> (ServerIO -> IO (IO ()))
+    -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
 runIO sconf conf@Config{..} action = do
     ok <- checkPreface conf
@@ -82,7 +80,7 @@ runIO sconf conf@Config{..} action = do
         ctx@Context{..} <- setup sconf conf lnch
         let get = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
-                return (streamNumber strm, strm, Request inpObj)
+                return (strm, Request inpObj)
             putR strm (Response OutObj{..}) = do
                 case outObjBody of
                     OutBodyBuilder builder -> do
@@ -91,14 +89,12 @@ runIO sconf conf@Config{..} action = do
                             out = OHeader outObjHeaders (Just next) outObjTrailers
                         enqueueOutput outputQ $ Output strm out sync
                     _ -> error "Response other than OutBodyBuilder is not supported"
-            putB bs = enqueueControl controlQ $ CFrames Nothing [bs]
             serverIO =
                 ServerIO
                     { sioMySockAddr = confMySockAddr
                     , sioPeerSockAddr = confPeerSockAddr
                     , sioReadRequest = get
                     , sioWriteResponse = putR
-                    , sioWriteBytes = putB
                     }
         io <- action serverIO
         concurrently_ io $ runH2 conf ctx
