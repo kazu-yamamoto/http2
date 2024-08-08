@@ -236,16 +236,48 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    finishedOrCancelled <- newIORef False
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     forkManagedUnmask threadManager label $ \unmask -> do
         let iface =
                 OutBodyIface
                     { outBodyUnmask = unmask
                     , outBodyPush = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b NotEndOfStream
-                    , outBodyPushFinal = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
+                    , outBodyPushFinal = \b -> do
+                        atomicWriteIORef finishedOrCancelled True
+                        atomically $ writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
+                        atomically $ writeTBQueue tbq $ StreamingFinished Nothing
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
+                    , outBodyCancel = \mErr -> do
+                        -- If we cancel a stream that hasn't yet begun (no
+                        -- headers have been exchanged yet), we could
+                        -- theoretically avoid initiating the stream at all.
+                        -- This is however difficult to do, for two reasons: the
+                        -- headers have already been enqueued, and we have
+                        -- already assigned a stream ID (which assumes that the
+                        -- server will receive those the headers). Therefore, we
+                        -- instead wait for the `streamHeadersSent`. This
+                        -- ensures that the RST_STREAM frame cannot overtake the
+                        -- headers frames.
+                        headersResult <- readMVar (streamHeadersSent strm)
+                        case headersResult of
+                          Left _ ->
+                            -- If this is an exception, it does not mean the
+                            -- headers have been sent. It means we are shutting
+                            -- down, and we might not have sent headers yet, so
+                            -- we cannot send a RST_STREAM frame
+                            return ()
+                          Right () -> do
+                            already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
+                            if already then do
+                              return ()
+                            else
+                              atomically $ writeTBQueue tbq (StreamingCancelled mErr)
                     }
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished Nothing
+            finished = do
+              already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
+              unless already $
+                atomically $ writeTBQueue tbq $ StreamingFinished Nothing
         strmbdy iface `finally` finished
     return tbq
 

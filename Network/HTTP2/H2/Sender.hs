@@ -7,6 +7,7 @@ module Network.HTTP2.H2.Sender (
     frameSender,
 ) where
 
+import Control.Concurrent
 import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -140,15 +141,20 @@ frameSender
 
         ----------------------------------------------------------------
         outputOrEnqueueAgain :: Output -> Offset -> IO Offset
-        outputOrEnqueueAgain out@(Output strm otyp sync) off = E.handle resetStream $ do
+        outputOrEnqueueAgain out@(Output strm otyp sync) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then return off
                 else case otyp of
-                    OHeader hdr mnext tlrmkr ->
+                    OHeader hdr mnext tlrmkr -> do
                         -- Send headers immediately, without waiting for data
                         -- No need to check the streaming window (applies to DATA frames only)
-                        outputHeader strm hdr mnext tlrmkr sync off
+                        off' <- outputHeader strm hdr mnext tlrmkr sync off
+
+                        -- Indicate that headers have been written (unblocks
+                        -- pending cancellations)
+                        putMVar (streamHeadersSent strm) (Right ())
+                        return off'
                     _ -> do
                         ok <- sync $ Just otyp
                         if ok
@@ -158,12 +164,12 @@ frameSender
                                 let lim = min cws sws
                                 output out off lim
                             else return off
-          where
-            resetStream e = do
-                closed ctx strm (ResetByMe e)
-                let rst = resetFrame InternalError $ streamNumber strm
-                enqueueControl controlQ $ CFrames Nothing [rst]
-                return off
+
+        resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
+        resetStream strm err e = do
+            closed ctx strm (ResetByMe e)
+            let rst = resetFrame err $ streamNumber strm
+            enqueueControl controlQ $ CFrames Nothing [rst]
 
         ----------------------------------------------------------------
         outputHeader
@@ -200,17 +206,30 @@ frameSender
             let payloadOff = off0 + frameHeaderLength
                 datBuf = confWriteBuffer `plusPtr` payloadOff
                 datBufSiz = buflim - payloadOff
-            Next datPayloadLen reqflush mnext <- curr datBuf (min datBufSiz lim)
-            NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-            fillDataHeaderEnqueueNext
-                strm
-                off0
-                datPayloadLen
-                mnext
-                tlrmkr'
-                sync
-                out
-                reqflush
+            curr datBuf (min datBufSiz lim) >>= \next ->
+              case next of
+                Next datPayloadLen reqflush mnext ->  do
+                  NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
+                  fillDataHeaderEnqueueNext
+                      strm
+                      off0
+                      datPayloadLen
+                      mnext
+                      tlrmkr'
+                      sync
+                      out
+                      reqflush
+                CancelNext mErr -> do
+                  -- Stream cancelled
+                  case mErr of
+                    Just err ->
+                      resetStream strm InternalError err
+                    Nothing ->
+                      resetStream strm Cancel (E.toException CancelledStream)
+                  -- It is important that we return the initial offset here,
+                  -- since we might have HEADERS frames in the buffer that
+                  -- /must/ go out before the RST_STREAM
+                  return off0
         output (Output strm (OPush ths pid) sync) off0 _lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.
