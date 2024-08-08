@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Network.HTTP2.H2.Types where
 
@@ -122,6 +123,11 @@ data ClosedCode
     | ResetByMe SomeException
     deriving (Show)
 
+-- | Used for streams which are cancelled by calling
+-- 'Network.HTTP.Semantics.outBodyCancel'.
+data CancelledStream = CancelledStream
+  deriving (Show, E.Exception)
+
 closedCodeToError :: StreamId -> ClosedCode -> HTTP2Error
 closedCodeToError sid cc =
     case cc of
@@ -154,6 +160,7 @@ type RxQ = TQueue (Either E.SomeException (ByteString, Bool))
 data Stream = Stream
     { streamNumber :: StreamId
     , streamState :: IORef StreamState
+    , streamHeadersSent :: MVar (Either SomeException ()) -- Client only
     , streamInput :: MVar (Either SomeException InpObj) -- Client only
     , streamTxFlow :: TVar TxFlow
     , streamRxFlow :: IORef RxFlow
@@ -208,6 +215,7 @@ data HTTP2Error
     | StreamErrorIsSent ErrorCode StreamId ReasonPhrase
     | BadThingHappen E.SomeException
     | GoAwayIsSent
+    | RSTStreamIsSent
     deriving (Show, Typeable)
 
 instance E.Exception HTTP2Error

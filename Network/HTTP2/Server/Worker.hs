@@ -6,6 +6,7 @@ module Network.HTTP2.Server.Worker (
     worker,
 ) where
 
+import Control.Concurrent
 import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
@@ -150,6 +151,7 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm th strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    finishedOrCancelled <- newIORef False
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     forkManaged threadManager label $ do
         let iface =
@@ -161,11 +163,28 @@ sendStreaming Context{..} strm th strmbdy = do
                         T.resume th
                     , outBodyPushFinal = \b -> do
                         T.pause th
-                        atomically $ writeTBQueue tbq (StreamingBuilder b (EndOfStream Nothing))
+                        atomicWriteIORef finishedOrCancelled True
+                        atomically $ writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
+                        atomically $ writeTBQueue tbq $ StreamingFinished Nothing
                         T.resume th
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
+                    , outBodyCancel = \mErr -> do
+                        -- See comment in Network.HTTP2.Client.Run
+                        headersResult <- readMVar (streamHeadersSent strm)
+                        case headersResult of
+                          Left _ ->
+                            return ()
+                          Right () -> do
+                            already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
+                            if already then
+                              return ()
+                            else
+                              atomically $ writeTBQueue tbq (StreamingCancelled mErr)
                     }
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished Nothing
+            finished = do
+              already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
+              unless already $ do
+                atomically $ writeTBQueue tbq $ StreamingFinished Nothing
         strmbdy iface `E.finally` finished
     return tbq
 

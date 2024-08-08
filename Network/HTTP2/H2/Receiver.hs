@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.HTTP2.H2.Receiver (
     frameReceiver,
@@ -561,17 +562,33 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     -- > /Either endpoint/ can send a RST_STREAM frame from this state, causing
     -- > it to transition immediately to "closed".
     --
-    -- (emphasis not in original). This justifies the two non-error cases,
-    -- below. (Section 8.1 of the spec is also relevant, but it is less explicit
-    -- about the /either endpoint/ part.)
-    case (s, err) of
-        (Open (Just _) _, NoError) ->
-            -- HalfClosedLocal
+    -- (emphasis not in original).
+    --
+    -- In addition, the spec states (about the open state):
+    --
+    -- > Either endpoint can send a RST_STREAM frame from this state, causing it
+    -- > to transition immediately to "closed".
+    --
+    -- This justifies the two non-error cases, below. (Section 8.1 of the spec
+    -- is also relevant, but it is less explicit about the /either endpoint/
+    -- part.)
+    case s of
+        Open _ _ | isNonCritical err ->
+            -- Open /or/ half-closed (local)
             return (Closed cc)
-        (HalfClosedRemote, NoError) ->
+        HalfClosedRemote | isNonCritical err ->
             return (Closed cc)
         _otherwise -> do
             E.throwIO $ StreamErrorIsReceived err streamId
+  where
+    -- Although some stream errors indicate misbehaving peers, such as
+    -- FLOW_CONTROL_ERROR, not all errors do. We will close the connection only
+    -- for critical errors.
+    isNonCritical :: ErrorCode -> Bool
+    isNonCritical NoError       = True
+    isNonCritical Cancel        = True
+    isNonCritical InternalError = True
+    isNonCritical _             = False
 
 -- (No state transition)
 stream FramePriority header bs _ s Stream{streamNumber} = do
