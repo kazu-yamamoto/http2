@@ -1,5 +1,11 @@
 # ChangeLog for http2
 
+## 5.3.2
+
+* Avoid unnecessary empty data frames at end of stream
+  [#140](https://github.com/kazu-yamamoto/http2/pull/140)
+* Removing unnecessary API from ServerIO
+
 ## 5.3.1
 
 * Fix treatment of async exceptions
