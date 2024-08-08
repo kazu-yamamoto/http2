@@ -39,7 +39,7 @@ main = do
         ]
 
 ----------------------------------------------------------------
-prepare :: [HeaderList] -> IO [ByteString]
+prepare :: [[Header]] -> IO [ByteString]
 prepare hdrs = do
     tbl <- newDynamicTableForEncoding defaultDynamicTableSize
     go tbl hdrs id
@@ -59,7 +59,7 @@ dec hpacks = do
         !_ <- decodeHeader tbl f
         go tbl fs
 
-enc :: EncodeStrategy -> [HeaderList] -> IO ()
+enc :: EncodeStrategy -> [[Header]] -> IO ()
 enc stgy hdrs = do
     tbl <- newDynamicTableForEncoding defaultDynamicTableSize
     go tbl hdrs
