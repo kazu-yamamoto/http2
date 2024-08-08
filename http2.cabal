@@ -413,5 +413,4 @@ benchmark header-compression
         network-byte-order,
         stm,
         http2,
-        http-semantics,
         unliftio
