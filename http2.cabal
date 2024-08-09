@@ -409,8 +409,8 @@ benchmark header-compression
         bytestring,
         case-insensitive,
         containers,
-        gauge,
+        criterion,
+        http2,
         network-byte-order,
         stm,
-        http2,
         unliftio

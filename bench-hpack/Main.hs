@@ -2,8 +2,8 @@
 
 module Main where
 
+import Criterion.Main
 import Data.ByteString (ByteString)
-import Gauge.Main
 import Network.HPACK
 import UnliftIO.Exception
 
