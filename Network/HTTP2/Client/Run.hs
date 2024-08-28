@@ -8,11 +8,13 @@ module Network.HTTP2.Client.Run where
 import Control.Concurrent.STM (check)
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
+import Data.IP (IPv6)
 import Network.Control (RxFlow (..), defaultMaxData)
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
+import Text.Read (readMaybe)
 import UnliftIO.Async
 import UnliftIO.Concurrent
 import UnliftIO.Exception
@@ -176,12 +178,16 @@ sendRequest conf ctx@Context{..} scheme auth (Request req) = do
             -- the ordering of responses can be out-of-order.
             -- But for clients, the ordering must be maintained.
             -- To implement this, 'outputQStreamID' is used.
+            let isIPv6 = isJust (readMaybe auth :: Maybe IPv6)
+                auth'
+                    | isIPv6 = "[" <> UTF8.fromString auth <> "]"
+                    | otherwise = UTF8.fromString auth
             let hdr1, hdr2 :: [Header]
                 hdr1
                     | scheme /= "" = (":scheme", scheme) : hdr0
                     | otherwise = hdr0
                 hdr2
-                    | auth /= "" = (":authority", UTF8.fromString auth) : hdr1
+                    | auth /= "" = (":authority", auth') : hdr1
                     | otherwise = hdr1
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
