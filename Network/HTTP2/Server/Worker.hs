@@ -6,7 +6,6 @@ module Network.HTTP2.Server.Worker (
     worker,
 ) where
 
-import Control.Concurrent
 import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
@@ -80,9 +79,9 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                         ]
                     ot = OPush promiseRequest pid
                     Response rsp = promiseResponse pp
-                (vc, out) <- prepareSync newstrm ot Nothing
+                ((var, sync), out) <- prepareSync newstrm ot Nothing
                 enqueueOutput outputQ out
-                syncWithSender ctx newstrm vc
+                syncWithSender ctx newstrm var sync
                 increment tvar
                 sendHeaderBody conf ctx th newstrm rsp
         push tvar pps (n + 1)
@@ -130,10 +129,10 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
             q <- sendStreaming ctx strm th strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
-    (vc, out) <-
+    ((var, sync), out) <-
         prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
     enqueueOutput outputQ out
-    syncWithSender ctx strm vc
+    syncWithSender ctx strm var sync
   where
     nextForStreaming
         :: TBQueue StreamingChunk
@@ -169,17 +168,11 @@ sendStreaming Context{..} strm th strmbdy = do
                         T.resume th
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     , outBodyCancel = \mErr -> do
-                        -- See comment in Network.HTTP2.Client.Run
-                        headersResult <- readMVar (streamHeadersSent strm)
-                        case headersResult of
-                          Left _ ->
-                            return ()
-                          Right () -> do
-                            already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
-                            if already then
-                              return ()
-                            else
-                              atomically $ writeTBQueue tbq (StreamingCancelled mErr)
+                        already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
+                        if already then
+                          return ()
+                        else
+                          atomically $ writeTBQueue tbq (StreamingCancelled mErr)
                     }
             finished = do
               already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))

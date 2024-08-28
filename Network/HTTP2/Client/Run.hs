@@ -212,14 +212,14 @@ sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
             q <- sendStreaming ctx newstrm strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
-    (vs, out) <-
+    ((var, sync), out) <-
         prepareSync newstrm (OHeader outObjHeaders mnext outObjTrailers) mtbq
     atomically $ do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
         enqueueOutputSTM outputQ out
         writeTVar outputQStreamID (sid + 2)
-    forkManaged threadManager "H2 worker" $ syncWithSender ctx newstrm vs
+    forkManaged threadManager "H2 worker" $ syncWithSender ctx newstrm var sync
   where
     nextForStreaming
         :: TBQueue StreamingChunk
@@ -249,30 +249,11 @@ sendStreaming Context{..} strm strmbdy = do
                         atomically $ writeTBQueue tbq $ StreamingFinished Nothing
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
                     , outBodyCancel = \mErr -> do
-                        -- If we cancel a stream that hasn't yet begun (no
-                        -- headers have been exchanged yet), we could
-                        -- theoretically avoid initiating the stream at all.
-                        -- This is however difficult to do, for two reasons: the
-                        -- headers have already been enqueued, and we have
-                        -- already assigned a stream ID (which assumes that the
-                        -- server will receive those the headers). Therefore, we
-                        -- instead wait for the `streamHeadersSent`. This
-                        -- ensures that the RST_STREAM frame cannot overtake the
-                        -- headers frames.
-                        headersResult <- readMVar (streamHeadersSent strm)
-                        case headersResult of
-                          Left _ ->
-                            -- If this is an exception, it does not mean the
-                            -- headers have been sent. It means we are shutting
-                            -- down, and we might not have sent headers yet, so
-                            -- we cannot send a RST_STREAM frame
-                            return ()
-                          Right () -> do
-                            already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
-                            if already then do
-                              return ()
-                            else
-                              atomically $ writeTBQueue tbq (StreamingCancelled mErr)
+                        already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
+                        if already then do
+                          return ()
+                        else
+                          atomically $ writeTBQueue tbq (StreamingCancelled mErr)
                     }
             finished = do
               already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
