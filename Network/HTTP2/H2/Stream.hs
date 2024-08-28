@@ -50,7 +50,6 @@ newOddStream sid txwin rxwin =
     Stream sid
         <$> newIORef Idle
         <*> newEmptyMVar
-        <*> newEmptyMVar
         <*> newTVarIO (newTxFlow txwin)
         <*> newIORef (newRxFlow rxwin)
         <*> newIORef Nothing
@@ -59,7 +58,6 @@ newEvenStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
 newEvenStream sid txwin rxwin =
     Stream sid
         <$> newIORef Reserved
-        <*> newEmptyMVar
         <*> newEmptyMVar
         <*> newTVarIO (newTxFlow txwin)
         <*> newIORef (newRxFlow rxwin)
@@ -84,7 +82,6 @@ closeAllStreams ovar evar mErr' = do
     finalize strm = do
         st <- readStreamState strm
         void $ tryPutMVar (streamInput strm) err
-        void $ tryPutMVar (streamHeadersSent strm) err
         case st of
             Open _ (Body q _ _ _) ->
                 atomically $ writeTQueue q $ maybe (Right (mempty, True)) Left mErr

@@ -7,7 +7,6 @@ module Network.HTTP2.H2.Sender (
     frameSender,
 ) where
 
-import Control.Concurrent
 import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -146,16 +145,15 @@ frameSender
             if isHalfClosedLocal state
                 then return off
                 else case otyp of
-                    OHeader hdr mnext tlrmkr -> do
+                    OHeader hdr mnext tlrmkr ->
                         -- Send headers immediately, without waiting for data
                         -- No need to check the streaming window (applies to DATA frames only)
-                        off' <- outputHeader strm hdr mnext tlrmkr sync off
-
-                        -- Indicate that headers have been written (unblocks
-                        -- pending cancellations)
-                        putMVar (streamHeadersSent strm) (Right ())
-                        return off'
+                        outputHeader strm hdr mnext tlrmkr sync off
                     _ -> do
+                        -- The 'sync' function usage constraints hold here: We
+                        -- just popped off the only 'Output' for this stream,
+                        -- and we only enqueue a new output (in 'output') if
+                        -- 'sync' returns 'True'
                         ok <- sync $ Just otyp
                         if ok
                             then do
@@ -221,14 +219,20 @@ frameSender
                       reqflush
                 CancelNext mErr -> do
                   -- Stream cancelled
+                  --
+                  -- At this point, the headers have already been sent.
+                  -- Therefore, the stream cannot be in the 'Idle' state, so we
+                  -- are justified in sending @RST_STREAM@.
+                  --
+                  -- By the invariant on the 'outputQ', there are no other
+                  -- outputs for this stream already enqueued. Therefore, we can
+                  -- safely cancel it knowing that we won't try and send any
+                  -- more data frames on this stream.
                   case mErr of
                     Just err ->
                       resetStream strm InternalError err
                     Nothing ->
                       resetStream strm Cancel (E.toException CancelledStream)
-                  -- It is important that we return the initial offset here,
-                  -- since we might have HEADERS frames in the buffer that
-                  -- /must/ go out before the RST_STREAM
                   return off0
         output (Output strm (OPush ths pid) sync) off0 _lim = do
             -- Creating a push promise header

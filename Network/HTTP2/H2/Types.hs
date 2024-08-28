@@ -160,7 +160,6 @@ type RxQ = TQueue (Either E.SomeException (ByteString, Bool))
 data Stream = Stream
     { streamNumber :: StreamId
     , streamState :: IORef StreamState
-    , streamHeadersSent :: MVar (Either SomeException ()) -- Client only
     , streamInput :: MVar (Either SomeException InpObj) -- Client only
     , streamTxFlow :: TVar TxFlow
     , streamRxFlow :: IORef RxFlow
