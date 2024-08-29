@@ -150,7 +150,7 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm th strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    finishedOrCancelled <- newIORef False
+    finishedOrCancelled <- newTVarIO False
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     forkManaged threadManager label $ do
         let iface =
@@ -162,22 +162,23 @@ sendStreaming Context{..} strm th strmbdy = do
                         T.resume th
                     , outBodyPushFinal = \b -> do
                         T.pause th
-                        atomicWriteIORef finishedOrCancelled True
-                        atomically $ writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
-                        atomically $ writeTBQueue tbq $ StreamingFinished Nothing
+                        atomically $ do
+                          writeTVar finishedOrCancelled True
+                          writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
+                          writeTBQueue tbq $ StreamingFinished Nothing
                         T.resume th
                     , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
-                    , outBodyCancel = \mErr -> do
-                        already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
-                        if already then
-                          return ()
-                        else
-                          atomically $ writeTBQueue tbq (StreamingCancelled mErr)
+                    , outBodyCancel = \mErr -> atomically $ do
+                        already <- readTVar finishedOrCancelled
+                        writeTVar finishedOrCancelled True
+                        unless already $
+                          writeTBQueue tbq (StreamingCancelled mErr)
                     }
-            finished = do
-              already <- atomicModifyIORef finishedOrCancelled (\x -> (True, x))
-              unless already $ do
-                atomically $ writeTBQueue tbq $ StreamingFinished Nothing
+            finished = atomically $ do
+              already <- readTVar finishedOrCancelled
+              writeTVar finishedOrCancelled True
+              unless already $
+                writeTBQueue tbq $ StreamingFinished Nothing
         strmbdy iface `E.finally` finished
     return tbq
 
