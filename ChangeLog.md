@@ -1,5 +1,10 @@
 # ChangeLog for http2
 
+## 5.3.3
+
+* Enclosing IPv6 literal authority with square brackets.
+  [#143](https://github.com/kazu-yamamoto/http2/pull/143)
+
 ## 5.3.2
 
 * Avoid unnecessary empty data frames at end of stream
