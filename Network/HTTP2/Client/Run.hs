@@ -220,14 +220,6 @@ sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
         enqueueOutputSTM outputQ out
         writeTVar outputQStreamID (sid + 2)
     forkManaged threadManager "H2 worker" $ syncWithSender ctx newstrm var sync
-  where
-    nextForStreaming
-        :: TBQueue StreamingChunk
-        -> DynaNext
-    nextForStreaming tbq =
-        let takeQ = atomically $ tryReadTBQueue tbq
-            next = fillStreamBodyGetNext takeQ
-         in next
 
 sendStreaming
     :: Context
@@ -235,32 +227,10 @@ sendStreaming
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm strmbdy = do
-    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    finishedOrCancelled <- newTVarIO False
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
-    forkManagedUnmask threadManager label $ \unmask -> do
-        let iface =
-                OutBodyIface
-                    { outBodyUnmask = unmask
-                    , outBodyPush = \b -> atomically $ writeTBQueue tbq $ StreamingBuilder b NotEndOfStream
-                    , outBodyPushFinal = \b -> do
-                        atomically $ do
-                          writeTVar finishedOrCancelled True
-                          writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
-                          writeTBQueue tbq $ StreamingFinished Nothing
-                    , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
-                    , outBodyCancel = \mErr -> atomically $ do
-                        already <- readTVar finishedOrCancelled
-                        writeTVar finishedOrCancelled True
-                        unless already $
-                          writeTBQueue tbq (StreamingCancelled mErr)
-                    }
-            finished = atomically $ do
-              already <- readTVar finishedOrCancelled
-              writeTVar finishedOrCancelled True
-              unless already $
-                writeTBQueue tbq $ StreamingFinished Nothing
-        strmbdy iface `finally` finished
+    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    forkManagedUnmask threadManager label $ \unmask ->
+        withOutBodyIface tbq unmask strmbdy
     return tbq
 
 exchangeSettings :: Context -> IO ()

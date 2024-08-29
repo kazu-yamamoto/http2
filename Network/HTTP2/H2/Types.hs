@@ -214,7 +214,6 @@ data HTTP2Error
     | StreamErrorIsSent ErrorCode StreamId ReasonPhrase
     | BadThingHappen E.SomeException
     | GoAwayIsSent
-    | RSTStreamIsSent
     deriving (Show, Typeable)
 
 instance E.Exception HTTP2Error
