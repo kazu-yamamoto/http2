@@ -1,5 +1,10 @@
 # ChangeLog for http2
 
+## 5.3.4
+
+* Support stream cancellation
+  [#142](https://github.com/kazu-yamamoto/http2/pull/142)
+
 ## 5.3.3
 
 * Enclosing IPv6 literal authority with square brackets.
