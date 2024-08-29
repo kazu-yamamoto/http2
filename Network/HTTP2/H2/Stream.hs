@@ -1,12 +1,18 @@
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Network.HTTP2.H2.Stream where
 
 import Control.Monad
+import Control.Monad.STM (throwSTM)
 import Data.IORef
 import Data.Maybe (fromMaybe)
 import Network.Control
+import Network.HTTP.Semantics
+import Network.HTTP.Semantics.IO
 import UnliftIO.Concurrent
 import UnliftIO.Exception
 import UnliftIO.STM
@@ -101,3 +107,69 @@ closeAllStreams ovar evar mErr' = do
         Left $
           fromMaybe (toException ConnectionIsClosed) $
               mErr
+
+----------------------------------------------------------------
+
+data StreamTerminated =
+      StreamPushedFinal
+    | StreamCancelled
+    | StreamOutOfScope
+  deriving Show
+  deriving anyclass Exception
+
+withOutBodyIface ::
+     TBQueue StreamingChunk
+  -> (forall a. IO a -> IO a)
+  -> (OutBodyIface -> IO r)
+  -> IO r
+withOutBodyIface tbq unmask k = do
+    terminated <- newTVarIO Nothing
+    let
+      whenNotTerminated act = do
+        mTerminated <- readTVar terminated
+        case mTerminated of
+          Just reason ->
+            throwSTM reason
+          Nothing ->
+            act
+
+      terminateWith reason act = do
+        mTerminated <- readTVar terminated
+        case mTerminated of
+          Just _ ->
+            -- Already terminated
+            return ()
+          Nothing ->  do
+            writeTVar terminated (Just reason)
+            act
+
+      iface = OutBodyIface
+        { outBodyUnmask = unmask
+        , outBodyPush = \b ->
+            atomically $ whenNotTerminated $
+              writeTBQueue tbq $ StreamingBuilder b NotEndOfStream
+        , outBodyPushFinal = \b ->
+            atomically $ whenNotTerminated $ do
+              writeTVar terminated (Just StreamPushedFinal)
+              writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
+              writeTBQueue tbq $ StreamingFinished Nothing
+        , outBodyFlush =
+            atomically $ whenNotTerminated $
+              writeTBQueue tbq StreamingFlush
+        , outBodyCancel = \mErr ->
+            atomically $
+              terminateWith StreamCancelled $
+                writeTBQueue tbq (StreamingCancelled mErr)
+        }
+      finished = atomically $ do
+        terminateWith StreamOutOfScope $
+          writeTBQueue tbq $ StreamingFinished Nothing
+    k iface `finally` finished
+
+nextForStreaming
+        :: TBQueue StreamingChunk
+        -> DynaNext
+nextForStreaming tbq =
+    let takeQ = atomically $ tryReadTBQueue tbq
+        next = fillStreamBodyGetNext takeQ
+      in next

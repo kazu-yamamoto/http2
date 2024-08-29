@@ -13,7 +13,6 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.TimeManager as T
-import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (insert)
@@ -133,14 +132,6 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
         prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
     enqueueOutput outputQ out
     syncWithSender ctx strm var sync
-  where
-    nextForStreaming
-        :: TBQueue StreamingChunk
-        -> DynaNext
-    nextForStreaming tbq =
-        let takeQ = atomically $ tryReadTBQueue tbq
-            next = fillStreamBodyGetNext takeQ
-         in next
 
 sendStreaming
     :: Context
@@ -149,37 +140,21 @@ sendStreaming
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm th strmbdy = do
-    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    finishedOrCancelled <- newTVarIO False
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
-    forkManaged threadManager label $ do
-        let iface =
-                OutBodyIface
-                    { outBodyUnmask = id
-                    , outBodyPush = \b -> do
-                        T.pause th
-                        atomically $ writeTBQueue tbq (StreamingBuilder b NotEndOfStream)
-                        T.resume th
-                    , outBodyPushFinal = \b -> do
-                        T.pause th
-                        atomically $ do
-                          writeTVar finishedOrCancelled True
-                          writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
-                          writeTBQueue tbq $ StreamingFinished Nothing
-                        T.resume th
-                    , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
-                    , outBodyCancel = \mErr -> atomically $ do
-                        already <- readTVar finishedOrCancelled
-                        writeTVar finishedOrCancelled True
-                        unless already $
-                          writeTBQueue tbq (StreamingCancelled mErr)
-                    }
-            finished = atomically $ do
-              already <- readTVar finishedOrCancelled
-              writeTVar finishedOrCancelled True
-              unless already $
-                writeTBQueue tbq $ StreamingFinished Nothing
-        strmbdy iface `E.finally` finished
+    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    forkManaged threadManager label $
+        withOutBodyIface tbq id $ \iface -> do
+          let iface' = iface {
+              outBodyPush = \b -> do
+                  T.pause th
+                  outBodyPush iface b
+                  T.resume th
+            , outBodyPushFinal = \b -> do
+                  T.pause th
+                  outBodyPushFinal iface b
+                  T.resume th
+            }
+          strmbdy iface'
     return tbq
 
 -- | Worker for server applications.
