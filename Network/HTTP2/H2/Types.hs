@@ -1,7 +1,7 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
 module Network.HTTP2.H2.Types where
 
@@ -126,7 +126,7 @@ data ClosedCode
 -- | Used for streams which are cancelled by calling
 -- 'Network.HTTP.Semantics.outBodyCancel'.
 data CancelledStream = CancelledStream
-  deriving (Show, E.Exception)
+    deriving (Show, E.Exception)
 
 closedCodeToError :: StreamId -> ClosedCode -> HTTP2Error
 closedCodeToError sid cc =

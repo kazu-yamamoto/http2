@@ -144,17 +144,18 @@ sendStreaming Context{..} strm th strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManaged threadManager label $
         withOutBodyIface tbq id $ \iface -> do
-          let iface' = iface {
-              outBodyPush = \b -> do
-                  T.pause th
-                  outBodyPush iface b
-                  T.resume th
-            , outBodyPushFinal = \b -> do
-                  T.pause th
-                  outBodyPushFinal iface b
-                  T.resume th
-            }
-          strmbdy iface'
+            let iface' =
+                    iface
+                        { outBodyPush = \b -> do
+                            T.pause th
+                            outBodyPush iface b
+                            T.resume th
+                        , outBodyPushFinal = \b -> do
+                            T.pause th
+                            outBodyPushFinal iface b
+                            T.resume th
+                        }
+            strmbdy iface'
     return tbq
 
 -- | Worker for server applications.

@@ -573,23 +573,15 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     -- is also relevant, but it is less explicit about the /either endpoint/
     -- part.)
     case s of
-        Open _ _ | isNonCritical err ->
-            -- Open /or/ half-closed (local)
-            return (Closed cc)
-        HalfClosedRemote | isNonCritical err ->
-            return (Closed cc)
+        Open _ _
+            | isNonCritical err ->
+                -- Open /or/ half-closed (local)
+                return (Closed cc)
+        HalfClosedRemote
+            | isNonCritical err ->
+                return (Closed cc)
         _otherwise -> do
             E.throwIO $ StreamErrorIsReceived err streamId
-  where
-    -- Although some stream errors indicate misbehaving peers, such as
-    -- FLOW_CONTROL_ERROR, not all errors do. We will close the connection only
-    -- for critical errors.
-    isNonCritical :: ErrorCode -> Bool
-    isNonCritical NoError       = True
-    isNonCritical Cancel        = True
-    isNonCritical InternalError = True
-    isNonCritical _             = False
-
 -- (No state transition)
 stream FramePriority header bs _ s Stream{streamNumber} = do
     -- ignore
@@ -618,6 +610,17 @@ stream x FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         StreamErrorIsSent ProtocolError streamId $
             fromString ("illegal frame " ++ show x ++ " for " ++ show streamId)
+
+{- FOURMOLU_DISABLE -}
+-- Although some stream errors indicate misbehaving peers, such as
+-- FLOW_CONTROL_ERROR, not all errors do. We will close the connection only
+-- for critical errors.
+isNonCritical :: ErrorCode -> Bool
+isNonCritical NoError       = True
+isNonCritical Cancel        = True
+isNonCritical InternalError = True
+isNonCritical _             = False
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
