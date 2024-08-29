@@ -290,12 +290,13 @@ frameSender
                 -- Avoid sending an empty data frame before trailers at the end
                 -- of a stream
                 off' <-
-                  if datPayloadLen /= 0 || isNothing mtrailers then do
-                    decreaseWindowSize ctx strm datPayloadLen
-                    fillFrameHeader FrameData datPayloadLen streamNumber flag buf
-                    return $ off + frameHeaderLength + datPayloadLen
-                  else
-                    return off
+                    if datPayloadLen /= 0 || isNothing mtrailers
+                        then do
+                            decreaseWindowSize ctx strm datPayloadLen
+                            fillFrameHeader FrameData datPayloadLen streamNumber flag buf
+                            return $ off + frameHeaderLength + datPayloadLen
+                        else
+                            return off
                 off'' <- handleTrailers mtrailers off'
                 _ <- sync Nothing
                 halfClosedLocal ctx strm Finished
