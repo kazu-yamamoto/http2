@@ -73,6 +73,8 @@ data Context = Context
     , peerStreamId :: IORef StreamId
     , outputBufferLimit :: IORef Int
     , outputQ :: TQueue Output
+    -- ^ Invariant: Each stream will only ever have at most one 'Output'
+    -- object in this queue at any moment.
     , outputQStreamID :: TVar StreamId
     , controlQ :: TQueue Control
     , encodeDynamicTable :: DynamicTable

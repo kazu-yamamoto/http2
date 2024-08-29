@@ -140,7 +140,7 @@ frameSender
 
         ----------------------------------------------------------------
         outputOrEnqueueAgain :: Output -> Offset -> IO Offset
-        outputOrEnqueueAgain out@(Output strm otyp sync) off = E.handle resetStream $ do
+        outputOrEnqueueAgain out@(Output strm otyp sync) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then return off
@@ -150,6 +150,10 @@ frameSender
                         -- No need to check the streaming window (applies to DATA frames only)
                         outputHeader strm hdr mnext tlrmkr sync off
                     _ -> do
+                        -- The 'sync' function usage constraints hold here: We
+                        -- just popped off the only 'Output' for this stream,
+                        -- and we only enqueue a new output (in 'output') if
+                        -- 'sync' returns 'True'
                         ok <- sync $ Just otyp
                         if ok
                             then do
@@ -158,12 +162,12 @@ frameSender
                                 let lim = min cws sws
                                 output out off lim
                             else return off
-          where
-            resetStream e = do
-                closed ctx strm (ResetByMe e)
-                let rst = resetFrame InternalError $ streamNumber strm
-                enqueueControl controlQ $ CFrames Nothing [rst]
-                return off
+
+        resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
+        resetStream strm err e = do
+            closed ctx strm (ResetByMe e)
+            let rst = resetFrame err $ streamNumber strm
+            enqueueControl controlQ $ CFrames Nothing [rst]
 
         ----------------------------------------------------------------
         outputHeader
@@ -200,17 +204,36 @@ frameSender
             let payloadOff = off0 + frameHeaderLength
                 datBuf = confWriteBuffer `plusPtr` payloadOff
                 datBufSiz = buflim - payloadOff
-            Next datPayloadLen reqflush mnext <- curr datBuf (min datBufSiz lim)
-            NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-            fillDataHeaderEnqueueNext
-                strm
-                off0
-                datPayloadLen
-                mnext
-                tlrmkr'
-                sync
-                out
-                reqflush
+            curr datBuf (min datBufSiz lim) >>= \next ->
+                case next of
+                    Next datPayloadLen reqflush mnext -> do
+                        NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
+                        fillDataHeaderEnqueueNext
+                            strm
+                            off0
+                            datPayloadLen
+                            mnext
+                            tlrmkr'
+                            sync
+                            out
+                            reqflush
+                    CancelNext mErr -> do
+                        -- Stream cancelled
+                        --
+                        -- At this point, the headers have already been sent.
+                        -- Therefore, the stream cannot be in the 'Idle' state, so we
+                        -- are justified in sending @RST_STREAM@.
+                        --
+                        -- By the invariant on the 'outputQ', there are no other
+                        -- outputs for this stream already enqueued. Therefore, we can
+                        -- safely cancel it knowing that we won't try and send any
+                        -- more data frames on this stream.
+                        case mErr of
+                            Just err ->
+                                resetStream strm InternalError err
+                            Nothing ->
+                                resetStream strm Cancel (E.toException CancelledStream)
+                        return off0
         output (Output strm (OPush ths pid) sync) off0 _lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.

@@ -13,7 +13,6 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.TimeManager as T
-import qualified UnliftIO.Exception as E
 import UnliftIO.STM
 
 import Imports hiding (insert)
@@ -79,9 +78,9 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                         ]
                     ot = OPush promiseRequest pid
                     Response rsp = promiseResponse pp
-                (vc, out) <- prepareSync newstrm ot Nothing
+                ((var, sync), out) <- prepareSync newstrm ot Nothing
                 enqueueOutput outputQ out
-                syncWithSender ctx newstrm vc
+                syncWithSender ctx newstrm var sync
                 increment tvar
                 sendHeaderBody conf ctx th newstrm rsp
         push tvar pps (n + 1)
@@ -129,18 +128,10 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
             q <- sendStreaming ctx strm th strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
-    (vc, out) <-
+    ((var, sync), out) <-
         prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
     enqueueOutput outputQ out
-    syncWithSender ctx strm vc
-  where
-    nextForStreaming
-        :: TBQueue StreamingChunk
-        -> DynaNext
-    nextForStreaming tbq =
-        let takeQ = atomically $ tryReadTBQueue tbq
-            next = fillStreamBodyGetNext takeQ
-         in next
+    syncWithSender ctx strm var sync
 
 sendStreaming
     :: Context
@@ -149,24 +140,22 @@ sendStreaming
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm th strmbdy = do
-    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
-    forkManaged threadManager label $ do
-        let iface =
-                OutBodyIface
-                    { outBodyUnmask = id
-                    , outBodyPush = \b -> do
-                        T.pause th
-                        atomically $ writeTBQueue tbq (StreamingBuilder b NotEndOfStream)
-                        T.resume th
-                    , outBodyPushFinal = \b -> do
-                        T.pause th
-                        atomically $ writeTBQueue tbq (StreamingBuilder b (EndOfStream Nothing))
-                        T.resume th
-                    , outBodyFlush = atomically $ writeTBQueue tbq StreamingFlush
-                    }
-            finished = atomically $ writeTBQueue tbq $ StreamingFinished Nothing
-        strmbdy iface `E.finally` finished
+    tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
+    forkManaged threadManager label $
+        withOutBodyIface tbq id $ \iface -> do
+            let iface' =
+                    iface
+                        { outBodyPush = \b -> do
+                            T.pause th
+                            outBodyPush iface b
+                            T.resume th
+                        , outBodyPushFinal = \b -> do
+                            T.pause th
+                            outBodyPushFinal iface b
+                            T.resume th
+                        }
+            strmbdy iface'
     return tbq
 
 -- | Worker for server applications.
