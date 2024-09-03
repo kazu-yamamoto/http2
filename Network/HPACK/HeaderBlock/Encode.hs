@@ -8,6 +8,8 @@ module Network.HPACK.HeaderBlock.Encode (
     encodeS,
 ) where
 
+import Control.Exception (bracket, throwIO)
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.ByteString.Internal (create)
 import Data.IORef
@@ -16,8 +18,6 @@ import Foreign.Marshal.Utils (copyBytes)
 import Foreign.Ptr (minusPtr)
 import Network.ByteOrder
 import Network.HTTP.Semantics
-import UnliftIO.Exception (bracket, throwIO)
-import qualified UnliftIO.Exception as E
 
 import Imports
 import Network.HPACK.HeaderBlock.Integer

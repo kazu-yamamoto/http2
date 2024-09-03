@@ -8,6 +8,9 @@ module Network.HTTP2.H2.Receiver (
     frameReceiver,
 ) where
 
+import Control.Concurrent
+import Control.Concurrent.STM
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Short as Short
@@ -15,9 +18,6 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
 import Network.HTTP.Semantics
-import UnliftIO.Concurrent
-import qualified UnliftIO.Exception as E
-import UnliftIO.STM
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame

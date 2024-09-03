@@ -6,16 +6,15 @@
 
 module Network.HTTP2.H2.Stream where
 
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Exception
 import Control.Monad
-import Control.Monad.STM (throwSTM)
 import Data.IORef
 import Data.Maybe (fromMaybe)
 import Network.Control
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
-import UnliftIO.Concurrent
-import UnliftIO.Exception
-import UnliftIO.STM
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.StreamTable

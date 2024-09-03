@@ -3,11 +3,11 @@
 
 module Network.HTTP2.H2.Window where
 
+import Control.Concurrent.STM
+import qualified Control.Exception as E
 import qualified Data.ByteString as BS
 import Data.IORef
 import Network.Control
-import qualified UnliftIO.Exception as E
-import UnliftIO.STM
 
 import Imports
 import Network.HTTP2.Frame
@@ -27,12 +27,12 @@ getConnectionWindowSize Context{txFlow} =
 waitStreamWindowSize :: Stream -> IO ()
 waitStreamWindowSize Stream{streamTxFlow} = atomically $ do
     w <- txWindowSize <$> readTVar streamTxFlow
-    checkSTM (w > 0)
+    check (w > 0)
 
 waitConnectionWindowSize :: Context -> STM ()
 waitConnectionWindowSize Context{txFlow} = do
     w <- txWindowSize <$> readTVar txFlow
-    checkSTM (w > 0)
+    check (w > 0)
 
 ----------------------------------------------------------------
 -- Receiving window update

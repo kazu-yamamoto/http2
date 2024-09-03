@@ -6,6 +6,7 @@
 module HTTP2.ClientSpec (spec) where
 
 import Control.Concurrent
+import qualified Control.Exception as E
 import Control.Monad
 import Data.ByteString.Builder (byteString)
 import Data.Foldable (for_)
@@ -18,7 +19,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Random
 import System.Timeout (timeout)
 import Test.Hspec
-import qualified UnliftIO.Exception as E
 
 import Network.HTTP2.Client
 import qualified Network.HTTP2.Server as S

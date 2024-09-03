@@ -6,6 +6,7 @@ module Network.HPACK.Huffman.Encode (
     encodeHuffman,
 ) where
 
+import Control.Exception (throwIO)
 import Data.Array.Base (unsafeAt)
 import Data.Array.IArray (listArray)
 import Data.Array.Unboxed (UArray)
@@ -13,7 +14,6 @@ import Data.IORef
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (poke)
 import Network.ByteOrder hiding (copy)
-import UnliftIO.Exception (throwIO)
 
 import Imports
 import Network.HPACK.Huffman.Params (idxEos)

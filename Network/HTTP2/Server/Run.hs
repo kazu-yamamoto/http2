@@ -4,6 +4,7 @@
 
 module Network.HTTP2.Server.Run where
 
+import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM
 import Imports
 import Network.Control (defaultMaxData)
@@ -11,7 +12,6 @@ import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
-import UnliftIO.Async (concurrently_)
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2

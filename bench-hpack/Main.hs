@@ -2,10 +2,10 @@
 
 module Main where
 
+import Control.Exception
 import Criterion.Main
 import Data.ByteString (ByteString)
 import Network.HPACK
-import UnliftIO.Exception
 
 ----------------------------------------------------------------
 

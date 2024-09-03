@@ -6,8 +6,12 @@
 module HTTP2.ServerSpec (spec) where
 
 import Control.Concurrent
+-- cryptonite
+
+import Control.Concurrent.Async
+import qualified Control.Exception as E
 import Control.Monad
-import Crypto.Hash (Context, SHA1) -- cryptonite
+import Crypto.Hash (Context, SHA1)
 import qualified Crypto.Hash as CH
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
@@ -23,8 +27,6 @@ import System.IO
 import System.IO.Unsafe
 import System.Random
 import Test.Hspec
-import UnliftIO.Async
-import qualified UnliftIO.Exception as E
 
 import Network.HPACK
 import Network.HPACK.Internal

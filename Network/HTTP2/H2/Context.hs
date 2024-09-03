@@ -4,13 +4,13 @@
 
 module Network.HTTP2.H2.Context where
 
+import Control.Concurrent.STM
+import Control.Exception
+import qualified Control.Exception as E
 import Data.IORef
 import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.TimeManager as T
-import UnliftIO.Exception
-import qualified UnliftIO.Exception as E
-import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HPACK

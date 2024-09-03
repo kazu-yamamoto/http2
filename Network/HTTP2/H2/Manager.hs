@@ -15,14 +15,14 @@ module Network.HTTP2.H2.Manager (
     waitCounter0,
 ) where
 
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Exception
+import qualified Control.Exception as E
 import Data.Foldable
 import Data.Map (Map)
 import qualified Data.Map.Strict as Map
 import qualified System.TimeManager as T
-import UnliftIO.Concurrent
-import UnliftIO.Exception
-import qualified UnliftIO.Exception as E
-import UnliftIO.STM
 
 import Imports
 
@@ -87,7 +87,7 @@ start timmgr = do
 stopAfter :: Manager -> IO a -> (Maybe SomeException -> IO ()) -> IO a
 stopAfter (Manager q _ _) action cleanup = do
     mask $ \unmask -> do
-        ma <- trySyncOrAsync $ unmask action
+        ma <- try $ unmask action
         signalTimeoutsDisabled <- newEmptyMVar
         atomically $
             writeTQueue q $
@@ -114,13 +114,13 @@ forkManaged mgr label io =
 forkManagedUnmask
     :: Manager -> String -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
 forkManagedUnmask mgr label io =
-    void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handleSyncOrAsync handler $ do
+    void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handle handler $ do
         labelMe label
         addMyId mgr
         incCounter mgr
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
-        io unmask `catchSyncOrAsync` \(_e :: SomeException) -> return ()
+        io unmask `catch` \(_e :: SomeException) -> return ()
         deleteMyId mgr
         decCounter mgr
   where
@@ -205,4 +205,4 @@ decCounter (Manager _ cnt _) = atomically $ modifyTVar' cnt (subtract 1)
 waitCounter0 :: Manager -> IO ()
 waitCounter0 (Manager _ cnt _) = atomically $ do
     n <- readTVar cnt
-    checkSTM (n < 1)
+    check (n < 1)
