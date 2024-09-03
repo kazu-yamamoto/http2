@@ -33,11 +33,11 @@ module Network.HTTP2.H2.StreamTable (
 
 import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Exception
 import Data.IntMap.Strict (IntMap)
 import qualified Data.IntMap.Strict as IntMap
 import Network.Control (LRUCache)
 import qualified Network.Control as LRUCache
-import UnliftIO.Exception
 
 import Imports
 import Network.HTTP2.H2.Types (Stream (..))

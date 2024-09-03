@@ -4,14 +4,14 @@
 
 module Client where
 
+import Control.Concurrent.Async
+import qualified Control.Exception as E
 import Control.Monad
 import qualified Data.ByteString.Char8 as C8
 import Data.UnixTime
 import Foreign.C.Types
 import Network.HTTP.Types
 import Text.Printf
-import UnliftIO.Async
-import qualified UnliftIO.Exception as E
 
 import Network.HTTP2.Client
 

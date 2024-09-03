@@ -4,13 +4,13 @@
 module ServerSpec (spec) where
 
 import Control.Concurrent
+import qualified Control.Exception as E
 import Data.ByteString.Builder (byteString)
 import Network.HTTP.Types
 import Network.Run.TCP
 import System.Exit
 import System.Process.Typed
 import Test.Hspec
-import qualified UnliftIO.Exception as E
 
 import Network.HTTP2.Server
 

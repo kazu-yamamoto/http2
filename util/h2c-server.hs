@@ -5,12 +5,12 @@
 module Main (main) where
 
 import Control.Concurrent
+import qualified Control.Exception as E
 import Network.HTTP2.Server
 import Network.Run.TCP
 import System.Console.GetOpt
 import System.Environment
 import System.Exit
-import qualified UnliftIO.Exception as E
 
 import Monitor
 import Server

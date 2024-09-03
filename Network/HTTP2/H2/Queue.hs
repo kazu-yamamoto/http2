@@ -2,7 +2,7 @@
 
 module Network.HTTP2.H2.Queue where
 
-import UnliftIO.STM
+import Control.Concurrent.STM
 
 import Network.HTTP2.H2.Types
 

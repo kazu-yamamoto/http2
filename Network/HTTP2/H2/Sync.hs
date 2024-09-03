@@ -3,8 +3,8 @@
 module Network.HTTP2.H2.Sync (prepareSync, syncWithSender) where
 
 import Control.Concurrent
+import Control.Concurrent.STM
 import Network.HTTP.Semantics.IO
-import UnliftIO.STM
 
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.Queue
@@ -96,4 +96,4 @@ checkOpen strm mtbq = case mtbq of
 waitStreaming :: TBQueue a -> IO ()
 waitStreaming tbq = atomically $ do
     isEmpty <- isEmptyTBQueue tbq
-    checkSTM (not isEmpty)
+    check (not isEmpty)

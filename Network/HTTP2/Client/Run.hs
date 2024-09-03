@@ -5,7 +5,10 @@
 
 module Network.HTTP2.Client.Run where
 
-import Control.Concurrent.STM (check)
+import Control.Concurrent
+import Control.Concurrent.Async
+import Control.Concurrent.STM
+import Control.Exception
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Data.IP (IPv6)
@@ -15,10 +18,6 @@ import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import Text.Read (readMaybe)
-import UnliftIO.Async
-import UnliftIO.Concurrent
-import UnliftIO.Exception
-import UnliftIO.STM
 
 import Imports
 import Network.HTTP2.Frame

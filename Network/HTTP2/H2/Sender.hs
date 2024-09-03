@@ -7,14 +7,14 @@ module Network.HTTP2.H2.Sender (
     frameSender,
 ) where
 
+import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
-import qualified UnliftIO.Exception as E
-import UnliftIO.STM
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
@@ -104,7 +104,7 @@ frameSender
                     waitConnectionWindowSize ctx
                     isEmptyO <- isEmptyTQueue outputQ
                     if isEmptyO
-                        then if off /= 0 then return Flush else retrySTM
+                        then if off /= 0 then return Flush else retry
                         else O <$> readTQueue outputQ
                 else C <$> readTQueue controlQ
 

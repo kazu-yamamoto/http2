@@ -6,6 +6,7 @@ module Network.HTTP2.Server.Worker (
     worker,
 ) where
 
+import Control.Concurrent.STM
 import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
@@ -13,7 +14,6 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.TimeManager as T
-import UnliftIO.STM
 
 import Imports hiding (insert)
 import Network.HTTP2.Frame
@@ -56,7 +56,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     -- Checking if all push are done.
     waiter lim tvar = atomically $ do
         n <- readTVar tvar
-        checkSTM (n >= lim)
+        check (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         forkManaged threadManager "H2 server push" $ do
