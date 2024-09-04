@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Server.Worker (
-    worker,
+    runWorker,
 ) where
 
 import Control.Concurrent.STM
@@ -18,6 +18,15 @@ import qualified System.TimeManager as T
 import Imports hiding (insert)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
+
+----------------------------------------------------------------
+
+runWorker :: Config -> Server -> Launch
+runWorker conf server ctx strm inpObj =
+    forkManaged (threadManager ctx) label $
+        worker conf server ctx strm inpObj
+  where
+    label = "H2 worker for stream " ++ show (streamNumber strm)
 
 ----------------------------------------------------------------
 
