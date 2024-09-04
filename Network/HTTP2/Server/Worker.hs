@@ -21,12 +21,51 @@ import Network.HTTP2.H2
 
 ----------------------------------------------------------------
 
-makePushStream :: Context -> Stream -> IO (StreamId, Stream)
-makePushStream ctx pstrm = do
-    -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
-    (_, newstrm) <- openEvenStreamWait ctx
-    let pid = streamNumber pstrm
-    return (pid, newstrm)
+-- | Worker for server applications.
+worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
+worker conf server ctx@Context{..} strm req =
+    timeoutKillThread threadManager $ \th -> do
+        -- FIXME: exception
+        T.pause th
+        let req' = pauseRequestBody th
+        T.resume th
+        T.tickle th
+        let aux = Aux th mySockAddr peerSockAddr
+            request = Request req'
+        server request aux $ sendResponse conf ctx th strm request
+        adjustRxWindow ctx strm
+  where
+    pauseRequestBody th = req{inpObjBody = readBody'}
+      where
+        readBody = inpObjBody req
+        readBody' = do
+            T.pause th
+            bs <- readBody
+            T.resume th
+            return bs
+
+----------------------------------------------------------------
+
+-- | This function is passed to workers.
+--   They also pass 'Response's from a server to this function.
+--   This function enqueues commands for the HTTP/2 sender.
+sendResponse
+    :: Config
+    -> Context
+    -> T.Handle
+    -> Stream
+    -> Request
+    -> Response
+    -> [PushPromise]
+    -> IO ()
+sendResponse conf ctx th strm (Request req) (Response rsp) pps = do
+    mwait <- pushStream conf ctx strm reqvt pps
+    case mwait of
+        Nothing -> return ()
+        Just wait -> wait -- all pushes are sent
+    sendHeaderBody conf ctx th strm rsp
+  where
+    (_, reqvt) = inpObjHeaders req
 
 ----------------------------------------------------------------
 
@@ -85,26 +124,16 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                 sendHeaderBody conf ctx th newstrm rsp
         push tvar pps (n + 1)
 
--- | This function is passed to workers.
---   They also pass 'Response's from a server to this function.
---   This function enqueues commands for the HTTP/2 sender.
-sendResponse
-    :: Config
-    -> Context
-    -> T.Handle
-    -> Stream
-    -> Request
-    -> Response
-    -> [PushPromise]
-    -> IO ()
-sendResponse conf ctx th strm (Request req) (Response rsp) pps = do
-    mwait <- pushStream conf ctx strm reqvt pps
-    case mwait of
-        Nothing -> return ()
-        Just wait -> wait -- all pushes are sent
-    sendHeaderBody conf ctx th strm rsp
-  where
-    (_, reqvt) = inpObjHeaders req
+----------------------------------------------------------------
+
+makePushStream :: Context -> Stream -> IO (StreamId, Stream)
+makePushStream ctx pstrm = do
+    -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
+    (_, newstrm) <- openEvenStreamWait ctx
+    let pid = streamNumber pstrm
+    return (pid, newstrm)
+
+----------------------------------------------------------------
 
 sendHeaderBody :: Config -> Context -> T.Handle -> Stream -> OutObj -> IO ()
 sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
@@ -133,6 +162,8 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
     enqueueOutput outputQ out
     syncWithSender ctx strm var sync
 
+----------------------------------------------------------------
+
 sendStreaming
     :: Context
     -> Stream
@@ -157,26 +188,3 @@ sendStreaming Context{..} strm th strmbdy = do
                         }
             strmbdy iface'
     return tbq
-
--- | Worker for server applications.
-worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
-worker conf server ctx@Context{..} strm req =
-    timeoutKillThread threadManager $ \th -> do
-        -- FIXME: exception
-        T.pause th
-        let req' = pauseRequestBody th
-        T.resume th
-        T.tickle th
-        let aux = Aux th mySockAddr peerSockAddr
-            request = Request req'
-        server request aux $ sendResponse conf ctx th strm request
-        adjustRxWindow ctx strm
-  where
-    pauseRequestBody th = req{inpObjBody = readBody'}
-      where
-        readBody = inpObjBody req
-        readBody' = do
-            T.pause th
-            bs <- readBody
-            T.resume th
-            return bs
