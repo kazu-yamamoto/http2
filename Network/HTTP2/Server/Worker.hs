@@ -8,12 +8,12 @@ module Network.HTTP2.Server.Worker (
 
 import Control.Concurrent.STM
 import Data.IORef
+import GHC.Event
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
-import qualified System.TimeManager as T
 
 import Imports hiding (insert)
 import Network.HTTP2.Frame
@@ -33,24 +33,20 @@ runWorker conf server ctx strm inpObj =
 -- | Worker for server applications.
 worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
 worker conf server ctx@Context{..} strm req =
-    timeoutKillThread threadManager $ \th -> do
+    timeoutKillThread threadManager $ \key -> do
         -- FIXME: exception
-        T.pause th
-        let req' = pauseRequestBody th
-        T.resume th
-        T.tickle th
-        let aux = Aux th mySockAddr peerSockAddr
+        let req' = pauseRequestBody key
+            aux = Aux key mySockAddr peerSockAddr
             request = Request req'
-        server request aux $ sendResponse conf ctx th strm request
+        server request aux $ sendResponse conf ctx key strm request
         adjustRxWindow ctx strm
   where
-    pauseRequestBody th = req{inpObjBody = readBody'}
+    pauseRequestBody key = req{inpObjBody = readBody'}
       where
         readBody = inpObjBody req
         readBody' = do
-            T.pause th
             bs <- readBody
-            T.resume th
+            postphone key
             return bs
 
 ----------------------------------------------------------------
@@ -61,18 +57,18 @@ worker conf server ctx@Context{..} strm req =
 sendResponse
     :: Config
     -> Context
-    -> T.Handle
+    -> TimeoutKey
     -> Stream
     -> Request
     -> Response
     -> [PushPromise]
     -> IO ()
-sendResponse conf ctx th strm (Request req) (Response rsp) pps = do
+sendResponse conf ctx key strm (Request req) (Response rsp) pps = do
     mwait <- pushStream conf ctx strm reqvt pps
     case mwait of
         Nothing -> return ()
         Just wait -> wait -- all pushes are sent
-    sendHeaderBody conf ctx th strm rsp
+    sendHeaderBody conf ctx key strm rsp
   where
     (_, reqvt) = inpObjHeaders req
 
@@ -144,16 +140,13 @@ makePushStream ctx pstrm = do
 
 ----------------------------------------------------------------
 
-sendHeaderBody :: Config -> Context -> T.Handle -> Stream -> OutObj -> IO ()
+sendHeaderBody :: Config -> Context -> TimeoutKey -> Stream -> OutObj -> IO ()
 sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
-            (pread, closerOrRefresher) <- confPositionReadMaker path
-            refresh <- case closerOrRefresher of
-                Closer closer -> timeoutClose threadManager closer
-                Refresher refresher -> return refresher
-            let next = fillFileBodyGetNext pread fileoff bytecount refresh
+            (pread, sentinel) <- confPositionReadMaker path
+            let next = fillFileBodyGetNext pread fileoff bytecount sentinel
             return (Just next, Nothing)
         OutBodyBuilder builder -> do
             let next = fillBuilderBodyGetNext builder
@@ -176,10 +169,10 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
 sendStreaming
     :: Context
     -> Stream
-    -> T.Handle
+    -> TimeoutKey
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
-sendStreaming Context{..} strm th strmbdy = do
+sendStreaming Context{..} strm key strmbdy = do
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManaged threadManager label $
@@ -187,13 +180,18 @@ sendStreaming Context{..} strm th strmbdy = do
             let iface' =
                     iface
                         { outBodyPush = \b -> do
-                            T.pause th
                             outBodyPush iface b
-                            T.resume th
+                            postphone key
                         , outBodyPushFinal = \b -> do
-                            T.pause th
                             outBodyPushFinal iface b
-                            T.resume th
+                            postphone key
                         }
             strmbdy iface'
     return tbq
+
+----------------------------------------------------------------
+
+postphone :: TimeoutKey -> IO ()
+postphone key = do
+    timmgr <- getSystemTimerManager
+    updateTimeout timmgr key 30000000

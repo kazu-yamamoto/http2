@@ -199,11 +199,8 @@ sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
-            (pread, closerOrRefresher) <- confPositionReadMaker path
-            refresh <- case closerOrRefresher of
-                Closer closer -> timeoutClose threadManager closer
-                Refresher refresher -> return refresher
-            let next = fillFileBodyGetNext pread fileoff bytecount refresh
+            (pread, sentinel) <- confPositionReadMaker path
+            let next = fillFileBodyGetNext pread fileoff bytecount sentinel
             return (Just next, Nothing)
         OutBodyBuilder builder -> do
             let next = fillBuilderBodyGetNext builder

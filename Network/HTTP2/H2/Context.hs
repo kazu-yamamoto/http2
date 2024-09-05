@@ -102,7 +102,7 @@ newContext
     -> Settings
     -> T.Manager
     -> IO Context
-newContext rinfo Config{..} cacheSiz connRxWS settings timmgr =
+newContext rinfo Config{..} cacheSiz connRxWS settings ~_timmgr =
     -- My: Use this even if ack has not been received yet.
     Context rl rinfo settings
         <$> newIORef False
@@ -130,7 +130,7 @@ newContext rinfo Config{..} cacheSiz connRxWS settings timmgr =
         <*> newRate
         <*> return confMySockAddr
         <*> return confPeerSockAddr
-        <*> start timmgr
+        <*> start
         <*> newTVarIO False
   where
     rl = case rinfo of
