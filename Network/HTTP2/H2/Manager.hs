@@ -116,9 +116,9 @@ instance Exception KilledByHttp2ThreadManager where
     fromException = asyncExceptionFromException
 
 -- | Killing the IO action of the second argument on timeout.
-timeoutKillThread :: Manager -> (TimeoutKey -> IO a) -> IO a
+timeoutKillThread :: Manager -> (IO () -> IO a) -> IO a
 timeoutKillThread (Manager var) action =
-    E.bracket register unregister action
+    E.bracket register unregister $ \key -> action (postphone key)
   where
     register = do
         tid <- myThreadId
@@ -130,3 +130,10 @@ timeoutKillThread (Manager var) action =
     unregister key = do
         timmgr <- getSystemTimerManager
         unregisterTimeout timmgr key
+
+----------------------------------------------------------------
+
+postphone :: TimeoutKey -> IO ()
+postphone key = do
+    timmgr <- getSystemTimerManager
+    updateTimeout timmgr key 30000000

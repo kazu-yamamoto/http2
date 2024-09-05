@@ -8,7 +8,6 @@ module Network.HTTP2.Server.Worker (
 
 import Control.Concurrent.STM
 import Data.IORef
-import GHC.Event
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
@@ -33,20 +32,20 @@ runWorker conf server ctx strm inpObj =
 -- | Worker for server applications.
 worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
 worker conf server ctx@Context{..} strm req =
-    timeoutKillThread threadManager $ \key -> do
+    timeoutKillThread threadManager $ \postphone -> do
         -- FIXME: exception
-        let req' = pauseRequestBody key
-            aux = Aux key mySockAddr peerSockAddr
+        let req' = pauseRequestBody postphone
+            aux = Aux postphone mySockAddr peerSockAddr
             request = Request req'
-        server request aux $ sendResponse conf ctx key strm request
+        server request aux $ sendResponse conf ctx postphone strm request
         adjustRxWindow ctx strm
   where
-    pauseRequestBody key = req{inpObjBody = readBody'}
+    pauseRequestBody postphone = req{inpObjBody = readBody'}
       where
         readBody = inpObjBody req
         readBody' = do
             bs <- readBody
-            postphone key
+            void $ postphone
             return bs
 
 ----------------------------------------------------------------
@@ -57,18 +56,18 @@ worker conf server ctx@Context{..} strm req =
 sendResponse
     :: Config
     -> Context
-    -> TimeoutKey
+    -> IO ()
     -> Stream
     -> Request
     -> Response
     -> [PushPromise]
     -> IO ()
-sendResponse conf ctx key strm (Request req) (Response rsp) pps = do
+sendResponse conf ctx postphone strm (Request req) (Response rsp) pps = do
     mwait <- pushStream conf ctx strm reqvt pps
     case mwait of
         Nothing -> return ()
         Just wait -> wait -- all pushes are sent
-    sendHeaderBody conf ctx key strm rsp
+    sendHeaderBody conf ctx postphone strm rsp
   where
     (_, reqvt) = inpObjHeaders req
 
@@ -104,7 +103,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         forkManaged threadManager "H2 server push" $ do
-            timeoutKillThread threadManager $ \th -> do
+            timeoutKillThread threadManager $ \postphone -> do
                 (pid, newstrm) <- makePushStream ctx pstrm
                 let scheme = fromJust $ getFieldValue tokenScheme reqvt
                     -- fixme: this value can be Nothing
@@ -126,7 +125,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                 enqueueOutput outputQ out
                 syncWithSender ctx newstrm var sync
                 increment tvar
-                sendHeaderBody conf ctx th newstrm rsp
+                sendHeaderBody conf ctx postphone newstrm rsp
         push tvar pps (n + 1)
 
 ----------------------------------------------------------------
@@ -140,8 +139,8 @@ makePushStream ctx pstrm = do
 
 ----------------------------------------------------------------
 
-sendHeaderBody :: Config -> Context -> TimeoutKey -> Stream -> OutObj -> IO ()
-sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
+sendHeaderBody :: Config -> Context -> IO () -> Stream -> OutObj -> IO ()
+sendHeaderBody Config{..} ctx@Context{..} postphone strm OutObj{..} = do
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
@@ -152,11 +151,11 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
             let next = fillBuilderBodyGetNext builder
             return (Just next, Nothing)
         OutBodyStreaming strmbdy -> do
-            q <- sendStreaming ctx strm th $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
+            q <- sendStreaming ctx strm postphone $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
             let next = nextForStreaming q
             return (Just next, Just q)
         OutBodyStreamingIface strmbdy -> do
-            q <- sendStreaming ctx strm th strmbdy
+            q <- sendStreaming ctx strm postphone strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
     ((var, sync), out) <-
@@ -169,10 +168,10 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
 sendStreaming
     :: Context
     -> Stream
-    -> TimeoutKey
+    -> IO ()
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
-sendStreaming Context{..} strm key strmbdy = do
+sendStreaming Context{..} strm postphone strmbdy = do
     let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManaged threadManager label $
@@ -181,17 +180,10 @@ sendStreaming Context{..} strm key strmbdy = do
                     iface
                         { outBodyPush = \b -> do
                             outBodyPush iface b
-                            postphone key
+                            postphone
                         , outBodyPushFinal = \b -> do
                             outBodyPushFinal iface b
-                            postphone key
+                            postphone
                         }
             strmbdy iface'
     return tbq
-
-----------------------------------------------------------------
-
-postphone :: TimeoutKey -> IO ()
-postphone key = do
-    timmgr <- getSystemTimerManager
-    updateTimeout timmgr key 30000000
