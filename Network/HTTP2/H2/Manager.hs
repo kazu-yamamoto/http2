@@ -124,6 +124,7 @@ timeoutKillThread (Manager var) action =
         tid <- myThreadId
         timmgr <- getSystemTimerManager
         key <- registerTimeout timmgr 30000000 $ void $ forkIO $ killThread tid
+        -- overriding ThreadWithoutTimeout
         atomically $ modifyTVar var $ Map.insert tid $ ThreadWithTimeout key
         return key
     unregister key = do
