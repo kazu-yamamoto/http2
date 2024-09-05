@@ -30,6 +30,10 @@ import Imports
 -- | Manager to manage the thread and the timer.
 data Manager = Manager (TVar ManagedThreads)
 
+type ManagedThreads = Map ThreadId TimeoutHandle
+
+----------------------------------------------------------------
+
 data TimeoutHandle
     = ThreadWithTimeout TimeoutKey
     | ThreadWithoutTimeout
@@ -40,7 +44,7 @@ cancelTimeout (ThreadWithTimeout key) = do
     unregisterTimeout timmgr key
 cancelTimeout ThreadWithoutTimeout = return ()
 
-type ManagedThreads = Map ThreadId TimeoutHandle
+----------------------------------------------------------------
 
 -- | Starting a thread manager.
 --   Its action is initially set to 'return ()' and should be set
@@ -85,34 +89,17 @@ forkManaged mgr label io =
 -- | Like 'forkManaged', but run action with exceptions masked
 forkManagedUnmask
     :: Manager -> String -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
-forkManagedUnmask mgr label io =
+forkManagedUnmask (Manager var) label io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handle handler $ do
         labelMe label
-        addMyId mgr
+        tid <- myThreadId
+        atomically $ modifyTVar var $ Map.insert tid ThreadWithoutTimeout
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
         io unmask `catch` \(_e :: SomeException) -> return ()
-        deleteMyId mgr
+        atomically $ modifyTVar var $ Map.delete tid
   where
     handler (E.SomeException _) = return ()
-
--- | Adding my thread id to the kill-thread list on stopping.
---
--- This is not part of the public API; see 'forkManaged' instead.
-addMyId :: Manager -> IO ()
-addMyId (Manager var) = do
-    tid <- myThreadId
-    atomically $ modifyTVar var $ Map.insert tid ThreadWithoutTimeout
-
--- | Deleting my thread id from the kill-thread list on stopping.
---
--- This is /only/ necessary when you want to remove the thread's ID from
--- the manager /before/ the thread terminates (thereby assuming responsibility
--- for thread cleanup yourself).
-deleteMyId :: Manager -> IO ()
-deleteMyId (Manager var) = do
-    tid <- myThreadId
-    atomically $ modifyTVar var $ Map.delete tid
 
 waitCounter0 :: Manager -> IO ()
 waitCounter0 (Manager var) = atomically $ do
@@ -120,6 +107,13 @@ waitCounter0 (Manager var) = atomically $ do
     check (Map.size m == 0)
 
 ----------------------------------------------------------------
+
+data KilledByHttp2ThreadManager = KilledByHttp2ThreadManager (Maybe SomeException)
+    deriving (Show)
+
+instance Exception KilledByHttp2ThreadManager where
+    toException = asyncExceptionToException
+    fromException = asyncExceptionFromException
 
 -- | Killing the IO action of the second argument on timeout.
 timeoutKillThread :: Manager -> (TimeoutKey -> IO a) -> IO a
@@ -135,10 +129,3 @@ timeoutKillThread (Manager var) action =
     unregister key = do
         timmgr <- getSystemTimerManager
         unregisterTimeout timmgr key
-
-data KilledByHttp2ThreadManager = KilledByHttp2ThreadManager (Maybe SomeException)
-    deriving (Show)
-
-instance Exception KilledByHttp2ThreadManager where
-    toException = asyncExceptionToException
-    fromException = asyncExceptionFromException
