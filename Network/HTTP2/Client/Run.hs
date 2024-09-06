@@ -214,14 +214,20 @@ sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
             q <- sendStreaming ctx newstrm strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
-    ((var, sync), out) <-
-        prepareSync newstrm (OHeader outObjHeaders mnext outObjTrailers) mtbq
     atomically $ do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
-        enqueueOutputSTM outputQ out
         writeTVar outputQStreamID (sid + 2)
-    forkManaged threadManager "H2 worker" $ syncWithSender ctx newstrm var sync
+        -- fixme: shold enqueue here
+    tovar <- newTVarIO False
+    let ot = (OHeader outObjHeaders mnext outObjTrailers)
+        lc = LoopCheck {
+            lcTBQ = mtbq
+           , lcTimeout = tovar
+           , lcWindow = streamTxFlow newstrm
+           }
+    forkManaged threadManager "H2 worker" $
+        syncWithSender ctx newstrm ot lc
 
 sendStreaming
     :: Context

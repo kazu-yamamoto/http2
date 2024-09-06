@@ -18,17 +18,26 @@ import Imports hiding (insert)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
 
+duration :: Int
+duration = 30000000
+
 ----------------------------------------------------------------
 
 runWorker :: Config -> Server -> Launch
 runWorker conf server ctx@Context{..} strm req =
     forkManaged threadManager label $
-        timeoutKillThread threadManager $ \postphone -> do
+        withTimeout threadManager duration $ \(tovar, postphone) -> do
             -- FIXME: exception
             let req' = pauseRequestBody postphone
                 aux = Aux postphone mySockAddr peerSockAddr
                 request = Request req'
-            server request aux $ sendResponse conf ctx postphone strm request
+                lc =
+                    LoopCheck
+                        { lcTBQ = Nothing
+                        , lcTimeout = tovar
+                        , lcWindow = streamTxFlow strm
+                        }
+            server request aux $ sendResponse conf ctx lc postphone strm request
             adjustRxWindow ctx strm
   where
     label = "H2 worker for stream " ++ show (streamNumber strm)
@@ -48,18 +57,19 @@ runWorker conf server ctx@Context{..} strm req =
 sendResponse
     :: Config
     -> Context
+    -> LoopCheck
     -> IO ()
     -> Stream
     -> Request
     -> Response
     -> [PushPromise]
     -> IO ()
-sendResponse conf ctx postphone strm (Request req) (Response rsp) pps = do
+sendResponse conf ctx lc postphone strm (Request req) (Response rsp) pps = do
     mwait <- pushStream conf ctx strm reqvt pps
     case mwait of
         Nothing -> return ()
         Just wait -> wait -- all pushes are sent
-    sendHeaderBody conf ctx postphone strm rsp
+    sendHeaderBody conf ctx lc postphone strm rsp
   where
     (_, reqvt) = inpObjHeaders req
 
@@ -95,7 +105,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         forkManaged threadManager "H2 server push" $ do
-            timeoutKillThread threadManager $ \postphone -> do
+            withTimeout threadManager duration $ \(tovar, postphone) -> do
                 (pid, newstrm) <- makePushStream ctx pstrm
                 let scheme = fromJust $ getFieldValue tokenScheme reqvt
                     -- fixme: this value can be Nothing
@@ -113,11 +123,15 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                         ]
                     ot = OPush promiseRequest pid
                     Response rsp = promiseResponse pp
-                ((var, sync), out) <- prepareSync newstrm ot Nothing
-                enqueueOutput outputQ out
-                syncWithSender ctx newstrm var sync
                 increment tvar
-                sendHeaderBody conf ctx postphone newstrm rsp
+                let lc =
+                        LoopCheck
+                            { lcTBQ = Nothing
+                            , lcTimeout = tovar
+                            , lcWindow = streamTxFlow newstrm
+                            }
+                syncWithSender ctx newstrm ot lc
+                sendHeaderBody conf ctx lc postphone newstrm rsp
         push tvar pps (n + 1)
 
 ----------------------------------------------------------------
@@ -131,8 +145,15 @@ makePushStream ctx pstrm = do
 
 ----------------------------------------------------------------
 
-sendHeaderBody :: Config -> Context -> IO () -> Stream -> OutObj -> IO ()
-sendHeaderBody Config{..} ctx@Context{..} postphone strm OutObj{..} = do
+sendHeaderBody
+    :: Config
+    -> Context
+    -> LoopCheck
+    -> IO ()
+    -> Stream
+    -> OutObj
+    -> IO ()
+sendHeaderBody Config{..} ctx lc postphone strm OutObj{..} = do
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
@@ -150,10 +171,8 @@ sendHeaderBody Config{..} ctx@Context{..} postphone strm OutObj{..} = do
             q <- sendStreaming ctx strm postphone strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
-    ((var, sync), out) <-
-        prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
-    enqueueOutput outputQ out
-    syncWithSender ctx strm var sync
+    let lc' = lc{lcTBQ = mtbq}
+    syncWithSender ctx strm (OHeader outObjHeaders mnext outObjTrailers) lc'
 
 ----------------------------------------------------------------
 

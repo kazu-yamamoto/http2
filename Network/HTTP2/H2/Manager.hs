@@ -9,7 +9,7 @@ module Network.HTTP2.H2.Manager (
     stopAfter,
     forkManaged,
     forkManagedUnmask,
-    timeoutKillThread,
+    withTimeout,
     KilledByHttp2ThreadManager (..),
     waitCounter0,
 ) where
@@ -52,6 +52,15 @@ cancelTimeout ThreadWithoutTimeout = return ()
 --   the manager itself.
 start :: IO Manager
 start = Manager <$> newTVarIO Map.empty
+
+----------------------------------------------------------------
+
+data KilledByHttp2ThreadManager = KilledByHttp2ThreadManager (Maybe SomeException)
+    deriving (Show)
+
+instance Exception KilledByHttp2ThreadManager where
+    toException = asyncExceptionToException
+    fromException = asyncExceptionFromException
 
 -- | Stopping the manager.
 --
@@ -108,32 +117,23 @@ waitCounter0 (Manager var) = atomically $ do
 
 ----------------------------------------------------------------
 
-data KilledByHttp2ThreadManager = KilledByHttp2ThreadManager (Maybe SomeException)
-    deriving (Show)
-
-instance Exception KilledByHttp2ThreadManager where
-    toException = asyncExceptionToException
-    fromException = asyncExceptionFromException
-
--- | Killing the IO action of the second argument on timeout.
-timeoutKillThread :: Manager -> (IO () -> IO a) -> IO a
-timeoutKillThread (Manager var) action =
-    E.bracket register unregister $ \key -> action (postphone key)
+withTimeout :: Manager -> Int -> ((TVar Bool, IO ()) -> IO a) -> IO a
+withTimeout (Manager var) usec action = do
+    toutvar <- newTVarIO False
+    E.bracket (register toutvar) unregister $ \key ->
+        action (toutvar, postphone key)
   where
-    register = do
+    register toutvar = do
         tid <- myThreadId
         timmgr <- getSystemTimerManager
-        key <- registerTimeout timmgr 30000000 $ void $ forkIO $ killThread tid
+        key <-
+            registerTimeout timmgr usec $ atomically $ writeTVar toutvar True
         -- overriding ThreadWithoutTimeout
         atomically $ modifyTVar var $ Map.insert tid $ ThreadWithTimeout key
         return key
     unregister key = do
         timmgr <- getSystemTimerManager
         unregisterTimeout timmgr key
-
-----------------------------------------------------------------
-
-postphone :: TimeoutKey -> IO ()
-postphone key = do
-    timmgr <- getSystemTimerManager
-    updateTimeout timmgr key 30000000
+    postphone key = do
+        timmgr <- getSystemTimerManager
+        updateTimeout timmgr key usec
