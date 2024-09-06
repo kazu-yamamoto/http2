@@ -21,25 +21,17 @@ import Network.HTTP2.H2
 ----------------------------------------------------------------
 
 runWorker :: Config -> Server -> Launch
-runWorker conf server ctx strm inpObj =
-    forkManaged (threadManager ctx) label $
-        worker conf server ctx strm inpObj
+runWorker conf server ctx@Context{..} strm req =
+    forkManaged threadManager label $
+        timeoutKillThread threadManager $ \postphone -> do
+            -- FIXME: exception
+            let req' = pauseRequestBody postphone
+                aux = Aux postphone mySockAddr peerSockAddr
+                request = Request req'
+            server request aux $ sendResponse conf ctx postphone strm request
+            adjustRxWindow ctx strm
   where
     label = "H2 worker for stream " ++ show (streamNumber strm)
-
-----------------------------------------------------------------
-
--- | Worker for server applications.
-worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
-worker conf server ctx@Context{..} strm req =
-    timeoutKillThread threadManager $ \postphone -> do
-        -- FIXME: exception
-        let req' = pauseRequestBody postphone
-            aux = Aux postphone mySockAddr peerSockAddr
-            request = Request req'
-        server request aux $ sendResponse conf ctx postphone strm request
-        adjustRxWindow ctx strm
-  where
     pauseRequestBody postphone = req{inpObjBody = readBody'}
       where
         readBody = inpObjBody req
