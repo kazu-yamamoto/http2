@@ -7,7 +7,6 @@ module Network.HTTP2.H2.Sender (
     frameSender,
 ) where
 
-import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Data.IORef (modifyIORef', readIORef, writeIORef)
@@ -141,16 +140,16 @@ frameSender
 
         ----------------------------------------------------------------
         outputAndSync :: Output -> Offset -> IO Offset
-        outputAndSync out@(Output strm otyp var) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
+        outputAndSync out@(Output strm otyp sync) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then return off
                 else case otyp of
                     OHeader hdr mnext tlrmkr -> do
-                        (off', mout') <- outputHeader strm hdr mnext tlrmkr var off
+                        (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
                         case mout' of
-                          Nothing -> putMVar var Done
-                          Just out' -> putMVar var $ Cont out'
+                          Nothing -> sync Done
+                          Just out' -> sync $ Cont out'
                         return off'
                     _ -> do
                         sws <- getStreamWindowSize strm
@@ -158,8 +157,8 @@ frameSender
                         let lim = min cws sws
                         (off', mout') <- output out off lim
                         case mout' of
-                          Nothing -> putMVar var Done
-                          Just out' -> putMVar var $ Cont out'
+                          Nothing -> sync Done
+                          Just out' -> sync $ Cont out'
                         return off'
 
         resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
@@ -174,10 +173,10 @@ frameSender
             -> [Header]
             -> Maybe DynaNext
             -> TrailersMaker
-            -> MVar Sync
+            -> (Sync -> IO ())
             -> Offset
             -> IO (Offset, Maybe Output)
-        outputHeader strm hdr mnext tlrmkr var off0 = do
+        outputHeader strm hdr mnext tlrmkr sync off0 = do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = isNothing mnext
@@ -192,7 +191,7 @@ frameSender
                     halfClosedLocal ctx strm Finished
                     return (off, Nothing)
                 Just next -> do
-                    let out' = Output strm (ONext next tlrmkr) var
+                    let out' = Output strm (ONext next tlrmkr) sync
                     return (off, Just out')
 
         ----------------------------------------------------------------

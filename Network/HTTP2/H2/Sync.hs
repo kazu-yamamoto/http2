@@ -23,7 +23,11 @@ syncWithSender
     -> IO ()
 syncWithSender Context{..} strm otyp lc = do
     var <- newEmptyMVar
-    let out = Output strm otyp var
+    let out = Output {
+            outputStream = strm
+          , outputType = otyp
+          , outputSync = putMVar var
+          }
     enqueueOutput outputQ out
     loop var
   where

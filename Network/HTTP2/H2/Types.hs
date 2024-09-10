@@ -179,7 +179,7 @@ instance Show Stream where
 data Output = Output
     { outputStream :: Stream
     , outputType :: OutputType
-    , outputSync :: MVar Sync
+    , outputSync :: Sync -> IO ()
     }
 
 data OutputType
