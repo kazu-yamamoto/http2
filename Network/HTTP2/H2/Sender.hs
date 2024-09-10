@@ -152,8 +152,8 @@ frameSender
                     OHeader hdr mnext tlrmkr -> do
                         (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
                         case mout' of
-                          Nothing -> sync Done
-                          Just out' -> sync $ Cont out'
+                            Nothing -> sync Done
+                            Just out' -> sync $ Cont out'
                         return off'
                     _ -> do
                         sws <- getStreamWindowSize strm
@@ -161,8 +161,8 @@ frameSender
                         let lim = min cws sws
                         (off', mout') <- output out off lim
                         case mout' of
-                          Nothing -> sync Done
-                          Just out' -> sync $ Cont out'
+                            Nothing -> sync Done
+                            Just out' -> sync $ Cont out'
                         return off'
 
         resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
