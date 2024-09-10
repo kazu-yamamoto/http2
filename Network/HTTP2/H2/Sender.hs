@@ -139,6 +139,10 @@ frameSender
                         Just siz -> setLimitForEncoding siz encodeDynamicTable
 
         ----------------------------------------------------------------
+        -- INVARIANT
+        --
+        -- Both the stream window and the connection window are open.
+        ----------------------------------------------------------------
         outputAndSync :: Output -> Offset -> IO Offset
         outputAndSync out@(Output strm otyp sync) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
             state <- readStreamState strm
