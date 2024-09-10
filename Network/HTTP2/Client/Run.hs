@@ -218,14 +218,15 @@ sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
-        -- fixme: shold enqueue here
+    -- fixme: shold enqueue here
     tovar <- newTVarIO False
     let ot = (OHeader outObjHeaders mnext outObjTrailers)
-        lc = LoopCheck {
-            lcTBQ = mtbq
-           , lcTimeout = tovar
-           , lcWindow = streamTxFlow newstrm
-           }
+        lc =
+            LoopCheck
+                { lcTBQ = mtbq
+                , lcTimeout = tovar
+                , lcWindow = streamTxFlow newstrm
+                }
     forkManaged threadManager "H2 worker" $
         syncWithSender ctx newstrm ot lc
 

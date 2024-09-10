@@ -85,11 +85,12 @@ runIO sconf conf@Config{..} action = do
                         var <- newEmptyMVar
                         let next = fillBuilderBodyGetNext builder
                             out = OHeader outObjHeaders (Just next) outObjTrailers
-                        enqueueOutput outputQ $ Output {
-                            outputStream = strm
-                          , outputType = out
-                          , outputSync = putMVar var
-                          }
+                        enqueueOutput outputQ $
+                            Output
+                                { outputStream = strm
+                                , outputType = out
+                                , outputSync = putMVar var
+                                }
                     _ -> error "Response other than OutBodyBuilder is not supported"
             serverIO =
                 ServerIO
