@@ -17,6 +17,8 @@ import qualified Data.Array as A
 import Data.Array.Base (unsafeAt)
 import Data.Function (on)
 import Data.IORef
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NE
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Network.HTTP.Semantics
@@ -64,15 +66,15 @@ staticRevIndex = A.array (minTokenIx, maxStaticTokenIx) $ map toEnt zs
     toEnt (k, xs) = (tokenIx $ toToken $ foldedCase k, m)
       where
         m = case xs of
-            [] -> error "staticRevIndex"
-            [("", i)] -> StaticEntry i Nothing
-            (_, i) : _ ->
-                let vs = M.fromList xs
+            ("", i) :| [] -> StaticEntry i Nothing
+            (_, i) :| _ ->
+                let vs = M.fromList $ NE.toList xs
                  in StaticEntry i (Just vs)
-    zs = map extract $ groupBy ((==) `on` fst) lst
+    zs = map extract $ NE.groupBy ((==) `on` fst) lst
       where
         lst = zipWith (\(k, v) i -> (k, (v, i))) staticTableList $ map SIndex [1 ..]
-        extract xs = (fst (head xs), map snd xs)
+
+        extract xs = (fst (NE.head xs), NE.map snd xs)
 
 {-# INLINE lookupStaticRevIndex #-}
 lookupStaticRevIndex
