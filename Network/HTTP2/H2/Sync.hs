@@ -3,6 +3,8 @@
 module Network.HTTP2.H2.Sync (
     LoopCheck (..),
     syncWithSender,
+    syncWithSender',
+    makeOutput,
 ) where
 
 import Control.Concurrent
@@ -21,7 +23,13 @@ syncWithSender
     -> OutputType
     -> LoopCheck
     -> IO ()
-syncWithSender Context{..} strm otyp lc = do
+syncWithSender ctx@Context{..} strm otyp lc = do
+    (var, out) <- makeOutput strm otyp
+    enqueueOutput outputQ out
+    syncWithSender' ctx var lc
+
+makeOutput :: Stream -> OutputType -> IO (MVar Sync, Output)
+makeOutput strm otyp = do
     var <- newEmptyMVar
     let out =
             Output
@@ -29,10 +37,12 @@ syncWithSender Context{..} strm otyp lc = do
                 , outputType = otyp
                 , outputSync = putMVar var
                 }
-    enqueueOutput outputQ out
-    loop var
+    return (var, out)
+
+syncWithSender' :: Context -> MVar Sync -> LoopCheck -> IO ()
+syncWithSender' Context{..} var lc = loop
   where
-    loop var = do
+    loop = do
         s <- takeMVar var
         case s of
             Done -> return ()
@@ -41,7 +51,7 @@ syncWithSender Context{..} strm otyp lc = do
                 when cont $ do
                     -- This is justified by the precondition above
                     enqueueOutput outputQ newout
-                    loop var
+                    loop
 
 data LoopCheck = LoopCheck
     { lcTBQ :: Maybe (TBQueue StreamingChunk)
