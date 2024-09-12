@@ -142,7 +142,7 @@ setup ClientConfig{..} conf@Config{..} = do
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
-    stopAfter mgr (clientResult <$> race runBackgroundThreads runClient) $ \res ->
+    stopAfter mgr runAll $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx
@@ -152,9 +152,19 @@ runH2 conf ctx runClient = do
         labelMe "H2 runBackgroundThreads"
         concurrently_ runReceiver runSender
 
-    clientResult :: Either () a -> a
-    clientResult (Left ()) = undefined -- unreachable
-    clientResult (Right a) = a
+    -- Run the background threads and client concurrently. If the client
+    -- finishes first, cancel the background threads. If the background
+    -- threads finish first, wait for the client.
+    runAll = do
+      withAsync runBackgroundThreads $ \runningBackgroundThreads ->
+        withAsync runClient $ \runningClient -> do
+          result <- waitEither runningBackgroundThreads runningClient
+          case result of
+            Right clientResult -> do
+              cancel runningBackgroundThreads
+              return clientResult
+            Left () -> do
+              wait runningClient
 
 sendRequest
     :: Config
