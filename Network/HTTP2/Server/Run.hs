@@ -48,7 +48,7 @@ run :: ServerConfig -> Config -> Server -> IO ()
 run sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
-        let lnch = runWorker conf server
+        let lnch = runServer conf server
         ctx <- setup sconf conf lnch
         runH2 conf ctx
 

@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Server.Worker (
-    runWorker,
+    runServer,
 ) where
 
 import Control.Concurrent.STM
@@ -23,8 +23,8 @@ duration = 30000000
 
 ----------------------------------------------------------------
 
-runWorker :: Config -> Server -> Launch
-runWorker conf server ctx@Context{..} strm req =
+runServer :: Config -> Server -> Launch
+runServer conf server ctx@Context{..} strm req =
     forkManaged threadManager label $
         withTimeout threadManager duration $ \(tovar, postphone) -> do
             -- FIXME: exception
@@ -40,13 +40,13 @@ runWorker conf server ctx@Context{..} strm req =
             server request aux $ sendResponse conf ctx lc postphone strm request
             adjustRxWindow ctx strm
   where
-    label = "H2 worker for stream " ++ show (streamNumber strm)
+    label = "H2 response sender for stream " ++ show (streamNumber strm)
     pauseRequestBody postphone = req{inpObjBody = readBody'}
       where
         readBody = inpObjBody req
         readBody' = do
             bs <- readBody
-            void $ postphone
+            void postphone
             return bs
 
 ----------------------------------------------------------------
@@ -64,14 +64,16 @@ sendResponse
     -> Response
     -> [PushPromise]
     -> IO ()
-sendResponse conf ctx lc postphone strm (Request req) (Response rsp) pps = do
-    mwait <- pushStream conf ctx strm reqvt pps
-    case mwait of
-        Nothing -> return ()
-        Just wait -> wait -- all pushes are sent
-    sendHeaderBody conf ctx lc postphone strm rsp
+sendResponse conf ctx lc postphone strm (Request req) (Response rsp) pps =
+    forkManaged (threadManager ctx) label $ do
+        mwait <- pushStream conf ctx strm reqvt pps
+        case mwait of
+            Nothing -> return ()
+            Just wait -> wait -- all pushes are sent
+        sendHeaderBody conf ctx lc postphone strm rsp
   where
     (_, reqvt) = inpObjHeaders req
+    label = "H2 worker for stream " ++ show (streamNumber strm)
 
 ----------------------------------------------------------------
 
@@ -183,7 +185,6 @@ sendStreaming
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm postphone strmbdy = do
-    let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManaged threadManager label $
         withOutBodyIface tbq id $ \iface -> do
@@ -198,3 +199,5 @@ sendStreaming Context{..} strm postphone strmbdy = do
                         }
             strmbdy iface'
     return tbq
+  where
+    label = "H2 response streaming sender for " ++ show (streamNumber strm)
