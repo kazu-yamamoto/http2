@@ -10,7 +10,6 @@ import qualified Control.Exception as E
 import Data.IORef
 import Network.Control
 import Network.Socket (SockAddr)
-import qualified System.TimeManager as T
 
 import Imports hiding (insert)
 import Network.HPACK
@@ -100,9 +99,8 @@ newContext
     -> Int
     -> Int
     -> Settings
-    -> T.Manager
     -> IO Context
-newContext rinfo Config{..} cacheSiz connRxWS settings ~_timmgr =
+newContext rinfo Config{..} cacheSiz connRxWS settings =
     -- My: Use this even if ack has not been received yet.
     Context rl rinfo settings
         <$> newIORef False

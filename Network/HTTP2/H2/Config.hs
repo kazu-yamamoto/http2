@@ -5,7 +5,6 @@ import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
-import qualified System.TimeManager as T
 
 import Network.HPACK
 import Network.HTTP2.H2.Types
@@ -16,7 +15,6 @@ allocSimpleConfig :: Socket -> BufferSize -> IO Config
 allocSimpleConfig s bufsiz = do
     buf <- mallocBytes bufsiz
     ref <- newIORef Nothing
-    timmgr <- T.initialize $ 30 * 1000000
     mysa <- getSocketName s
     peersa <- getPeerName s
     let config =
@@ -26,7 +24,7 @@ allocSimpleConfig s bufsiz = do
                 , confSendAll = sendAll s
                 , confReadN = defaultReadN s ref
                 , confPositionReadMaker = defaultPositionReadMaker
-                , confTimeoutManager = timmgr
+                , confTimeout = 30000000
                 , confMySockAddr = mysa
                 , confPeerSockAddr = peersa
                 }
@@ -34,6 +32,4 @@ allocSimpleConfig s bufsiz = do
 
 -- | Deallocating the resource of the simple configuration.
 freeSimpleConfig :: Config -> IO ()
-freeSimpleConfig conf = do
-    free $ confWriteBuffer conf
-    T.killManager $ confTimeoutManager conf
+freeSimpleConfig conf = free $ confWriteBuffer conf

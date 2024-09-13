@@ -16,7 +16,6 @@ import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
 import Network.Socket hiding (Stream)
 import System.IO.Unsafe
-import qualified System.TimeManager as T
 
 import Imports
 import Network.HPACK
@@ -264,9 +263,9 @@ data Config = Config
     , confSendAll :: ByteString -> IO ()
     , confReadN :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
-    , confTimeoutManager :: T.Manager
     , confMySockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confPeerSockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
+    , confTimeout :: Int
     }

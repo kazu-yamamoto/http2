@@ -132,7 +132,7 @@ getResponse strm = do
         Right rsp -> return $ Response rsp
 
 setup :: ClientConfig -> Config -> IO Context
-setup ClientConfig{..} conf@Config{..} = do
+setup ClientConfig{..} conf = do
     let clientInfo = newClientInfo scheme authority
     ctx <-
         newContext
@@ -141,7 +141,6 @@ setup ClientConfig{..} conf@Config{..} = do
             cacheLimit
             connectionWindowSize
             settings
-            confTimeoutManager
     exchangeSettings ctx
     return ctx
 

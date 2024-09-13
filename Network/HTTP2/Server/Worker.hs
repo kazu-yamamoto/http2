@@ -18,18 +18,15 @@ import Imports hiding (insert)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
 
-duration :: Int
-duration = 30000000
-
 ----------------------------------------------------------------
 
 runServer :: Config -> Server -> Launch
-runServer conf server ctx@Context{..} strm req =
+runServer conf@Config{..} server ctx@Context{..} strm req =
     forkManaged threadManager label $
-        withTimeout threadManager duration $ \(tovar, postphone) -> do
+        withTimeout threadManager confTimeout $ \(tovar, delayTimeout) -> do
             -- FIXME: exception
-            let req' = pauseRequestBody postphone
-                aux = Aux postphone mySockAddr peerSockAddr
+            let req' = pauseRequestBody delayTimeout
+                aux = Aux delayTimeout mySockAddr peerSockAddr
                 request = Request req'
                 lc =
                     LoopCheck
@@ -37,16 +34,16 @@ runServer conf server ctx@Context{..} strm req =
                         , lcTimeout = tovar
                         , lcWindow = streamTxFlow strm
                         }
-            server request aux $ sendResponse conf ctx lc postphone strm request
+            server request aux $ sendResponse conf ctx lc delayTimeout strm request
             adjustRxWindow ctx strm
   where
     label = "H2 response sender for stream " ++ show (streamNumber strm)
-    pauseRequestBody postphone = req{inpObjBody = readBody'}
+    pauseRequestBody delayTimeout = req{inpObjBody = readBody'}
       where
         readBody = inpObjBody req
         readBody' = do
             bs <- readBody
-            void postphone
+            void delayTimeout
             return bs
 
 ----------------------------------------------------------------
@@ -64,13 +61,13 @@ sendResponse
     -> Response
     -> [PushPromise]
     -> IO ()
-sendResponse conf ctx lc postphone strm (Request req) (Response rsp) pps =
+sendResponse conf ctx lc delayTimeout strm (Request req) (Response rsp) pps =
     forkManaged (threadManager ctx) label $ do
         mwait <- pushStream conf ctx strm reqvt pps
         case mwait of
             Nothing -> return ()
             Just wait -> wait -- all pushes are sent
-        sendHeaderBody conf ctx lc postphone strm rsp
+        sendHeaderBody conf ctx lc delayTimeout strm rsp
   where
     (_, reqvt) = inpObjHeaders req
     label = "H2 worker for stream " ++ show (streamNumber strm)
@@ -85,7 +82,7 @@ pushStream
     -> [PushPromise]
     -> IO (Maybe (IO ()))
 pushStream _ _ _ _ [] = return Nothing
-pushStream conf ctx@Context{..} pstrm reqvt pps0
+pushStream conf@Config{..} ctx@Context{..} pstrm reqvt pps0
     | len == 0 = return Nothing
     | otherwise = do
         pushable <- enablePush <$> readIORef peerSettings
@@ -107,7 +104,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         forkManaged threadManager "H2 server push" $ do
-            withTimeout threadManager duration $ \(tovar, postphone) -> do
+            withTimeout threadManager confTimeout $ \(tovar, delayTimeout) -> do
                 (pid, newstrm) <- makePushStream ctx pstrm
                 let scheme = fromJust $ getFieldValue tokenScheme reqvt
                     -- fixme: this value can be Nothing
@@ -133,7 +130,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                             , lcWindow = streamTxFlow newstrm
                             }
                 syncWithSender ctx newstrm ot lc
-                sendHeaderBody conf ctx lc postphone newstrm rsp
+                sendHeaderBody conf ctx lc delayTimeout newstrm rsp
         push tvar pps (n + 1)
 
 ----------------------------------------------------------------
@@ -155,7 +152,7 @@ sendHeaderBody
     -> Stream
     -> OutObj
     -> IO ()
-sendHeaderBody Config{..} ctx lc postphone strm OutObj{..} = do
+sendHeaderBody Config{..} ctx lc delayTimeout strm OutObj{..} = do
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
@@ -166,11 +163,11 @@ sendHeaderBody Config{..} ctx lc postphone strm OutObj{..} = do
             let next = fillBuilderBodyGetNext builder
             return (Just next, Nothing)
         OutBodyStreaming strmbdy -> do
-            q <- sendStreaming ctx strm postphone $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
+            q <- sendStreaming ctx strm delayTimeout $ \OutBodyIface{..} -> strmbdy outBodyPush outBodyFlush
             let next = nextForStreaming q
             return (Just next, Just q)
         OutBodyStreamingIface strmbdy -> do
-            q <- sendStreaming ctx strm postphone strmbdy
+            q <- sendStreaming ctx strm delayTimeout strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
     let lc' = lc{lcTBQ = mtbq}
@@ -184,7 +181,7 @@ sendStreaming
     -> IO ()
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
-sendStreaming Context{..} strm postphone strmbdy = do
+sendStreaming Context{..} strm delayTimeout strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManaged threadManager label $
         withOutBodyIface tbq id $ \iface -> do
@@ -192,10 +189,10 @@ sendStreaming Context{..} strm postphone strmbdy = do
                     iface
                         { outBodyPush = \b -> do
                             outBodyPush iface b
-                            postphone
+                            delayTimeout
                         , outBodyPushFinal = \b -> do
                             outBodyPushFinal iface b
-                            postphone
+                            delayTimeout
                         }
             strmbdy iface'
     return tbq

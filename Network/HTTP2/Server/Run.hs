@@ -112,7 +112,7 @@ checkPreface conf@Config{..} = do
         else return True
 
 setup :: ServerConfig -> Config -> Launch -> IO Context
-setup ServerConfig{..} conf@Config{..} lnch = do
+setup ServerConfig{..} conf lnch = do
     let serverInfo = newServerInfo lnch
     newContext
         serverInfo
@@ -120,7 +120,6 @@ setup ServerConfig{..} conf@Config{..} lnch = do
         0
         connectionWindowSize
         settings
-        confTimeoutManager
 
 runH2 :: Config -> Context -> IO ()
 runH2 conf ctx = do
