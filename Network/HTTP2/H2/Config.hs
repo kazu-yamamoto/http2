@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module Network.HTTP2.H2.Config where
 
 import Data.IORef
@@ -24,7 +26,7 @@ allocSimpleConfig s bufsiz = do
                 , confSendAll = sendAll s
                 , confReadN = defaultReadN s ref
                 , confPositionReadMaker = defaultPositionReadMaker
-                , confTimeout = 30000000
+                , confTimeout = 30_000_000
                 , confMySockAddr = mysa
                 , confPeerSockAddr = peersa
                 }
