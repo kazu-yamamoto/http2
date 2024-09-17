@@ -4,6 +4,7 @@
 
 module Network.HTTP2.Server.Run where
 
+import Control.Concurrent
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM
 import Imports
@@ -47,10 +48,7 @@ run :: ServerConfig -> Config -> Server -> IO ()
 run sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
-        let lnch ctx strm inpObj = do
-                let label = "H2 worker for stream " ++ show (streamNumber strm)
-                forkManaged (threadManager ctx) label $
-                    worker conf server ctx strm inpObj
+        let lnch = runServer conf server
         ctx <- setup sconf conf lnch
         runH2 conf ctx
 
@@ -84,10 +82,15 @@ runIO sconf conf@Config{..} action = do
             putR strm (Response OutObj{..}) = do
                 case outObjBody of
                     OutBodyBuilder builder -> do
+                        var <- newEmptyMVar
                         let next = fillBuilderBodyGetNext builder
-                            sync _ = return True
                             out = OHeader outObjHeaders (Just next) outObjTrailers
-                        enqueueOutput outputQ $ Output strm out sync
+                        enqueueOutput outputQ $
+                            Output
+                                { outputStream = strm
+                                , outputType = out
+                                , outputSync = putMVar var
+                                }
                     _ -> error "Response other than OutBodyBuilder is not supported"
             serverIO =
                 ServerIO
