@@ -115,15 +115,14 @@ waitCounter0 (Manager _timmgr var) = atomically $ do
 
 ----------------------------------------------------------------
 
-withTimeout :: Manager -> ((TVar Bool, T.Handle) -> IO a) -> IO a
+withTimeout :: Manager -> (T.Handle -> IO a) -> IO a
 withTimeout (Manager timmgr var) action = do
-    toutvar <- newTVarIO False
-    E.bracket (register toutvar) unregister $ \h ->
-        action (toutvar, h)
+    E.bracket register unregister $ \h ->
+        action h
   where
-    register toutvar = do
+    register = do
         tid <- myThreadId
-        th <- T.register timmgr $ atomically $ writeTVar toutvar True
+        th <- T.registerKillThread timmgr $ return ()
         -- overriding ThreadWithoutTimeout
         atomically $ modifyTVar var $ Map.insert tid $ ThreadWithTimeout th
         return th
