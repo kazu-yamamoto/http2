@@ -24,7 +24,8 @@ import Network.HTTP2.H2
 runServer :: Config -> Server -> Launch
 runServer conf server ctx@Context{..} strm req =
     forkManaged threadManager label $
-        withTimeout threadManager $ \(tovar, th) -> do
+        withTimeout threadManager $ \th -> do
+            tovar <- newTVarIO False
             -- FIXME: exception
             let req' = pauseRequestBody th
                 aux = Aux th mySockAddr peerSockAddr
@@ -106,7 +107,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         forkManaged threadManager "H2 server push" $ do
-            withTimeout threadManager $ \(tovar, h) -> do
+            withTimeout threadManager $ \th -> do
                 (pid, newstrm) <- makePushStream ctx pstrm
                 let scheme = fromJust $ getFieldValue tokenScheme reqvt
                     -- fixme: this value can be Nothing
@@ -125,6 +126,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                     ot = OPush promiseRequest pid
                     Response rsp = promiseResponse pp
                 increment tvar
+                tovar <- newTVarIO False
                 let lc =
                         LoopCheck
                             { lcTBQ = Nothing
@@ -132,7 +134,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                             , lcWindow = streamTxFlow newstrm
                             }
                 syncWithSender ctx newstrm ot lc
-                sendHeaderBody conf ctx lc h newstrm rsp
+                sendHeaderBody conf ctx lc th newstrm rsp
         push tvar pps (n + 1)
 
 ----------------------------------------------------------------
