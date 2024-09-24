@@ -1,10 +1,10 @@
 module Network.HTTP2.H2.Config where
 
-import Data.IORef
 import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
+import Network.Socket.Recv (makeDefaultRecvN)
 import qualified System.TimeManager as T
 
 import Network.HPACK
@@ -15,7 +15,7 @@ import Network.HTTP2.H2.Types
 allocSimpleConfig :: Socket -> BufferSize -> IO Config
 allocSimpleConfig s bufsiz = do
     buf <- mallocBytes bufsiz
-    ref <- newIORef Nothing
+    recvN <- makeDefaultRecvN s
     timmgr <- T.initialize $ 30 * 1000000
     mysa <- getSocketName s
     peersa <- getPeerName s
@@ -24,7 +24,7 @@ allocSimpleConfig s bufsiz = do
                 { confWriteBuffer = buf
                 , confBufferSize = bufsiz
                 , confSendAll = sendAll s
-                , confReadN = defaultReadN s ref
+                , confReadN = recvN
                 , confPositionReadMaker = defaultPositionReadMaker
                 , confTimeoutManager = timmgr
                 , confMySockAddr = mysa
