@@ -32,7 +32,6 @@ module Network.HTTP2.Server (
     -- * Server configuration
     ServerConfig,
     defaultServerConfig,
-    numberOfWorkers,
     connectionWindowSize,
     settings,
 
