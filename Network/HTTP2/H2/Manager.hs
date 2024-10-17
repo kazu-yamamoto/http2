@@ -42,7 +42,7 @@ data TimeoutHandle
     | ThreadWithoutTimeout
 
 cancelTimeout :: TimeoutHandle -> IO ()
-cancelTimeout (ThreadWithTimeout h) = T.cancel h
+cancelTimeout (ThreadWithTimeout th) = T.cancel th
 cancelTimeout ThreadWithoutTimeout = return ()
 
 type ManagedThreads = Map ThreadId TimeoutHandle
