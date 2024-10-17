@@ -239,11 +239,12 @@ sendStreaming
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm strmbdy = do
-    let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManagedUnmask threadManager label $ \unmask ->
         withOutBodyIface tbq unmask strmbdy
     return tbq
+  where
+    label = "H2 request streaming sender for stream " ++ show (streamNumber strm)
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do

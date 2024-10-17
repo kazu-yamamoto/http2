@@ -137,7 +137,6 @@ sendStreaming
     -> (OutBodyIface -> IO ())
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm th strmbdy = do
-    let label = "H2 streaming supporter for stream " ++ show (streamNumber strm)
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     forkManaged threadManager label $
         withOutBodyIface tbq id $ \iface -> do
@@ -154,6 +153,8 @@ sendStreaming Context{..} strm th strmbdy = do
                         }
             strmbdy iface'
     return tbq
+  where
+    label = "H2 response streaming sender for " ++ show (streamNumber strm)
 
 -- | Worker for server applications.
 worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
