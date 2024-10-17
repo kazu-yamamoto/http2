@@ -49,10 +49,7 @@ run :: ServerConfig -> Config -> Server -> IO ()
 run sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
-        let lnch ctx strm inpObj = do
-                let label = "H2 worker for stream " ++ show (streamNumber strm)
-                forkManaged (threadManager ctx) label $
-                    worker conf server ctx strm inpObj
+        let lnch = runServer conf server
         ctx <- setup sconf conf lnch
         runH2 conf ctx
 
