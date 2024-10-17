@@ -155,15 +155,15 @@ runH2 conf ctx runClient = do
     -- finishes first, cancel the background threads. If the background
     -- threads finish first, wait for the client.
     runAll = do
-      withAsync runBackgroundThreads $ \runningBackgroundThreads ->
-        withAsync runClient $ \runningClient -> do
-          result <- waitEither runningBackgroundThreads runningClient
-          case result of
-            Right clientResult -> do
-              cancel runningBackgroundThreads
-              return clientResult
-            Left () -> do
-              wait runningClient
+        withAsync runBackgroundThreads $ \runningBackgroundThreads ->
+            withAsync runClient $ \runningClient -> do
+                result <- waitEither runningBackgroundThreads runningClient
+                case result of
+                    Right clientResult -> do
+                        cancel runningBackgroundThreads
+                        return clientResult
+                    Left () -> do
+                        wait runningClient
 
 sendRequest
     :: Config
@@ -209,11 +209,8 @@ sendHeaderBody Config{..} ctx@Context{..} sid newstrm OutObj{..} = do
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
-            (pread, closerOrRefresher) <- confPositionReadMaker path
-            refresh <- case closerOrRefresher of
-                Closer closer -> timeoutClose threadManager closer
-                Refresher refresher -> return refresher
-            let next = fillFileBodyGetNext pread fileoff bytecount refresh
+            (pread, sentinel) <- confPositionReadMaker path
+            let next = fillFileBodyGetNext pread fileoff bytecount sentinel
             return (Just next, Nothing)
         OutBodyBuilder builder -> do
             let next = fillBuilderBodyGetNext builder
