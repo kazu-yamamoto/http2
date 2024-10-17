@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Server.Worker (
-    worker,
+    runServer,
 ) where
 
 import Control.Concurrent.STM
@@ -18,6 +18,30 @@ import qualified System.TimeManager as T
 import Imports hiding (insert)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
+
+runServer :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
+runServer conf server ctx@Context{..} strm req =
+    forkManaged threadManager label $
+        timeoutKillThread threadManager $ \th -> do
+            -- FIXME: exception
+            T.pause th
+            let req' = pauseRequestBody th
+            T.resume th
+            T.tickle th
+            let aux = Aux th mySockAddr peerSockAddr
+                request = Request req'
+            server request aux $ sendResponse conf ctx th strm request
+            adjustRxWindow ctx strm
+  where
+    label = "H2 response sender for stream " ++ show (streamNumber strm)
+    pauseRequestBody th = req{inpObjBody = readBody'}
+      where
+        readBody = inpObjBody req
+        readBody' = do
+            T.pause th
+            bs <- readBody
+            T.resume th
+            return bs
 
 ----------------------------------------------------------------
 
@@ -155,26 +179,3 @@ sendStreaming Context{..} strm th strmbdy = do
     return tbq
   where
     label = "H2 response streaming sender for " ++ show (streamNumber strm)
-
--- | Worker for server applications.
-worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
-worker conf server ctx@Context{..} strm req =
-    timeoutKillThread threadManager $ \th -> do
-        -- FIXME: exception
-        T.pause th
-        let req' = pauseRequestBody th
-        T.resume th
-        T.tickle th
-        let aux = Aux th mySockAddr peerSockAddr
-            request = Request req'
-        server request aux $ sendResponse conf ctx th strm request
-        adjustRxWindow ctx strm
-  where
-    pauseRequestBody th = req{inpObjBody = readBody'}
-      where
-        readBody = inpObjBody req
-        readBody' = do
-            T.pause th
-            bs <- readBody
-            T.resume th
-            return bs
