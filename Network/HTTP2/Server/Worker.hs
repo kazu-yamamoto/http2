@@ -22,7 +22,7 @@ import Network.HTTP2.H2
 runServer :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
 runServer conf server ctx@Context{..} strm req =
     forkManaged threadManager label $
-        timeoutKillThread threadManager $ \th -> do
+        withTimeout threadManager $ \th -> do
             -- FIXME: exception
             T.pause th
             let req' = pauseRequestBody th
@@ -84,7 +84,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         forkManaged threadManager "H2 server push" $ do
-            timeoutKillThread threadManager $ \th -> do
+            withTimeout threadManager $ \th -> do
                 (pid, newstrm) <- makePushStream ctx pstrm
                 let scheme = fromJust $ getFieldValue tokenScheme reqvt
                     -- fixme: this value can be Nothing
