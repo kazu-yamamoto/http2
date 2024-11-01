@@ -13,8 +13,8 @@
 -- > import qualified Data.ByteString.Char8 as C8
 -- > import Network.HTTP.Types
 -- > import Network.Run.TCP (runTCPClient) -- network-run
--- > import Control.Concurrent.Async -- unliftio
--- > import qualified Control.Exception as E -- unliftio
+-- > import Control.Concurrent.Async
+-- > import qualified Control.Exception as E
 -- >
 -- > import Network.HTTP2.Client
 -- >
