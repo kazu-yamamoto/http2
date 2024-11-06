@@ -1,5 +1,13 @@
 # ChangeLog for http2
 
+## 5.3.5
+
+* Using `http-semantics` v0.3.
+* Deprecating `numberOfWorkers`.
+* Removing `unliftio`.
+* Avoid `undefined` in client.
+  [#146](https://github.com/kazu-yamamoto/http2/pull/146)
+
 ## 5.3.4
 
 * Support stream cancellation
