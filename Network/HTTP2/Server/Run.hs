@@ -19,7 +19,9 @@ import Network.HTTP2.Server.Worker
 
 -- | Server configuration
 data ServerConfig = ServerConfig
-    { connectionWindowSize :: WindowSize
+    { numberOfWorkers :: Int
+    -- ^ The number of workers
+    , connectionWindowSize :: WindowSize
     -- ^ The window size of incoming streams
     , settings :: Settings
     -- ^ Settings
@@ -29,11 +31,12 @@ data ServerConfig = ServerConfig
 -- | The default server config.
 --
 -- >>> defaultServerConfig
--- ServerConfig {connectionWindowSize = 16777216, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}}
+-- ServerConfig {numberOfWorkers = 8, connectionWindowSize = 16777216, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}}
 defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
-        { connectionWindowSize = defaultMaxData
+        { numberOfWorkers = 8
+        , connectionWindowSize = defaultMaxData
         , settings = defaultSettings
         }
 
