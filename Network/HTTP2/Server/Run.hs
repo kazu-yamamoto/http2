@@ -20,13 +20,15 @@ import Network.HTTP2.Server.Worker
 -- | Server configuration
 data ServerConfig = ServerConfig
     { numberOfWorkers :: Int
-    -- ^ The number of workers
+    -- ^ Deprecated field.
     , connectionWindowSize :: WindowSize
     -- ^ The window size of incoming streams
     , settings :: Settings
     -- ^ Settings
     }
     deriving (Eq, Show)
+
+{-# DEPRECATED numberOfWorkers "No effect anymore" #-}
 
 -- | The default server config.
 --
