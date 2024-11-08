@@ -628,35 +628,24 @@ isNonCritical _             = False
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
-data Source = Source (Int -> IO ()) RxQ (IORef ByteString) (IORef Bool)
+data Source = Source RxQ (Int -> IO ()) (IORef Bool)
 
 mkSource :: RxQ -> (Int -> IO ()) -> IO Source
-mkSource q inform = Source inform q <$> newIORef "" <*> newIORef False
+mkSource q inform = Source q inform <$> newIORef False
 
 readSource :: Source -> IO (ByteString, Bool)
-readSource (Source inform q refBS refEOF) = do
+readSource (Source q inform refEOF) = do
     eof <- readIORef refEOF
     if eof
         then return (mempty, True)
         else do
-            (bs, isEOF) <- readBS
-            let len = BS.length bs
-            inform len
-            return (bs, isEOF)
-  where
-    readBS :: IO (ByteString, Bool)
-    readBS = do
-        bs0 <- readIORef refBS
-        if bs0 == ""
-            then do
-                mBS <- atomically $ readTQueue q
-                case mBS of
-                    Left err -> do
-                        writeIORef refEOF True
-                        E.throwIO err
-                    Right (bs, isEOF) -> do
-                        writeIORef refEOF isEOF
-                        return (bs, isEOF)
-            else do
-                writeIORef refBS ""
-                return (bs0, False)
+            mBS <- atomically $ readTQueue q
+            case mBS of
+                Left err -> do
+                    writeIORef refEOF True
+                    E.throwIO err
+                Right (bs, isEOF) -> do
+                    writeIORef refEOF isEOF
+                    let len = BS.length bs
+                    inform len
+                    return (bs, isEOF)
