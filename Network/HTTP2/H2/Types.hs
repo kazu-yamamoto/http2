@@ -179,7 +179,7 @@ instance Show Stream where
 data Output = Output
     { outputStream :: Stream
     , outputType :: OutputType
-    , outputSync :: Maybe OutputType -> IO Bool
+    , outputSync :: Sync -> IO ()
     }
 
 data OutputType
@@ -187,7 +187,7 @@ data OutputType
     | OPush TokenHeaderList StreamId -- associated stream id from client
     | ONext DynaNext TrailersMaker
 
-data Sync = Done | Cont (IO ()) OutputType
+data Sync = Done | Cont Output
 
 ----------------------------------------------------------------
 

@@ -230,14 +230,15 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} =
                 q <- sendStreaming ctx strm strmbdy
                 let next = nextForStreaming q
                 return (Just next, Just q)
-        ((var, sync), out) <-
-            prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
+        let ot = OHeader outObjHeaders mnext outObjTrailers
+        (var, out) <- makeOutput strm ot
         atomically $ do
             sidOK <- readTVar outputQStreamID
             check (sidOK == sid)
-            enqueueOutputSTM outputQ out
             writeTVar outputQStreamID (sid + 2)
-        syncWithSender ctx strm var sync
+            enqueueOutputSTM outputQ out
+        lc <- newLoopCheck strm mtbq
+        syncWithSender' ctx var lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)
 
