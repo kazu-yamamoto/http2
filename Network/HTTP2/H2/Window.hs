@@ -81,6 +81,8 @@ informWindowUpdate Context{controlQ, rxFlow} Stream{streamNumber, streamRxFlow} 
             cframe = CFrames Nothing [frame]
         enqueueControl controlQ cframe
 
+-- This must be called after an application is finished
+-- to adjust RX window.
 adjustRxWindow :: Context -> Stream -> IO ()
 adjustRxWindow ctx stream@Stream{streamRxQ} = do
     mq <- readIORef streamRxQ
