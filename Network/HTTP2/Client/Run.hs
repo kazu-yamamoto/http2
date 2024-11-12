@@ -92,10 +92,10 @@ run cconf@ClientConfig{..} conf client = do
         x <- processResponse rsp
         adjustRxWindow ctx strm
         return x
-    runClient ctx = wrapClinet ctx $ client (clientCore ctx) $ aux ctx
+    runClient ctx = wrapClient ctx $ client (clientCore ctx) $ aux ctx
 
-wrapClinet :: Context -> IO a -> IO a
-wrapClinet ctx client = do
+wrapClient :: Context -> IO a -> IO a
+wrapClient ctx client = do
     x <- client
     waitCounter0 $ threadManager ctx
     let frame = goawayFrame 0 NoError "graceful closing"
@@ -121,7 +121,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
         create = openOddStreamWait ctx
     runClient <- do
         act <- action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
-        return $ wrapClinet ctx act
+        return $ wrapClient ctx act
     runH2 conf ctx runClient
 
 getResponse :: Stream -> IO Response
