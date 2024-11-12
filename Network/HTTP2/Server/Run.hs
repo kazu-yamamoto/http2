@@ -76,7 +76,7 @@ runIO sconf conf@Config{..} action = do
     when ok $ do
         inpQ <- newTQueueIO
         let lnch _ strm inpObj = atomically $ writeTQueue inpQ (strm, inpObj)
-        ctx@Context{..} <- setup sconf conf lnch
+        ctx <- setup sconf conf lnch
         let get = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
                 return (strm, Request inpObj)
@@ -85,8 +85,7 @@ runIO sconf conf@Config{..} action = do
                     OutBodyBuilder builder -> do
                         let next = fillBuilderBodyGetNext builder
                             otyp = OHeader outObjHeaders (Just next) outObjTrailers
-                        (_, out) <- makeOutput strm otyp
-                        enqueueOutput outputQ out
+                        enqueueOutputSIO ctx strm otyp
                     _ -> error "Response other than OutBodyBuilder is not supported"
             serverIO =
                 ServerIO

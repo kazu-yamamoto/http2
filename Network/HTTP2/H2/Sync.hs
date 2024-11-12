@@ -6,6 +6,7 @@ module Network.HTTP2.H2.Sync (
     syncWithSender,
     syncWithSender',
     makeOutput,
+    enqueueOutputSIO,
 ) where
 
 import Control.Concurrent
@@ -25,26 +26,45 @@ syncWithSender
     -> LoopCheck
     -> IO ()
 syncWithSender ctx@Context{..} strm otyp lc = do
-    (var, out) <- makeOutput strm otyp
+    (pop, out) <- makeOutput strm otyp
     enqueueOutput outputQ out
-    syncWithSender' ctx var lc
+    syncWithSender' ctx pop lc
 
-makeOutput :: Stream -> OutputType -> IO (MVar Sync, Output)
+makeOutput :: Stream -> OutputType -> IO (IO Sync, Output)
 makeOutput strm otyp = do
     var <- newEmptyMVar
-    let out =
+    let push mout = case mout of
+            Nothing -> putMVar var Done
+            Just ot -> putMVar var $ Cont ot
+        pop = takeMVar var
+        out =
             Output
                 { outputStream = strm
                 , outputType = otyp
-                , outputSync = putMVar var
+                , outputSync = push
                 }
-    return (var, out)
+    return (pop, out)
 
-syncWithSender' :: Context -> MVar Sync -> LoopCheck -> IO ()
-syncWithSender' Context{..} var lc = loop
+enqueueOutputSIO :: Context -> Stream -> OutputType -> IO ()
+enqueueOutputSIO Context{..} strm otyp = do
+    let push mout = case mout of
+            Nothing -> return ()
+            -- Sender enqueues output again ignoring
+            -- the stream TX window.
+            Just ot -> enqueueOutput outputQ ot
+        out =
+            Output
+                { outputStream = strm
+                , outputType = otyp
+                , outputSync = push
+                }
+    enqueueOutput outputQ out
+
+syncWithSender' :: Context -> IO Sync -> LoopCheck -> IO ()
+syncWithSender' Context{..} pop lc = loop
   where
     loop = do
-        s <- takeMVar var
+        s <- pop
         case s of
             Done -> return ()
             Cont newout -> do
