@@ -49,10 +49,7 @@ run :: ServerConfig -> Config -> Server -> IO ()
 run sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
-        let lnch ctx strm inpObj = do
-                let label = "H2 worker for stream " ++ show (streamNumber strm)
-                forkManaged (threadManager ctx) label $
-                    worker conf server ctx strm inpObj
+        let lnch = runServer conf server
         ctx <- setup sconf conf lnch
         runH2 conf ctx
 
@@ -87,9 +84,9 @@ runIO sconf conf@Config{..} action = do
                 case outObjBody of
                     OutBodyBuilder builder -> do
                         let next = fillBuilderBodyGetNext builder
-                            sync _ = return True
-                            out = OHeader outObjHeaders (Just next) outObjTrailers
-                        enqueueOutput outputQ $ Output strm out sync
+                            otyp = OHeader outObjHeaders (Just next) outObjTrailers
+                        (_, out) <- makeOutput strm otyp
+                        enqueueOutput outputQ out
                     _ -> error "Response other than OutBodyBuilder is not supported"
             serverIO =
                 ServerIO

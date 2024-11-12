@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Server.Worker (
-    worker,
+    runServer,
 ) where
 
 import Control.Concurrent.STM
@@ -21,12 +21,51 @@ import Network.HTTP2.H2
 
 ----------------------------------------------------------------
 
-makePushStream :: Context -> Stream -> IO (StreamId, Stream)
-makePushStream ctx pstrm = do
-    -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
-    (_, newstrm) <- openEvenStreamWait ctx
-    let pid = streamNumber pstrm
-    return (pid, newstrm)
+runServer :: Config -> Server -> Launch
+runServer conf server ctx@Context{..} strm req =
+    forkManaged threadManager label $
+        withTimeout threadManager $ \th -> do
+            -- FIXME: exception
+            let req' = pauseRequestBody th
+                aux = Aux th mySockAddr peerSockAddr
+                request = Request req'
+            lc <- newLoopCheck strm Nothing
+            server request aux $ sendResponse conf ctx lc th strm request
+            adjustRxWindow ctx strm
+  where
+    label = "H2 response sender for stream " ++ show (streamNumber strm)
+    pauseRequestBody th = req{inpObjBody = readBody'}
+      where
+        readBody = inpObjBody req
+        readBody' = do
+            T.pause th
+            bs <- readBody
+            T.resume th
+            return bs
+
+----------------------------------------------------------------
+
+-- | This function is passed to workers.
+--   They also pass 'Response's from a server to this function.
+--   This function enqueues commands for the HTTP/2 sender.
+sendResponse
+    :: Config
+    -> Context
+    -> LoopCheck
+    -> T.Handle
+    -> Stream
+    -> Request
+    -> Response
+    -> [PushPromise]
+    -> IO ()
+sendResponse conf ctx lc th strm (Request req) (Response rsp) pps = do
+    mwait <- pushStream conf ctx strm reqvt pps
+    case mwait of
+        Nothing -> return ()
+        Just wait -> wait -- all pushes are sent
+    sendHeaderBody conf ctx lc th strm rsp
+  where
+    (_, reqvt) = inpObjHeaders req
 
 ----------------------------------------------------------------
 
@@ -60,7 +99,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         forkManaged threadManager "H2 server push" $ do
-            timeoutKillThread threadManager $ \th -> do
+            withTimeout threadManager $ \th -> do
                 (pid, newstrm) <- makePushStream ctx pstrm
                 let scheme = fromJust $ getFieldValue tokenScheme reqvt
                     -- fixme: this value can be Nothing
@@ -78,36 +117,32 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                         ]
                     ot = OPush promiseRequest pid
                     Response rsp = promiseResponse pp
-                ((var, sync), out) <- prepareSync newstrm ot Nothing
-                enqueueOutput outputQ out
-                syncWithSender ctx newstrm var sync
                 increment tvar
-                sendHeaderBody conf ctx th newstrm rsp
+                lc <- newLoopCheck newstrm Nothing
+                syncWithSender ctx newstrm ot lc
+                sendHeaderBody conf ctx lc th newstrm rsp
         push tvar pps (n + 1)
 
--- | This function is passed to workers.
---   They also pass 'Response's from a server to this function.
---   This function enqueues commands for the HTTP/2 sender.
-sendResponse
+----------------------------------------------------------------
+
+makePushStream :: Context -> Stream -> IO (StreamId, Stream)
+makePushStream ctx pstrm = do
+    -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
+    (_, newstrm) <- openEvenStreamWait ctx
+    let pid = streamNumber pstrm
+    return (pid, newstrm)
+
+----------------------------------------------------------------
+
+sendHeaderBody
     :: Config
     -> Context
+    -> LoopCheck
     -> T.Handle
     -> Stream
-    -> Request
-    -> Response
-    -> [PushPromise]
+    -> OutObj
     -> IO ()
-sendResponse conf ctx th strm (Request req) (Response rsp) pps = do
-    mwait <- pushStream conf ctx strm reqvt pps
-    case mwait of
-        Nothing -> return ()
-        Just wait -> wait -- all pushes are sent
-    sendHeaderBody conf ctx th strm rsp
-  where
-    (_, reqvt) = inpObjHeaders req
-
-sendHeaderBody :: Config -> Context -> T.Handle -> Stream -> OutObj -> IO ()
-sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
+sendHeaderBody Config{..} ctx lc th strm OutObj{..} = do
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
@@ -125,10 +160,10 @@ sendHeaderBody Config{..} ctx@Context{..} th strm OutObj{..} = do
             q <- sendStreaming ctx strm th strmbdy
             let next = nextForStreaming q
             return (Just next, Just q)
-    ((var, sync), out) <-
-        prepareSync strm (OHeader outObjHeaders mnext outObjTrailers) mtbq
-    enqueueOutput outputQ out
-    syncWithSender ctx strm var sync
+    let lc' = lc{lcTBQ = mtbq}
+    syncWithSender ctx strm (OHeader outObjHeaders mnext outObjTrailers) lc'
+
+----------------------------------------------------------------
 
 sendStreaming
     :: Context
@@ -155,26 +190,3 @@ sendStreaming Context{..} strm th strmbdy = do
     return tbq
   where
     label = "H2 response streaming sender for " ++ show (streamNumber strm)
-
--- | Worker for server applications.
-worker :: Config -> Server -> Context -> Stream -> InpObj -> IO ()
-worker conf server ctx@Context{..} strm req =
-    timeoutKillThread threadManager $ \th -> do
-        -- FIXME: exception
-        T.pause th
-        let req' = pauseRequestBody th
-        T.resume th
-        T.tickle th
-        let aux = Aux th mySockAddr peerSockAddr
-            request = Request req'
-        server request aux $ sendResponse conf ctx th strm request
-        adjustRxWindow ctx strm
-  where
-    pauseRequestBody th = req{inpObjBody = readBody'}
-      where
-        readBody = inpObjBody req
-        readBody' = do
-            T.pause th
-            bs <- readBody
-            T.resume th
-            return bs
