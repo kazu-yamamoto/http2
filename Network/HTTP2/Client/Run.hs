@@ -209,36 +209,36 @@ makeStream ctx@Context{..} scheme auth (Request req) = do
             return (newstrm, Just req')
 
 sendRequest :: Config -> Context -> Stream -> OutObj -> IO ()
-sendRequest Config{..} ctx@Context{..} strm OutObj{..} =
-    forkManaged threadManager label $ do
-        let sid = streamNumber strm
-        (mnext, mtbq) <- case outObjBody of
-            OutBodyNone -> return (Nothing, Nothing)
-            OutBodyFile (FileSpec path fileoff bytecount) -> do
-                (pread, sentinel) <- confPositionReadMaker path
-                let next = fillFileBodyGetNext pread fileoff bytecount sentinel
-                return (Just next, Nothing)
-            OutBodyBuilder builder -> do
-                let next = fillBuilderBodyGetNext builder
-                return (Just next, Nothing)
-            OutBodyStreaming strmbdy -> do
-                q <- sendStreaming ctx strm $ \iface ->
-                    outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
-                let next = nextForStreaming q
-                return (Just next, Just q)
-            OutBodyStreamingIface strmbdy -> do
-                q <- sendStreaming ctx strm strmbdy
-                let next = nextForStreaming q
-                return (Just next, Just q)
-        let ot = OHeader outObjHeaders mnext outObjTrailers
-        (var, out) <- makeOutput strm ot
-        atomically $ do
-            sidOK <- readTVar outputQStreamID
-            check (sidOK == sid)
-            writeTVar outputQStreamID (sid + 2)
-            enqueueOutputSTM outputQ out
-        lc <- newLoopCheck strm mtbq
-        syncWithSender' ctx var lc
+sendRequest Config{..} ctx@Context{..} strm OutObj{..} = do
+    let sid = streamNumber strm
+    (mnext, mtbq) <- case outObjBody of
+        OutBodyNone -> return (Nothing, Nothing)
+        OutBodyFile (FileSpec path fileoff bytecount) -> do
+            (pread, sentinel) <- confPositionReadMaker path
+            let next = fillFileBodyGetNext pread fileoff bytecount sentinel
+            return (Just next, Nothing)
+        OutBodyBuilder builder -> do
+            let next = fillBuilderBodyGetNext builder
+            return (Just next, Nothing)
+        OutBodyStreaming strmbdy -> do
+            q <- sendStreaming ctx strm $ \iface ->
+                outBodyUnmask iface $ strmbdy (outBodyPush iface) (outBodyFlush iface)
+            let next = nextForStreaming q
+            return (Just next, Just q)
+        OutBodyStreamingIface strmbdy -> do
+            q <- sendStreaming ctx strm strmbdy
+            let next = nextForStreaming q
+            return (Just next, Just q)
+    let ot = OHeader outObjHeaders mnext outObjTrailers
+    (pop, out) <- makeOutput strm ot
+    atomically $ do
+        sidOK <- readTVar outputQStreamID
+        check (sidOK == sid)
+        writeTVar outputQStreamID (sid + 2)
+        enqueueOutputSTM outputQ out
+    lc <- newLoopCheck strm mtbq
+    forkManaged threadManager label $
+        syncWithSender' ctx pop lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)
 
