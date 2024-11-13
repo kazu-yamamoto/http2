@@ -58,6 +58,7 @@ frameReceiver ctx@Context{..} conf@Config{..} = do
                 loop
 
     sendGoaway se
+        | isAsyncException se = E.throwIO se
         | Just GoAwayIsSent <- E.fromException se = do
             waitCounter0 threadManager
             enqueueControl controlQ $ CFinish GoAwayIsSent

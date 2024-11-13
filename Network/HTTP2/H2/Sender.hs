@@ -38,6 +38,7 @@ data Switch
 
 wrapException :: E.SomeException -> IO ()
 wrapException se
+    | isAsyncException se = E.throwIO se
     | Just GoAwayIsSent <- E.fromException se = return ()
     | Just ConnectionIsClosed <- E.fromException se = return ()
     | Just (e :: HTTP2Error) <- E.fromException se = E.throwIO e

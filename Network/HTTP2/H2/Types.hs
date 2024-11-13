@@ -7,7 +7,11 @@ module Network.HTTP2.H2.Types where
 
 import Control.Concurrent
 import Control.Concurrent.STM
-import Control.Exception (SomeException)
+import Control.Exception (
+    Exception,
+    SomeAsyncException (..),
+    SomeException (..),
+ )
 import qualified Control.Exception as E
 import Data.IORef
 import Data.Typeable
@@ -270,3 +274,9 @@ data Config = Config
     , confPeerSockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     }
+
+isAsyncException :: Exception e => e -> Bool
+isAsyncException e =
+    case E.fromException (E.toException e) of
+        Just (SomeAsyncException _) -> True
+        Nothing -> False
