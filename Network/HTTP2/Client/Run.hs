@@ -87,7 +87,7 @@ run cconf@ClientConfig{..} conf client = do
         (strm, moutobj) <- makeStream ctx scheme authority req
         case moutobj of
             Nothing -> return ()
-            Just outobj -> sendRequest conf ctx strm outobj
+            Just outobj -> sendRequest conf ctx strm outobj False
         rsp <- getResponse strm
         x <- processResponse rsp
         adjustRxWindow ctx strm
@@ -115,7 +115,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
             (strm, moutobj) <- makeStream ctx scheme authority req
             case moutobj of
                 Nothing -> return ()
-                Just outobj -> sendRequest conf ctx strm outobj
+                Just outobj -> sendRequest conf ctx strm outobj True
             return (streamNumber strm, strm)
         get = getResponse
         create = openOddStreamWait ctx
@@ -208,8 +208,8 @@ makeStream ctx@Context{..} scheme auth (Request req) = do
             (_sid, newstrm) <- openOddStreamWait ctx
             return (newstrm, Just req')
 
-sendRequest :: Config -> Context -> Stream -> OutObj -> IO ()
-sendRequest Config{..} ctx@Context{..} strm OutObj{..} = do
+sendRequest :: Config -> Context -> Stream -> OutObj -> Bool -> IO ()
+sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
     let sid = streamNumber strm
     (mnext, mtbq) <- case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
@@ -230,17 +230,22 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} = do
             let next = nextForStreaming q
             return (Just next, Just q)
     let ot = OHeader outObjHeaders mnext outObjTrailers
-    (pop, out) <- makeOutput strm ot
-    atomically $ do
+    if io
+        then do
+            let out = makeOutputIO ctx strm ot
+            pushOutput sid out
+        else do
+            (pop, out) <- makeOutput strm ot
+            pushOutput sid out
+            lc <- newLoopCheck strm mtbq
+            forkManaged threadManager label $ syncWithSender' ctx pop lc
+  where
+    label = "H2 request sender for stream " ++ show (streamNumber strm)
+    pushOutput sid out = atomically $ do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
         enqueueOutputSTM outputQ out
-    lc <- newLoopCheck strm mtbq
-    forkManaged threadManager label $
-        syncWithSender' ctx pop lc
-  where
-    label = "H2 request sender for stream " ++ show (streamNumber strm)
 
 sendStreaming
     :: Context

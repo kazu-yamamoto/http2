@@ -6,6 +6,7 @@ module Network.HTTP2.H2.Sync (
     syncWithSender,
     syncWithSender',
     makeOutput,
+    makeOutputIO,
     enqueueOutputSIO,
 ) where
 
@@ -45,19 +46,24 @@ makeOutput strm otyp = do
                 }
     return (pop, out)
 
+makeOutputIO :: Context -> Stream -> OutputType -> Output
+makeOutputIO Context{..} strm otyp = out
+  where
+    push mout = case mout of
+        Nothing -> return ()
+        -- Sender enqueues output again ignoring
+        -- the stream TX window.
+        Just ot -> enqueueOutput outputQ ot
+    out =
+        Output
+            { outputStream = strm
+            , outputType = otyp
+            , outputSync = push
+            }
+
 enqueueOutputSIO :: Context -> Stream -> OutputType -> IO ()
-enqueueOutputSIO Context{..} strm otyp = do
-    let push mout = case mout of
-            Nothing -> return ()
-            -- Sender enqueues output again ignoring
-            -- the stream TX window.
-            Just ot -> enqueueOutput outputQ ot
-        out =
-            Output
-                { outputStream = strm
-                , outputType = otyp
-                , outputSync = push
-                }
+enqueueOutputSIO ctx@Context{..} strm otyp = do
+    let out = makeOutputIO ctx strm otyp
     enqueueOutput outputQ out
 
 syncWithSender' :: Context -> IO Sync -> LoopCheck -> IO ()
