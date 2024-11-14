@@ -152,18 +152,14 @@ frameSender
                 else case otyp of
                     OHeader hdr mnext tlrmkr -> do
                         (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
-                        case mout' of
-                            Nothing -> sync Done
-                            Just out' -> sync $ Cont out'
+                        sync mout'
                         return off'
                     _ -> do
                         sws <- getStreamWindowSize strm
                         cws <- getConnectionWindowSize ctx -- not 0
                         let lim = min cws sws
                         (off', mout') <- output out off lim
-                        case mout' of
-                            Nothing -> sync Done
-                            Just out' -> sync $ Cont out'
+                        sync mout'
                         return off'
 
         resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
@@ -178,7 +174,7 @@ frameSender
             -> [Header]
             -> Maybe DynaNext
             -> TrailersMaker
-            -> (Sync -> IO ())
+            -> (Maybe Output -> IO ())
             -> Offset
             -> IO (Offset, Maybe Output)
         outputHeader strm hdr mnext tlrmkr sync off0 = do

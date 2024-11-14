@@ -183,7 +183,7 @@ instance Show Stream where
 data Output = Output
     { outputStream :: Stream
     , outputType :: OutputType
-    , outputSync :: Sync -> IO ()
+    , outputSync :: Maybe Output -> IO ()
     }
 
 data OutputType
