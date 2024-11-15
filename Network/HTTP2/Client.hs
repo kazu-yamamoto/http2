@@ -24,7 +24,7 @@
 -- > main :: IO ()
 -- > main = runTCPClient serverName "80" $ runHTTP2Client serverName
 -- >   where
--- >     cliconf host = defaultClientConfig { authority = C8.pack host }
+-- >     cliconf host = defaultClientConfig { authority = host }
 -- >     runHTTP2Client host s = E.bracket (allocSimpleConfig s 4096)
 -- >                                       freeSimpleConfig
 -- >                                       (\conf -> run (cliconf host) conf client)
