@@ -1,5 +1,13 @@
 # ChangeLog for http2
 
+## 5.3.6
+
+* Making `runIO` friendly with the new synchronism mechanism.
+  [#152](https://github.com/kazu-yamamoto/http2/pull/152)
+* Re-throwing asynchronous exceptions to prevent thread leak.
+* Simplifying the synchronism mechanism between workers and the sender.
+  [#148](https://github.com/kazu-yamamoto/http2/pull/148)
+
 ## 5.3.5
 
 * Using `http-semantics` v0.3.
