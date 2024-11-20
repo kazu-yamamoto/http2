@@ -20,6 +20,7 @@ import Monitor
 data Options = Options
     { optPerformance :: Int
     , optNumOfReqs :: Int
+    , optMonitor :: Bool
     }
     deriving (Show)
 

@@ -6,6 +6,7 @@ module Main (main) where
 
 import Control.Concurrent
 import qualified Control.Exception as E
+import Control.Monad
 import Network.HTTP2.Server
 import Network.Run.TCP
 import System.Console.GetOpt
@@ -16,7 +17,13 @@ import Monitor
 import Server
 
 options :: [OptDescr (Options -> Options)]
-options = []
+options =
+    [ Option
+        ['m']
+        ["monitor"]
+        (NoArg (\opts -> opts{optMonitor = True}))
+        "run thread monitor"
+    ]
 
 showUsageAndExit :: String -> IO a
 showUsageAndExit msg = do
@@ -30,10 +37,16 @@ serverOpts argv =
         (o, n, []) -> return (foldl (flip id) defaultOptions o, n)
         (_, _, errs) -> showUsageAndExit $ concat errs
 
-data Options = Options deriving (Show)
+data Options = Options
+    { optMonitor :: Bool
+    }
+    deriving (Show)
 
 defaultOptions :: Options
-defaultOptions = Options
+defaultOptions =
+    Options
+        { optMonitor = False
+        }
 
 usage :: String
 usage = "Usage: h2c-server [OPTION] <addr> <port>"
@@ -42,11 +55,11 @@ main :: IO ()
 main = do
     labelMe "h2c-server main"
     args <- getArgs
-    (Options, ips) <- serverOpts args
+    (opts, ips) <- serverOpts args
     (host, port) <- case ips of
         [h, p] -> return (h, p)
         _ -> showUsageAndExit usage
-    _ <- forkIO $ monitor $ threadDelay 1000000
+    when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
     runTCPServer (Just host) port $ \s -> do
         E.bracket
             (allocSimpleConfig s 4096)

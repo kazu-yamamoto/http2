@@ -5,6 +5,7 @@ module Main where
 
 import Control.Concurrent
 import qualified Control.Exception as E
+import Control.Monad
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP2.Client
 import Network.Run.TCP (runTCPClient)
@@ -20,6 +21,7 @@ defaultOptions =
     Options
         { optPerformance = 0
         , optNumOfReqs = 1
+        , optMonitor = False
         }
 
 usage :: String
@@ -37,6 +39,11 @@ options =
         ["number-of-requests"]
         (ReqArg (\n o -> o{optNumOfReqs = read n}) "<n>")
         "specify the number of requests"
+    , Option
+        ['m']
+        ["monitor"]
+        (NoArg (\opts -> opts{optMonitor = True}))
+        "run thread monitor"
     ]
 
 showUsageAndExit :: String -> IO a
@@ -61,8 +68,8 @@ main = do
         _ : [] -> showUsageAndExit usage
         h : p : [] -> return (h, p, ["/"])
         h : p : ps -> return (h, p, C8.pack <$> ps)
+    when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
     let cliconf = defaultClientConfig{authority = host}
-    _ <- forkIO $ monitor $ threadDelay 1000000
     runTCPClient host port $ \s ->
         E.bracket
             (allocSimpleConfig s 4096)
