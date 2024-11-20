@@ -55,6 +55,7 @@ module Network.HTTP2.Server (
     -- * Common configuration
     Config (..),
     allocSimpleConfig,
+    allocSimpleConfig',
     freeSimpleConfig,
     module Network.HTTP.Semantics.Server,
 ) where

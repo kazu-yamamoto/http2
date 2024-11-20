@@ -62,6 +62,6 @@ main = do
     when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
     runTCPServer (Just host) port $ \s -> do
         E.bracket
-            (allocSimpleConfig s 4096)
+            (allocSimpleConfig' s 4096 5000000)
             freeSimpleConfig
             (\conf -> run defaultServerConfig conf server)

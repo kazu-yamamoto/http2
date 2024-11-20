@@ -74,6 +74,7 @@ module Network.HTTP2.Client (
     -- * Common configuration
     Config (..),
     allocSimpleConfig,
+    allocSimpleConfig',
     freeSimpleConfig,
     module Network.HTTP.Semantics.Client,
 

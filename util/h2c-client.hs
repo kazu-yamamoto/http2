@@ -72,6 +72,6 @@ main = do
     let cliconf = defaultClientConfig{authority = host}
     runTCPClient host port $ \s ->
         E.bracket
-            (allocSimpleConfig s 4096)
+            (allocSimpleConfig' s 4096 5000000)
             freeSimpleConfig
             (\conf -> run cliconf conf $ client opts paths)
