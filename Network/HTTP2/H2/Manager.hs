@@ -116,9 +116,8 @@ waitCounter0 (Manager _timmgr var) = atomically $ do
 ----------------------------------------------------------------
 
 withTimeout :: Manager -> (T.Handle -> IO a) -> IO a
-withTimeout (Manager timmgr var) action = do
-    E.bracket register unregister $ \h ->
-        action h
+withTimeout (Manager timmgr var) action =
+    E.bracket register unregister action
   where
     register = do
         tid <- myThreadId
