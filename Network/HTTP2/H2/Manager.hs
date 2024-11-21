@@ -97,16 +97,18 @@ forkManaged mgr label io =
 forkManagedUnmask
     :: Manager -> String -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
 forkManagedUnmask (Manager _timmgr var) label io =
-    void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handle handler $ do
+    -- This is the top level of thread.
+    -- So, SomeException should be reasonable.
+    void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handle ignore $ do
         labelMe label
         tid <- myThreadId
         atomically $ modifyTVar var $ Map.insert tid ThreadWithoutTimeout
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
-        io unmask `catch` \(_e :: SomeException) -> return ()
+        io unmask `catch` ignore
         atomically $ modifyTVar var $ Map.delete tid
   where
-    handler (E.SomeException _) = return ()
+    ignore (E.SomeException _) = return ()
 
 waitCounter0 :: Manager -> IO ()
 waitCounter0 (Manager _timmgr var) = atomically $ do
