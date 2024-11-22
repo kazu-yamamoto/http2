@@ -1,5 +1,12 @@
 # ChangeLog for http2
 
+## 5.3.7
+
+* Using `withHandle` of time-manager.
+* Getting `Handle` for each thread.
+* Providing allocSimpleConfig' to enable customizing WAI tiemout manager.
+* Monitor option (-m) for h2c-client and h2c-server.
+
 ## 5.3.6
 
 * Making `runIO` friendly with the new synchronism mechanism.
