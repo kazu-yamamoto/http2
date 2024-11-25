@@ -31,17 +31,15 @@ import Imports
 -- | Manager to manage the thread and the timer.
 data Manager = Manager T.Manager (TVar ManagedThreads)
 
-type ManagedThreads = IntMap (Weak ThreadId, TimeoutHandle)
+type ManagedThreads = IntMap ManagedThread
 
 ----------------------------------------------------------------
 
-data TimeoutHandle
-    = ThreadWithTimeout T.Handle
-    | ThreadWithoutTimeout
+data ManagedThread = ManagedThread (Weak ThreadId) (Maybe T.Handle)
 
-cancelTimeout :: TimeoutHandle -> IO ()
-cancelTimeout (ThreadWithTimeout th) = T.cancel th
-cancelTimeout ThreadWithoutTimeout = return ()
+cancelTimeout :: ManagedThread -> IO ()
+cancelTimeout (ManagedThread _ (Just th)) = T.cancel th
+cancelTimeout _ = return ()
 
 ----------------------------------------------------------------
 
@@ -80,9 +78,9 @@ stopAfter (Manager _timmgr var) action cleanup = do
         -- 'KilledByHttp2ThreadManager'. Before throwing to
         -- 'KilledByHttp2ThreadManager' to the tagets,
         -- let's cancel 'TimeoutThread' to avoid race.
-        forM_ (map snd ths) cancelTimeout
+        forM_ ths cancelTimeout
         let er = either Just (const Nothing) ma
-        forM_ (map fst ths) $ \wtid -> do
+        forM_ ths $ \(ManagedThread wtid _) -> do
             mtid <- deRefWeak wtid
             case mtid of
                 Nothing -> return ()
@@ -113,7 +111,8 @@ forkManagedUnmask (Manager _timmgr var) label io =
     setup = do
         (wtid, n) <- myWeakThradId
         -- asking to throw KilledByHttp2ThreadManager to me
-        atomically $ modifyTVar var $ Map.insert n (wtid, ThreadWithoutTimeout)
+        let ent = ManagedThread wtid Nothing
+        atomically $ modifyTVar var $ Map.insert n ent
         return n
     clear n = atomically $ modifyTVar var $ Map.delete n
     ignore (KilledByHttp2ThreadManager _) = return ()
@@ -129,8 +128,9 @@ withTimeout :: Manager -> (T.Handle -> IO ()) -> IO ()
 withTimeout (Manager timmgr var) action =
     T.withHandleKillThread timmgr (return ()) $ \th -> do
         (wtid, n) <- myWeakThradId
-        -- overriding ThreadWithoutTimeout
-        atomically $ modifyTVar var $ Map.insert n $ (wtid, ThreadWithTimeout th)
+        -- overriding Nothing to Just if already exist
+        let ent = ManagedThread wtid $ Just th
+        atomically $ modifyTVar var $ Map.insert n ent
         action th
 
 myWeakThradId :: IO (Weak ThreadId, Int)
