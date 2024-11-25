@@ -76,6 +76,10 @@ stopAfter (Manager _timmgr var) action cleanup = do
             writeTVar var Map.empty
             return m0
         let ths = Map.elems m
+        -- Managed threads may receive 'TimeoutThread' and
+        -- 'KilledByHttp2ThreadManager'. Before throwing to
+        -- 'KilledByHttp2ThreadManager' to the tagets,
+        -- let's cancel 'TimeoutThread' to avoid race.
         forM_ (map snd ths) cancelTimeout
         let er = either Just (const Nothing) ma
         forM_ (map fst ths) $ \wtid -> do
