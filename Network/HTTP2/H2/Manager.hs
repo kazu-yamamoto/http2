@@ -102,18 +102,17 @@ forkManaged mgr label io =
 forkManagedUnmask
     :: Manager -> String -> ((forall x. IO x -> IO x) -> IO ()) -> IO ()
 forkManagedUnmask (Manager _timmgr var) label io =
-    -- This is the top level of thread.
-    -- So, SomeException should be reasonable.
     void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handle ignore $ do
         labelMe label
-        (wtid, n) <- myWeakThradId
-        atomically $ modifyTVar var $ Map.insert n (wtid, ThreadWithoutTimeout)
-        -- We catch the exception and do not rethrow it: we don't want the
-        -- exception printed to stderr.
-        io unmask `catch` ignore
-        atomically $ modifyTVar var $ Map.delete n
+        E.bracket setup clear $ \_ -> io unmask
   where
-    ignore (E.SomeException _) = return ()
+    setup = do
+        (wtid, n) <- myWeakThradId
+        -- asking to throw KilledByHttp2ThreadManager to me
+        atomically $ modifyTVar var $ Map.insert n (wtid, ThreadWithoutTimeout)
+        return n
+    clear n = atomically $ modifyTVar var $ Map.delete n
+    ignore (KilledByHttp2ThreadManager _) = return ()
 
 waitCounter0 :: Manager -> IO ()
 waitCounter0 (Manager _timmgr var) = atomically $ do
