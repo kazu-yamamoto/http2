@@ -112,9 +112,9 @@ forkManagedUnmask (Manager _timmgr var) label io =
         (wtid, n) <- myWeakThradId
         -- asking to throw KilledByHttp2ThreadManager to me
         let ent = ManagedThread wtid Nothing
-        atomically $ modifyTVar var $ Map.insert n ent
+        atomically $ modifyTVar' var $ Map.insert n ent
         return n
-    clear n = atomically $ modifyTVar var $ Map.delete n
+    clear n = atomically $ modifyTVar' var $ Map.delete n
     ignore (KilledByHttp2ThreadManager _) = return ()
 
 waitCounter0 :: Manager -> IO ()
@@ -130,7 +130,7 @@ withTimeout (Manager timmgr var) action =
         (wtid, n) <- myWeakThradId
         -- overriding Nothing to Just if already exist
         let ent = ManagedThread wtid $ Just th
-        atomically $ modifyTVar var $ Map.insert n ent
+        atomically $ modifyTVar' var $ Map.insert n ent
         action th
 
 myWeakThradId :: IO (Weak ThreadId, Int)
