@@ -19,8 +19,9 @@ import Control.Concurrent.STM
 import Control.Exception
 import qualified Control.Exception as E
 import Data.Foldable
-import Data.Map (Map)
-import qualified Data.Map.Strict as Map
+import Data.IntMap (IntMap)
+import qualified Data.IntMap.Strict as Map
+import System.Mem.Weak (Weak, deRefWeak)
 import qualified System.TimeManager as T
 
 import Imports
@@ -30,7 +31,7 @@ import Imports
 -- | Manager to manage the thread and the timer.
 data Manager = Manager T.Manager (TVar ManagedThreads)
 
-type ManagedThreads = Map ThreadId TimeoutHandle
+type ManagedThreads = IntMap (Weak ThreadId, TimeoutHandle)
 
 ----------------------------------------------------------------
 
@@ -74,10 +75,14 @@ stopAfter (Manager _timmgr var) action cleanup = do
             m0 <- readTVar var
             writeTVar var Map.empty
             return m0
-        forM_ (Map.elems m) cancelTimeout
+        let ths = Map.elems m
+        forM_ (map snd ths) cancelTimeout
         let er = either Just (const Nothing) ma
-        forM_ (Map.keys m) $ \tid ->
-            E.throwTo tid $ KilledByHttp2ThreadManager er
+        forM_ (map fst ths) $ \wtid -> do
+            mtid <- deRefWeak wtid
+            case mtid of
+                Nothing -> return ()
+                Just tid -> E.throwTo tid $ KilledByHttp2ThreadManager er
         case ma of
             Left err -> cleanup (Just err) >> throwIO err
             Right a -> cleanup Nothing >> return a
@@ -101,12 +106,12 @@ forkManagedUnmask (Manager _timmgr var) label io =
     -- So, SomeException should be reasonable.
     void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handle ignore $ do
         labelMe label
-        tid <- myThreadId
-        atomically $ modifyTVar var $ Map.insert tid ThreadWithoutTimeout
+        (wtid, n) <- myWeakThradId
+        atomically $ modifyTVar var $ Map.insert n (wtid, ThreadWithoutTimeout)
         -- We catch the exception and do not rethrow it: we don't want the
         -- exception printed to stderr.
         io unmask `catch` ignore
-        atomically $ modifyTVar var $ Map.delete tid
+        atomically $ modifyTVar var $ Map.delete n
   where
     ignore (E.SomeException _) = return ()
 
@@ -120,7 +125,14 @@ waitCounter0 (Manager _timmgr var) = atomically $ do
 withTimeout :: Manager -> (T.Handle -> IO ()) -> IO ()
 withTimeout (Manager timmgr var) action =
     T.withHandleKillThread timmgr (return ()) $ \th -> do
-        tid <- myThreadId
+        (wtid, n) <- myWeakThradId
         -- overriding ThreadWithoutTimeout
-        atomically $ modifyTVar var $ Map.insert tid $ ThreadWithTimeout th
+        atomically $ modifyTVar var $ Map.insert n $ (wtid, ThreadWithTimeout th)
         action th
+
+myWeakThradId :: IO (Weak ThreadId, Int)
+myWeakThradId = do
+    tid <- myThreadId
+    wtid <- mkWeakThreadId tid
+    let n = read (drop 9 $ show tid) -- drop "ThreadId "
+    return (wtid, n)
