@@ -9,7 +9,7 @@ module Network.HTTP2.H2.Manager (
     stopAfter,
     forkManaged,
     forkManagedUnmask,
-    withTimeout,
+    forkManagedTimeout,
     KilledByHttp2ThreadManager (..),
     waitCounter0,
 ) where
@@ -19,6 +19,7 @@ import Control.Concurrent.STM
 import Control.Exception
 import qualified Control.Exception as E
 import Data.Foldable
+import Data.IORef
 import Data.IntMap (IntMap)
 import qualified Data.IntMap.Strict as Map
 import System.Mem.Weak (Weak, deRefWeak)
@@ -35,11 +36,11 @@ type ManagedThreads = IntMap ManagedThread
 
 ----------------------------------------------------------------
 
-data ManagedThread = ManagedThread (Weak ThreadId) (Maybe T.Handle)
-
-cancelTimeout :: ManagedThread -> IO ()
-cancelTimeout (ManagedThread _ (Just th)) = T.cancel th
-cancelTimeout _ = return ()
+-- 'IORef' prevents race between WAI TimeManager (TimeoutThread)
+-- and stopAfter (KilledByHttp2ThreadManager).
+-- It is initialized with 'False' and turned into 'True' when locked.
+-- The winner can throw an asynchronous exception.
+data ManagedThread = ManagedThread (Weak ThreadId) (IORef Bool)
 
 ----------------------------------------------------------------
 
@@ -74,17 +75,9 @@ stopAfter (Manager _timmgr var) action cleanup = do
             writeTVar var Map.empty
             return m0
         let ths = Map.elems m
-        -- Managed threads may receive 'TimeoutThread' and
-        -- 'KilledByHttp2ThreadManager'. Before throwing to
-        -- 'KilledByHttp2ThreadManager' to the tagets,
-        -- let's cancel 'TimeoutThread' to avoid race.
-        forM_ ths cancelTimeout
-        let er = either Just (const Nothing) ma
-        forM_ ths $ \(ManagedThread wtid _) -> do
-            mtid <- deRefWeak wtid
-            case mtid of
-                Nothing -> return ()
-                Just tid -> E.throwTo tid $ KilledByHttp2ThreadManager er
+            er = either Just (const Nothing) ma
+            ex = KilledByHttp2ThreadManager er
+        forM_ ths $ \(ManagedThread wtid ref) -> lockAndKill wtid ref ex
         case ma of
             Left err -> cleanup (Just err) >> throwIO err
             Right a -> cleanup Nothing >> return a
@@ -106,16 +99,42 @@ forkManagedUnmask
 forkManagedUnmask (Manager _timmgr var) label io =
     void $ mask_ $ forkIOWithUnmask $ \unmask -> E.handle ignore $ do
         labelMe label
-        E.bracket setup clear $ \_ -> io unmask
-  where
-    setup = do
-        (wtid, n) <- myWeakThradId
-        -- asking to throw KilledByHttp2ThreadManager to me
-        let ent = ManagedThread wtid Nothing
-        atomically $ modifyTVar' var $ Map.insert n ent
-        return n
-    clear n = atomically $ modifyTVar' var $ Map.delete n
-    ignore (KilledByHttp2ThreadManager _) = return ()
+        E.bracket (setup var) (clear var) $ \_ -> io unmask
+
+forkManagedTimeout :: Manager -> String -> (T.Handle -> IO ()) -> IO ()
+forkManagedTimeout (Manager timmgr var) label io =
+    void $ forkIO $ E.handle ignore $ do
+        labelMe label
+        E.bracket (setup var) (clear var) $ \(_n, wtid, ref) ->
+            -- 'TimeoutThread' is ignored by 'withHandle'.
+            T.withHandle timmgr (lockAndKill wtid ref T.TimeoutThread) io
+
+setup :: TVar (IntMap ManagedThread) -> IO (Int, Weak ThreadId, IORef Bool)
+setup var = do
+    (wtid, n) <- myWeakThradId
+    ref <- newIORef False
+    let ent = ManagedThread wtid ref
+    -- asking to throw KilledByHttp2ThreadManager to me
+    atomically $ modifyTVar' var $ Map.insert n ent
+    return (n, wtid, ref)
+
+lockAndKill :: Exception e => Weak ThreadId -> IORef Bool -> e -> IO ()
+lockAndKill wtid ref e = do
+    alreadyLocked <- atomicModifyIORef' ref (\b -> (True, b)) -- try to lock
+    unless alreadyLocked $ do
+        mtid <- deRefWeak wtid
+        case mtid of
+            Nothing -> return ()
+            Just tid -> E.throwTo tid e
+
+clear
+    :: TVar (IntMap ManagedThread)
+    -> (Map.Key, Weak ThreadId, IORef Bool)
+    -> IO ()
+clear var (n, _, _) = atomically $ modifyTVar' var $ Map.delete n
+
+ignore :: KilledByHttp2ThreadManager -> IO ()
+ignore (KilledByHttp2ThreadManager _) = return ()
 
 waitCounter0 :: Manager -> IO ()
 waitCounter0 (Manager _timmgr var) = atomically $ do
@@ -123,15 +142,6 @@ waitCounter0 (Manager _timmgr var) = atomically $ do
     check (Map.size m == 0)
 
 ----------------------------------------------------------------
-
-withTimeout :: Manager -> (T.Handle -> IO ()) -> IO ()
-withTimeout (Manager timmgr var) action =
-    T.withHandleKillThread timmgr (return ()) $ \th -> do
-        (wtid, n) <- myWeakThradId
-        -- overriding Nothing to Just if already exist
-        let ent = ManagedThread wtid $ Just th
-        atomically $ modifyTVar' var $ Map.insert n ent
-        action th
 
 myWeakThradId :: IO (Weak ThreadId, Int)
 myWeakThradId = do
