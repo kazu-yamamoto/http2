@@ -23,15 +23,13 @@ import Network.HTTP2.H2
 
 runServer :: Config -> Server -> Launch
 runServer conf server ctx@Context{..} strm req =
-    forkManaged threadManager label $
-        withTimeout threadManager $ \th -> do
-            -- FIXME: exception
-            let req' = pauseRequestBody th
-                aux = Aux th mySockAddr peerSockAddr
-                request = Request req'
-            lc <- newLoopCheck strm Nothing
-            server request aux $ sendResponse conf ctx lc strm request
-            adjustRxWindow ctx strm
+    forkManagedTimeout threadManager label $ \th -> do
+        let req' = pauseRequestBody th
+            aux = Aux th mySockAddr peerSockAddr
+            request = Request req'
+        lc <- newLoopCheck strm Nothing
+        server request aux $ sendResponse conf ctx lc strm request
+        adjustRxWindow ctx strm
   where
     label = "H2 response sender for stream " ++ show (streamNumber strm)
     pauseRequestBody th = req{inpObjBody = readBody'}
@@ -169,21 +167,20 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManaged threadManager label $
-        withTimeout threadManager $ \th ->
-            withOutBodyIface tbq id $ \iface -> do
-                let iface' =
-                        iface
-                            { outBodyPush = \b -> do
-                                T.pause th
-                                outBodyPush iface b
-                                T.resume th
-                            , outBodyPushFinal = \b -> do
-                                T.pause th
-                                outBodyPushFinal iface b
-                                T.resume th
-                            }
-                strmbdy iface'
+    forkManagedTimeout threadManager label $ \th ->
+        withOutBodyIface tbq id $ \iface -> do
+            let iface' =
+                    iface
+                        { outBodyPush = \b -> do
+                            T.pause th
+                            outBodyPush iface b
+                            T.resume th
+                        , outBodyPushFinal = \b -> do
+                            T.pause th
+                            outBodyPushFinal iface b
+                            T.resume th
+                        }
+            strmbdy iface'
     return tbq
   where
     label = "H2 response streaming sender for " ++ show (streamNumber strm)
