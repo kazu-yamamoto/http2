@@ -1,5 +1,11 @@
 # ChangeLog for http2
 
+## 5.3.8
+
+* `forkManagedTimeout` ensures that only one asynchronous exception is
+  thrown. Fixing the thread leak via `Weak ThreadId` and `modifyTVar'`.
+  [#156](https://github.com/kazu-yamamoto/http2/pull/156)
+
 ## 5.3.7
 
 * Using `withHandle` of time-manager.
