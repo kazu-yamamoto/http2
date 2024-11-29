@@ -13,7 +13,7 @@ import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
-import qualified System.TimeManager as T
+import qualified System.ThreadManager as T
 
 import Imports hiding (insert)
 import Network.HTTP2.Frame
@@ -23,7 +23,7 @@ import Network.HTTP2.H2
 
 runServer :: Config -> Server -> Launch
 runServer conf server ctx@Context{..} strm req =
-    forkManagedTimeout threadManager label $ \th -> do
+    T.forkManagedTimeout threadManager label $ \th -> do
         let req' = pauseRequestBody th
             aux = Aux th mySockAddr peerSockAddr
             request = Request req'
@@ -95,7 +95,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
         check (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
-        forkManaged threadManager "H2 server push" $ do
+        T.forkManaged threadManager "H2 server push" $ do
             (pid, newstrm) <- makePushStream ctx pstrm
             let scheme = fromJust $ getFieldValue tokenScheme reqvt
                 -- fixme: this value can be Nothing
@@ -167,7 +167,7 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManagedTimeout threadManager label $ \th ->
+    T.forkManagedTimeout threadManager label $ \th ->
         withOutBodyIface tbq id $ \iface -> do
             let iface' =
                     iface

@@ -10,12 +10,11 @@ import qualified Control.Exception as E
 import Data.IORef
 import Network.Control
 import Network.Socket (SockAddr)
-import qualified System.TimeManager as T
+import qualified System.ThreadManager as T
 
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
-import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
@@ -88,7 +87,7 @@ data Context = Context
     , rstRate :: Rate
     , mySockAddr :: SockAddr
     , peerSockAddr :: SockAddr
-    , threadManager :: Manager
+    , threadManager :: T.ThreadManager
     , senderDone :: TVar Bool
     }
 
@@ -130,7 +129,7 @@ newContext rinfo Config{..} cacheSiz connRxWS settings timmgr =
         <*> newRate
         <*> return confMySockAddr
         <*> return confPeerSockAddr
-        <*> start timmgr
+        <*> T.newThreadManager timmgr
         <*> newTVarIO False
   where
     rl = case rinfo of

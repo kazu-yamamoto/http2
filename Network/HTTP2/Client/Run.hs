@@ -17,6 +17,7 @@ import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
+import qualified System.ThreadManager as T
 import Text.Read (readMaybe)
 
 import Imports
@@ -97,7 +98,7 @@ run cconf@ClientConfig{..} conf client = do
 wrapClient :: Context -> IO a -> IO a
 wrapClient ctx client = do
     x <- client
-    waitCounter0 $ threadManager ctx
+    T.waitUntilAllGone $ threadManager ctx
     let frame = goawayFrame 0 NoError "graceful closing"
     enqueueControl (controlQ ctx) $ CFrames Nothing [frame]
     enqueueControl (controlQ ctx) $ CFinish GoAwayIsSent
@@ -147,7 +148,7 @@ setup ClientConfig{..} conf@Config{..} = do
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
-    stopAfter mgr runAll $ \res ->
+    T.stopAfter mgr runAll $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx
@@ -238,7 +239,7 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
             (pop, out) <- makeOutput strm ot
             pushOutput sid out
             lc <- newLoopCheck strm mtbq
-            forkManaged threadManager label $ syncWithSender' ctx pop lc
+            T.forkManaged threadManager label $ syncWithSender' ctx pop lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)
     pushOutput sid out = atomically $ do
@@ -254,7 +255,7 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    forkManagedUnmask threadManager label $ \unmask ->
+    T.forkManagedUnmask threadManager label $ \unmask ->
         withOutBodyIface tbq unmask strmbdy
     return tbq
   where

@@ -18,13 +18,13 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
 import Network.HTTP.Semantics
+import qualified System.ThreadManager as T
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.HPACK
-import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
@@ -60,10 +60,10 @@ frameReceiver ctx@Context{..} conf@Config{..} = do
     sendGoaway se
         | isAsyncException se = E.throwIO se
         | Just GoAwayIsSent <- E.fromException se = do
-            waitCounter0 threadManager
+            T.waitUntilAllGone threadManager
             enqueueControl controlQ $ CFinish GoAwayIsSent
         | Just ConnectionIsClosed <- E.fromException se = do
-            waitCounter0 threadManager
+            T.waitUntilAllGone threadManager
             enqueueControl controlQ $ CFinish ConnectionIsClosed
         | Just e@(ConnectionErrorIsReceived _ _ _) <- E.fromException se =
             enqueueControl controlQ $ CFinish e

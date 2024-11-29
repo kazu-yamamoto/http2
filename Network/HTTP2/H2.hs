@@ -3,7 +3,6 @@ module Network.HTTP2.H2 (
     module Network.HTTP2.H2.Context,
     module Network.HTTP2.H2.EncodeFrame,
     module Network.HTTP2.H2.HPACK,
-    module Network.HTTP2.H2.Manager,
     module Network.HTTP2.H2.Queue,
     module Network.HTTP2.H2.Receiver,
     module Network.HTTP2.H2.Sender,
@@ -19,7 +18,6 @@ import Network.HTTP2.H2.Config
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.EncodeFrame
 import Network.HTTP2.H2.HPACK
-import Network.HTTP2.H2.Manager
 import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Receiver
 import Network.HTTP2.H2.Sender
