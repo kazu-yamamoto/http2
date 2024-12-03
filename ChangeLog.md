@@ -1,5 +1,9 @@
 # ChangeLog for http2
 
+## 5.3.9
+
+* Using `ThreadManager` of `time-manager`.
+
 ## 5.3.8
 
 * `forkManagedTimeout` ensures that only one asynchronous exception is

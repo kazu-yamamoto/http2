@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               http2
-version:            5.3.8
+version:            5.3.9
 license:            BSD3
 license-file:       LICENSE
 maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>
