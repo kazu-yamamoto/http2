@@ -72,9 +72,13 @@ build cnt0 xs =
         (cnt2, r) = build cnt1 ts
      in (cnt2, Bin Nothing cnt0 l r)
   where
-    (fs', ts') = partition ((==) F . head . snd) xs
-    fs = map (second tail) fs'
-    ts = map (second tail) ts'
+    (fs', ts') = partition (isHeadF . snd) xs
+    fs = map (second (drop 1)) fs'
+    ts = map (second (drop 1)) ts'
+
+isHeadF :: Bits -> Bool
+isHeadF [] = error "isHeadF"
+isHeadF (b : _) = b == F
 
 -- | Marking the EOS path
 mark :: Int -> Bits -> HTree -> HTree
