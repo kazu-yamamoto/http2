@@ -100,7 +100,9 @@ instance {-# OVERLAPPING #-} FromJSON Header where
         toKey = toValue
     parseJSON (Object o) = pure (mk $ textToByteString $ Key.toText k, toValue v) -- new
       where
-        (k, v) = head $ H.toList o
+        (k, v) = case H.toList o of
+            [] -> error "parseJSON"
+            x : _ -> x
     parseJSON _ = mzero
 
 instance {-# OVERLAPPING #-} ToJSON Header where

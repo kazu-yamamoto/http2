@@ -10,7 +10,7 @@ import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Lazy as BL
 import Network.HTTP2.Frame
-import System.FilePath.Glob (compile, globDir)
+import System.FilePath.Glob (compile, globDir1)
 import Test.Hspec
 
 import JSON
@@ -19,7 +19,7 @@ testDir :: FilePath
 testDir = "test-frame/http2-frame-test-case"
 
 getTestFiles :: FilePath -> IO [FilePath]
-getTestFiles dir = head <$> globDir [compile "*/*.json"] dir
+getTestFiles dir = globDir1 (compile "*/*.json") dir
 
 check :: FilePath -> IO ()
 check file = do

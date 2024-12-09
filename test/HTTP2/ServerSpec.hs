@@ -6,8 +6,6 @@
 module HTTP2.ServerSpec (spec) where
 
 import Control.Concurrent
--- cryptonite
-
 import Control.Concurrent.Async
 import qualified Control.Exception as E
 import Control.Monad
@@ -311,7 +309,9 @@ client5 sendRequest _aux = do
         go (100 :: Int)
 
 firstTrailerValue :: TokenHeaderTable -> FieldValue
-firstTrailerValue = snd . Prelude.head . fst
+firstTrailerValue tbl = case fst tbl of
+    [] -> error "firstTrailerValue"
+    x : _ -> snd x
 
 runAttack :: (C.ClientIO -> IO ()) -> IO ()
 runAttack attack =
