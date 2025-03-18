@@ -47,7 +47,7 @@ spec = do
         it "handles normal cases" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
-                (runClient allocSimpleConfig)
+                runClient allocSimpleConfig
 
         it "should always send the connection preface first" $ do
             prefaceVar <- newEmptyMVar
@@ -175,7 +175,7 @@ trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
 
 runClient :: (Socket -> BufferSize -> IO Config) -> IO ()
 runClient allocConfig =
-    runTCPClient host port $ runHTTP2Client
+    runTCPClient host port runHTTP2Client
   where
     auth = host
     cliconf = C.defaultClientConfig{C.authority = auth}
@@ -187,7 +187,8 @@ runClient allocConfig =
 
     client :: C.Client ()
     client sendRequest aux =
-        foldr1 concurrently_ $
+        foldr1
+            concurrently_
             [ client0 sendRequest aux
             , client1 sendRequest aux
             , client2 sendRequest aux
@@ -315,7 +316,7 @@ firstTrailerValue tbl = case fst tbl of
 
 runAttack :: (C.ClientIO -> IO ()) -> IO ()
 runAttack attack =
-    runTCPClient host port $ runHTTP2Client
+    runTCPClient host port runHTTP2Client
   where
     auth = host
     cliconf = C.defaultClientConfig{C.authority = auth}

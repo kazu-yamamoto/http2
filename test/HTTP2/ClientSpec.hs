@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -68,7 +67,7 @@ spec = do
                 let maxConc = fromJust $ maxConcurrentStreams defaultSettings
 
                 resultVars <- runClient "http" "localhost" $ \sendReq aux -> do
-                    for [1 .. (maxConc + 1) :: Int] $ \_ -> do
+                    replicateM ((maxConc + 1) :: Int) $ do
                         resultVar <- newEmptyMVar
                         concurrentClient resultVar sendReq aux
                         pure resultVar
@@ -111,7 +110,7 @@ responseHello = S.responseBuilder ok200 header body
     body = byteString "Hello, world!\n"
 
 runClient :: Scheme -> Authority -> Client a -> IO a
-runClient sc au client = runTCPClient host port $ runHTTP2Client
+runClient sc au client = runTCPClient host port runHTTP2Client
   where
     cliconf = defaultClientConfig{scheme = sc, authority = au}
     runHTTP2Client s =

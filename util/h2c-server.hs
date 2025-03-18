@@ -1,6 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Main (main) where
 
@@ -37,7 +35,7 @@ serverOpts argv =
         (o, n, []) -> return (foldl (flip id) defaultOptions o, n)
         (_, _, errs) -> showUsageAndExit $ concat errs
 
-data Options = Options
+newtype Options = Options
     { optMonitor :: Bool
     }
     deriving (Show)

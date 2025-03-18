@@ -65,7 +65,7 @@ frameReceiver ctx@Context{..} conf@Config{..} = do
         | Just ConnectionIsClosed <- E.fromException se = do
             T.waitUntilAllGone threadManager
             enqueueControl controlQ $ CFinish ConnectionIsClosed
-        | Just e@(ConnectionErrorIsReceived _ _ _) <- E.fromException se =
+        | Just e@(ConnectionErrorIsReceived{}) <- E.fromException se =
             enqueueControl controlQ $ CFinish e
         | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do
             let frame = goawayFrame sid err $ Short.fromShort msg
@@ -278,7 +278,7 @@ getOddStream ctx ftyp streamId Nothing
                     let errmsg =
                             Short.toShort
                                 ( "this frame is not allowed in an idle stream: "
-                                    `BS.append` (C8.pack (show ftyp))
+                                    `BS.append` C8.pack (show ftyp)
                                 )
                     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
                 when (ftyp == FrameHeaders) $ setPeerStreamID ctx streamId

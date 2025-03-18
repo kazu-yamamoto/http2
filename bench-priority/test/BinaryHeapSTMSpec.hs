@@ -33,12 +33,12 @@ spec = do
             atomically $ P.enqueue e5 q
             atomically $ P.enqueue e7 q
             i1 <- atomically $ P.dequeue q
-            atomically (readTVar (P.item i1)) `shouldReturn` 1
+            readTVarIO (P.item i1) `shouldReturn` 1
             atomically $ P.delete e5 q
             i3 <- atomically $ P.dequeue q
-            atomically (readTVar (P.item i3)) `shouldReturn` 3
+            readTVarIO (P.item i3) `shouldReturn` 3
             i7 <- atomically $ P.dequeue q
-            atomically (readTVar (P.item i7)) `shouldReturn` 7
+            readTVarIO (P.item i7) `shouldReturn` 7
 
 enqdeq :: P.PriorityQueue Int -> Int -> IO [Int]
 enqdeq pq num = loop pq num []
@@ -47,5 +47,5 @@ enqdeq pq num = loop pq num []
     loop !q !n vs = do
         ent <- atomically $ P.dequeue q
         atomically $ P.enqueue ent q
-        v <- atomically . readTVar $ P.item ent
+        v <- readTVarIO $ P.item ent
         loop q (n - 1) (v : vs)

@@ -260,7 +260,7 @@ frameSender
           where
             eos = if endOfStream then setEndStream else id
             getFlag [] = eos $ setEndHeader defaultFlags
-            getFlag _ = eos $ defaultFlags
+            getFlag _ = eos defaultFlags
 
             continue :: Offset -> TokenHeaderList -> FrameType -> IO Offset
             continue off [] _ = return off

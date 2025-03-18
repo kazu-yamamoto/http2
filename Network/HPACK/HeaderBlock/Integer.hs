@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Network.HPACK.HeaderBlock.Integer (
     encodeI,
     encodeInteger,

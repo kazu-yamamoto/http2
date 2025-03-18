@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Network.HTTP2.H2.Queue where
 
 import Control.Concurrent.STM

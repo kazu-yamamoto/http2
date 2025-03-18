@@ -1,6 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module Network.HTTP2.H2.Settings where
 
 import Network.Control

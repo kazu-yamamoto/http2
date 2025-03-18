@@ -28,7 +28,7 @@ data RoleInfo = RIS ServerInfo | RIC ClientInfo
 
 type Launch = Context -> Stream -> InpObj -> IO ()
 
-data ServerInfo = ServerInfo
+newtype ServerInfo = ServerInfo
     { launch :: Launch
     }
 

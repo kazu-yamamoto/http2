@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 
@@ -541,6 +540,6 @@ type ErrorCodeId   = ErrorCode
 type SettingsKeyId = SettingsKey
 type FrameTypeId   = FrameType
 {- FOURMOLU_ENABLE -}
-{- DEPRECATED ErrorCodeId   "Use ErrorCode instead" -}
-{- DEPRECATED SettingsKeyId "Use SettingsKey instead" -}
-{- DEPRECATED FrameTypeId   "Use FrameType instead" -}
+{-# DEPRECATED ErrorCodeId "Use ErrorCode instead" #-}
+{-# DEPRECATED SettingsKeyId "Use SettingsKey instead" #-}
+{-# DEPRECATED FrameTypeId "Use FrameType instead" #-}

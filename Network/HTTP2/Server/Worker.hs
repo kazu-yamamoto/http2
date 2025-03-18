@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.Server.Worker (

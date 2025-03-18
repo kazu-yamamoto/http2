@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | HTTP\/2 server library.
 --
 --  Example:

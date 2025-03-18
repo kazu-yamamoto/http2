@@ -2,7 +2,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Network.HTTP2.H2.Stream where
 
@@ -102,10 +101,7 @@ closeAllStreams ovar evar mErr' = do
             mErr'
 
     err :: Either SomeException a
-    err =
-        Left $
-            fromMaybe (toException ConnectionIsClosed) $
-                mErr
+    err = Left $ fromMaybe (toException ConnectionIsClosed) mErr
 
 ----------------------------------------------------------------
 
