@@ -58,6 +58,7 @@ data EvenStreamTable = EvenStreamTable
     , -- Cache must contain Stream instead of StreamId because
       -- a Stream is deleted when end-of-stream is received.
       -- After that, cache is looked up.
+      -- LRUCache is not used as LRU but as fixed-size map.
       evenCache :: LRUCache (Method, ByteString) Stream
     }
 
