@@ -101,42 +101,44 @@ newContext
     -> Settings
     -> T.Manager
     -> IO Context
-newContext rinfo Config{..} cacheSiz connRxWS settings timmgr =
+newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr = do
     -- My: Use this even if ack has not been received yet.
-    Context rl rinfo settings
-        <$> newIORef False
-        -- Peer: The spec defines max concurrency is infinite unless
-        -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
-        -- But it is vulnerable, so we set the limitations.
-        <*> newIORef baseSettings{maxConcurrentStreams = Just defaultMaxStreams}
-        <*> newTVarIO emptyOddStreamTable
-        <*> newTVarIO (emptyEvenStreamTable cacheSiz)
-        <*> newIORef Nothing
-        <*> newTVarIO sid0
-        <*> newIORef 0
-        <*> newIORef buflim
-        <*> newTQueueIO
-        <*> newTVarIO sid0
-        <*> newTQueueIO
-        -- My SETTINGS_HEADER_TABLE_SIZE
-        <*> newDynamicTableForEncoding defaultDynamicTableSize
-        <*> newDynamicTableForDecoding (headerTableSize settings) 4096
-        <*> newTVarIO (newTxFlow defaultWindowSize) -- 64K
-        <*> newIORef (newRxFlow connRxWS)
-        <*> newRate
-        <*> newRate
-        <*> newRate
-        <*> newRate
-        <*> return confMySockAddr
-        <*> return confPeerSockAddr
-        <*> T.newThreadManager timmgr
-        <*> newTVarIO False
+    myFirstSettings <- newIORef False
+    -- Peer: The spec defines max concurrency is infinite unless
+    -- SETTINGS_MAX_CONCURRENT_STREAMS is exchanged.
+    -- But it is vulnerable, so we set the limitations.
+    peerSettings <-
+        newIORef baseSettings{maxConcurrentStreams = Just defaultMaxStreams}
+    oddStreamTable <- newTVarIO emptyOddStreamTable
+    evenStreamTable <- newTVarIO (emptyEvenStreamTable cacheSiz)
+    continued <- newIORef Nothing
+    myStreamId <- newTVarIO sid0
+    peerStreamId <- newIORef 0
+    outputBufferLimit <- newIORef buflim
+    outputQ <- newTQueueIO
+    outputQStreamID <- newTVarIO sid0
+    controlQ <- newTQueueIO
+    -- My SETTINGS_HEADER_TABLE_SIZE
+    encodeDynamicTable <- newDynamicTableForEncoding defaultDynamicTableSize
+    decodeDynamicTable <-
+        newDynamicTableForDecoding (headerTableSize mySettings) 4096
+    txFlow <- newTVarIO (newTxFlow defaultWindowSize) -- 64K
+    rxFlow <- newIORef (newRxFlow connRxWS)
+    pingRate <- newRate
+    settingsRate <- newRate
+    emptyFrameRate <- newRate
+    rstRate <- newRate
+    let mySockAddr = confMySockAddr
+    let peerSockAddr = confPeerSockAddr
+    threadManager <- T.newThreadManager timmgr
+    senderDone <- newTVarIO False
+    return Context{..}
   where
-    rl = case rinfo of
+    role = case roleInfo of
         RIC{} -> Client
         _ -> Server
     sid0
-        | rl == Client = 1
+        | role == Client = 1
         | otherwise = 2
     dlim = defaultPayloadLength + frameHeaderLength
     buflim
