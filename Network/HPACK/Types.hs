@@ -23,7 +23,6 @@ module Network.HPACK.Types (
 ) where
 
 import Control.Exception as E
-import Data.Typeable
 import Network.ByteOrder (Buffer, BufferOverrun (..), BufferSize)
 
 import Imports
@@ -88,6 +87,6 @@ data DecodeError
     | HeaderBlockTruncated
     | IllegalHeaderName
     | TooLargeHeader
-    deriving (Eq, Show, Typeable)
+    deriving (Eq, Show)
 
 instance Exception DecodeError

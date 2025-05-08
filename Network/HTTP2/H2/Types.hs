@@ -14,7 +14,6 @@ import Control.Exception (
  )
 import qualified Control.Exception as E
 import Data.IORef
-import Data.Typeable
 import Network.Control
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
@@ -218,7 +217,7 @@ data HTTP2Error
     | StreamErrorIsSent ErrorCode StreamId ReasonPhrase
     | BadThingHappen E.SomeException
     | GoAwayIsSent
-    deriving (Show, Typeable)
+    deriving (Show)
 
 instance E.Exception HTTP2Error
 
