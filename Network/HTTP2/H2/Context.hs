@@ -53,46 +53,49 @@ newClientInfo scm auth = RIC $ ClientInfo scm auth
 
 ----------------------------------------------------------------
 
+{- FOURMOLU_DISABLE -}
 -- | The context for HTTP/2 connection.
 data Context = Context
-    { role :: Role
-    , roleInfo :: RoleInfo
+    { role               :: Role
+    , roleInfo           :: RoleInfo
     , -- Settings
-      mySettings :: Settings
-    , myFirstSettings :: IORef Bool
-    , peerSettings :: IORef Settings
-    , oddStreamTable :: TVar OddStreamTable
-    , evenStreamTable :: TVar EvenStreamTable
-    , continued :: IORef (Maybe StreamId)
+      mySettings         :: Settings
+    , myFirstSettings    :: IORef Bool
+    , peerSettings       :: IORef Settings
+    , oddStreamTable     :: TVar OddStreamTable
+    , evenStreamTable    :: TVar EvenStreamTable
+    , continued          :: IORef (Maybe StreamId)
     -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
     --   occur between the HEADERS frame and any CONTINUATION
     --   frames that might follow". This field is used to implement
     --   this requirement.
-    , myStreamId :: TVar StreamId
-    , peerStreamId :: IORef StreamId
-    , outputBufferLimit :: IORef Int
-    , outputQ :: TQueue Output
+    , myStreamId         :: TVar StreamId
+    , peerStreamId       :: IORef StreamId
+    , outputBufferLimit  :: IORef Int
+    , outputQ            :: TQueue Output
     -- ^ Invariant: Each stream will only ever have at most one 'Output'
     -- object in this queue at any moment.
-    , outputQStreamID :: TVar StreamId
-    , controlQ :: TQueue Control
+    , outputQStreamID    :: TVar StreamId
+    , controlQ           :: TQueue Control
     , encodeDynamicTable :: DynamicTable
     , decodeDynamicTable :: DynamicTable
     , -- the connection window for sending data
-      txFlow :: TVar TxFlow
-    , rxFlow :: IORef RxFlow
-    , pingRate :: Rate
-    , settingsRate :: Rate
-    , emptyFrameRate :: Rate
-    , rstRate :: Rate
-    , mySockAddr :: SockAddr
-    , peerSockAddr :: SockAddr
-    , threadManager :: T.ThreadManager
-    , senderDone :: TVar Bool
+      txFlow             :: TVar TxFlow
+    , rxFlow             :: IORef RxFlow
+    , pingRate           :: Rate
+    , settingsRate       :: Rate
+    , emptyFrameRate     :: Rate
+    , rstRate            :: Rate
+    , mySockAddr         :: SockAddr
+    , peerSockAddr       :: SockAddr
+    , threadManager      :: T.ThreadManager
+    , senderDone         :: TVar Bool
     }
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
+{- FOURMOLU_DISABLE -}
 newContext
     :: RoleInfo
     -> Config
@@ -109,29 +112,29 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr = do
     -- But it is vulnerable, so we set the limitations.
     peerSettings <-
         newIORef baseSettings{maxConcurrentStreams = Just defaultMaxStreams}
-    oddStreamTable <- newTVarIO emptyOddStreamTable
-    evenStreamTable <- newTVarIO (emptyEvenStreamTable cacheSiz)
-    continued <- newIORef Nothing
-    myStreamId <- newTVarIO sid0
-    peerStreamId <- newIORef 0
+    oddStreamTable    <- newTVarIO emptyOddStreamTable
+    evenStreamTable   <- newTVarIO (emptyEvenStreamTable cacheSiz)
+    continued         <- newIORef Nothing
+    myStreamId        <- newTVarIO sid0
+    peerStreamId      <- newIORef 0
     outputBufferLimit <- newIORef buflim
-    outputQ <- newTQueueIO
-    outputQStreamID <- newTVarIO sid0
-    controlQ <- newTQueueIO
+    outputQ           <- newTQueueIO
+    outputQStreamID   <- newTVarIO sid0
+    controlQ          <- newTQueueIO
     -- My SETTINGS_HEADER_TABLE_SIZE
     encodeDynamicTable <- newDynamicTableForEncoding defaultDynamicTableSize
     decodeDynamicTable <-
         newDynamicTableForDecoding (headerTableSize mySettings) 4096
-    txFlow <- newTVarIO (newTxFlow defaultWindowSize) -- 64K
-    rxFlow <- newIORef (newRxFlow connRxWS)
-    pingRate <- newRate
-    settingsRate <- newRate
-    emptyFrameRate <- newRate
-    rstRate <- newRate
-    let mySockAddr = confMySockAddr
+    txFlow          <- newTVarIO (newTxFlow defaultWindowSize) -- 64K
+    rxFlow          <- newIORef (newRxFlow connRxWS)
+    pingRate        <- newRate
+    settingsRate    <- newRate
+    emptyFrameRate  <- newRate
+    rstRate         <- newRate
+    let mySockAddr   = confMySockAddr
     let peerSockAddr = confPeerSockAddr
-    threadManager <- T.newThreadManager timmgr
-    senderDone <- newTVarIO False
+    threadManager   <- T.newThreadManager timmgr
+    senderDone      <- newTVarIO False
     return Context{..}
   where
     role = case roleInfo of
@@ -144,6 +147,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr = do
     buflim
         | confBufferSize >= dlim = dlim
         | otherwise = confBufferSize
+{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
