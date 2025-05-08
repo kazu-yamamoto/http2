@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Network.HTTP2.H2.Config where
 
 import Data.IORef
@@ -22,23 +24,15 @@ allocSimpleConfig s bufsiz = allocSimpleConfig' s bufsiz (30 * 1000000)
 --   timeout manager.
 allocSimpleConfig' :: Socket -> BufferSize -> Int -> IO Config
 allocSimpleConfig' s bufsiz usec = do
-    buf <- mallocBytes bufsiz
-    ref <- newIORef Nothing
-    timmgr <- T.initialize usec
-    mysa <- getSocketName s
-    peersa <- getPeerName s
-    let config =
-            Config
-                { confWriteBuffer = buf
-                , confBufferSize = bufsiz
-                , confSendAll = sendAll s
-                , confReadN = defaultReadN s ref
-                , confPositionReadMaker = defaultPositionReadMaker
-                , confTimeoutManager = timmgr
-                , confMySockAddr = mysa
-                , confPeerSockAddr = peersa
-                }
-    return config
+    confWriteBuffer <- mallocBytes bufsiz
+    let confBufferSize = bufsiz
+    let confSendAll = sendAll s
+    confReadN <- defaultReadN s <$> newIORef Nothing
+    let confPositionReadMaker = defaultPositionReadMaker
+    confTimeoutManager <- T.initialize usec
+    confMySockAddr <- getSocketName s
+    confPeerSockAddr <- getPeerName s
+    return Config{..}
 
 -- | Deallocating the resource of the simple configuration.
 freeSimpleConfig :: Config -> IO ()
