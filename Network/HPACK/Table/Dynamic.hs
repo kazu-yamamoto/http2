@@ -312,11 +312,12 @@ withDynamicTableForDecoding maxsiz huftmpsiz action =
 ----------------------------------------------------------------
 
 -- | Inserting 'Entry' to 'DynamicTable'.
---   New 'DynamicTable', the largest new 'Index'
---   and a set of dropped OLD 'Index'
---   are returned.
 insertEntry :: Entry -> DynamicTable -> IO ()
 insertEntry e dyntbl@DynamicTable{..} = do
+    -- Theoretically speaking, dropping entries by adjustTableSize
+    -- should be first. However, non-used slots always exist since the
+    -- size of dynamic table calculated via the minimum entry size (32
+    -- bytes). To simply adjustTableSize, insertFront is called first.
     insertFront e dyntbl
     es <- adjustTableSize dyntbl
     case codeInfo of
@@ -359,6 +360,7 @@ adjustTableSize dyntbl@DynamicTable{..} = adjust []
 
 ----------------------------------------------------------------
 
+-- Used in copyEntries.
 insertEnd :: Entry -> DynamicTable -> IO ()
 insertEnd e DynamicTable{..} = do
     maxN <- readIORef maxNumOfEntries
