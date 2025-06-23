@@ -36,14 +36,6 @@ data Switch
     | O Output
     | Flush
 
-wrapException :: E.SomeException -> IO ()
-wrapException se
-    | isAsyncException se = E.throwIO se
-    | Just GoAwayIsSent <- E.fromException se = return ()
-    | Just ConnectionIsClosed <- E.fromException se = return ()
-    | Just (e :: HTTP2Error) <- E.fromException se = E.throwIO e
-    | otherwise = E.throwIO $ BadThingHappen se
-
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
 updatePeerSettings :: Context -> SettingsList -> IO ()
@@ -67,10 +59,10 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
 
 frameSender :: Context -> Config -> IO ()
 frameSender
-    ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit, senderDone}
+    ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
     Config{..} = do
         labelMe "H2 sender"
-        (loop 0 `E.finally` setSenderDone) `E.catch` wrapException
+        loop 0
       where
         ----------------------------------------------------------------
         loop :: Offset -> IO ()
@@ -115,7 +107,6 @@ frameSender
 
         -- called with off == 0
         control :: Control -> IO ()
-        control (CFinish e) = E.throwIO e
         control (CFrames ms xs) = do
             buf <- copyAll xs confWriteBuffer
             let off = buf `minusPtr` confWriteBuffer
@@ -163,10 +154,12 @@ frameSender
                         return off'
 
         resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
-        resetStream strm err e = do
-            closed ctx strm (ResetByMe e)
-            let rst = resetFrame err $ streamNumber strm
-            enqueueControl controlQ $ CFrames Nothing [rst]
+        resetStream strm err e
+            | isAsyncException e = E.throwIO e
+            | otherwise = do
+                closed ctx strm (ResetByMe e)
+                let rst = resetFrame err $ streamNumber strm
+                enqueueControl controlQ $ CFrames Nothing [rst]
 
         ----------------------------------------------------------------
         outputHeader
@@ -388,5 +381,3 @@ frameSender
                     , flags = flag
                     , streamId = sid
                     }
-
-        setSenderDone = atomically $ writeTVar senderDone True
