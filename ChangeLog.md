@@ -1,5 +1,10 @@
 # ChangeLog for http2
 
+## 5.3.10
+
+* Introducing closure.
+  [#157](https://github.com/kazu-yamamoto/http2/pull/157)
+
 ## 5.3.9
 
 * Using `ThreadManager` of `time-manager`.
