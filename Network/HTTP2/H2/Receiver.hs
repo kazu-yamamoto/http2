@@ -6,6 +6,8 @@
 
 module Network.HTTP2.H2.Receiver (
     frameReceiver,
+    closureClient,
+    closureServer,
 ) where
 
 import Control.Concurrent
@@ -18,7 +20,6 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
 import Network.HTTP.Semantics
-import qualified System.ThreadManager as T
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -43,49 +44,17 @@ headerFragmentLimit = 51200 -- 50K
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> Config -> IO ()
-frameReceiver ctx@Context{..} conf@Config{..} = do
+frameReceiver ctx conf@Config{..} = do
     labelMe "H2 receiver"
-    loop `E.catch` sendGoaway
+    loop
   where
     loop = do
         -- If 'confReadN' is timeouted, an exception is thrown
         -- to destroy the thread trees.
         hd <- confReadN frameHeaderLength
-        if BS.null hd
-            then enqueueControl controlQ $ CFinish ConnectionIsTimeout
-            else do
-                processFrame ctx conf $ decodeFrameHeader hd
-                loop
-
-    sendGoaway se
-        | isAsyncException se = E.throwIO se
-        | Just GoAwayIsSent <- E.fromException se = do
-            T.waitUntilAllGone threadManager
-            enqueueControl controlQ $ CFinish GoAwayIsSent
-        | Just ConnectionIsClosed <- E.fromException se = do
-            T.waitUntilAllGone threadManager
-            enqueueControl controlQ $ CFinish ConnectionIsClosed
-        | Just e@(ConnectionErrorIsReceived{}) <- E.fromException se =
-            enqueueControl controlQ $ CFinish e
-        | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do
-            let frame = goawayFrame sid err $ Short.fromShort msg
-            enqueueControl controlQ $ CFrames Nothing [frame]
-            enqueueControl controlQ $ CFinish e
-        | Just e@(StreamErrorIsSent err sid msg) <- E.fromException se = do
-            let frame = resetFrame err sid
-            enqueueControl controlQ $ CFrames Nothing [frame]
-            let frame' = goawayFrame sid err $ Short.fromShort msg
-            enqueueControl controlQ $ CFrames Nothing [frame']
-            enqueueControl controlQ $ CFinish e
-        | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
-            let frame = goawayFrame sid err "treat a stream error as a connection error"
-            enqueueControl controlQ $ CFrames Nothing [frame]
-            enqueueControl controlQ $ CFinish e
-        -- this never happens
-        | Just e@(BadThingHappen _) <- E.fromException se =
-            enqueueControl controlQ $ CFinish e
-        | otherwise =
-            enqueueControl controlQ $ CFinish $ BadThingHappen se
+        when (BS.null hd) $ E.throwIO ConnectionIsTimeout
+        processFrame ctx conf $ decodeFrameHeader hd
+        loop
 
 ----------------------------------------------------------------
 
@@ -650,3 +619,39 @@ readSource (Source q inform refEOF) = do
                     let len = BS.length bs
                     inform len
                     return (bs, isEOF)
+
+----------------------------------------------------------------
+
+closureClient :: Config -> Either E.SomeException a -> IO a
+closureClient Config{..} (Right x) = do
+    let frame = goawayFrame 0 NoError ""
+    confSendAll frame `E.catch` ignore
+    return x
+  where
+    ignore (E.SomeException e)
+        | isAsyncException e = E.throwIO e
+        | otherwise = return ()
+closureClient conf (Left se) = closureServer conf se
+
+closureServer :: Config -> E.SomeException -> IO a
+closureServer Config{..} se
+    | isAsyncException se = E.throwIO se
+    | Just ConnectionIsClosed <- E.fromException se = do
+        E.throwIO ConnectionIsClosed
+    | Just e@(ConnectionErrorIsReceived{}) <- E.fromException se =
+        E.throwIO e
+    | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do
+        let frame = goawayFrame sid err $ Short.fromShort msg
+        confSendAll frame
+        E.throwIO e
+    | Just e@(StreamErrorIsSent err sid msg) <- E.fromException se = do
+        let frame = resetFrame err sid
+        let frame' = goawayFrame sid err $ Short.fromShort msg
+        confSendAll $ frame <> frame'
+        E.throwIO e
+    | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
+        let frame = goawayFrame sid err "treat a stream error as a connection error"
+        confSendAll frame
+        E.throwIO e
+    | Just (_ :: HTTP2Error) <- E.fromException se = E.throwIO se
+    | otherwise = E.throwIO $ BadThingHappen se

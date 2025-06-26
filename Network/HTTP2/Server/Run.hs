@@ -5,6 +5,7 @@ module Network.HTTP2.Server.Run where
 
 import Control.Concurrent.Async (concurrently_)
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
@@ -122,8 +123,12 @@ runH2 conf ctx = do
     let mgr = threadManager ctx
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
-        runBackgroundThreads = concurrently_ runReceiver runSender
-    T.stopAfter mgr runBackgroundThreads $ \res ->
+        runBackgroundThreads = do
+            er <- E.try $ concurrently_ runReceiver runSender
+            case er of
+                Right () -> return ()
+                Left e -> closureServer conf e
+    T.stopAfter mgr (runBackgroundThreads) $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- connClose must not be called here since Run:fork calls it

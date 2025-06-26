@@ -92,19 +92,7 @@ run cconf@ClientConfig{..} conf client = do
         x <- processResponse rsp
         adjustRxWindow ctx strm
         return x
-    runClient ctx = wrapClient ctx $ client (clientCore ctx) $ aux ctx
-
-wrapClient :: Context -> IO a -> IO a
-wrapClient ctx client = do
-    x <- client
-    T.waitUntilAllGone $ threadManager ctx
-    let frame = goawayFrame 0 NoError "graceful closing"
-    enqueueControl (controlQ ctx) $ CFrames Nothing [frame]
-    enqueueControl (controlQ ctx) $ CFinish GoAwayIsSent
-    atomically $ do
-        done <- readTVar $ senderDone ctx
-        check done
-    return x
+    runClient ctx = client (clientCore ctx) $ aux ctx
 
 -- | Launching a receiver and a sender.
 runIO :: ClientConfig -> Config -> (ClientIO -> IO (IO a)) -> IO a
@@ -119,9 +107,8 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
             return (streamNumber strm, strm)
         get = getResponse
         create = openOddStreamWait ctx
-    runClient <- do
-        act <- action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
-        return $ wrapClient ctx act
+    runClient <-
+        action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
     runH2 conf ctx runClient
 
 getResponse :: Stream -> IO Response
@@ -147,7 +134,7 @@ setup ClientConfig{..} conf@Config{..} = do
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
-    T.stopAfter mgr runAll $ \res ->
+    T.stopAfter mgr (try runAll >>= closureClient conf) $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx
@@ -156,20 +143,11 @@ runH2 conf ctx runClient = do
     runBackgroundThreads = do
         labelMe "H2 runBackgroundThreads"
         concurrently_ runReceiver runSender
-
-    -- Run the background threads and client concurrently. If the client
-    -- finishes first, cancel the background threads. If the background
-    -- threads finish first, wait for the client.
     runAll = do
-        withAsync runBackgroundThreads $ \runningBackgroundThreads ->
-            withAsync runClient $ \runningClient -> do
-                result <- waitEither runningBackgroundThreads runningClient
-                case result of
-                    Right clientResult -> do
-                        cancel runningBackgroundThreads
-                        return clientResult
-                    Left () -> do
-                        wait runningClient
+        er <- race runBackgroundThreads runClient
+        case er of
+            Left () -> undefined
+            Right r -> return r
 
 makeStream
     :: Context

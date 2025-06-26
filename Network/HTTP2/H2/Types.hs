@@ -194,9 +194,7 @@ data Sync = Done | Cont Output
 
 ----------------------------------------------------------------
 
-data Control
-    = CFinish HTTP2Error
-    | CFrames (Maybe SettingsList) [ByteString]
+data Control = CFrames (Maybe SettingsList) [ByteString]
 
 ----------------------------------------------------------------
 
@@ -216,7 +214,6 @@ data HTTP2Error
     | StreamErrorIsReceived ErrorCode StreamId
     | StreamErrorIsSent ErrorCode StreamId ReasonPhrase
     | BadThingHappen E.SomeException
-    | GoAwayIsSent
     deriving (Show)
 
 instance E.Exception HTTP2Error
