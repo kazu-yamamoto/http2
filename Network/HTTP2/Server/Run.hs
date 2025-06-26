@@ -127,7 +127,7 @@ runH2 conf ctx = do
             er <- E.try $ concurrently_ runReceiver runSender
             case er of
                 Right () -> return ()
-                Left e -> closureServer conf ctx e
+                Left e -> closureServer conf e
     T.stopAfter mgr (runBackgroundThreads) $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 

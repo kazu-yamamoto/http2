@@ -20,7 +20,6 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
 import Network.HTTP.Semantics
-import qualified System.ThreadManager as T
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -623,23 +622,21 @@ readSource (Source q inform refEOF) = do
 
 ----------------------------------------------------------------
 
-closureClient :: Config -> Context -> Either E.SomeException a -> IO a
-closureClient Config{..} ctx (Right x) = do
+closureClient :: Config -> Either E.SomeException a -> IO a
+closureClient Config{..} (Right x) = do
     let frame = goawayFrame 0 NoError ""
     confSendAll frame `E.catch` ignore
-    T.waitUntilAllGone $ threadManager ctx
     return x
   where
     ignore (E.SomeException e)
         | isAsyncException e = E.throwIO e
         | otherwise = return ()
-closureClient conf ctx (Left se) = closureServer conf ctx se
+closureClient conf (Left se) = closureServer conf se
 
-closureServer :: Config -> Context -> E.SomeException -> IO a
-closureServer Config{..} Context{..} se
+closureServer :: Config -> E.SomeException -> IO a
+closureServer Config{..} se
     | isAsyncException se = E.throwIO se
     | Just ConnectionIsClosed <- E.fromException se = do
-        T.waitUntilAllGone threadManager
         E.throwIO ConnectionIsClosed
     | Just e@(ConnectionErrorIsReceived{}) <- E.fromException se =
         E.throwIO e

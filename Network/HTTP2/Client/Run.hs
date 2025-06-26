@@ -134,7 +134,7 @@ setup ClientConfig{..} conf@Config{..} = do
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
-    T.stopAfter mgr (try runAll >>= closureClient conf ctx) $ \res ->
+    T.stopAfter mgr (try runAll >>= closureClient conf) $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx
