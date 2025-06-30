@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-
 module Network.HPACK.Types (
     -- * Header
     FieldValue,

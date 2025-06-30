@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -196,35 +197,34 @@ frameSender
             let payloadOff = off0 + frameHeaderLength
                 datBuf = confWriteBuffer `plusPtr` payloadOff
                 datBufSiz = buflim - payloadOff
-            curr datBuf (min datBufSiz lim) >>= \next ->
-                case next of
-                    Next datPayloadLen reqflush mnext -> do
-                        NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
-                        fillDataHeader
-                            strm
-                            off0
-                            datPayloadLen
-                            mnext
-                            tlrmkr'
-                            out
-                            reqflush
-                    CancelNext mErr -> do
-                        -- Stream cancelled
-                        --
-                        -- At this point, the headers have already been sent.
-                        -- Therefore, the stream cannot be in the 'Idle' state, so we
-                        -- are justified in sending @RST_STREAM@.
-                        --
-                        -- By the invariant on the 'outputQ', there are no other
-                        -- outputs for this stream already enqueued. Therefore, we can
-                        -- safely cancel it knowing that we won't try and send any
-                        -- more data frames on this stream.
-                        case mErr of
-                            Just err ->
-                                resetStream strm InternalError err
-                            Nothing ->
-                                resetStream strm Cancel (E.toException CancelledStream)
-                        return (off0, Nothing)
+            curr datBuf (min datBufSiz lim) >>= \case
+                Next datPayloadLen reqflush mnext -> do
+                    NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
+                    fillDataHeader
+                        strm
+                        off0
+                        datPayloadLen
+                        mnext
+                        tlrmkr'
+                        out
+                        reqflush
+                CancelNext mErr -> do
+                    -- Stream cancelled
+                    --
+                    -- At this point, the headers have already been sent.
+                    -- Therefore, the stream cannot be in the 'Idle' state, so we
+                    -- are justified in sending @RST_STREAM@.
+                    --
+                    -- By the invariant on the 'outputQ', there are no other
+                    -- outputs for this stream already enqueued. Therefore, we can
+                    -- safely cancel it knowing that we won't try and send any
+                    -- more data frames on this stream.
+                    case mErr of
+                        Just err ->
+                            resetStream strm InternalError err
+                        Nothing ->
+                            resetStream strm Cancel (E.toException CancelledStream)
+                    return (off0, Nothing)
         output (Output strm (OPush ths pid) _) off0 _lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.

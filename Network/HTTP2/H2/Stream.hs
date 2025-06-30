@@ -121,11 +121,7 @@ withOutBodyIface tbq unmask k = do
     terminated <- newTVarIO Nothing
     let whenNotTerminated act = do
             mTerminated <- readTVar terminated
-            case mTerminated of
-                Just reason ->
-                    throwSTM reason
-                Nothing ->
-                    act
+            maybe act throwSTM mTerminated
 
         terminateWith reason act = do
             mTerminated <- readTVar terminated
@@ -154,10 +150,11 @@ withOutBodyIface tbq unmask k = do
                     atomically $
                         whenNotTerminated $
                             writeTBQueue tbq StreamingFlush
-                , outBodyCancel = \mErr ->
-                    atomically $
-                        terminateWith StreamCancelled $
-                            writeTBQueue tbq (StreamingCancelled mErr)
+                , outBodyCancel =
+                    atomically
+                        . terminateWith StreamCancelled
+                        . writeTBQueue tbq
+                        . StreamingCancelled
                 }
         finished = atomically $ do
             terminateWith StreamOutOfScope $

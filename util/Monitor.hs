@@ -16,7 +16,7 @@ monitor action = do
     showT (i, l, s) = i ++ " " ++ l ++ ": " ++ show s
 
 threadSummary :: IO [(String, String, ThreadStatus)]
-threadSummary = (sort <$> listThreads) >>= mapM summary
+threadSummary = listThreads >>= mapM summary . sort
   where
     summary t = do
         let idstr = drop 9 $ show t

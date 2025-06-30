@@ -128,7 +128,7 @@ runH2 conf ctx = do
             case er of
                 Right () -> return ()
                 Left e -> closureServer conf e
-    T.stopAfter mgr (runBackgroundThreads) $ \res ->
+    T.stopAfter mgr runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- connClose must not be called here since Run:fork calls it
