@@ -69,7 +69,7 @@
   workers collaborate with the sender after queuing a response and
   finish after all response data are sent.
 * All threads are labeled with `labelThread`. You can see them by
-  `listThreas` if necessary.
+  `listThreads` if necessary.
 
 ## 5.2.6
 
