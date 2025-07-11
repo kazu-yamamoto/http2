@@ -144,9 +144,11 @@ runH2 conf ctx runClient = do
         labelMe "H2 runBackgroundThreads"
         concurrently_ runReceiver runSender
     runAll = do
+        -- "runBackgroundThreads" may throw an exception which
+        -- will be caught by "try" above
         er <- race runBackgroundThreads runClient
         case er of
-            Left () -> undefined
+            Left () -> undefined -- never reached
             Right r -> return r
 
 makeStream
