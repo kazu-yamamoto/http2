@@ -32,6 +32,7 @@ allocSimpleConfig' s bufsiz usec = do
     confTimeoutManager <- T.initialize usec
     confMySockAddr <- getSocketName s
     confPeerSockAddr <- getPeerName s
+    let confReadNTimeout = False
     return Config{..}
 
 -- | Deallocating the resource of the simple configuration.

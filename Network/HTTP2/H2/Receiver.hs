@@ -21,6 +21,7 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
 import Network.HTTP.Semantics
+import qualified System.ThreadManager as T
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -47,15 +48,27 @@ headerFragmentLimit = 51200 -- 50K
 frameReceiver :: Context -> Config -> IO ()
 frameReceiver ctx conf@Config{..} = do
     labelMe "H2 receiver"
-    loop
+    tid <- myThreadId
+    if confReadNTimeout
+        then
+            loop1
+        else
+            void $
+                T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
   where
-    loop = do
-        -- If 'confReadN' is timeouted, an exception is thrown
-        -- to destroy the thread trees.
-        hd <- confReadN frameHeaderLength
+    loop1 = do
+        hd <- confReadN frameHeaderLength -- throwing an exception on timeout
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
-        loop
+        loop1
+    loop2 th = do
+        -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
+        -- to destroy the thread trees.
+        hd <- confReadN frameHeaderLength
+        T.tickle th
+        when (BS.null hd) $ E.throwIO ConnectionIsClosed
+        processFrame ctx conf $ decodeFrameHeader hd
+        loop2 th
 
 ----------------------------------------------------------------
 
@@ -630,7 +643,10 @@ closureClient conf ctx (Left se) = closureServer conf ctx se
 
 closureServer :: Config -> Context -> E.SomeException -> IO a
 closureServer conf ctx se
-    | isAsyncException se = E.throwIO se
+    | isAsyncException se = do
+        frame <- goaway ctx NoError "maybe timeout by manager"
+        sendGoaway conf frame
+        E.throwIO se
     | Just ConnectionIsClosed <- E.fromException se = do
         frame <- goaway ctx NoError "no error"
         sendGoaway conf frame

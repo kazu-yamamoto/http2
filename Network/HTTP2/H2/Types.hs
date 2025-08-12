@@ -269,6 +269,7 @@ data Config = Config
     -- ^ This is copied into 'Aux', if exist, on server.
     , confPeerSockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
+    , confReadNTimeout :: Bool
     }
 
 isAsyncException :: Exception e => e -> Bool
