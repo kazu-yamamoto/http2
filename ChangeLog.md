@@ -183,7 +183,7 @@
   [#80](https://github.com/kazu-yamamoto/http2/pull/80)
 * Introducing `KilledByHttp2ThreadManager` instead of `ThreadKilled`.
   [#79](https://github.com/kazu-yamamoto/http2/pull/79)
-  [#81](https://github.com/kazu-yamamoto/http2/pull/82)
+  [#81](https://github.com/kazu-yamamoto/http2/pull/81)
   [#82](https://github.com/kazu-yamamoto/http2/pull/82)
 * Handle RST_STREAM with NO_ERROR.
   [#78](https://github.com/kazu-yamamoto/http2/pull/78)
