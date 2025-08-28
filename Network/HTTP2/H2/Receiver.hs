@@ -20,6 +20,7 @@ import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Network.Control
 import Network.HTTP.Semantics
+import qualified System.ThreadManager as T
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -46,15 +47,17 @@ headerFragmentLimit = 51200 -- 50K
 frameReceiver :: Context -> Config -> IO ()
 frameReceiver ctx conf@Config{..} = do
     labelMe "H2 receiver"
-    loop
+    tid <- myThreadId
+    void $ T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop
   where
-    loop = do
-        -- If 'confReadN' is timeouted, an exception is thrown
+    loop th = do
+        -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
         -- to destroy the thread trees.
         hd <- confReadN frameHeaderLength
-        when (BS.null hd) $ E.throwIO ConnectionIsTimeout
+        T.tickle th
+        when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
-        loop
+        loop th
 
 ----------------------------------------------------------------
 
