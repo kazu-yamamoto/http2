@@ -37,7 +37,7 @@ runServer conf server ctx@Context{..} strm req =
         readBody' = do
             T.pause th
             bs <- readBody
-            T.resume th
+            T.resume th -- this is the same as 'tickle'
             return bs
 
 ----------------------------------------------------------------
@@ -173,11 +173,11 @@ sendStreaming Context{..} strm strmbdy = do
                         { outBodyPush = \b -> do
                             T.pause th
                             outBodyPush iface b
-                            T.resume th
+                            T.resume th -- this is the same as 'tickle'
                         , outBodyPushFinal = \b -> do
                             T.pause th
                             outBodyPushFinal iface b
-                            T.resume th
+                            T.resume th -- this is the same as 'tickle'
                         }
             strmbdy iface'
     return tbq
