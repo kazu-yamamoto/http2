@@ -52,7 +52,7 @@ frameReceiver ctx conf@Config{..} = do
         -- If 'confReadN' is timeouted, an exception is thrown
         -- to destroy the thread trees.
         hd <- confReadN frameHeaderLength
-        when (BS.null hd) $ E.throwIO ConnectionIsTimeout
+        when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
         loop
 
