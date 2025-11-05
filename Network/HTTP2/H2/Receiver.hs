@@ -622,36 +622,49 @@ readSource (Source q inform refEOF) = do
 
 ----------------------------------------------------------------
 
-closureClient :: Config -> Either E.SomeException a -> IO a
-closureClient Config{..} (Right x) = do
-    let frame = goawayFrame 0 NoError ""
-    confSendAll frame `E.catch` ignore
+closureClient :: Config -> Context -> Either E.SomeException a -> IO a
+closureClient conf ctx (Right x) = do
+    frame <- goaway ctx NoError "no error"
+    sendGoaway conf frame
     return x
-  where
-    ignore (E.SomeException e)
-        | isAsyncException e = E.throwIO e
-        | otherwise = return ()
-closureClient conf (Left se) = closureServer conf se
+closureClient conf ctx (Left se) = closureServer conf ctx se
 
-closureServer :: Config -> E.SomeException -> IO a
-closureServer Config{..} se
+closureServer :: Config -> Context -> E.SomeException -> IO a
+closureServer conf ctx se
     | isAsyncException se = E.throwIO se
     | Just ConnectionIsClosed <- E.fromException se = do
+        frame <- goaway ctx NoError "no error"
+        sendGoaway conf frame
         E.throwIO ConnectionIsClosed
-    | Just e@(ConnectionErrorIsReceived{}) <- E.fromException se =
+    | Just e@(ConnectionErrorIsReceived _err _sid msg) <- E.fromException se = do
+        frame <- goaway ctx NoError $ Short.fromShort msg
+        sendGoaway conf frame
         E.throwIO e
-    | Just e@(ConnectionErrorIsSent err sid msg) <- E.fromException se = do
-        let frame = goawayFrame sid err $ Short.fromShort msg
-        confSendAll frame
+    | Just e@(ConnectionErrorIsSent err _sid msg) <- E.fromException se = do
+        frame <- goaway ctx err $ Short.fromShort msg
+        sendGoaway conf frame
         E.throwIO e
-    | Just e@(StreamErrorIsSent err sid msg) <- E.fromException se = do
-        let frame = resetFrame err sid
-        let frame' = goawayFrame sid err $ Short.fromShort msg
-        confSendAll $ frame <> frame'
+    | Just e@(StreamErrorIsSent err _sid msg) <- E.fromException se = do
+        let frame = resetFrame err _sid
+        frame' <- goaway ctx err $ Short.fromShort msg
+        sendGoaway conf (frame <> frame')
         E.throwIO e
-    | Just e@(StreamErrorIsReceived err sid) <- E.fromException se = do
-        let frame = goawayFrame sid err "treat a stream error as a connection error"
-        confSendAll frame
+    | Just e@(StreamErrorIsReceived err _sid) <- E.fromException se = do
+        frame <- goaway ctx err "treat a stream error as a connection error"
+        sendGoaway conf frame
         E.throwIO e
     | Just (_ :: HTTP2Error) <- E.fromException se = E.throwIO se
     | otherwise = E.throwIO $ BadThingHappen se
+
+goaway :: Context -> ErrorCode -> ByteString -> IO ByteString
+goaway ctx err msg = do
+    sid <- getPeerLastStreamId ctx
+    return $ goawayFrame sid err msg
+
+sendGoaway :: Config -> ByteString -> IO ()
+sendGoaway Config{..} frame = confSendAll frame `E.catch` ignore
+
+ignore :: E.SomeException -> IO ()
+ignore (E.SomeException e)
+    | isAsyncException e = E.throwIO e
+    | otherwise = return ()

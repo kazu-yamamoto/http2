@@ -71,6 +71,7 @@ data Context = Context
     --   this requirement.
     , myStreamId         :: TVar StreamId
     , peerStreamId       :: IORef StreamId
+    , peerLastStreamId   :: IORef StreamId
     , outputBufferLimit  :: IORef Int
     , outputQ            :: TQueue Output
     -- ^ Invariant: Each stream will only ever have at most one 'Output'
@@ -116,6 +117,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr = do
     continued         <- newIORef Nothing
     myStreamId        <- newTVarIO sid0
     peerStreamId      <- newIORef 0
+    peerLastStreamId  <- newIORef 0
     outputBufferLimit <- newIORef buflim
     outputQ           <- newTQueueIO
     outputQStreamID   <- newTVarIO sid0
@@ -169,6 +171,14 @@ getPeerStreamID ctx = readIORef $ peerStreamId ctx
 
 setPeerStreamID :: Context -> StreamId -> IO ()
 setPeerStreamID ctx sid = writeIORef (peerStreamId ctx) sid
+
+----------------------------------------------------------------
+
+getPeerLastStreamId :: Context -> IO StreamId
+getPeerLastStreamId ctx = readIORef $ peerLastStreamId ctx
+
+modifyPeerLastStreamId :: Context -> StreamId -> IO ()
+modifyPeerLastStreamId ctx sid = atomicModifyIORef' (peerLastStreamId ctx) $ \n -> if sid > n then (sid, ()) else (n, ())
 
 ----------------------------------------------------------------
 
