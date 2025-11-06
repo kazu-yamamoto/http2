@@ -214,11 +214,11 @@ decodeFramePayload ftyp = checkFrameSize decoder
 
 -- | Frame payload decoder for DATA frame.
 decodeDataFrame :: FramePayloadDecoder
-decodeDataFrame header bs = decodeWithPadding header bs DataFrame
+decodeDataFrame header _bs = decodeWithPadding header _bs DataFrame
 
 -- | Frame payload decoder for HEADERS frame.
 decodeHeadersFrame :: FramePayloadDecoder
-decodeHeadersFrame header bs = decodeWithPadding header bs $ \bs' ->
+decodeHeadersFrame header _bs = decodeWithPadding header _bs $ \bs' ->
     if hasPriority
         then
             let (bs0, bs1) = BS.splitAt 5 bs'
@@ -234,7 +234,7 @@ decodePriorityFrame _ bs = Right $ PriorityFrame $ priority bs
 
 -- | Frame payload decoder for RST_STREAM frame.
 decodeRSTStreamFrame :: FramePayloadDecoder
-decodeRSTStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCode (N.word32 bs)
+decodeRSTStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCode $ N.word32 bs
 
 -- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
@@ -258,19 +258,22 @@ decodeSettingsFrame FrameHeader{..} (PS fptr off _)
 
 -- | Frame payload decoder for PUSH_PROMISE frame.
 decodePushPromiseFrame :: FramePayloadDecoder
-decodePushPromiseFrame header bs = decodeWithPadding header bs $ \bs' ->
+decodePushPromiseFrame header _bs = decodeWithPadding header _bs $ \bs' ->
     let (bs0, bs1) = BS.splitAt 4 bs'
         sid = streamIdentifier (N.word32 bs0)
      in PushPromiseFrame sid bs1
 
 -- | Frame payload decoder for PING frame.
 decodePingFrame :: FramePayloadDecoder
-decodePingFrame _ bs = Right $ PingFrame bs
+decodePingFrame _ _bs = Right $ PingFrame bs
+  where
+    bs = BS.copy _bs
 
 -- | Frame payload decoder for GOAWAY frame.
 decodeGoAwayFrame :: FramePayloadDecoder
-decodeGoAwayFrame _ bs = Right $ GoAwayFrame sid ecid bs2
+decodeGoAwayFrame _ _bs = Right $ GoAwayFrame sid ecid bs2
   where
+    bs = BS.copy _bs
     (bs0, bs1') = BS.splitAt 4 bs
     (bs1, bs2) = BS.splitAt 4 bs1'
     sid = streamIdentifier (N.word32 bs0)
@@ -287,10 +290,14 @@ decodeWindowUpdateFrame FrameHeader{..} bs
 
 -- | Frame payload decoder for CONTINUATION frame.
 decodeContinuationFrame :: FramePayloadDecoder
-decodeContinuationFrame _ bs = Right $ ContinuationFrame bs
+decodeContinuationFrame _ _bs = Right $ ContinuationFrame bs
+  where
+    bs = BS.copy _bs
 
 decodeUnknownFrame :: FrameType -> FramePayloadDecoder
-decodeUnknownFrame typ _ bs = Right $ UnknownFrame typ bs
+decodeUnknownFrame typ _ _bs = Right $ UnknownFrame typ bs
+  where
+    bs = BS.copy _bs
 
 ----------------------------------------------------------------
 
@@ -311,14 +318,15 @@ decodeWithPadding
     -> Either FrameDecodeError FramePayload
 decodeWithPadding FrameHeader{..} bs body
     | padded =
-        let (w8, rest) = fromMaybe (error "decodeWithPadding") $ BS.uncons bs
+        let (w8, rest) = fromMaybe (error "decodeWithPadding") $ BS.uncons bs'
             padlen = intFromWord8 w8
             bodylen = payloadLength - padlen - 1
          in if bodylen < 0
                 then Left $ FrameDecodeError ProtocolError streamId "padding is not enough"
                 else Right . body $ BS.take bodylen rest
-    | otherwise = Right $ body bs
+    | otherwise = Right $ body bs'
   where
+    bs' = BS.copy bs
     padded = testPadded flags
 
 streamIdentifier :: Word32 -> StreamId
