@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Main where
 
@@ -21,6 +22,7 @@ defaultOptions =
         { optPerformance = 0
         , optNumOfReqs = 1
         , optMonitor = False
+        , optInteractive = False
         }
 
 usage :: String
@@ -43,6 +45,11 @@ options =
         ["monitor"]
         (NoArg (\opts -> opts{optMonitor = True}))
         "run thread monitor"
+    , Option
+        ['i']
+        ["interactive"]
+        (NoArg (\o -> o{optInteractive = True}))
+        "enter interactive mode"
     ]
 
 showUsageAndExit :: String -> IO a
@@ -69,8 +76,21 @@ main = do
         h : p : ps -> return (h, p, C8.pack <$> ps)
     when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
     let cliconf = defaultClientConfig{authority = host}
+    launch cliconf opts host port paths
+
+launch :: ClientConfig -> Options -> String -> String -> [Path] -> IO ()
+launch cliconf opts host port paths = do
     runTCPClient host port $ \s ->
         E.bracket
             (allocSimpleConfig' s 4096 5000000)
             freeSimpleConfig
-            (\conf -> run cliconf conf $ client opts paths)
+            doit
+  where
+    doit conf = run cliconf conf go
+    go :: Client ()
+    go sendRequest _aux
+        | optInteractive opts = do
+            let action = client opts paths sendRequest _aux
+            console opts paths action _aux
+            return ()
+        | otherwise = client opts paths sendRequest _aux

@@ -82,6 +82,11 @@ run cconf@ClientConfig{..} conf client = do
     aux ctx =
         Aux
             { auxPossibleClientStreams = possibleClientStream ctx
+            , auxSendPing =
+                sendPing
+                    ctx
+                    False
+                    "Haskell!" -- 8 bytes
             }
     clientCore ctx req processResponse = do
         (strm, moutobj) <- makeStream ctx scheme authority req

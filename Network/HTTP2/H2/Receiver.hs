@@ -8,6 +8,7 @@ module Network.HTTP2.H2.Receiver (
     frameReceiver,
     closureClient,
     closureServer,
+    sendPing,
 ) where
 
 import Control.Concurrent
@@ -291,14 +292,12 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
                         setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     writeIORef myFirstSettings True
                     enqueueControl controlQ setframe
-control FramePing FrameHeader{flags, streamId} bs Context{mySettings, controlQ, pingRate} =
+control FramePing FrameHeader{flags, streamId} bs ctx@Context{mySettings, pingRate} =
     unless (testAck flags) $ do
         rate <- getRate pingRate
         if rate > pingRateLimit mySettings
             then E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many ping"
-            else do
-                let frame = pingFrame bs
-                enqueueControl controlQ $ CFrames Nothing [frame]
+            else sendPing ctx True bs
 control FrameGoAway header bs _ = do
     GoAwayFrame sid err msg <- guardIt $ decodeGoAwayFrame header bs
     if err == NoError
@@ -668,3 +667,10 @@ ignore :: E.SomeException -> IO ()
 ignore (E.SomeException e)
     | isAsyncException e = E.throwIO e
     | otherwise = return ()
+
+----------------------------------------------------------------
+
+sendPing :: Context -> Bool -> ByteString -> IO ()
+sendPing Context{..} ack bs = enqueueControl controlQ $ CFrames Nothing [frame]
+  where
+    frame = pingFrame ack bs

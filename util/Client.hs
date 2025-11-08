@@ -4,13 +4,16 @@
 
 module Client where
 
+import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
 import Control.Monad
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.UnixTime
 import Foreign.C.Types
 import Network.HTTP.Types
+import System.IO
 import Text.Printf
 
 import Network.HTTP2.Client
@@ -21,6 +24,7 @@ data Options = Options
     { optPerformance :: Int
     , optNumOfReqs :: Int
     , optMonitor :: Bool
+    , optInteractive :: Bool
     }
     deriving (Show)
 
@@ -82,3 +86,32 @@ printThroughput t1 t2 n =
             / fromIntegral millisecs
             / 1024
             / 1024
+
+console
+    :: Options -> [ByteString] -> IO () -> Aux -> IO ()
+console _opt paths cli aux = do
+    putStrLn "q -- quit"
+    putStrLn "g -- get"
+    putStrLn "p -- ping"
+    mvar <- newEmptyMVar
+    loop mvar `E.catch` \(E.SomeException _) -> return ()
+  where
+    loop mvar = do
+        hSetBuffering stdout NoBuffering
+        putStr "> "
+        hSetBuffering stdout LineBuffering
+        l <- getLine
+        case l of
+            "q" -> putStrLn "bye"
+            "g" -> do
+                mapM_ (\p -> putStrLn $ "GET " ++ C8.unpack p) paths
+                _ <- forkIO $ cli >> putMVar mvar ()
+                takeMVar mvar
+                loop mvar
+            "p" -> do
+                putStrLn "Ping"
+                auxSendPing aux
+                loop mvar
+            _ -> do
+                putStrLn "No such command"
+                loop mvar

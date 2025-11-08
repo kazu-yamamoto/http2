@@ -23,10 +23,10 @@ settingsFrame func alist = encodeFrame einfo $ SettingsFrame alist
   where
     einfo = encodeInfo func 0
 
-pingFrame :: ByteString -> ByteString
-pingFrame bs = encodeFrame einfo $ PingFrame bs
+pingFrame :: Bool -> ByteString -> ByteString
+pingFrame ack bs = encodeFrame einfo $ PingFrame bs
   where
-    einfo = encodeInfo setAck 0
+    einfo = encodeInfo (if ack then setAck else id) 0
 
 windowUpdateFrame :: StreamId -> WindowSize -> ByteString
 windowUpdateFrame sid winsiz = encodeFrame einfo $ WindowUpdateFrame winsiz
