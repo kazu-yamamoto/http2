@@ -635,6 +635,10 @@ closureServer conf ctx se
         frame <- goaway ctx NoError "no error"
         sendGoaway conf frame
         E.throwIO ConnectionIsClosed
+    | Just ConnectionIsTimeout <- E.fromException se = do
+        frame <- goaway ctx NoError "timeout"
+        sendGoaway conf frame
+        E.throwIO ConnectionIsTimeout
     | Just e@(ConnectionErrorIsReceived _err _sid msg) <- E.fromException se = do
         frame <- goaway ctx NoError $ Short.fromShort msg
         sendGoaway conf frame

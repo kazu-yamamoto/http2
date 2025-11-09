@@ -82,7 +82,7 @@ launch :: ClientConfig -> Options -> String -> String -> [Path] -> IO ()
 launch cliconf opts host port paths = do
     runTCPClient host port $ \s ->
         E.bracket
-            (allocSimpleConfig' s 4096 5000000)
+            (allocSimpleConfig' s 4096 10000000)
             freeSimpleConfig
             doit
   where
