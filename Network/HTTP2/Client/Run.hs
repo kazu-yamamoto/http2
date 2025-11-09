@@ -80,7 +80,7 @@ run cconf@ClientConfig{..} conf client = do
         n <- oddConc <$> readTVarIO (oddStreamTable ctx)
         return (x - n)
     aux ctx =
-        Aux
+        defaultAux
             { auxPossibleClientStreams = possibleClientStream ctx
             , auxSendPing =
                 sendPing
