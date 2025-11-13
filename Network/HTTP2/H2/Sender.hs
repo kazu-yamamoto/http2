@@ -16,6 +16,7 @@ import Foreign.Ptr (minusPtr, plusPtr)
 import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
+import System.ThreadManager
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
@@ -58,6 +59,15 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
     updateAllStreamTxFlow siz strms =
         forM_ strms $ \strm -> increaseStreamWindowSize strm siz
 
+checkDone :: Context -> Int -> IO Bool
+checkDone Context{..} 0 = atomically $ do
+    isEmptyC <- isEmptyTQueue controlQ
+    isEmptyO <- isEmptyTQueue outputQ
+    gone <- isAllGone threadManager
+    done <- readTVar receiverDone
+    return (isEmptyC && isEmptyO && gone && done)
+checkDone _ _ = return False
+
 frameSender :: Context -> Config -> IO ()
 frameSender
     ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
@@ -68,11 +78,13 @@ frameSender
         ----------------------------------------------------------------
         loop :: Offset -> IO ()
         loop off = do
-            x <- atomically $ dequeue off
-            case x of
-                C ctl -> flushN off >> control ctl >> loop 0
-                O out -> outputAndSync out off >>= flushIfNecessary >>= loop
-                Flush -> flushN off >> loop 0
+            done <- checkDone ctx off
+            unless done $ do
+                x <- atomically $ dequeue off
+                case x of
+                    C ctl -> flushN off >> control ctl >> loop 0
+                    O out -> outputAndSync out off >>= flushIfNecessary >>= loop
+                    Flush -> flushN off >> loop 0
 
         -- Flush the connection buffer to the socket, where the first 'n' bytes of
         -- the buffer are filled.

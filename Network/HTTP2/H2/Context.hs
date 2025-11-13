@@ -90,6 +90,7 @@ data Context = Context
     , mySockAddr         :: SockAddr
     , peerSockAddr       :: SockAddr
     , threadManager      :: T.ThreadManager
+    , receiverDone       :: TVar Bool
     }
 {- FOURMOLU_ENABLE -}
 
@@ -135,6 +136,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr = do
     let mySockAddr   = confMySockAddr
     let peerSockAddr = confPeerSockAddr
     threadManager   <- T.newThreadManager timmgr
+    receiverDone    <- newTVarIO False
     return Context{..}
   where
     role = case roleInfo of

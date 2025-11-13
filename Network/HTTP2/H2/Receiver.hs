@@ -46,16 +46,22 @@ headerFragmentLimit = 51200 -- 50K
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> Config -> IO ()
-frameReceiver ctx conf@Config{..} = do
-    labelMe "H2 receiver"
-    tid <- myThreadId
-    if confReadNTimeout
-        then
-            loop1
-        else
-            void $
-                T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+frameReceiver ctx conf@Config{..} =
+    (switch `E.catch` handler)
+        `E.finally` atomically
+            (writeTVar (receiverDone ctx) True)
   where
+    handler ConnectionIsClosed = return ()
+    handler e = E.throwIO e
+    switch = do
+        labelMe "H2 receiver"
+        tid <- myThreadId
+        if confReadNTimeout
+            then
+                loop1
+            else
+                void $
+                    T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
     loop1 = do
         hd <- confReadN frameHeaderLength -- throwing an exception on timeout
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
