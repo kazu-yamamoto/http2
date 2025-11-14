@@ -63,9 +63,15 @@ checkDone :: Context -> Int -> IO Bool
 checkDone Context{..} 0 = atomically $ do
     isEmptyC <- isEmptyTQueue controlQ
     isEmptyO <- isEmptyTQueue outputQ
-    gone <- isAllGone threadManager
-    done <- readTVar receiverDone
-    return (isEmptyC && isEmptyO && gone && done)
+    if not isEmptyC || not isEmptyO
+        then
+            return False
+        else do
+            gone <- isAllGone threadManager
+            unless gone retry
+            done <- readTVar receiverDone
+            unless done retry
+            return True
 checkDone _ _ = return False
 
 frameSender :: Context -> Config -> IO ()

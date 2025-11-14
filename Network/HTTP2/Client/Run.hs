@@ -145,16 +145,13 @@ runH2 conf ctx runClient = do
     mgr = threadManager ctx
     runReceiver = frameReceiver ctx conf
     runSender = frameSender ctx conf
-    runBackgroundThreads = do
-        labelMe "H2 runBackgroundThreads"
-        concurrently_ runReceiver runSender
-    runAll = do
-        -- "runBackgroundThreads" may throw an exception which
-        -- will be caught by "try" above
-        er <- race runBackgroundThreads runClient
+    runClientReceiver = do
+        labelMe "H2 ClientReceiver"
+        er <- race runReceiver runClient
         case er of
-            Left () -> undefined -- never reached
             Right r -> return r
+            Left () -> throwIO ConnectionIsClosed
+    runAll = snd <$> concurrently runSender runClientReceiver
 
 makeStream
     :: Context
