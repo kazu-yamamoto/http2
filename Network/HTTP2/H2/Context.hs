@@ -91,6 +91,7 @@ data Context = Context
     , peerSockAddr       :: SockAddr
     , threadManager      :: T.ThreadManager
     , receiverDone       :: TVar Bool
+    , workersDone        :: STM Bool
     }
 {- FOURMOLU_ENABLE -}
 
@@ -104,8 +105,9 @@ newContext
     -> Int
     -> Settings
     -> T.Manager
+    -> Maybe (STM Bool)
     -> IO Context
-newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr = do
+newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     -- My: Use this even if ack has not been received yet.
     myFirstSettings <- newIORef False
     -- Peer: The spec defines max concurrency is infinite unless
@@ -137,6 +139,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr = do
     let peerSockAddr = confPeerSockAddr
     threadManager   <- T.newThreadManager timmgr
     receiverDone    <- newTVarIO False
+    let workersDone = fromMaybe (T.isAllGone threadManager) mdone
     return Context{..}
   where
     role = case roleInfo of

@@ -134,6 +134,7 @@ setup ClientConfig{..} conf@Config{..} = do
             connectionWindowSize
             settings
             confTimeoutManager
+            Nothing
     exchangeSettings ctx
     return ctx
 

@@ -51,7 +51,7 @@ run sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
         let lnch = runServer conf server
-        ctx <- setup sconf conf lnch
+        ctx <- setup sconf conf lnch Nothing
         runH2 conf ctx
 
 ----------------------------------------------------------------
@@ -63,6 +63,7 @@ data ServerIO a = ServerIO
     , sioWriteResponse :: a -> Response -> IO ()
     -- ^ 'Response' MUST be created with 'responseBuilder'.
     -- Others are not supported.
+    , sioDone :: IO ()
     }
 
 -- | Launching a receiver and a sender without workers.
@@ -77,7 +78,8 @@ runIO sconf conf@Config{..} action = do
     when ok $ do
         inpQ <- newTQueueIO
         let lnch _ strm inpObj = atomically $ writeTQueue inpQ (strm, inpObj)
-        ctx <- setup sconf conf lnch
+        done <- newTVarIO False
+        ctx <- setup sconf conf lnch $ Just $ readTVar done
         let get = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
                 return (strm, Request inpObj)
@@ -94,6 +96,7 @@ runIO sconf conf@Config{..} action = do
                     , sioPeerSockAddr = confPeerSockAddr
                     , sioReadRequest = get
                     , sioWriteResponse = putR
+                    , sioDone = atomically $ writeTVar done True
                     }
         io <- action serverIO
         concurrently_ io $ runH2 conf ctx
@@ -107,8 +110,8 @@ checkPreface conf@Config{..} = do
             return False
         else return True
 
-setup :: ServerConfig -> Config -> Launch -> IO Context
-setup ServerConfig{..} conf@Config{..} lnch = do
+setup :: ServerConfig -> Config -> Launch -> Maybe (STM Bool) -> IO Context
+setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
     let serverInfo = newServerInfo lnch
     newContext
         serverInfo
@@ -117,6 +120,7 @@ setup ServerConfig{..} conf@Config{..} lnch = do
         connectionWindowSize
         settings
         confTimeoutManager
+        mIsDone
 
 runH2 :: Config -> Context -> IO ()
 runH2 conf ctx = do
