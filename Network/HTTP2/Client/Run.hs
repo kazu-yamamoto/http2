@@ -150,6 +150,7 @@ runH2 conf ctx runClient = do
         er <- race runReceiver runClient
         case er of
             Right r -> return r
+            -- never reached because runReceiver throws an exception to exit.
             Left () -> throwIO ConnectionIsClosed
     runAll = snd <$> concurrently runSender runClientReceiver
 
