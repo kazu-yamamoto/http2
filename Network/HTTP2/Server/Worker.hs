@@ -24,7 +24,12 @@ runServer :: Config -> Server -> Launch
 runServer conf server ctx@Context{..} strm req =
     T.forkManagedTimeout threadManager label $ \th -> do
         let req' = pauseRequestBody th
-            aux = Aux th mySockAddr peerSockAddr
+            aux =
+                defaultAux
+                    { auxTimeHandle = th
+                    , auxMySockAddr = mySockAddr
+                    , auxPeerSockAddr = peerSockAddr
+                    }
             request = Request req'
         lc <- newLoopCheck strm Nothing
         server request aux $ sendResponse conf ctx lc strm request
