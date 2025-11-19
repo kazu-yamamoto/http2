@@ -3,7 +3,7 @@
 module Server where
 
 import Control.Monad
-import Crypto.Hash (Context, SHA1) -- cryptonite
+import Crypto.Hash (Context, SHA1) -- crypton
 import qualified Crypto.Hash as CH
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B

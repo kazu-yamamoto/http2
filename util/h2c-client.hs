@@ -9,6 +9,7 @@ import Control.Monad
 import qualified Data.ByteString.Char8 as C8
 import Network.HTTP2.Client
 import Network.Run.TCP (runTCPClient)
+import Network.Socket
 import System.Console.GetOpt
 import System.Environment
 import System.Exit
@@ -76,21 +77,19 @@ main = do
         h : p : ps -> return (h, p, C8.pack <$> ps)
     when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
     let cliconf = defaultClientConfig{authority = host}
-    launch cliconf opts host port paths
+    run' cliconf host port $ client' opts paths
 
-launch :: ClientConfig -> Options -> String -> String -> [Path] -> IO ()
-launch cliconf opts host port paths = do
-    runTCPClient host port $ \s ->
-        E.bracket
-            (allocSimpleConfig' s 4096 10000000)
-            freeSimpleConfig
-            doit
-  where
-    doit conf = run cliconf conf go
-    go :: Client ()
-    go sendRequest _aux
-        | optInteractive opts = do
-            let action = client opts paths sendRequest _aux
-            console opts paths action _aux
-            return ()
-        | otherwise = client opts paths sendRequest _aux
+run' :: ClientConfig -> HostName -> ServiceName -> Client a -> IO a
+run' cliconf host port f = runTCPClient host port $ \s ->
+    E.bracket
+        (allocSimpleConfig' s 4096 10000000)
+        freeSimpleConfig
+        (\conf -> run cliconf conf f)
+
+client' :: Options -> [Path] -> Client ()
+client' opts paths sendRequest _aux
+    | optInteractive opts = do
+        let action = client opts paths sendRequest _aux
+        console opts paths action _aux
+        return ()
+    | otherwise = client opts paths sendRequest _aux

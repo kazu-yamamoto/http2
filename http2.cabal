@@ -138,6 +138,7 @@ executable h2c-client
         bytestring,
         http-types,
         http2,
+        network,
         network-run >= 0.5 && <0.6,
         unix-time
 
