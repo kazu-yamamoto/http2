@@ -1,5 +1,17 @@
 # ChangeLog for http2
 
+## 5.3.11
+
+* Implementing `auxSendPing` for client.
+* Server and client terminates their threads in the right order.
+* Using `copy` in frame decoders to avoid potential fragmentation of
+  `ByteString`.
+* Defining `confReadNTimeout` (default to `False`). If `confReadN`
+  implements timeout by itself, set it to `True`.
+* TCP closing is now treaated as `ConnectionIsClosed` instead of
+  `ConnectionIsTimeout`.
+* GOAWAY now contains a right last streamd ID.
+
 ## 5.3.10
 
 * Introducing closure.
