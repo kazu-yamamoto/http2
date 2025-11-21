@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               http2
-version:            5.3.11
+version:            5.4.0
 license:            BSD3
 license-file:       LICENSE
 maintainer:         Kazu Yamamoto <kazu@iij.ad.jp>
@@ -114,14 +114,14 @@ library
         bytestring >=0.10,
         case-insensitive >=1.2 && <1.3,
         containers >=0.6,
-        http-semantics >= 0.3.1 && <0.4,
+        http-semantics >= 0.4 && <0.5,
         http-types >=0.12 && <0.13,
         iproute >= 1.7 && < 1.8,
         network >=3.1,
         network-byte-order >=0.1.7 && <0.2,
         network-control >=0.1 && <0.2,
         stm >=2.5 && <2.6,
-        time-manager >=0.2 && <0.4,
+        time-manager >=0.2.3 && <0.4,
         unix-time >=0.4.11 && <0.5,
         utf8-string >=1.0 && <1.1
 
