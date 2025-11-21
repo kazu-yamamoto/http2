@@ -1,6 +1,8 @@
 module Network.HTTP2.Server.Internal (
     Request (..),
     Response (..),
+    Config (..),
+    ServerConfig (..),
     Aux (..),
 
     -- * Low level

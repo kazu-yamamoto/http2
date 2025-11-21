@@ -71,7 +71,17 @@ module Network.HTTP2.Client (
     rstRateLimit,
 
     -- * Common configuration
-    Config (..),
+    Config,
+    defaultConfig,
+    confWriteBuffer,
+    confBufferSize,
+    confSendAll,
+    confReadN,
+    confPositionReadMaker,
+    confTimeoutManager,
+    confMySockAddr,
+    confPeerSockAddr,
+    confReadNTimeout,
     allocSimpleConfig,
     allocSimpleConfig',
     freeSimpleConfig,

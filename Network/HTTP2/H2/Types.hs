@@ -14,6 +14,7 @@ import Control.Exception (
  )
 import qualified Control.Exception as E
 import Data.IORef
+import Foreign.Ptr (nullPtr)
 import Network.Control
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
@@ -271,6 +272,22 @@ data Config = Config
     -- ^ This is copied into 'Aux', if exist, on server.
     , confReadNTimeout :: Bool
     }
+
+-- | Default config. This is just a template to modify via
+--   field names. Don't use this without modifications.
+defaultConfig :: Config
+defaultConfig =
+    Config
+        { confWriteBuffer = nullPtr
+        , confBufferSize = 0
+        , confSendAll = \_ -> return ()
+        , confReadN = \_ -> return ""
+        , confPositionReadMaker = defaultPositionReadMaker
+        , confTimeoutManager = T.defaultManager
+        , confMySockAddr = SockAddrInet 0 0
+        , confPeerSockAddr = SockAddrInet 0 0
+        , confReadNTimeout = False
+        }
 
 isAsyncException :: Exception e => e -> Bool
 isAsyncException e =

@@ -1,6 +1,7 @@
 module Network.HTTP2.Client.Internal (
     Request (..),
     Response (..),
+    Config (..),
     ClientConfig (..),
     Settings (..),
     Aux (..),
