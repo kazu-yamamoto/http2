@@ -1,5 +1,11 @@
 # ChangeLog for http2
 
+## 5.4.0
+
+* Providing `defaultConfig`.
+* Except the item above, this version is identical to v5.3.11 which
+ includes breaking changes and is thus deprecated.
+
 ## 5.3.11
 
 * Implementing `auxSendPing` for client.
