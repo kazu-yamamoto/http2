@@ -71,7 +71,7 @@ module Network.HTTP2.Client (
     rstRateLimit,
 
     -- * Common configuration
-    Config,
+    Config (..),
     defaultConfig,
     confWriteBuffer,
     confBufferSize,

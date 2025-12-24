@@ -51,7 +51,7 @@ module Network.HTTP2.Server (
     rstRateLimit,
 
     -- * Common configuration
-    Config,
+    Config (..),
     defaultConfig,
     confWriteBuffer,
     confBufferSize,
