@@ -8,7 +8,7 @@ author:             Kazu Yamamoto <kazu@iij.ad.jp>
 homepage:           https://github.com/kazu-yamamoto/http2
 synopsis:           HTTP/2 library
 description:
-    HTTP/2 library including frames, priority queues, HPACK, client and server.
+    HTTP/2 library including frames, HPACK, client and server.
 
 category:           Network
 build-type:         Simple
