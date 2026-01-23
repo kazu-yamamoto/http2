@@ -6,6 +6,7 @@
 module HTTP2.ServerSpec (spec) where
 
 import Control.Concurrent
+
 -- cryptonite
 
 import Control.Concurrent.Async
