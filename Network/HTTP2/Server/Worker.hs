@@ -168,7 +168,7 @@ sendStreaming
 sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     T.forkManagedTimeout threadManager label $ \th ->
-        withOutBodyIface tbq id $ \iface -> do
+        withOutBodyIface strm tbq id $ \iface -> do
             let iface' =
                     iface
                         { outBodyPush = \b -> do

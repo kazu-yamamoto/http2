@@ -256,7 +256,7 @@ sendStreaming
 sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     T.forkManagedUnmask threadManager label $ \unmask ->
-        withOutBodyIface tbq unmask strmbdy
+        withOutBodyIface strm tbq unmask strmbdy
     return tbq
   where
     label = "H2 request streaming sender for stream " ++ show (streamNumber strm)

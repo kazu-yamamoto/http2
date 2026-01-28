@@ -113,15 +113,17 @@ data StreamTerminated
     = StreamPushedFinal
     | StreamCancelled
     | StreamOutOfScope
+    | StreamRemoteReset ClosedCode
     deriving (Show)
     deriving anyclass (Exception)
 
 withOutBodyIface
-    :: TBQueue StreamingChunk
+    :: Stream
+    -> TBQueue StreamingChunk
     -> (forall a. IO a -> IO a)
     -> (OutBodyIface -> IO r)
     -> IO r
-withOutBodyIface tbq unmask k = do
+withOutBodyIface stream tbq unmask k = do
     terminated <- newTVarIO Nothing
 
     let checkNotTerminated :: STM ()
@@ -133,41 +135,79 @@ withOutBodyIface tbq unmask k = do
                 Nothing ->
                     return ()
 
+        getIsClosed :: STM (Maybe ClosedCode)
+        getIsClosed = do
+            st <- readTVar (streamState stream)
+            case st of
+                Closed code -> return $ Just code
+                _otherwise -> return Nothing
+
+        -- Check if the peer is still listening for messages
+        --
+        -- It is important to call 'checkNotClosed' prior to enqueuing stream
+        -- chunks to ensure that 'writeTBQueue' will not block indefinitely
+        -- (because nothing is consuming elements from the queue anymore).
+        --
+        -- Assumes 'checkNotTerminated'.
+        checkNotClosed :: STM ()
+        checkNotClosed = do
+            mClosed <- getIsClosed
+            case mClosed of
+                Just code ->
+                    -- When the stream is closed, but /we/ did not close it (or
+                    -- 'checkNotTerminated' would have thrown an exception), it
+                    -- must mean that our peer send us a RST_STREAM, indicating
+                    -- that they do not want to receive any further messages.
+                    throwSTM $ StreamRemoteReset code
+                _otherwise ->
+                    return ()
+
         iface :: OutBodyIface
         iface =
             OutBodyIface
                 { outBodyUnmask = unmask
                 , outBodyPush = \b -> atomically $ do
                     checkNotTerminated
+                    checkNotClosed
                     writeTBQueue tbq $ StreamingBuilder b NotEndOfStream
                 , outBodyPushFinal = \b -> atomically $ do
                     checkNotTerminated
+                    checkNotClosed
                     writeTVar terminated (Just StreamPushedFinal)
                     writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
                     writeTBQueue tbq $ StreamingFinished Nothing
                 , outBodyFlush = atomically $ do
                     checkNotTerminated
+                    checkNotClosed
                     writeTBQueue tbq StreamingFlush
                 , outBodyCancel = \mErr -> atomically $ do
                     mTerminated <- readTVar terminated
-                    case mTerminated of
-                        Nothing -> do
+                    mClosed <- getIsClosed
+                    case (mClosed, mTerminated) of
+                        (Nothing, Nothing) -> do
                             writeTVar terminated (Just StreamCancelled)
                             writeTBQueue tbq (StreamingCancelled mErr)
-                        Just _ ->
-                            -- Already terminated
+                        (Nothing, Just _) ->
+                            -- We already terminated
+                            return ()
+                        (Just _code, _) ->
+                            -- Peer already closed
                             return ()
                 }
 
         finished :: IO ()
         finished = atomically $ do
             mTerminated <- readTVar terminated
-            case mTerminated of
-                Nothing -> do
+            mClosed <- getIsClosed
+            case (mClosed, mTerminated) of
+                (Nothing, Nothing) -> do
                     writeTVar terminated (Just StreamOutOfScope)
                     writeTBQueue tbq $ StreamingFinished Nothing
-                Just _ ->
-                    -- Already terminated
+                (Nothing, Just _) ->
+                    -- We already terminated
+                    return ()
+                (Just _code, _) ->
+                    -- Peer already closed
                     return ()
 
     k iface `finally` finished
