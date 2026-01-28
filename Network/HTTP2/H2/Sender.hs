@@ -162,11 +162,18 @@ frameSender
                         sync mout'
                         return off'
 
+        ----------------------------------------------------------------
         resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
         resetStream strm err e = do
             closed ctx strm (ResetByMe e)
             let rst = resetFrame err $ streamNumber strm
             enqueueControl controlQ $ CFrames Nothing [rst]
+
+        resetStreamWith :: Stream -> Maybe E.SomeException -> IO ()
+        resetStreamWith strm (Just err) =
+            resetStream strm InternalError err
+        resetStreamWith strm Nothing =
+            resetStream strm Cancel (E.toException CancelledStream)
 
         ----------------------------------------------------------------
         outputHeader
@@ -226,11 +233,7 @@ frameSender
                         -- outputs for this stream already enqueued. Therefore, we can
                         -- safely cancel it knowing that we won't try and send any
                         -- more data frames on this stream.
-                        case mErr of
-                            Just err ->
-                                resetStream strm InternalError err
-                            Nothing ->
-                                resetStream strm Cancel (E.toException CancelledStream)
+                        resetStreamWith strm mErr
                         return (off0, Nothing)
         output (Output strm (OPush ths pid) _) off0 _lim = do
             -- Creating a push promise header
