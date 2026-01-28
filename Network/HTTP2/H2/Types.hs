@@ -163,7 +163,7 @@ type RxQ = TQueue (Either E.SomeException (ByteString, Bool))
 
 data Stream = Stream
     { streamNumber :: StreamId
-    , streamState :: IORef StreamState
+    , streamState :: TVar StreamState
     , streamInput :: MVar (Either SomeException InpObj) -- Client only
     , streamTxFlow :: TVar TxFlow
     , streamRxFlow :: IORef RxFlow
@@ -175,7 +175,7 @@ instance Show Stream where
         "Stream{id="
             ++ show streamNumber
             ++ ",state="
-            ++ show (unsafePerformIO (readIORef streamState))
+            ++ show (unsafePerformIO (readTVarIO streamState))
             ++ "}"
 
 ----------------------------------------------------------------

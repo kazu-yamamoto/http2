@@ -12,6 +12,7 @@ import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
 
+import Data.Tuple (swap)
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
@@ -170,8 +171,8 @@ setPeerStreamID ctx sid = writeIORef (peerStreamId ctx) sid
 
 {-# INLINE setStreamState #-}
 setStreamState :: Context -> Stream -> StreamState -> IO ()
-setStreamState _ Stream{streamState} newState = do
-    oldState <- readIORef streamState
+setStreamState _ Stream{streamState} newState = atomically $ do
+    oldState <- readTVar streamState
     case (oldState, newState) of
         (Open _ (Body q _ _ _), Open _ (Body q' _ _ _))
             | q == q' ->
@@ -180,18 +181,18 @@ setStreamState _ Stream{streamState} newState = do
         (Open _ (Body q _ _ _), _) ->
             -- The stream is either closed, or is open with a /new/ body
             -- We need to close the old queue so that any reads from it won't block
-            atomically $ writeTQueue q $ Left $ toException ConnectionIsClosed
+            writeTQueue q $ Left $ toException ConnectionIsClosed
         _otherwise ->
             -- The stream wasn't open to start with; nothing to do
             return ()
-    writeIORef streamState newState
+    writeTVar streamState newState
 
 opened :: Context -> Stream -> IO ()
 opened ctx strm = setStreamState ctx strm (Open Nothing JustOpened)
 
 halfClosedRemote :: Context -> Stream -> IO ()
 halfClosedRemote ctx stream@Stream{streamState} = do
-    closingCode <- atomicModifyIORef streamState closeHalf
+    closingCode <- atomically $ stateTVar streamState (swap . closeHalf)
     traverse_ (closed ctx stream) closingCode
   where
     closeHalf :: StreamState -> (StreamState, Maybe ClosedCode)
@@ -201,7 +202,7 @@ halfClosedRemote ctx stream@Stream{streamState} = do
 
 halfClosedLocal :: Context -> Stream -> ClosedCode -> IO ()
 halfClosedLocal ctx stream@Stream{streamState} cc = do
-    shouldFinalize <- atomicModifyIORef streamState closeHalf
+    shouldFinalize <- atomically $ stateTVar streamState (swap . closeHalf)
     when shouldFinalize $
         closed ctx stream cc
   where
