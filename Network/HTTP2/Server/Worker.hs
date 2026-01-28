@@ -15,6 +15,7 @@ import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.ThreadManager as T
 
+import Control.Exception
 import Imports hiding (insert)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -168,7 +169,7 @@ sendStreaming
 sendStreaming Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     T.forkManagedTimeout threadManager label $ \th ->
-        withOutBodyIface strm tbq id $ \iface -> do
+        withOutBodyIface strm cancelAfterFinish tbq id $ \iface -> do
             let iface' =
                     iface
                         { outBodyPush = \b -> do
@@ -184,3 +185,7 @@ sendStreaming Context{..} strm strmbdy = do
     return tbq
   where
     label = "H2 response streaming sender for " ++ show (streamNumber strm)
+
+    -- TODO: Server-side after-finish cancellation not supported for now
+    cancelAfterFinish :: Maybe SomeException -> STM ()
+    cancelAfterFinish _ = return ()

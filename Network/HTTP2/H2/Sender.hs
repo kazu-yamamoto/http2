@@ -148,6 +148,9 @@ frameSender
         outputAndSync out@(Output strm otyp sync) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
             state <- readStreamState strm
             case otyp of
+                OReset mErr | not (isClosed state) -> do
+                    resetStreamWith strm mErr
+                    return off
                 OHeader hdr mnext tlrmkr | not (isHalfClosedLocal state) -> do
                     (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
                     sync mout'

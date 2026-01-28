@@ -119,11 +119,12 @@ data StreamTerminated
 
 withOutBodyIface
     :: Stream
+    -> (Maybe SomeException -> STM ())
     -> TBQueue StreamingChunk
     -> (forall a. IO a -> IO a)
     -> (OutBodyIface -> IO r)
     -> IO r
-withOutBodyIface stream tbq unmask k = do
+withOutBodyIface stream cancelAfterFinish tbq unmask k = do
     terminated <- newTVarIO Nothing
 
     let checkNotTerminated :: STM ()
@@ -187,9 +188,15 @@ withOutBodyIface stream tbq unmask k = do
                         (Nothing, Nothing) -> do
                             writeTVar terminated (Just StreamCancelled)
                             writeTBQueue tbq (StreamingCancelled mErr)
-                        (Nothing, Just _) ->
-                            -- We already terminated
+                        (Nothing, Just StreamCancelled) ->
+                            -- Already cancelled
                             return ()
+                        (Nothing, Just _) -> do
+                            -- We finished streaming (that is, sending messages to the peer),
+                            -- but we must still be able to cancel the stream entirely
+                            -- (that is, tell the peer that we no longer want to /receive/ messages: RST_STREAM)
+                            writeTVar terminated (Just StreamCancelled)
+                            cancelAfterFinish mErr
                         (Just _code, _) ->
                             -- Peer already closed
                             return ()

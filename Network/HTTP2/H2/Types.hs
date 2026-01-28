@@ -190,6 +190,7 @@ data OutputType
     = OHeader [Header] (Maybe DynaNext) TrailersMaker
     | OPush TokenHeaderList StreamId -- associated stream id from client
     | ONext DynaNext TrailersMaker
+    | OReset (Maybe SomeException)
 
 data Sync = Done | Cont Output
 
