@@ -123,50 +123,53 @@ withOutBodyIface
     -> IO r
 withOutBodyIface tbq unmask k = do
     terminated <- newTVarIO Nothing
-    let whenNotTerminated act = do
+
+    let checkNotTerminated :: STM ()
+        checkNotTerminated = do
             mTerminated <- readTVar terminated
             case mTerminated of
                 Just reason ->
                     throwSTM reason
                 Nothing ->
-                    act
-
-        terminateWith reason act = do
-            mTerminated <- readTVar terminated
-            case mTerminated of
-                Just _ ->
-                    -- Already terminated
                     return ()
-                Nothing -> do
-                    writeTVar terminated (Just reason)
-                    act
 
+        iface :: OutBodyIface
         iface =
             OutBodyIface
                 { outBodyUnmask = unmask
-                , outBodyPush = \b ->
-                    atomically $
-                        whenNotTerminated $
-                            writeTBQueue tbq $
-                                StreamingBuilder b NotEndOfStream
-                , outBodyPushFinal = \b ->
-                    atomically $ whenNotTerminated $ do
-                        writeTVar terminated (Just StreamPushedFinal)
-                        writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
-                        writeTBQueue tbq $ StreamingFinished Nothing
-                , outBodyFlush =
-                    atomically $
-                        whenNotTerminated $
-                            writeTBQueue tbq StreamingFlush
-                , outBodyCancel = \mErr ->
-                    atomically $
-                        terminateWith StreamCancelled $
+                , outBodyPush = \b -> atomically $ do
+                    checkNotTerminated
+                    writeTBQueue tbq $ StreamingBuilder b NotEndOfStream
+                , outBodyPushFinal = \b -> atomically $ do
+                    checkNotTerminated
+                    writeTVar terminated (Just StreamPushedFinal)
+                    writeTBQueue tbq $ StreamingBuilder b (EndOfStream Nothing)
+                    writeTBQueue tbq $ StreamingFinished Nothing
+                , outBodyFlush = atomically $ do
+                    checkNotTerminated
+                    writeTBQueue tbq StreamingFlush
+                , outBodyCancel = \mErr -> atomically $ do
+                    mTerminated <- readTVar terminated
+                    case mTerminated of
+                        Nothing -> do
+                            writeTVar terminated (Just StreamCancelled)
                             writeTBQueue tbq (StreamingCancelled mErr)
+                        Just _ ->
+                            -- Already terminated
+                            return ()
                 }
+
+        finished :: IO ()
         finished = atomically $ do
-            terminateWith StreamOutOfScope $
-                writeTBQueue tbq $
-                    StreamingFinished Nothing
+            mTerminated <- readTVar terminated
+            case mTerminated of
+                Nothing -> do
+                    writeTVar terminated (Just StreamOutOfScope)
+                    writeTBQueue tbq $ StreamingFinished Nothing
+                Just _ ->
+                    -- Already terminated
+                    return ()
+
     k iface `finally` finished
 
 nextForStreaming
