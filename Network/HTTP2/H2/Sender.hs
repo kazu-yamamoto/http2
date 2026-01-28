@@ -147,20 +147,20 @@ frameSender
         outputAndSync :: Output -> Offset -> IO Offset
         outputAndSync out@(Output strm otyp sync) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
             state <- readStreamState strm
-            if isHalfClosedLocal state
-                then return off
-                else case otyp of
-                    OHeader hdr mnext tlrmkr -> do
-                        (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
-                        sync mout'
-                        return off'
-                    _ -> do
-                        sws <- getStreamWindowSize strm
-                        cws <- getConnectionWindowSize ctx -- not 0
-                        let lim = min cws sws
-                        (off', mout') <- output out off lim
-                        sync mout'
-                        return off'
+            case otyp of
+                OHeader hdr mnext tlrmkr | not (isHalfClosedLocal state) -> do
+                    (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
+                    sync mout'
+                    return off'
+                _ | not (isHalfClosedLocal state) -> do
+                    sws <- getStreamWindowSize strm
+                    cws <- getConnectionWindowSize ctx -- not 0
+                    let lim = min cws sws
+                    (off', mout') <- output out off lim
+                    sync mout'
+                    return off'
+                _otherwise ->
+                    return off
 
         ----------------------------------------------------------------
         resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
