@@ -195,7 +195,9 @@ data Sync = Done | Cont Output
 
 ----------------------------------------------------------------
 
-data Control = CFrames (Maybe SettingsList) [ByteString]
+data Control
+    = CFinish HTTP2Error
+    | CFrames (Maybe SettingsList) [ByteString]
 
 ----------------------------------------------------------------
 

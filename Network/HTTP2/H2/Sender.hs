@@ -126,6 +126,7 @@ frameSender
 
         -- called with off == 0
         control :: Control -> IO ()
+        control (CFinish e) = E.throwIO e
         control (CFrames ms xs) = do
             buf <- copyAll xs confWriteBuffer
             let off = buf `minusPtr` confWriteBuffer

@@ -51,8 +51,12 @@ frameReceiver ctx conf@Config{..} =
         `E.finally` atomically
             (writeTVar (receiverDone ctx) True)
   where
-    handler ConnectionIsClosed = return ()
-    handler e = E.throwIO e
+    handler :: HTTP2Error -> IO ()
+    handler e = do
+        enqueueControl (controlQ ctx) $ CFinish e
+        case e of
+            ConnectionIsClosed -> return ()
+            _otherwise -> E.throwIO e
     switch = do
         labelMe "H2 receiver"
         tid <- myThreadId
