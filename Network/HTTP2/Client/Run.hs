@@ -151,8 +151,15 @@ runH2 conf ctx runClient = do
         er <- race runReceiver runClient
         case er of
             Right r -> return r
-            -- never reached because runReceiver throws an exception to exit.
-            Left () -> throwIO ConnectionIsClosed
+            Left err -> throwIO err
+
+    -- When 'runClientReceiver' terminates, it is important we give the sender
+    -- a chance to terminate cleanly also (it's possible the client terminated
+    -- but there are still some messages in the queue to be sent).
+    --
+    -- If the client terminated successfully, we ignore any other errors in the
+    -- sender (indeed, any exception here might simply be that the background
+    -- threads were cancelled /because/ the client terminated).
     runAll = snd <$> concurrently runSender runClientReceiver
 
 makeStream

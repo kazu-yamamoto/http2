@@ -77,12 +77,15 @@ readStreamState Stream{streamState} = readIORef streamState
 
 closeAllStreams
     :: TVar OddStreamTable -> TVar EvenStreamTable -> Maybe SomeException -> IO ()
-closeAllStreams ovar evar mErr' = do
+closeAllStreams ovar evar mErr = do
     ostrms <- clearOddStreamTable ovar
     mapM_ finalize ostrms
     estrms <- clearEvenStreamTable evar
     mapM_ finalize estrms
   where
+    -- We treat /every/ exception, including 'ConectionIsClosed', as abnormal
+    -- termination: we should only report a clean termination when we receive an
+    -- explicit @END_STREAM@ frame.
     finalize strm = do
         st <- readStreamState strm
         void $ tryPutMVar (streamInput strm) err
@@ -91,14 +94,6 @@ closeAllStreams ovar evar mErr' = do
                 atomically $ writeTQueue q $ maybe (Right (mempty, True)) Left mErr
             _otherwise ->
                 return ()
-
-    mErr :: Maybe SomeException
-    mErr = case mErr' of
-        Just e
-            | Just ConnectionIsClosed <- fromException e ->
-                Nothing
-        _otherwise ->
-            mErr'
 
     err :: Either SomeException a
     err = Left $ fromMaybe (toException ConnectionIsClosed) mErr
