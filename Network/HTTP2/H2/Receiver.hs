@@ -46,13 +46,20 @@ headerFragmentLimit = 51200 -- 50K
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> Config -> IO ()
-frameReceiver ctx conf@Config{..} =
-    (switch `E.catch` handler)
-        `E.finally` atomically
-            (writeTVar (receiverDone ctx) True)
+frameReceiver ctx@Context{receiverStatus} conf@Config{..} =
+    E.mask $ \unmask -> do
+        mErr <- E.try $ unmask switch
+        case mErr of
+            Left err | Just ConnectionIsClosed <- E.fromException err -> do
+                atomically $ writeTVar receiverStatus $ ReceiverConnectionClosed
+                return ()
+            Left err -> do
+                atomically $ writeTVar receiverStatus $ ReceiverDone (Just err)
+                E.throwIO err
+            Right () -> do
+                atomically $ writeTVar receiverStatus $ ReceiverDone Nothing
+                return ()
   where
-    handler ConnectionIsClosed = return ()
-    handler e = E.throwIO e
     switch = do
         labelMe "H2 receiver"
         tid <- myThreadId

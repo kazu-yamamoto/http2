@@ -90,10 +90,15 @@ data Context = Context
     , mySockAddr         :: SockAddr
     , peerSockAddr       :: SockAddr
     , threadManager      :: T.ThreadManager
-    , receiverDone       :: TVar Bool
+    , receiverStatus     :: TVar ReceiverStatus
     , workersDone        :: STM Bool
     }
 {- FOURMOLU_ENABLE -}
+
+data ReceiverStatus
+    = ReceiverRunning
+    | ReceiverDone (Maybe SomeException)
+    | ReceiverConnectionClosed
 
 ----------------------------------------------------------------
 
@@ -138,7 +143,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let mySockAddr   = confMySockAddr
     let peerSockAddr = confPeerSockAddr
     threadManager   <- T.newThreadManager timmgr
-    receiverDone    <- newTVarIO False
+    receiverStatus  <- newTVarIO ReceiverRunning
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone
     return Context{..}
   where

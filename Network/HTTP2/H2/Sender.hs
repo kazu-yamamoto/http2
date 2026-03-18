@@ -67,11 +67,15 @@ checkDone Context{..} 0 = atomically $ do
         then
             return False
         else do
-            gone <- isAllGone threadManager
-            unless gone retry
-            done <- readTVar receiverDone
-            unless done retry
-            return True
+            threadMgrGone <- isAllGone threadManager
+            recvStatus <- readTVar receiverStatus
+            case (threadMgrGone, recvStatus) of
+                (_, ReceiverConnectionClosed) ->
+                    throwSTM ConnectionIsClosed
+                (True, ReceiverDone _) ->
+                    return True
+                _otherwise ->
+                    retry
 checkDone _ _ = return False
 
 frameSender :: Context -> Config -> IO ()
