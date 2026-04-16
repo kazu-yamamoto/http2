@@ -217,7 +217,10 @@ frameSender
                 datBufSiz = buflim - payloadOff
             curr datBuf (min datBufSiz lim) >>= \case
                 Next datPayloadLen reqflush mnext -> do
-                    NextTrailersMaker tlrmkr' <- runTrailersMaker tlrmkr datBuf datPayloadLen
+                    tm <- runTrailersMaker tlrmkr datBuf datPayloadLen
+                    let tlrmkr' = case tm of
+                            NextTrailersMaker t -> t
+                            _ -> defaultTrailersMaker
                     fillDataHeader
                         strm
                         off0
@@ -312,7 +315,10 @@ frameSender
             reqflush = do
                 let buf = confWriteBuffer `plusPtr` off
                 (mtrailers, flag) <- do
-                    Trailers trailers <- tlrmkr Nothing
+                    tm <- tlrmkr Nothing
+                    let trailers = case tm of
+                            Trailers t -> t
+                            _ -> []
                     if null trailers
                         then return (Nothing, setEndStream defaultFlags)
                         else return (Just trailers, defaultFlags)
