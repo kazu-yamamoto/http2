@@ -150,6 +150,31 @@ controlOrStream ctx@Context{..} Config{..} ftyp header@FrameHeader{streamId, pay
                     -- for h2spec only
                     PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
                     checkPriority newpri streamId
+                | ftyp == FrameHeaders && testEndHeader (flags header) -> do
+                    -- A HEADERS frame for a stream we no longer know about,
+                    -- e.g. one we cancelled/reset and then removed from the
+                    -- stream table. This happens when the client sends a
+                    -- RST_STREAM and removes the stream from the stream map,
+                    -- and then the server sends headers HPACK's dynamic table
+                    -- is connection-global, so we MUST still feed this header
+                    -- block to the decoder to stay in sync
+                    HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
+                    void $ hpackDecodeHeader frag streamId ctx
+                    return ()
+                | ftyp == FrameHeaders || ftyp == FrameContinuation ->
+                    -- Header block split across CONTINUATION frames for a
+                    -- stream we no longer track. nowhere to accumulate the
+                    -- fragments, so we can't decode the whole block. Fail with
+                    -- a connection-level CompressionError rather than silently
+                    -- desync.
+                    --
+                    -- The common cancel case is a single HEADERS frame with
+                    -- END_HEADERS set, which is the case above.
+                    E.throwIO $
+                        ConnectionErrorIsSent
+                            CompressionError
+                            streamId
+                            "header block on unknown stream spans continuation frames"
                 | otherwise -> return ()
   where
     setContinued = writeIORef continued $ Just streamId
