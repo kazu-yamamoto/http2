@@ -1,5 +1,11 @@
 # ChangeLog for http2
 
+## 5.4.2
+
+* Support informational (1xx) responses, e.g. 103 Early Hints. Servers can send
+  them via `auxSendInformational`; clients can observe them via the new
+  `confOnInformational` callback in `Config`.
+
 ## 5.4.1
 
 * Ensure sender notices when receiver has terminated.

@@ -276,6 +276,8 @@ data Config = Config
     -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
     --   Hints) is received on the given stream, ahead of the final response.
     --   No-op by default.
+    --
+    --   @since 5.4.2
     }
 
 -- | Default config. This is just a template to modify via
