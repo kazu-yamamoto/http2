@@ -1,5 +1,10 @@
 # ChangeLog for http2
 
+## 5.4.1
+
+* Ensure sender notices when receiver has terminated.
+  [#167](https://github.com/kazu-yamamoto/http2/pull/167)
+
 ## 5.4.0
 
 * Providing `defaultConfig`.
