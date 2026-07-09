@@ -167,6 +167,10 @@ frameSender
                         (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
                         sync mout'
                         return off'
+                    OInformational hdr -> do
+                        off' <- outputInformational strm hdr off
+                        sync Nothing
+                        return off'
                     _ -> do
                         sws <- getStreamWindowSize strm
                         cws <- getConnectionWindowSize ctx -- not 0
@@ -209,6 +213,21 @@ frameSender
                 Just next -> do
                     let out' = Output strm (ONext next tlrmkr) sync
                     return (off, Just out')
+
+        ----------------------------------------------------------------
+        -- Emit an informational (1xx) HEADERS section. Unlike 'outputHeader',
+        -- this never sets END_STREAM and never half-closes the stream, so the
+        -- final response can still be sent afterwards.
+        outputInformational
+            :: Stream
+            -> [Header]
+            -> Offset
+            -> IO Offset
+        outputInformational strm hdr off0 = do
+            let sid = streamNumber strm
+            (ths, _) <- toTokenHeaderTable $ fixHeaders hdr
+            off' <- headerContinue sid ths False {- not endOfStream -} off0
+            flushIfNecessary off'
 
         ----------------------------------------------------------------
         output :: Output -> Offset -> WindowSize -> IO (Offset, Maybe Output)

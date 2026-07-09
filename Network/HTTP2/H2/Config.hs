@@ -33,6 +33,7 @@ allocSimpleConfig' s bufsiz usec = do
     confMySockAddr <- getSocketName s
     confPeerSockAddr <- getPeerName s
     let confReadNTimeout = False
+    let confOnInformational = \_ _ -> return ()
     return Config{..}
 
 -- | Deallocating the resource of the simple configuration.

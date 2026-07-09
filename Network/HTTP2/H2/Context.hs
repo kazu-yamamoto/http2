@@ -92,6 +92,10 @@ data Context = Context
     , threadManager      :: T.ThreadManager
     , receiverDone       :: TVar (Maybe SomeException)
     , workersDone        :: STM Bool
+    , informationalCallback :: StreamId -> TokenHeaderTable -> IO ()
+    -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
+    --   Hints) is received, ahead of the final response. Copied from
+    --   'confOnInformational'; no-op by default.
     }
 {- FOURMOLU_ENABLE -}
 
@@ -139,6 +143,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let peerSockAddr = confPeerSockAddr
     threadManager   <- T.newThreadManager timmgr
     receiverDone    <- newTVarIO Nothing
+    let informationalCallback = confOnInformational
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone
     return Context{..}
   where
