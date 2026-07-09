@@ -3,9 +3,8 @@
 
 module Network.HTTP2.Server.Run where
 
-import Control.Concurrent.Async (concurrently_)
+import Control.Concurrent.Async
 import Control.Concurrent.STM
-import qualified Control.Exception as E
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
@@ -128,10 +127,8 @@ runH2 conf ctx = do
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
         runBackgroundThreads = do
-            er <- E.try $ concurrently_ runReceiver runSender
-            case er of
-                Right () -> return ()
-                Left e -> closureServer conf ctx e
+            e <- snd <$> concurrently runReceiver runSender
+            closureServer conf ctx e
     T.stopAfter mgr runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 

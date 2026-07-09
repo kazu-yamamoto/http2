@@ -19,6 +19,7 @@ import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
+import Data.Void
 import Network.Control
 import Network.HTTP.Semantics
 import qualified System.ThreadManager as T
@@ -45,14 +46,18 @@ headerFragmentLimit = 51200 -- 50K
 
 ----------------------------------------------------------------
 
-frameReceiver :: Context -> Config -> IO ()
-frameReceiver ctx conf@Config{..} =
-    (switch `E.catch` handler)
-        `E.finally` atomically
-            (writeTVar (receiverDone ctx) True)
+frameReceiver :: Context -> Config -> IO E.SomeException
+frameReceiver ctx@Context{receiverDone} conf@Config{..} =
+    E.mask $ \unmask -> do
+        mErr <- E.try $ unmask switch
+        case mErr of
+            Left err -> do
+                atomically $ writeTVar receiverDone $ Just err
+                return err
+            Right x -> do
+                absurd x -- We only terminate due to exceptions
   where
-    handler ConnectionIsClosed = return ()
-    handler e = E.throwIO e
+    switch :: IO Void
     switch = do
         labelMe "H2 receiver"
         tid <- myThreadId
@@ -60,13 +65,16 @@ frameReceiver ctx conf@Config{..} =
             then
                 loop1
             else
-                void $
-                    T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+                T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+
+    loop1 :: IO Void
     loop1 = do
         hd <- confReadN frameHeaderLength -- throwing an exception on timeout
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
         loop1
+
+    loop2 :: T.Handle -> IO Void
     loop2 th = do
         -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
         -- to destroy the thread trees.
