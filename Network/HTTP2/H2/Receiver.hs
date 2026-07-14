@@ -387,6 +387,27 @@ checkPriority p me
   where
     dep = streamDependency p
 
+-- | Handle a decoded response HEADERS section. On the client, a 1xx
+--   informational response (e.g. 103 Early Hints) is delivered to the
+--   informational callback and the stream keeps waiting for the final response;
+--   otherwise the headers become the (final) response.
+onResponseHeaders
+    :: Context
+    -> StreamId
+    -> Maybe ClosedCode
+    -> Bool
+    -> TokenHeaderTable
+    -> IO StreamState
+onResponseHeaders ctx streamId hcl endOfStream tbl
+    | endOfStream = return $ Open hcl (NoBody tbl)
+    | role ctx == Client && isInformational = do
+        informationalCallback ctx streamId tbl
+        return $ Open hcl JustOpened
+    | otherwise = return $ Open hcl (HasBody tbl)
+  where
+    isInformational =
+        maybe False ("1" `BS.isPrefixOf`) $ getFieldValue tokenStatus (snd tbl)
+
 stream
     :: FrameType
     -> FrameHeader
@@ -416,11 +437,7 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
             if endOfHeader
                 then do
                     tbl <- hpackDecodeHeader frag streamId ctx
-                    return $
-                        if endOfStream
-                            then -- turned into HalfClosedRemote in processState
-                                Open hcl (NoBody tbl)
-                            else Open hcl (HasBody tbl)
+                    onResponseHeaders ctx streamId hcl endOfStream tbl
                 else do
                     let siz = BS.length frag
                     return $ Open hcl $ Continued [frag] siz 1 endOfStream
@@ -522,11 +539,7 @@ stream FrameContinuation FrameHeader{flags, streamId} frag ctx s@(Open hcl (Cont
                 then do
                     let hdrblk = BS.concat $ reverse rfrags'
                     tbl <- hpackDecodeHeader hdrblk streamId ctx
-                    return $
-                        if endOfStream
-                            then -- turned into HalfClosedRemote in processState
-                                Open hcl (NoBody tbl)
-                            else Open hcl (HasBody tbl)
+                    onResponseHeaders ctx streamId hcl endOfStream tbl
                 else return $ Open hcl $ Continued rfrags' siz' n' endOfStream
 
 -- (No state transition)

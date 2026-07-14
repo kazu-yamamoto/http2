@@ -190,6 +190,7 @@ data OutputType
     = OHeader [Header] (Maybe DynaNext) TrailersMaker
     | OPush TokenHeaderList StreamId -- associated stream id from client
     | ONext DynaNext TrailersMaker
+    | OInformational [Header]
 
 data Sync = Done | Cont Output
 
@@ -271,6 +272,12 @@ data Config = Config
     , confPeerSockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confReadNTimeout :: Bool
+    , confOnInformational :: StreamId -> TokenHeaderTable -> IO ()
+    -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
+    --   Hints) is received on the given stream, ahead of the final response.
+    --   No-op by default.
+    --
+    --   @since 5.4.2
     }
 
 -- | Default config. This is just a template to modify via
@@ -287,6 +294,7 @@ defaultConfig =
         , confMySockAddr = SockAddrInet 0 0
         , confPeerSockAddr = SockAddrInet 0 0
         , confReadNTimeout = False
+        , confOnInformational = \_ _ -> return ()
         }
 
 isAsyncException :: Exception e => e -> Bool

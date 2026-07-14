@@ -6,6 +6,7 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Control.Concurrent.STM
+import qualified Data.ByteString.Char8 as C8
 import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
@@ -29,6 +30,7 @@ runServer conf server ctx@Context{..} strm req =
                     { auxTimeHandle = th
                     , auxMySockAddr = mySockAddr
                     , auxPeerSockAddr = peerSockAddr
+                    , auxSendInformational = sendInformational ctx strm
                     }
             request = Request req'
         lc <- newLoopCheck strm Nothing
@@ -45,6 +47,19 @@ runServer conf server ctx@Context{..} strm req =
             bs <- readBody
             T.resume th -- this is the same as 'tickle'
             return bs
+
+----------------------------------------------------------------
+
+-- | Send an informational (1xx) response, e.g. 103 Early Hints, on the given
+--   stream ahead of the final response. This is wired into 'auxSendInformational'
+--   so that a server (or WAI handler via Warp) can emit early hints. It blocks
+--   until the informational HEADERS have been handed to the sender, preserving
+--   ordering with respect to the final response.
+sendInformational :: Context -> Stream -> Status -> ResponseHeaders -> IO ()
+sendInformational ctx strm st hdrs = do
+    lc <- newLoopCheck strm Nothing
+    let hdr = (":status", C8.pack (show (statusCode st))) : hdrs
+    syncWithSender ctx strm (OInformational hdr) lc
 
 ----------------------------------------------------------------
 

@@ -49,6 +49,17 @@ spec = do
                 threadDelay 10000
                 runClient allocSimpleConfig
 
+        it "delivers 103 Early Hints to the client's informational handler" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                hintsRef <- newIORef []
+                runClientEarly hintsRef >>= (`shouldBe` Just ok200)
+                hints <- readIORef hintsRef
+                map (getFieldValue (toToken "link") . snd) hints
+                    `shouldBe` [ Just "</style.css>; rel=preload; as=style"
+                               , Just "</app.js>; rel=preload; as=script"
+                               ]
+
         it "should always send the connection preface first" $ do
             prefaceVar <- newEmptyMVar
             E.bracket (forkIO (runFakeServer prefaceVar)) killThread $ \_ -> do
@@ -103,9 +114,13 @@ runFakeServer prefaceVar = do
         threadDelay 10000
 
 server :: Server
-server req _aux sendResponse = case requestMethod req of
+server req aux sendResponse = case requestMethod req of
     Just "GET" -> case requestPath req of
         Just "/" -> sendResponse responseHello []
+        Just "/early" -> do
+            auxSendInformational aux earlyHints103 [("link", "</style.css>; rel=preload; as=style")]
+            auxSendInformational aux earlyHints103 [("link", "</app.js>; rel=preload; as=script")]
+            sendResponse responseHello []
         Just "/stream" -> sendResponse responseInfinite []
         Just "/push" -> do
             let pp = pushPromise "/push-pp" responsePP 0
@@ -121,6 +136,9 @@ responseHello = responseBuilder ok200 header body
   where
     header = [("Content-Type", "text/plain")]
     body = byteString "Hello, world!\n"
+
+earlyHints103 :: Status
+earlyHints103 = mkStatus 103 "Early Hints"
 
 responsePP :: Response
 responsePP = responseBuilder ok200 header body
@@ -172,6 +190,17 @@ trailersMaker ctx Nothing = return $ Trailers [("X-SHA1", sha1)]
 trailersMaker ctx (Just bs) = return $ NextTrailersMaker $ trailersMaker ctx'
   where
     !ctx' = CH.hashUpdate ctx bs
+
+-- | Request @/early@ with an informational handler installed, recording each
+-- 103 Early Hints section and returning the final response status.
+runClientEarly :: IORef [TokenHeaderTable] -> IO (Maybe Status)
+runClientEarly hintsRef = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf0 ->
+        C.run cliconf (conf0{confOnInformational = onInformational }) $ \sendRequest _aux ->
+            sendRequest (C.requestNoBody methodGet "/early" []) (return . C.responseStatus)
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
+    onInformational _sid tbl = modifyIORef' hintsRef (++ [tbl])
 
 runClient :: (Socket -> BufferSize -> IO Config) -> IO ()
 runClient allocConfig =
