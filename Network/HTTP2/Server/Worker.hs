@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -6,7 +7,6 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Control.Concurrent.STM
-import qualified Data.ByteString.Char8 as C8
 import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
@@ -19,6 +19,10 @@ import Imports hiding (insert)
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
 
+#if MIN_VERSION_http_semantics(0,4,1)
+import qualified Data.ByteString.Char8 as C8
+#endif
+
 ----------------------------------------------------------------
 
 runServer :: Config -> Server -> Launch
@@ -30,7 +34,9 @@ runServer conf server ctx@Context{..} strm req =
                     { auxTimeHandle = th
                     , auxMySockAddr = mySockAddr
                     , auxPeerSockAddr = peerSockAddr
+#if MIN_VERSION_http_semantics(0,4,1)
                     , auxSendInformational = sendInformational ctx strm
+#endif
                     }
             request = Request req'
         lc <- newLoopCheck strm Nothing
@@ -50,6 +56,7 @@ runServer conf server ctx@Context{..} strm req =
 
 ----------------------------------------------------------------
 
+#if MIN_VERSION_http_semantics(0,4,1)
 -- | Send an informational (1xx) response, e.g. 103 Early Hints, on the given
 --   stream ahead of the final response. This is wired into 'auxSendInformational'
 --   so that a server (or WAI handler via Warp) can emit early hints. It blocks
@@ -60,6 +67,7 @@ sendInformational ctx strm st hdrs = do
     lc <- newLoopCheck strm Nothing
     let hdr = (":status", C8.pack (show (statusCode st))) : hdrs
     syncWithSender ctx strm (OInformational hdr) lc
+#endif
 
 ----------------------------------------------------------------
 
