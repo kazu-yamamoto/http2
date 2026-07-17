@@ -1,10 +1,16 @@
 # ChangeLog for http2
 
+## 5.4.3
+
+* auxSendInformational: gate usage with CPP to http-semantics >= 0.4.1
+  [#170](https://github.com/kazu-yamamoto/http2/pull/170)
+
 ## 5.4.2
 
 * Support informational (1xx) responses, e.g. 103 Early Hints. Servers can send
   them via `auxSendInformational`; clients can observe them via the new
   `confOnInformational` callback in `Config`.
+  [#168](https://github.com/kazu-yamamoto/http2/pull/168)
 
 ## 5.4.1
 
