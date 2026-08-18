@@ -102,9 +102,7 @@ Notes:
 data OpenState
     = JustOpened
     | Continued
-        [HeaderBlockFragment]
-        Int -- Total size
-        Int -- The number of continuation frames
+        PartialHeaderBlock
         Bool -- End of stream
     | NoBody TokenHeaderTable
     | HasBody TokenHeaderTable
@@ -114,6 +112,15 @@ data OpenState
         -- compared the body length for error checking
         (IORef Int) -- actual body length
         (IORef (Maybe TokenHeaderTable)) -- trailers
+
+-- | Header block fragments accumulated so far.
+--
+-- Fragments are stored in reverse order (newest first).
+data PartialHeaderBlock = PartialHeaderBlock
+    { phbFragments :: [HeaderBlockFragment]
+    , phbTotalSize :: Int
+    , phbNumFrames :: Int
+    }
 
 data ClosedCode
     = Finished

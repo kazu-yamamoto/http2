@@ -495,8 +495,7 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
                     tbl <- hpackDecodeHeader frag streamId ctx
                     onResponseHeaders ctx streamId hcl endOfStream tbl
                 else do
-                    let siz = BS.length frag
-                    return $ Open hcl $ Continued [frag] siz 1 endOfStream
+                    return $ Open hcl $ Continued (newPartialHeaderBlock frag) endOfStream
 
 -- Transition (stream2)
 stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx (Open _ (Body q _ _ tlr)) _ = do
@@ -570,7 +569,7 @@ stream
             else return s
 
 -- Transition (stream5)
-stream FrameContinuation FrameHeader{flags, streamId} frag ctx s@(Open hcl (Continued rfrags siz n endOfStream)) _ = do
+stream FrameContinuation FrameHeader{flags, streamId} frag ctx s@(Open hcl (Continued phb endOfStream)) _ = do
     let endOfHeader = testEndHeader flags
     if frag == "" && not endOfHeader
         then do
@@ -582,21 +581,12 @@ stream FrameContinuation FrameHeader{flags, streamId} frag ctx s@(Open hcl (Cont
                         ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty continuation"
                 else return s
         else do
-            let rfrags' = frag : rfrags
-                siz' = siz + BS.length frag
-                n' = n + 1
-            when (siz' > headerFragmentLimit) $
-                E.throwIO $
-                    ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too big"
-            when (n' > continuationLimit) $
-                E.throwIO $
-                    ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too fragmented"
+            phb' <- addFragment streamId frag phb
             if endOfHeader
                 then do
-                    let hdrblk = BS.concat $ reverse rfrags'
-                    tbl <- hpackDecodeHeader hdrblk streamId ctx
+                    tbl <- hpackDecodeHeader (completeHeaderBlock phb') streamId ctx
                     onResponseHeaders ctx streamId hcl endOfStream tbl
-                else return $ Open hcl $ Continued rfrags' siz' n' endOfStream
+                else return $ Open hcl $ Continued phb' endOfStream
 
 -- (No state transition)
 stream FrameWindowUpdate header bs _ s strm = do
@@ -774,3 +764,38 @@ sendPing :: Context -> Bool -> ByteString -> IO ()
 sendPing Context{..} ack bs = enqueueControl controlQ $ CFrames Nothing [frame]
   where
     frame = pingFrame ack bs
+
+----------------------------------------------------------------
+
+newPartialHeaderBlock :: HeaderBlockFragment -> PartialHeaderBlock
+newPartialHeaderBlock frag =
+    PartialHeaderBlock
+        { phbFragments = [frag]
+        , phbTotalSize = BS.length frag
+        , phbNumFrames = 1
+        }
+
+addFragment
+    :: StreamId
+    -- ^ Used for error messages only
+    -> HeaderBlockFragment
+    -> PartialHeaderBlock
+    -> IO PartialHeaderBlock
+addFragment streamId frag phb = do
+    when (phbTotalSize phb' > headerFragmentLimit) $
+        E.throwIO $
+            ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too big"
+    when (phbNumFrames phb' > continuationLimit) $
+        E.throwIO $
+            ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too fragmented"
+    return phb'
+  where
+    phb' =
+        PartialHeaderBlock
+            { phbFragments = frag : phbFragments phb
+            , phbTotalSize = phbTotalSize phb + BS.length frag
+            , phbNumFrames = phbNumFrames phb + 1
+            }
+
+completeHeaderBlock :: PartialHeaderBlock -> HeaderBlockFragment
+completeHeaderBlock = BS.concat . reverse . phbFragments
