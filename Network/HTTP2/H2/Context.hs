@@ -63,11 +63,7 @@ data Context = Context
     , peerSettings       :: IORef Settings
     , oddStreamTable     :: TVar OddStreamTable
     , evenStreamTable    :: TVar EvenStreamTable
-    , continued          :: IORef (Maybe StreamId)
-    -- ^ RFC 9113 says "Other frames (from any stream) MUST NOT
-    --   occur between the HEADERS frame and any CONTINUATION
-    --   frames that might follow". This field is used to implement
-    --   this requirement.
+    , continued          :: IORef (Maybe HeaderContinuation)
     , myStreamId         :: TVar StreamId
     , peerStreamId       :: IORef StreamId
     , peerLastStreamId   :: IORef StreamId
@@ -97,6 +93,14 @@ data Context = Context
     --   'confOnInformational'; no-op by default.
     }
 {- FOURMOLU_ENABLE -}
+
+-- | Header/trailer continuation
+--
+-- RFC 9113 says "Other frames (from any stream) MUST NOT occur between the
+-- HEADERS frame and any CONTINUATION frames that might follow". This is used to
+-- implement this requirement.
+data HeaderContinuation
+    = ContinuationOnStream StreamId
 
 ----------------------------------------------------------------
 

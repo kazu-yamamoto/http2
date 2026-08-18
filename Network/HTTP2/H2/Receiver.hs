@@ -172,7 +172,7 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
                     informIgnoredData ctx streamId payloadLength
                 | otherwise -> return ()
   where
-    setContinued = writeIORef continued $ Just streamId
+    setContinued = writeIORef continued $ Just $ ContinuationOnStream streamId
     resetContinued = writeIORef continued Nothing
     resetPromised (StreamErrorIsSent err sid _msg) =
         enqueueControl controlQ $ CFrames Nothing [resetFrame err sid]
@@ -200,7 +200,7 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
         mx <- readIORef continued
         case mx of
             Nothing -> return ()
-            Just sid
+            Just (ContinuationOnStream sid)
                 | sid == streamId && ftyp == FrameContinuation -> return ()
                 | otherwise ->
                     E.throwIO $
