@@ -50,11 +50,12 @@ headerFragmentLimit = 51200 -- 50K
 frameReceiver :: Context -> Config -> IO E.SomeException
 frameReceiver ctx@Context{receiverDone} conf@Config{..} =
     E.mask $ \unmask -> do
+        -- This catches an asynchronous exception.
+        -- It is re-thrown by "runH2"
         mErr <- E.try $ unmask switch
         case mErr of
             Left err -> do
                 atomically $ writeTVar receiverDone $ Just err
-                -- err is re-thrown by "runH2"
                 return err
             Right x -> do
                 absurd x -- We only terminate due to exceptions

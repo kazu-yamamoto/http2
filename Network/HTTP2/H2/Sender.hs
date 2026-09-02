@@ -79,7 +79,8 @@ frameSender
     ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
     Config{..} = do
         labelMe "H2 sender"
-        -- err is re-thrown by "runH2"
+        -- This catches an asynchronous exception.
+        -- It is re-thrown by "runH2"
         loop 0 `E.catch` return
       where
         ----------------------------------------------------------------
@@ -159,7 +160,9 @@ frameSender
         -- Both the stream window and the connection window are open.
         ----------------------------------------------------------------
         outputAndSync :: Output -> Offset -> IO Offset
-        outputAndSync out@(Output strm otyp sync) off = E.handle (\e -> resetStream strm InternalError e >> return off) $ do
+        -- "handler" catches an asynchronous exception and
+        -- re-throws it.
+        outputAndSync out@(Output strm otyp sync) off = E.handle (handler strm off) $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then case otyp of
@@ -187,6 +190,10 @@ frameSender
                         return off'
 
         ----------------------------------------------------------------
+        handler strm off e = do
+            resetStream strm InternalError e
+            return off
+
         resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
         resetStream strm err e
             | isAsyncException e = E.throwIO e
