@@ -40,7 +40,7 @@ runServer conf server ctx@Context{..} strm req =
 #endif
                     }
             request = Request req'
-        lc <- newLoopCheck strm Nothing
+        lc <- newLoopCheck strm Nothing (Just th)
         server request aux $ sendResponse conf ctx lc strm request
         adjustRxWindow ctx strm
         modifyPeerLastStreamId ctx $ streamNumber strm
@@ -65,7 +65,7 @@ runServer conf server ctx@Context{..} strm req =
 --   ordering with respect to the final response.
 sendInformational :: Context -> Stream -> Status -> ResponseHeaders -> IO ()
 sendInformational ctx strm st hdrs = do
-    lc <- newLoopCheck strm Nothing
+    lc <- newLoopCheck strm Nothing Nothing
     let hdr = (":status", C8.pack (show (statusCode st))) : hdrs
     syncWithSender ctx strm (OInformational hdr) lc
 #endif
@@ -143,7 +143,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                 ot = OPush promiseRequest pid
                 Response rsp = promiseResponse pp
             increment tvar
-            lc <- newLoopCheck newstrm Nothing
+            lc <- newLoopCheck newstrm Nothing Nothing
             syncWithSender ctx newstrm ot lc
             sendHeaderBody conf ctx lc newstrm rsp
         push tvar pps (n + 1)
