@@ -36,7 +36,10 @@ allocSimpleConfig' s bufsiz usec = do
     let confOnInformational = \_ _ -> return ()
     return Config{..}
 
--- | Deallocating the resource of the simple configuration.
+-- | Deallocating the write buffer and cancelling pending timeout registrations.
+--   Users must finish work using the configuration before releasing it.
+--   This relies on the owned manager shutdown in time-manager <0.3 (#175).
+--   Its replacement in 0.3 does not retain registrations for cancellation.
 freeSimpleConfig :: Config -> IO ()
 freeSimpleConfig conf = do
     free $ confWriteBuffer conf

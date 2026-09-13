@@ -1,5 +1,12 @@
 # ChangeLog for http2
 
+## Unreleased
+
+* Restore simple-configuration timeout cleanup by requiring time-manager
+  >=0.2.4 && <0.3. The receiver brackets its timeout handle explicitly to avoid
+  the older withHandle return-type mismatch reported in #169.
+  [#175](https://github.com/kazu-yamamoto/http2/issues/175)
+
 ## 5.4.4
 
 * Improvements for dealing with RST_STREAM
