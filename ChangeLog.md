@@ -4,8 +4,10 @@
 
 * Restore simple-configuration timeout cleanup by requiring time-manager
   >=0.2.4 && <0.3. The receiver brackets its timeout handle explicitly to avoid
-  the older withHandle return-type mismatch reported in #169.
-  [#175](https://github.com/kazu-yamamoto/http2/issues/175)
+  the older withHandle return-type mismatch reported in
+  [#169](https://github.com/kazu-yamamoto/http2/issues/169).
+  [#176](https://github.com/kazu-yamamoto/http2/pull/176)
+  (fixes [#175](https://github.com/kazu-yamamoto/http2/issues/175))
 
 ## 5.4.4
 
