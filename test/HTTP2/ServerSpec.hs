@@ -69,6 +69,12 @@ spec = do
             preface <- takeMVar prefaceVar
             preface `shouldBe` connectionPreface
 
+        it "gives a concurrency slot back exactly once per stream" $
+            E.bracket (forkIO runServerMaxConc1) killThread $ \_ -> do
+                threadDelay 10000
+                runAttack resetThenOverrun
+                    `shouldThrow` connectionError "exceeds max concurrent"
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -90,6 +96,20 @@ runServer = runTCPServer (Just host) port runHTTP2Server
             (allocSimpleConfig s 32768)
             freeSimpleConfig
             (\conf -> run defaultServerConfig conf server)
+
+-- | Like 'runServer', but announcing room for a single concurrent stream.
+runServerMaxConc1 :: IO ()
+runServerMaxConc1 = runTCPServer (Just host) port runHTTP2Server
+  where
+    sconf =
+        defaultServerConfig
+            { settings = (settings defaultServerConfig){maxConcurrentStreams = Just 1}
+            }
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> run sconf conf server)
 
 runFakeServer :: MVar ByteString -> IO ()
 runFakeServer prefaceVar = do
@@ -453,6 +473,38 @@ rapidRst C.ClientIO{..} = do
             -- Otherwise, a stream error terminates the connection.
             bsR = encodeFrame einfoR $ RSTStreamFrame NoError
         cioWriteBytes bsR
+
+-- | Open a stream, reset it, then open two more.  The server announced room
+-- for one concurrent stream, so the third one here must be refused.
+--
+-- Closing a stream used to give its slot back twice -- a RST_STREAM carrying a
+-- non-critical error code is closed by both 'stream' and 'processState' -- so
+-- the count drifted down by one on every reset and this sequence went through
+-- unchallenged.
+resetThenOverrun :: C.ClientIO -> IO ()
+resetThenOverrun C.ClientIO{..} = do
+    openStream 1
+    cioWriteBytes $
+        encodeFrame (EncodeInfo defaultFlags 1 Nothing) $
+            RSTStreamFrame Cancel
+    openStream 3
+    openStream 5
+  where
+    -- Stream identifiers written out rather than taken from
+    -- 'cioCreateStream': the limit we are here to overrun is the one the
+    -- server announced, and asking for a stream the proper way would block on
+    -- that same limit on this side.
+    openStream sid = do
+        -- No END_STREAM, so the stream stays open and keeps holding its slot.
+        let einfo = EncodeInfo (setEndHeader defaultFlags) sid Nothing
+            hdr =
+                hpackEncode
+                    [ (":scheme", "http")
+                    , (":authority", "127.0.0.1")
+                    , (":path", "/")
+                    , (":method", "GET")
+                    ]
+        cioWriteBytes $ encodeFrame einfo $ HeadersFrame Nothing hdr
 
 connectionError :: C.ReasonPhrase -> C.HTTP2Error -> Bool
 connectionError phrase (C.ConnectionErrorIsReceived _ _ p)
