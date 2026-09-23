@@ -24,6 +24,7 @@ import Network.Socket.ByteString
 import System.IO
 import System.IO.Unsafe
 import System.Random
+import System.Timeout (timeout)
 import Test.Hspec
 
 import Network.HPACK
@@ -75,6 +76,13 @@ spec = do
                 runAttack resetThenOverrun
                     `shouldThrow` connectionError "exceeds max concurrent"
 
+        it "releases a worker whose stream the peer reset" $ do
+            doneVar <- newEmptyMVar
+            E.bracket (forkIO (runServerCancel doneVar)) killThread $ \_ -> do
+                threadDelay 10000
+                runAttack cancelInFlight
+                timeout 1000000 (takeMVar doneVar) `shouldReturn` Just ()
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -110,6 +118,21 @@ runServerMaxConc1 = runTCPServer (Just host) port runHTTP2Server
             (allocSimpleConfig s 32768)
             freeSimpleConfig
             (\conf -> run sconf conf server)
+
+-- | A server whose handler waits long enough for a RST_STREAM to arrive
+-- before it responds, and then signals that 'sendResponse' returned.
+runServerCancel :: MVar () -> IO ()
+runServerCancel doneVar = runTCPServer (Just host) port runHTTP2Server
+  where
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> run defaultServerConfig conf cancelServer)
+    cancelServer _req _aux sendResponse = do
+        threadDelay 200000
+        sendResponse responseHello []
+        putMVar doneVar ()
 
 runFakeServer :: MVar ByteString -> IO ()
 runFakeServer prefaceVar = do
@@ -505,6 +528,31 @@ resetThenOverrun C.ClientIO{..} = do
                     , (":method", "GET")
                     ]
         cioWriteBytes $ encodeFrame einfo $ HeadersFrame Nothing hdr
+
+-- | Open a stream and cancel it straight away, while the server is still
+-- working on the response.
+--
+-- The sender skips a stream that is already half-closed, and used to return
+-- without telling the thread that enqueued the output.  That thread sat in
+-- 'syncWithSender'' on an MVar nothing would fill, so 'sendResponse' never
+-- returned and the worker was only reclaimed when the timeout manager killed
+-- it, seconds later.
+cancelInFlight :: C.ClientIO -> IO ()
+cancelInFlight C.ClientIO{..} = do
+    -- setEndStream for HalfClosedRemote, so that CANCEL is accepted as a
+    -- stream error rather than taken down the connection.
+    let einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) 1 Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/")
+                , (":method", "GET")
+                ]
+    cioWriteBytes $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+    cioWriteBytes $
+        encodeFrame (EncodeInfo defaultFlags 1 Nothing) $
+            RSTStreamFrame Cancel
 
 connectionError :: C.ReasonPhrase -> C.HTTP2Error -> Bool
 connectionError phrase (C.ConnectionErrorIsReceived _ _ p)

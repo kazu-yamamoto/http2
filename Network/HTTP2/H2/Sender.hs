@@ -165,13 +165,23 @@ frameSender
         outputAndSync out@(Output strm otyp sync) off = E.handle (handler strm off) $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
-                then case otyp of
-                    OReset mErr | not (isClosed state) -> do
-                        -- RST_STREAM is the only frame we can still send after half-closing
-                        resetStreamWith strm mErr
-                        return off
-                    _otherwise ->
-                        return off
+                then do
+                    case otyp of
+                        OReset mErr
+                            | not (isClosed state) ->
+                                -- RST_STREAM is the only frame we can still send
+                                -- after half-closing
+                                resetStreamWith strm mErr
+                        _otherwise ->
+                            return ()
+                    -- Nothing more can go out on this stream, but whoever
+                    -- enqueued this output is waiting in 'syncWithSender'' to
+                    -- be told so.  Dropping the notification parked that
+                    -- thread on an MVar nothing would ever fill, until the
+                    -- timeout manager killed it -- one stranded worker per
+                    -- stream the peer resets while a response is in flight.
+                    sync Nothing
+                    return off
                 else case otyp of
                     OHeader hdr mnext tlrmkr -> do
                         (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
