@@ -95,12 +95,19 @@ jobs:
 
     # Try the restored store first so a warm run does not talk to Hackage at
     # all, and fall back to fetching when it is cold or incomplete.
+    # doctest 0.25.0 rejects the --interactive that cabal puts in the GHC
+    # response file it hands the repl program, so the doctest step below dies
+    # before it runs a single example.  No choice of flag avoids this:
+    # --with-ghc, --with-compiler and --with-repl all fail the same way, and
+    # 0.24.3 works with all three.  It looks like a casualty of the argument
+    # handling rewritten for -unit support in that release, so the bound is
+    # meant to come off once it is fixed upstream.
     - name: Install doctest
       if: ${{ runner.os == 'Linux' }}
       shell: bash
       run: |
-        cabal install --offline --overwrite-policy=always doctest ||
-          cabal install --overwrite-policy=always doctest
+        cabal install --offline --overwrite-policy=always doctest --constraint='doctest < 0.25' ||
+          cabal install --overwrite-policy=always doctest --constraint='doctest < 0.25'
 
     - name: Install dependencies
       shell: bash
@@ -114,10 +121,14 @@ jobs:
     - name: Run tests
       run: cabal test ${{ env.target-config }} all
 
+    # --with-repl rather than --with-ghc: this is the one step that wants
+    # doctest, and cabal 3.16 added the flag so that it stands in for ghci
+    # alone instead of for the compiler everywhere.  Building is still GHC's
+    # job.
     - name: Run doctest
       if: ${{ runner.os == 'Linux' }}
       run: |
-        cabal repl --build-depends=QuickCheck --with-ghc=doctest ${{ env.target-config }}
+        cabal repl --build-depends=QuickCheck --with-repl=doctest ${{ env.target-config }}
 
     # Saved after the build, so the entry holds the build products too, and
     # only from the default branch: a cache written on a branch is visible
