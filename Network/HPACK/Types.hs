@@ -76,6 +76,9 @@ data DecodeError
       IllegalEos
     | -- | Eos of huffman string is more than 7 bits
       TooLongEos
+    | -- | An integer is encoded above the limit this decoder accepts,
+      -- or in more octets than reaching that limit can take
+      TooLargeInteger
     | -- | A peer set the dynamic table size less than 32
       TooSmallTableSize
     | -- | A peer tried to change the dynamic table size over the limit
