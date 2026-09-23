@@ -122,7 +122,9 @@ library
         network-byte-order >=0.1.7 && <0.2,
         network-control >=0.1 && <0.2,
         stm >=2.5 && <2.6,
-        time-manager >=0.3.0 && <0.4,
+        -- Manager shutdown is required by freeSimpleConfig (#175).
+        -- 0.2.4 also supplies isAllGone used by the connection context.
+        time-manager >=0.2.4 && <0.3,
         unix-time >=0.4.11 && <0.6,
         utf8-string >=1.0 && <1.1
 
@@ -292,6 +294,7 @@ test-suite spec
         HPACK.HuffmanSpec
         HPACK.IntegerSpec
         HTTP2.ClientSpec
+        HTTP2.ConfigSpec
         HTTP2.FrameSpec
         HTTP2.ServerSpec
 
@@ -311,6 +314,7 @@ test-suite spec
         network,
         network-run >= 0.6 && <0.7,
         random,
+        time-manager >=0.2.4 && <0.3,
         typed-process
 
 test-suite spec2

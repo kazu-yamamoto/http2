@@ -24,6 +24,7 @@ import Network.Control
 import Network.HTTP.Semantics
 import qualified System.IO.Error as E
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as Timeout
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -68,7 +69,13 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
             then
                 loop1
             else
-                T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+                -- Own the handle explicitly: time-manager <0.3 withHandle
+                -- returns Maybe and catches TimeoutThread (#169). The receiver
+                -- must propagate termination exceptions to runH2.
+                E.bracket
+                    (Timeout.register confTimeoutManager (E.throwTo tid ConnectionIsTimeout))
+                    Timeout.cancel
+                    loop2
 
     loop1 :: IO Void
     loop1 = do
