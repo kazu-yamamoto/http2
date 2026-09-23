@@ -78,6 +78,12 @@ insertOdd' var k v = atomically $ modifyTVar var $ \OddStreamTable{..} ->
     let oddTable' = IntMap.insert k v oddTable
      in OddStreamTable oddConc oddTable'
 
+-- | Remove a stream and give its concurrency slot back.
+--
+-- 'closed' can be called more than once for the same stream -- a RST_STREAM
+-- carrying a non-critical error code goes through both 'stream' and
+-- 'processState', each of which closes it -- so the count must follow an
+-- entry that was really there, not the number of calls.
 deleteOdd :: TVar OddStreamTable -> IntMap.Key -> E.SomeException -> IO ()
 deleteOdd var k err = do
     mv <- atomically deleteStream
@@ -88,10 +94,13 @@ deleteOdd var k err = do
     deleteStream :: STM (Maybe Stream)
     deleteStream = do
         OddStreamTable{..} <- readTVar var
-        let oddConc' = oddConc - 1
-            oddTable' = IntMap.delete k oddTable
-        writeTVar var $ OddStreamTable oddConc' oddTable'
-        return $ IntMap.lookup k oddTable
+        case IntMap.lookup k oddTable of
+            Nothing -> return Nothing
+            Just v -> do
+                let oddConc' = oddConc - 1
+                    oddTable' = IntMap.delete k oddTable
+                writeTVar var $ OddStreamTable oddConc' oddTable'
+                return $ Just v
 
 lookupOdd :: TVar OddStreamTable -> IntMap.Key -> IO (Maybe Stream)
 lookupOdd var k = IntMap.lookup k . oddTable <$> readTVarIO var
@@ -128,6 +137,8 @@ insertEven' var k v = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
     let evenTable' = IntMap.insert k v evenTable
      in EvenStreamTable evenConc evenTable' evenCache
 
+-- | Remove a stream and give its concurrency slot back.
+-- Idempotent, for the same reason as 'deleteOdd'.
 deleteEven :: TVar EvenStreamTable -> IntMap.Key -> E.SomeException -> IO ()
 deleteEven var k err = do
     mv <- atomically deleteStream
@@ -138,10 +149,13 @@ deleteEven var k err = do
     deleteStream :: STM (Maybe Stream)
     deleteStream = do
         EvenStreamTable{..} <- readTVar var
-        let evenConc' = evenConc - 1
-            evenTable' = IntMap.delete k evenTable
-        writeTVar var $ EvenStreamTable evenConc' evenTable' evenCache
-        return $ IntMap.lookup k evenTable
+        case IntMap.lookup k evenTable of
+            Nothing -> return Nothing
+            Just v -> do
+                let evenConc' = evenConc - 1
+                    evenTable' = IntMap.delete k evenTable
+                writeTVar var $ EvenStreamTable evenConc' evenTable' evenCache
+                return $ Just v
 
 lookupEven :: TVar EvenStreamTable -> IntMap.Key -> IO (Maybe Stream)
 lookupEven var k = IntMap.lookup k . evenTable <$> readTVarIO var
