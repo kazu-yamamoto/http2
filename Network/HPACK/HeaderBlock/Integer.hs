@@ -3,13 +3,16 @@ module Network.HPACK.HeaderBlock.Integer (
     encodeInteger,
     decodeI,
     decodeInteger,
+    integerLimit,
 ) where
 
+import qualified Control.Exception as E
 import Data.Array (Array, listArray)
 import Data.Array.Base (unsafeAt)
 import Network.ByteOrder
 
 import Imports
+import Network.HPACK.Types (DecodeError (..))
 
 -- $setup
 -- >>> import qualified Data.ByteString as BS
@@ -127,9 +130,36 @@ decodeI n w rbuf
     p = powerArray `unsafeAt` (n - 1)
     i = fromIntegral w
     decode :: Int -> Int -> IO Int
-    decode m j = do
-        b <- fromIntegral <$> read8 rbuf
-        let j' = j + (b .&. 0x7f) * 2 ^ m
-            m' = m + 7
-            cont = b `testBit` 7
-        if cont then decode m' j' else return j'
+    decode m j
+        -- Checked before the shift rather than after: shifting an 'Int' by a
+        -- word width or more is not defined to give zero, and the value would
+        -- have wrapped long before there were anything to notice.
+        | m > maxShift = E.throwIO TooLargeInteger
+        | otherwise = do
+            b <- fromIntegral <$> read8 rbuf
+            let d = b .&. 0x7f
+            -- d * 2^m > integerLimit - j, without evaluating the product.
+            when (d > (integerLimit - j) `shiftR` m) $ E.throwIO TooLargeInteger
+            let j' = j + (d `shiftL` m)
+            if b `testBit` 7 then decode (m + 7) j' else return j'
+
+-- | The largest integer 'decodeI' will return.
+--
+-- HPACK's integer encoding carries no bound of its own, so a decoder has to
+-- impose one. RFC 7541, section 5.1: "Integer encodings that exceed
+-- implementation limits -- in value or octet length -- MUST be treated as
+-- decoding errors."
+--
+-- 2^30 - 1 is far above anything HTTP\/2 can ask for -- a frame payload is at
+-- most 2^24 - 1 octets, so no length or index comes near it -- and it still
+-- fits in an 'Int' on a platform where that is 32 bits wide.
+--
+-- >>> integerLimit
+-- 1073741823
+integerLimit :: Int
+integerLimit = 1073741823
+
+-- | The largest shift that can carry a continuation octet into
+-- 'integerLimit'; past it every further octet is an overflow.
+maxShift :: Int
+maxShift = 28
