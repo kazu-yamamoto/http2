@@ -252,12 +252,13 @@ closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc
 -- From peer
 
 -- Server
+--
+-- Note that this does not apply SETTINGS_MAX_CONCURRENT_STREAMS.  A stream
+-- over the limit still has to be admitted this far, because its field block
+-- has to be decoded before it can be refused; 'checkOddConcurrency' does the
+-- refusing once that has happened.
 openOddStreamCheck :: Context -> StreamId -> FrameType -> IO Stream
 openOddStreamCheck ctx@Context{oddStreamTable, peerSettings, mySettings} sid ftyp = do
-    -- My SETTINGS_MAX_CONCURRENT_STREAMS
-    when (ftyp == FrameHeaders) $ do
-        conc <- getOddConcurrency oddStreamTable
-        checkMyConcurrency sid mySettings (conc + 1)
     txws <- initialWindowSize <$> readIORef peerSettings
     let rxws = initialWindowSize mySettings
     newstrm <- newOddStream sid txws rxws
@@ -275,6 +276,25 @@ openEvenStreamCacheCheck Context{evenStreamTable, peerSettings, mySettings} sid 
     let rxws = initialWindowSize mySettings
     newstrm <- newEvenStream sid txws rxws
     insertEvenCache evenStreamTable method path newstrm
+
+-- | Refuse a peer-initiated stream that puts us over the limit we advertised
+-- in SETTINGS_MAX_CONCURRENT_STREAMS.
+--
+-- Checked once the stream's field block has been decoded, rather than when
+-- its HEADERS frame arrived.  A block has to be decoded whatever becomes of
+-- its stream -- RFC 9113 section 10.5.1, "The field block MUST be processed
+-- to ensure a consistent connection state" -- and refusing at arrival meant
+-- throwing before the frame's payload had even been read, which left nothing
+-- to do but drop the connection.  From here the throw lands inside the
+-- receiver's per-frame reset handler, so the answer is
+-- RST_STREAM(REFUSED_STREAM) and the connection carries on, which is what
+-- section 5.1.2 asks for and what section 8.7 lets the peer retry against.
+--
+-- The stream is in the table by the time we get here, so it counts itself.
+checkOddConcurrency :: Context -> StreamId -> IO ()
+checkOddConcurrency Context{oddStreamTable, mySettings} sid = do
+    conc <- getOddConcurrency oddStreamTable
+    checkMyConcurrency sid mySettings conc
 
 checkMyConcurrency
     :: StreamId -> Settings -> Int -> IO ()

@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -70,11 +71,28 @@ spec = do
             preface <- takeMVar prefaceVar
             preface `shouldBe` connectionPreface
 
-        it "gives a concurrency slot back exactly once per stream" $
+        it "refuses one stream over the limit and keeps the connection" $
             E.bracket (forkIO runServerMaxConc1) killThread $ \_ -> do
                 threadDelay 10000
-                runAttack resetThenOverrun
-                    `shouldThrow` connectionError "exceeds max concurrent"
+                -- The server announced room for one concurrent stream.  Open
+                -- one, reset it, then open two more: the second of those is
+                -- the one over the limit.
+                --
+                -- Two things are on trial.  That the reset gives the slot back
+                -- exactly once -- decrementing the count twice, as it used to,
+                -- would leave room for both.  And that being over the limit
+                -- costs you that stream and not the connection: no GOAWAY.
+                frames <-
+                    rawExchange
+                        [ openStreamFrame 1
+                        , encodeFrame (EncodeInfo defaultFlags 1 Nothing) $
+                            RSTStreamFrame Cancel
+                        , openStreamFrame 3
+                        , openStreamFrame 5
+                        ]
+                [(sid, ec) | (FrameRSTStream, sid, ec) <- resets frames]
+                    `shouldBe` [(5, RefusedStream)]
+                [() | (FrameGoAway, _, _) <- resets frames] `shouldBe` []
 
         it "releases a worker whose stream the peer reset" $ do
             doneVar <- newEmptyMVar
@@ -515,30 +533,67 @@ rapidRst C.ClientIO{..} = do
 -- non-critical error code is closed by both 'stream' and 'processState' -- so
 -- the count drifted down by one on every reset and this sequence went through
 -- unchallenged.
-resetThenOverrun :: C.ClientIO -> IO ()
-resetThenOverrun C.ClientIO{..} = do
-    openStream 1
-    cioWriteBytes $
-        encodeFrame (EncodeInfo defaultFlags 1 Nothing) $
-            RSTStreamFrame Cancel
-    openStream 3
-    openStream 5
+-- | A HEADERS frame opening a stream and leaving it open, so that it goes on
+-- holding a concurrency slot.
+--
+-- Stream identifiers are written out rather than taken from
+-- 'C.cioCreateStream': the limit being overrun is the one the server
+-- announced, and asking for a stream the proper way would block on that same
+-- limit on this side.
+openStreamFrame :: StreamId -> ByteString
+openStreamFrame sid = encodeFrame einfo $ HeadersFrame Nothing hdr
   where
-    -- Stream identifiers written out rather than taken from
-    -- 'cioCreateStream': the limit we are here to overrun is the one the
-    -- server announced, and asking for a stream the proper way would block on
-    -- that same limit on this side.
-    openStream sid = do
-        -- No END_STREAM, so the stream stays open and keeps holding its slot.
-        let einfo = EncodeInfo (setEndHeader defaultFlags) sid Nothing
-            hdr =
-                hpackEncode
-                    [ (":scheme", "http")
-                    , (":authority", "127.0.0.1")
-                    , (":path", "/")
-                    , (":method", "GET")
-                    ]
-        cioWriteBytes $ encodeFrame einfo $ HeadersFrame Nothing hdr
+    einfo = EncodeInfo (setEndHeader defaultFlags) sid Nothing
+    hdr =
+        hpackEncode
+            [ (":scheme", "http")
+            , (":authority", "127.0.0.1")
+            , (":path", "/")
+            , (":method", "GET")
+            ]
+
+-- | Speak raw frames to the server and collect what it says back.
+rawExchange :: [ByteString] -> IO [(FrameType, StreamId, ByteString)]
+rawExchange out = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    mapM_ (sendAll s) out
+    splitFrames <$> collect mempty s
+  where
+    collect acc s = do
+        mbs <- timeout 300000 $ recv s 4096
+        case mbs of
+            Just bs | not (B.null bs) -> collect (acc `B.append` bs) s
+            _ -> return acc
+
+splitFrames :: ByteString -> [(FrameType, StreamId, ByteString)]
+splitFrames bs
+    | B.length bs < frameHeaderLength = []
+    | otherwise =
+        let (h, rest) = B.splitAt frameHeaderLength bs
+            (typ, FrameHeader{payloadLength, streamId}) = decodeFrameHeader h
+            (body, rest') = B.splitAt payloadLength rest
+         in (typ, streamId, body) : splitFrames rest'
+
+-- | The RST_STREAM and GOAWAY frames among them, with their error codes.
+resets
+    :: [(FrameType, StreamId, ByteString)] -> [(FrameType, StreamId, ErrorCode)]
+resets frames =
+    [ (typ, sid, ec)
+    | (typ, sid, body) <- frames
+    , typ == FrameRSTStream || typ == FrameGoAway
+    , Just ec <- [errorCodeOf typ sid body]
+    ]
+  where
+    errorCodeOf FrameRSTStream sid body =
+        case decodeRSTStreamFrame (FrameHeader (B.length body) defaultFlags sid) body of
+            Right (RSTStreamFrame ec) -> Just ec
+            _ -> Nothing
+    errorCodeOf FrameGoAway sid body =
+        case decodeGoAwayFrame (FrameHeader (B.length body) defaultFlags sid) body of
+            Right (GoAwayFrame _ ec _) -> Just ec
+            _ -> Nothing
+    errorCodeOf _ _ _ = Nothing
 
 -- | Open a stream and cancel it straight away, while the server is still
 -- working on the response.
