@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Network.HTTP2.H2.Window where
 
@@ -80,6 +81,28 @@ informWindowUpdate Context{controlQ, rxFlow} Stream{streamNumber, streamRxFlow} 
         let frame = windowUpdateFrame streamNumber ws
             cframe = CFrames Nothing [frame]
         enqueueControl controlQ cframe
+
+-- | Account for a DATA frame that is being dropped.
+--
+-- Its stream is gone -- reset, or closed and forgotten -- so there is no
+-- stream window to adjust.  The peer charged these octets against the
+-- connection window before sending them, though, and if we say nothing its
+-- view of that window shrinks for good; enough dropped frames and the
+-- connection stalls with both sides believing the other is at fault.  So
+-- charge them and give them straight back.
+informIgnoredData :: Context -> StreamId -> Int -> IO ()
+informIgnoredData _ _ 0 = return ()
+informIgnoredData Context{controlQ, rxFlow} sid len = do
+    ok <- atomicModifyIORef' rxFlow $ checkRxLimit len
+    unless ok $
+        E.throwIO $
+            ConnectionErrorIsSent
+                EnhanceYourCalm
+                sid
+                "exceeds connection flow-control limit"
+    mxc <- atomicModifyIORef rxFlow $ maybeOpenRxWindow len FCTWindowUpdate
+    forM_ mxc $ \ws ->
+        enqueueControl controlQ $ CFrames Nothing [windowUpdateFrame 0 ws]
 
 -- This must be called after an application is finished
 -- to adjust RX window.

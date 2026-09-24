@@ -82,11 +82,21 @@ hpackDecodeTrailer
     :: HeaderBlockFragment -> StreamId -> Context -> IO TokenHeaderTable
 hpackDecodeTrailer hdrblk sid Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
+    -- Connection errors, both of them, even though a malformed message is a
+    -- stream error by RFC 9113 section 8.1.1.  Either way the field block was
+    -- abandoned part-way through, so our dynamic table now holds the entries
+    -- decoded before the throw and nothing after them -- no longer what the
+    -- peer's encoder believes we have.  Section 10.5.1: "The field block MUST
+    -- be processed to ensure a consistent connection state, unless the
+    -- connection is closed."  We did not, so it must be.
+    --
+    -- A malformed message caught /after/ a complete decode is a different
+    -- matter, and 'hpackDecodeHeader' reports those as stream errors.
     handl IllegalHeaderName =
-        E.throwIO $ StreamErrorIsSent ProtocolError sid "illegal trailer"
+        E.throwIO $ ConnectionErrorIsSent ProtocolError sid "illegal trailer"
     handl e = do
         let msg = fromString $ show e
-        E.throwIO $ StreamErrorIsSent CompressionError sid msg
+        E.throwIO $ ConnectionErrorIsSent CompressionError sid msg
 
 {-# INLINE checkRequestHeader #-}
 checkRequestHeader :: ValueTable -> Bool

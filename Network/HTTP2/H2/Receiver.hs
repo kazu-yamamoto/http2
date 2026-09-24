@@ -151,7 +151,7 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
         mstrm <- getStream ctx ftyp streamId
         bs <- readPayload conf payloadLength
         case mstrm of
-            Just strm -> do
+            Just strm -> resettable strm $ do
                 state0 <- readStreamState strm
                 state <- stream ftyp header bs ctx state0 strm
                 resetContinued
@@ -162,10 +162,32 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
                     -- for h2spec only
                     PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
                     checkPriority newpri streamId
+                | ftyp == FrameData ->
+                    -- Dropped, but still paid for.
+                    informIgnoredData ctx streamId payloadLength
                 | otherwise -> return ()
   where
     setContinued = writeIORef continued $ Just streamId
     resetContinued = writeIORef continued Nothing
+    -- Answer a stream error by resetting that stream and reading on, which is
+    -- what RFC 9113 section 5.4.2 asks for: "an error related to a specific
+    -- stream that does not affect processing of other streams".
+    --
+    -- Safe only here, after the payload has been read and any field block in
+    -- it decoded, so that the connection sits at a frame boundary and the
+    -- HPACK tables still agree with the peer's.  Where neither holds -- a
+    -- field block abandoned part-way, a stream refused before its payload was
+    -- read -- the error is raised as a connection error where it is detected,
+    -- and travels straight past this handler.
+    resettable strm act = act `E.catch` reset
+      where
+        reset e@(StreamErrorIsSent err sid _msg) = do
+            resetContinued
+            -- 'closed' hands the exception to whoever is reading the stream
+            -- and takes it out of the stream table.
+            closed ctx strm $ ResetByMe $ E.toException e
+            enqueueControl controlQ $ CFrames Nothing [resetFrame err sid]
+        reset e = E.throwIO e
     checkContinued = do
         mx <- readIORef continued
         case mx of
@@ -276,7 +298,14 @@ getOddStream ctx ftyp streamId Nothing
         csid <- getPeerStreamID ctx
         if streamId <= csid -- consider the stream closed
             then
-                if ftyp `elem` [FrameWindowUpdate, FrameRSTStream, FramePriority]
+                -- RFC 9113 section 5.1: "An endpoint MUST ignore frames that
+                -- it receives on closed streams after it has sent a
+                -- RST_STREAM frame."  DATA is in that list because resetting a
+                -- stream mid-body leaves whatever the peer already put on the
+                -- wire still to arrive.  HEADERS is not: that would be reuse
+                -- of a stream identifier, which section 5.1.1 makes a
+                -- connection error.
+                if ftyp `elem` [FrameData, FrameWindowUpdate, FrameRSTStream, FramePriority]
                     then return Nothing -- will be ignored
                     else
                         E.throwIO $
@@ -596,19 +625,32 @@ stream FrameRSTStream header@FrameHeader{streamId} bs ctx s strm = do
     -- > Either endpoint can send a RST_STREAM frame from this state, causing it
     -- > to transition immediately to "closed".
     --
-    -- This justifies the two non-error cases, below. (Section 8.1 of the spec
+    -- This justifies the non-error cases, below. (Section 8.1 of the spec
     -- is also relevant, but it is less explicit about the /either endpoint/
     -- part.)
+    --
+    -- The error code the peer sent does not enter into it.  Receiving a
+    -- RST_STREAM closes that stream and nothing else, whatever the reason
+    -- given; the code is for whoever is reading the stream, and reaches them
+    -- as 'StreamResetIsReceived' by way of 'closed' above.  Ending the whole
+    -- connection over it would punish every other stream on the connection
+    -- for a peer's complaint about one.
     case s of
-        Open _ _
-            | isNonCritical err ->
-                -- Open /or/ half-closed (local)
-                return (Closed cc)
-        HalfClosedRemote
-            | isNonCritical err ->
-                return (Closed cc)
-        _otherwise -> do
-            E.throwIO $ StreamErrorIsReceived err streamId
+        -- Open /or/ half-closed (local)
+        Open _ _ -> return (Closed cc)
+        HalfClosedRemote -> return (Closed cc)
+        Reserved -> return (Closed cc)
+        Closed _ -> return (Closed cc)
+        -- Only an idle stream is left, which a PRIORITY frame can have
+        -- created. Section 5.1 again, on "idle": "Receiving any frame other
+        -- than HEADERS or PRIORITY on a stream in this state MUST be treated
+        -- as a connection error (Section 5.4.1) of type PROTOCOL_ERROR."
+        Idle ->
+            E.throwIO $
+                ConnectionErrorIsSent
+                    ProtocolError
+                    streamId
+                    "rst_stream on an idle stream"
 -- (No state transition)
 stream FramePriority header bs _ s Stream{streamNumber} = do
     -- ignore
@@ -637,17 +679,6 @@ stream x FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         StreamErrorIsSent ProtocolError streamId $
             fromString ("illegal frame " ++ show x ++ " for " ++ show streamId)
-
-{- FOURMOLU_DISABLE -}
--- Although some stream errors indicate misbehaving peers, such as
--- FLOW_CONTROL_ERROR, not all errors do. We will close the connection only
--- for critical errors.
-isNonCritical :: ErrorCode -> Bool
-isNonCritical NoError       = True
-isNonCritical Cancel        = True
-isNonCritical InternalError = True
-isNonCritical _             = False
-{- FOURMOLU_ENABLE -}
 
 ----------------------------------------------------------------
 
