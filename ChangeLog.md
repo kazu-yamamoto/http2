@@ -1,5 +1,44 @@
 # ChangeLog for http2
 
+## 5.4.5
+
+* Security: frame payload decoders read their fixed-size fields without
+  checking that the payload holds them, so a truncated frame, or padding
+  covering a field, read past the end of the buffer -- and an empty payload
+  is the shared empty `ByteString`, whose pointer is null. An
+  unauthenticated peer could segfault the process with 33 bytes.
+  [#182](https://github.com/kazu-yamamoto/http2/pull/182)
+* Security: HPACK integer decoding overflowed `Int` silently, so a long
+  enough encoding decoded to whatever value the sender aimed at and two
+  different byte strings could decode to the same header. Integers are now
+  bounded and over-long encodings are a decoding error, as RFC 7541
+  section 5.1 requires.
+  [#181](https://github.com/kazu-yamamoto/http2/pull/181)
+* A RST_STREAM gave a stream's concurrency slot back twice, so a peer could
+  walk `SETTINGS_MAX_CONCURRENT_STREAMS` upwards and hold open as many
+  streams as it liked.
+  [#178](https://github.com/kazu-yamamoto/http2/pull/178)
+* A stream reset while its response was still being produced left the
+  worker blocked until the timeout manager killed it, one thread per reset
+  stream.
+  [#179](https://github.com/kazu-yamamoto/http2/pull/179)
+* Stream errors now reset the stream and the connection carries on, as
+  RFC 9113 section 5.4.2 requires. A field block abandoned part-way is
+  still a connection error, since the HPACK tables have diverged by then.
+  [#183](https://github.com/kazu-yamamoto/http2/pull/183)
+* A stream over `SETTINGS_MAX_CONCURRENT_STREAMS` is refused with
+  RST_STREAM(REFUSED_STREAM) rather than ending the connection.
+  [#184](https://github.com/kazu-yamamoto/http2/pull/184)
+* `DecodeError` has a new constructor, `TooLargeInteger`. Strictly this is
+  a breaking change -- an exhaustive match on `DecodeError` no longer
+  compiles -- but it ships as a patch version on purpose: no package on
+  Hackage names any constructor of that type, while a minor bump would
+  shut out every dependant carrying a `< 5.5` bound, these security fixes
+  along with it.
+* A malformed request now reaches a client as `StreamResetIsReceived` on
+  the stream it concerns, where it used to arrive as
+  `ConnectionErrorIsReceived` on the connection.
+
 ## 5.4.4
 
 * Improvements for dealing with RST_STREAM
