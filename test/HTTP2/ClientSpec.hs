@@ -136,7 +136,13 @@ concurrentClient resultVar sendRequest _aux = do
         putMVar resultVar result
     threadDelay 10000
 
+-- | A malformed request is a stream error (RFC 9113 section 8.1.1), so the
+-- server resets that stream and the connection carries on.  The client learns
+-- of it through the stream it was waiting on, as 'StreamResetIsReceived'.
+--
+-- This used to also admit 'ConnectionErrorIsReceived', from back when the
+-- server escalated every stream error to the connection and answered one bad
+-- request by hanging up on all of them.
 streamError :: Selector HTTP2Error
-streamError StreamErrorIsReceived{} = True
-streamError ConnectionErrorIsReceived{} = True
+streamError StreamResetIsReceived{} = True
 streamError _ = False

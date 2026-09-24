@@ -89,6 +89,11 @@ spec = do
                 runAttack paddingOverPriority
                     `shouldThrow` connectionError "no room for priority fields"
 
+        it "resets one stream and goes on serving the connection" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runStreamErrorClient
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -559,6 +564,30 @@ cancelInFlight C.ClientIO{..} = do
     cioWriteBytes $
         encodeFrame (EncodeInfo defaultFlags 1 Nothing) $
             RSTStreamFrame Cancel
+
+-- | Send a malformed request, then a good one down the same connection.
+--
+-- RFC 9113 section 8.1.1 makes a malformed request a stream error, so the
+-- server must reset that one stream and keep serving: the second request is
+-- the point of the test.  The whole connection used to come down with the
+-- first, taking every other stream on it along.
+runStreamErrorClient :: IO ()
+runStreamErrorClient = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            -- "te" may only ever be "trailers" (section 8.2.2), and unlike
+            -- "connection" it is not one of the headers the sender strips.
+            let bad = C.requestNoBody methodGet "/" [("te", "gzip")]
+            sendRequest bad (\_ -> return ()) `shouldThrow` streamWasReset
+            let good = C.requestNoBody methodGet "/" []
+            sendRequest good $ \rsp ->
+                C.responseStatus rsp `shouldBe` Just ok200
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
+
+streamWasReset :: Selector C.HTTP2Error
+streamWasReset C.StreamResetIsReceived{} = True
+streamWasReset _ = False
 
 -- | A HEADERS frame with PADDED and PRIORITY set, six octets of payload and a
 -- Pad Length of five, so that the padding covers the whole of the priority

@@ -199,8 +199,13 @@ data Control = CFrames (Maybe SettingsList) [ByteString]
 type ReasonPhrase = ShortByteString
 
 -- | The connection error or the stream error.
---   Stream errors are treated as connection errors since
---   there are no good recovery ways.
+--   A stream error resets that stream and the connection carries on, as
+--   RFC 9113 section 5.4.2 asks. Two kinds of trouble are connection errors
+--   even though the spec calls them stream errors, because this
+--   implementation cannot carry on through them: a field block abandoned
+--   part-way leaves the HPACK tables disagreeing with the peer's, and a
+--   stream refused for concurrency is refused before its payload has been
+--   read.
 --   `ErrorCode` in connection errors should be the highest stream identifier
 --   but in this implementation it identifies the stream that
 --   caused this error.
