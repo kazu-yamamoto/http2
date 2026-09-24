@@ -145,7 +145,12 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
         control ftyp header bs ctx
     | ftyp == FramePushPromise = do
         bs <- readPayload conf payloadLength
-        push header bs ctx
+        -- A promised stream can be refused over concurrency too, and by the
+        -- time 'push' gets that far it has decoded the field block, so the
+        -- same reasoning as 'resettable' applies: reset the promised stream
+        -- and read on.  There is no 'Stream' to close -- it was refused
+        -- before one was made -- so this resets by identifier alone.
+        push header bs ctx `E.catch` resetPromised
     | otherwise = do
         checkContinued
         mstrm <- getStream ctx ftyp streamId
@@ -169,6 +174,9 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
   where
     setContinued = writeIORef continued $ Just streamId
     resetContinued = writeIORef continued Nothing
+    resetPromised (StreamErrorIsSent err sid _msg) =
+        enqueueControl controlQ $ CFrames Nothing [resetFrame err sid]
+    resetPromised e = E.throwIO e
     -- Answer a stream error by resetting that stream and reading on, which is
     -- what RFC 9113 section 5.4.2 asks for: "an error related to a specific
     -- stream that does not affect processing of other streams".
@@ -203,6 +211,8 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
 processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
 -- Transition (process1)
 processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
+    -- My SETTINGS_MAX_CONCURRENT_STREAMS
+    when (isServer ctx) $ checkOddConcurrency ctx streamId
     let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
     when (just mcl (/= (0 :: Int))) $
         E.throwIO $
@@ -222,6 +232,8 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
 
 -- Transition (process2)
 processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
+    -- My SETTINGS_MAX_CONCURRENT_STREAMS
+    when (isServer ctx) $ checkOddConcurrency ctx _streamId
     let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
