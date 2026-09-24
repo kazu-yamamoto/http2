@@ -1,3 +1,4 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -92,6 +93,10 @@ checkFrameHeader typfrm@(typ, FrameHeader{..})
         Left $ FrameDecodeError ProtocolError streamId "cannot used in non-zero stream"
     | otherwise = checkType typ
   where
+    checkType FrameData
+        | testPadded flags && payloadLength < 1 =
+            Left $
+                FrameDecodeError FrameSizeError streamId "insufficient payload for Pad Length"
     checkType FrameHeaders
         | testPadded flags && payloadLength < 1 =
             Left $
@@ -142,6 +147,18 @@ checkFrameHeader typfrm@(typ, FrameHeader{..})
                     ProtocolError
                     streamId
                     "push promise must be used with an odd stream identifier"
+        | testPadded flags && payloadLength < 5 =
+            Left $
+                FrameDecodeError
+                    FrameSizeError
+                    streamId
+                    "insufficient payload for Pad Length and promised stream id"
+        | not (testPadded flags) && payloadLength < 4 =
+            Left $
+                FrameDecodeError
+                    FrameSizeError
+                    streamId
+                    "insufficient payload for promised stream id"
     checkType FramePing
         | payloadLength /= 8 =
             Left $
@@ -206,39 +223,52 @@ payloadDecoders =
 decodeFramePayload :: FrameType -> FramePayloadDecoder
 decodeFramePayload ftyp
     | ftyp > maxFrameType = checkFrameSize $ decodeUnknownFrame ftyp
-decodeFramePayload ftyp = checkFrameSize decoder
-  where
-    decoder = payloadDecoders ! ftyp
+decodeFramePayload ftyp = payloadDecoders ! ftyp -- each one checks its own size
 
 ----------------------------------------------------------------
 
 -- | Frame payload decoder for DATA frame.
 decodeDataFrame :: FramePayloadDecoder
-decodeDataFrame header _bs = decodeWithPadding header _bs DataFrame
+decodeDataFrame = checkFrameSize $ \header bs ->
+    decodeWithPadding header bs $ Right . DataFrame
 
 -- | Frame payload decoder for HEADERS frame.
 decodeHeadersFrame :: FramePayloadDecoder
-decodeHeadersFrame header _bs = decodeWithPadding header _bs $ \bs' ->
-    if hasPriority
-        then
-            let (bs0, bs1) = BS.splitAt 5 bs'
-                p = priority bs0
-             in HeadersFrame (Just p) bs1
-        else HeadersFrame Nothing bs'
-  where
-    hasPriority = testPriority $ flags header
+decodeHeadersFrame = checkFrameSize $ \header@FrameHeader{streamId} bs ->
+    decodeWithPadding header bs $ \bs' ->
+        if testPriority $ flags header
+            then
+                -- The header check knows the payload is long enough to hold
+                -- the priority fields, but not that the padding leaves them
+                -- there: Pad Length may cover the lot.
+                if BS.length bs' < 5
+                    then
+                        Left $
+                            FrameDecodeError
+                                FrameSizeError
+                                streamId
+                                "no room for priority fields"
+                    else
+                        let (bs0, bs1) = BS.splitAt 5 bs'
+                         in Right $ HeadersFrame (Just (priority bs0)) bs1
+            else Right $ HeadersFrame Nothing bs'
 
 -- | Frame payload decoder for PRIORITY frame.
 decodePriorityFrame :: FramePayloadDecoder
-decodePriorityFrame _ bs = Right $ PriorityFrame $ priority bs
+decodePriorityFrame = checkFrameSize $ requireBytes 5 $ \_ bs ->
+    Right $ PriorityFrame $ priority bs
 
 -- | Frame payload decoder for RST_STREAM frame.
 decodeRSTStreamFrame :: FramePayloadDecoder
-decodeRSTStreamFrame _ bs = Right $ RSTStreamFrame $ toErrorCode $ N.word32 bs
+decodeRSTStreamFrame = checkFrameSize $ requireBytes 4 $ \_ bs ->
+    Right $ RSTStreamFrame $ toErrorCode $ N.word32 bs
 
 -- | Frame payload decoder for SETTINGS frame.
 decodeSettingsFrame :: FramePayloadDecoder
-decodeSettingsFrame FrameHeader{..} (PS fptr off _)
+decodeSettingsFrame = checkFrameSize decodeSettingsFrame'
+
+decodeSettingsFrame' :: FramePayloadDecoder
+decodeSettingsFrame' FrameHeader{..} (PS fptr off _)
     | num > 10 =
         Left $ FrameDecodeError EnhanceYourCalm streamId "Settings is too large"
     | otherwise = Right $ SettingsFrame alist
@@ -258,20 +288,31 @@ decodeSettingsFrame FrameHeader{..} (PS fptr off _)
 
 -- | Frame payload decoder for PUSH_PROMISE frame.
 decodePushPromiseFrame :: FramePayloadDecoder
-decodePushPromiseFrame header _bs = decodeWithPadding header _bs $ \bs' ->
-    let (bs0, bs1) = BS.splitAt 4 bs'
-        sid = streamIdentifier (N.word32 bs0)
-     in PushPromiseFrame sid bs1
+decodePushPromiseFrame = checkFrameSize $ \header@FrameHeader{streamId} bs ->
+    decodeWithPadding header bs $ \bs' ->
+        -- As in HEADERS: the padding may cover the promised stream id.
+        if BS.length bs' < 4
+            then
+                Left $
+                    FrameDecodeError
+                        FrameSizeError
+                        streamId
+                        "no room for the promised stream id"
+            else
+                let (bs0, bs1) = BS.splitAt 4 bs'
+                    sid = streamIdentifier (N.word32 bs0)
+                 in Right $ PushPromiseFrame sid bs1
 
 -- | Frame payload decoder for PING frame.
 decodePingFrame :: FramePayloadDecoder
-decodePingFrame _ _bs = Right $ PingFrame bs
-  where
-    bs = BS.copy _bs
+decodePingFrame = checkFrameSize $ \_ _bs -> Right $ PingFrame $ BS.copy _bs
 
 -- | Frame payload decoder for GOAWAY frame.
 decodeGoAwayFrame :: FramePayloadDecoder
-decodeGoAwayFrame _ _bs = Right $ GoAwayFrame sid ecid bs2
+decodeGoAwayFrame = checkFrameSize $ requireBytes 8 decodeGoAwayFrame'
+
+decodeGoAwayFrame' :: FramePayloadDecoder
+decodeGoAwayFrame' _ _bs = Right $ GoAwayFrame sid ecid bs2
   where
     bs = BS.copy _bs
     (bs0, bs1') = BS.splitAt 4 bs
@@ -281,7 +322,10 @@ decodeGoAwayFrame _ _bs = Right $ GoAwayFrame sid ecid bs2
 
 -- | Frame payload decoder for WINDOW_UPDATE frame.
 decodeWindowUpdateFrame :: FramePayloadDecoder
-decodeWindowUpdateFrame FrameHeader{..} bs
+decodeWindowUpdateFrame = checkFrameSize $ requireBytes 4 decodeWindowUpdateFrame'
+
+decodeWindowUpdateFrame' :: FramePayloadDecoder
+decodeWindowUpdateFrame' FrameHeader{..} bs
     | wsi == 0 =
         Left $ FrameDecodeError ProtocolError streamId "window update must not be 0"
     | otherwise = Right $ WindowUpdateFrame wsi
@@ -290,9 +334,7 @@ decodeWindowUpdateFrame FrameHeader{..} bs
 
 -- | Frame payload decoder for CONTINUATION frame.
 decodeContinuationFrame :: FramePayloadDecoder
-decodeContinuationFrame _ _bs = Right $ ContinuationFrame bs
-  where
-    bs = BS.copy _bs
+decodeContinuationFrame = checkFrameSize $ \_ _bs -> Right $ ContinuationFrame $ BS.copy _bs
 
 decodeUnknownFrame :: FrameType -> FramePayloadDecoder
 decodeUnknownFrame typ _ _bs = Right $ UnknownFrame typ bs
@@ -307,6 +349,22 @@ checkFrameSize func header@FrameHeader{..} body
         Left $ FrameDecodeError FrameSizeError streamId "payload is too short"
     | otherwise = func header body
 
+-- | Require the payload to actually hold the fixed fields about to be read
+-- from it.
+--
+-- The reads below sit at fixed offsets and never consult the length of the
+-- 'ByteString' they read from, so a payload shorter than the field runs off
+-- the end of the buffer -- and an empty one is the shared empty
+-- 'ByteString', whose pointer is null.  'checkFrameHeader' pins these lengths
+-- down, but it is a separate function that a caller of the decoders is free
+-- not to have used, and 'checkFrameSize' only compares the payload against
+-- the length the frame header claims, which may itself be wrong.
+requireBytes :: Int -> FramePayloadDecoder -> FramePayloadDecoder
+requireBytes n func header@FrameHeader{streamId} body
+    | BS.length body < n =
+        Left $ FrameDecodeError FrameSizeError streamId "payload is too short"
+    | otherwise = func header body
+
 -- | Helper function to pull off the padding if its there, and will
 -- eat up the trailing padding automatically. Calls the decoder func
 -- passed in with the length of the unpadded portion between the
@@ -314,17 +372,23 @@ checkFrameSize func header@FrameHeader{..} body
 decodeWithPadding
     :: FrameHeader
     -> ByteString
-    -> (ByteString -> FramePayload)
+    -> (ByteString -> Either FrameDecodeError FramePayload)
     -> Either FrameDecodeError FramePayload
 decodeWithPadding FrameHeader{..} bs body
-    | padded =
-        let (w8, rest) = fromMaybe (error "decodeWithPadding") $ BS.uncons bs'
-            padlen = intFromWord8 w8
-            bodylen = payloadLength - padlen - 1
-         in if bodylen < 0
-                then Left $ FrameDecodeError ProtocolError streamId "padding is not enough"
-                else Right . body $ BS.take bodylen rest
-    | otherwise = Right $ body bs'
+    | padded = case BS.uncons bs' of
+        -- The header checks rule this out for every frame type that can be
+        -- padded, but the type does not, and the reply to a payload with no
+        -- room for its Pad Length is an error, never a crash.
+        Nothing ->
+            Left $
+                FrameDecodeError FrameSizeError streamId "insufficient payload for Pad Length"
+        Just (w8, rest)
+            | bodylen < 0 ->
+                Left $ FrameDecodeError ProtocolError streamId "padding is not enough"
+            | otherwise -> body $ BS.take bodylen rest
+          where
+            bodylen = payloadLength - intFromWord8 w8 - 1
+    | otherwise = body bs'
   where
     bs' = BS.copy bs
     padded = testPadded flags

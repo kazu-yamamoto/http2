@@ -100,13 +100,13 @@ processFrame ctx _conf (FramePushPromise, FrameHeader{streamId})
     | isServer ctx =
         E.throwIO $
             ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
-processFrame Context{..} Config{..} (ftyp, FrameHeader{payloadLength, streamId})
+processFrame Context{..} conf (ftyp, FrameHeader{payloadLength, streamId})
     | ftyp > maxFrameType = do
         mx <- readIORef continued
         case mx of
             Nothing -> do
                 -- ignoring unknown frame
-                void $ confReadN payloadLength
+                void $ readPayload conf payloadLength
             Just _ -> E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "unknown frame"
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     -- My SETTINGS_MAX_FRAME_SIZE
@@ -126,18 +126,30 @@ processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
 
 ----------------------------------------------------------------
 
+-- | Read a frame payload in full.
+--
+-- 'confReadN' answers with an empty string at end of input, so a payload that
+-- comes back short means the peer hung up in the middle of the frame.  Saying
+-- so here keeps every decoder below from being handed fewer bytes than the
+-- frame header promised it.
+readPayload :: Config -> Int -> IO ByteString
+readPayload Config{..} len = do
+    bs <- confReadN len
+    when (BS.length bs /= len) $ E.throwIO ConnectionIsClosed
+    return bs
+
 controlOrStream :: Context -> Config -> FrameType -> FrameHeader -> IO ()
-controlOrStream ctx@Context{..} Config{..} ftyp header@FrameHeader{streamId, payloadLength}
+controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLength}
     | isControl streamId = do
-        bs <- confReadN payloadLength
+        bs <- readPayload conf payloadLength
         control ftyp header bs ctx
     | ftyp == FramePushPromise = do
-        bs <- confReadN payloadLength
+        bs <- readPayload conf payloadLength
         push header bs ctx
     | otherwise = do
         checkContinued
         mstrm <- getStream ctx ftyp streamId
-        bs <- confReadN payloadLength
+        bs <- readPayload conf payloadLength
         case mstrm of
             Just strm -> do
                 state0 <- readStreamState strm

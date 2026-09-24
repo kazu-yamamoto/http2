@@ -83,6 +83,12 @@ spec = do
                 runAttack cancelInFlight
                 timeout 1000000 (takeMVar doneVar) `shouldReturn` Just ()
 
+        it "survives a padded HEADERS whose padding covers the priority fields" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runAttack paddingOverPriority
+                    `shouldThrow` connectionError "no room for priority fields"
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -553,6 +559,22 @@ cancelInFlight C.ClientIO{..} = do
     cioWriteBytes $
         encodeFrame (EncodeInfo defaultFlags 1 Nothing) $
             RSTStreamFrame Cancel
+
+-- | A HEADERS frame with PADDED and PRIORITY set, six octets of payload and a
+-- Pad Length of five, so that the padding covers the whole of the priority
+-- fields the flag promises.
+--
+-- Six octets is the smallest payload the frame header check accepts for those
+-- two flags together, so this gets through it; the decoder then took the five
+-- priority octets out of what padding had left empty, reading off the end of
+-- the buffer.  The empty ByteString is the shared one, whose pointer is null,
+-- so what died was the process rather than the connection.
+paddingOverPriority :: C.ClientIO -> IO ()
+paddingOverPriority C.ClientIO{..} = do
+    let flags = setPadded $ setPriority $ setEndHeader defaultFlags
+        header = encodeFrameHeader FrameHeaders $ FrameHeader 6 flags 1
+        payload = B.pack [5, 0, 0, 0, 0, 0] -- Pad Length 5, then the padding
+    cioWriteBytes $ header `B.append` payload
 
 connectionError :: C.ReasonPhrase -> C.HTTP2Error -> Bool
 connectionError phrase (C.ConnectionErrorIsReceived _ _ p)
