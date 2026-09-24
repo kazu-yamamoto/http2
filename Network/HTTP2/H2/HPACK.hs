@@ -73,14 +73,29 @@ hpackEncodeHeaderLoop Context{..} buf siz hs =
 hpackDecodeHeader
     :: HeaderBlockFragment -> StreamId -> Context -> IO TokenHeaderTable
 hpackDecodeHeader hdrblk sid ctx = do
-    tbl@(_, vt) <- hpackDecodeTrailer hdrblk sid ctx
+    tbl@(_, vt) <- hpackDecode "illegal header" hdrblk sid ctx
     if isClient ctx || checkRequestHeader vt
         then return tbl
         else E.throwIO $ StreamErrorIsSent ProtocolError sid "illegal header"
 
 hpackDecodeTrailer
     :: HeaderBlockFragment -> StreamId -> Context -> IO TokenHeaderTable
-hpackDecodeTrailer hdrblk sid Context{..} = decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
+hpackDecodeTrailer = hpackDecode "illegal trailer"
+
+-- | Decode a field block, reporting a block we could not get through as a
+-- connection error.
+--
+-- The first argument says which kind of block it was, since the peer reads
+-- this in the GOAWAY and "illegal trailer" about a request's headers is a
+-- confusing thing to be told.
+hpackDecode
+    :: ReasonPhrase
+    -> HeaderBlockFragment
+    -> StreamId
+    -> Context
+    -> IO TokenHeaderTable
+hpackDecode illegal hdrblk sid Context{..} =
+    decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
     -- Connection errors, both of them, even though a malformed message is a
     -- stream error by RFC 9113 section 8.1.1.  Either way the field block was
@@ -93,7 +108,7 @@ hpackDecodeTrailer hdrblk sid Context{..} = decodeTokenHeader decodeDynamicTable
     -- A malformed message caught /after/ a complete decode is a different
     -- matter, and 'hpackDecodeHeader' reports those as stream errors.
     handl IllegalHeaderName =
-        E.throwIO $ ConnectionErrorIsSent ProtocolError sid "illegal trailer"
+        E.throwIO $ ConnectionErrorIsSent ProtocolError sid illegal
     handl e = do
         let msg = fromString $ show e
         E.throwIO $ ConnectionErrorIsSent CompressionError sid msg
