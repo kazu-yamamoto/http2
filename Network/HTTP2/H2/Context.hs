@@ -99,8 +99,12 @@ data Context = Context
 -- RFC 9113 says "Other frames (from any stream) MUST NOT occur between the
 -- HEADERS frame and any CONTINUATION frames that might follow". This is used to
 -- implement this requirement.
-data HeaderContinuation
-    = ContinuationOnStream StreamId
+data HeaderContinuation = HeaderContinuation
+    { hcStreamId :: StreamId
+    , hcBlock :: PartialHeaderBlock
+    , hcEndOfStream :: Bool
+    -- ^ END_STREAM, from the HEADERS frame that started the block
+    }
 
 ----------------------------------------------------------------
 

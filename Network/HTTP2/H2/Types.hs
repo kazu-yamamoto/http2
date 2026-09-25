@@ -45,29 +45,14 @@ omitting error cases (which result in exceptions being thrown). Each transition
 is labelled with the relevant case in either the function 'stream' or the
 function 'processState'.
 
->                        [Open JustOpened]
->                               |
->                               |
->                            HEADERS
->                               |
->                               | (stream1)
->                               |
->                          END_HEADERS?
->                               |
->                        ______/ \______
->                       /   yes   no    \
->                      |                |
->                      |         [Open Continued] <--\
->                      |                |            |
->                      |           CONTINUATION      |
->                      |                |            |
->                      |                | (stream5)  |
->                      |                |            |
->                      |           END_HEADERS?      |
->                      |                |            |
->                      v           yes / \ no        |
->                 END_STREAM? <-------/   \-----------/
->                      |                   (process3)
+>               [Open JustOpened]
+>                      |
+>                      |
+>              HEADERS CONTINUATION*
+>                      |
+>                      | (stream1)
+>                      |
+>                 END_STREAM?
 >                      |
 >            _________/ \_________
 >           /      yes   no       \
@@ -101,9 +86,6 @@ Notes:
 
 data OpenState
     = JustOpened
-    | Continued
-        PartialHeaderBlock
-        Bool -- End of stream
     | NoBody TokenHeaderTable
     | HasBody TokenHeaderTable
     | Body
