@@ -192,6 +192,10 @@ frameSender
                         off' <- outputInformational strm hdr off
                         sync Nothing
                         return off'
+                    OReset mErr -> do
+                        resetStreamWith strm mErr
+                        sync Nothing
+                        return off
                     _ -> do
                         sws <- getStreamWindowSize strm
                         cws <- getConnectionWindowSize ctx -- not 0
