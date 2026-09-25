@@ -65,7 +65,7 @@ function 'processState'.
 >           |             |        |                             |
 >           |             |        +---------------\             |
 >       RST_STREAM        |        |               |             |
->           |             |     HEADERS           DATA           |
+>           |             |     HEADERS CONT*     DATA           |
 >           | (stream6)   |        |               |             |
 >           |             |        | (stream2)     | (stream4)   |
 >           | (process5)  |        |               |             |

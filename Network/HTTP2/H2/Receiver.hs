@@ -240,6 +240,11 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
                     Open hcl JustOpened -> do
                         tbl <- hpackDecodeHeader blk streamId ctx
                         onResponseHeaders ctx streamId hcl (hcEndOfStream hc) tbl
+                    Open _ (Body q _ _ tlr) -> do
+                        tbl <- hpackDecodeTrailer blk streamId ctx
+                        writeIORef tlr (Just tbl)
+                        atomically $ writeTQueue q $ Right (mempty, True)
+                        return HalfClosedRemote
                     _otherwise ->
                         stream ftyp header blk ctx state0 strm
                 processState state ctx strm streamId
@@ -529,22 +534,27 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
                     return s
 
 -- Transition (stream2)
-stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx (Open _ (Body q _ _ tlr)) _ = do
+stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open _ (Body q _ _ tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
     -- checking frag == "" is not necessary
     if endOfStream
         then do
-            tbl <- hpackDecodeTrailer frag streamId ctx
-            writeIORef tlr (Just tbl)
-            atomically $ writeTQueue q $ Right (mempty, True)
-            return HalfClosedRemote
-        else -- we don't support continuation here.
+            if testEndHeader flags
+                then do
+                    tbl <- hpackDecodeTrailer frag streamId ctx
+                    writeIORef tlr (Just tbl)
+                    atomically $ writeTQueue q $ Right (mempty, True)
+                    return HalfClosedRemote
+                else do
+                    startHeaderBlock ctx streamId endOfStream frag
+                    return s
+        else
             E.throwIO $
                 ConnectionErrorIsSent
                     ProtocolError
                     streamId
-                    "continuation in trailer is not supported"
+                    "trailers without END_STREAM"
 
 -- Transition (stream4)
 stream
