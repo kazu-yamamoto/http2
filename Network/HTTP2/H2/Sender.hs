@@ -10,10 +10,11 @@ module Network.HTTP2.H2.Sender (
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BS.Lazy
 import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
-import Foreign.Ptr (minusPtr, plusPtr)
+import Foreign.Ptr (castPtr, minusPtr, plusPtr)
 import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
@@ -316,22 +317,23 @@ frameSender
             let offkv = off0 + frameHeaderLength
                 bufkv = confWriteBuffer `plusPtr` offkv
                 limkv = buflim - offkv
-            -- Encode all headers as a block, then emit fragments
-            ths1 <- hpackEncodeHeaderBlock ctx (buflim - frameHeaderLength) ths0
-            -- Start in a fresh buffer unless the full block fits in the current.
-            -- This avoids emitting a tiny HEADERS frame.
-            (ths, kvlen) <-
-                if fromIntegral (BS.Lazy.length ths1) <= limkv
-                    then copyFragment bufkv limkv ths1
-                    else return (ths1, 0)
-            if kvlen == 0
-                then continue off0 ths FrameHeaders
+            -- Most blocks fit where they are going: encode in place, which
+            -- is one HEADERS frame and no copying.
+            (rest, kvlen) <- hpackEncodeHeader ctx bufkv limkv ths0
+            if null rest
+                then do
+                    let buf = confWriteBuffer `plusPtr` off0
+                    fillFrameHeader FrameHeaders kvlen sid (getFlag FrameHeaders BS.Lazy.empty) buf
+                    return $ offkv + kvlen
                 else do
-                    let flag = getFlag FrameHeaders ths
-                        buf = confWriteBuffer `plusPtr` off0
-                        off = offkv + kvlen
-                    fillFrameHeader FrameHeaders kvlen sid flag buf
-                    continue off ths FrameContinuation
+                    -- It did not fit.  What was written is the start of the
+                    -- block, and the dynamic table has taken it into
+                    -- account, so it is kept; the rest is encoded after it,
+                    -- and the whole block then starts in a fresh buffer to
+                    -- avoid emitting a tiny HEADERS frame.
+                    start <- BS.packCStringLen (castPtr bufkv, kvlen)
+                    ths1 <- hpackEncodeHeaderRest ctx (buflim - frameHeaderLength) rest
+                    continue off0 (BS.Lazy.fromStrict start <> ths1) FrameHeaders
           where
             eos = if endOfStream then setEndStream else id
             getFlag ft ths =
