@@ -137,6 +137,15 @@ spec = do
                 threadDelay 10000
                 runStreamErrorClient
 
+        it "limits the resets a peer can make us send (MadeYouReset)" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                -- Not through the client library: it would take the
+                -- server's first RST_STREAM, on a stream it never opened
+                -- itself, for a protocol error of its own.
+                timeout 5000000 rapidStreamError
+                    `shouldReturn` Just (Just (EnhanceYourCalm, "too many stream errors"))
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -562,6 +571,53 @@ rapidRst C.ClientIO{..} = do
             -- Otherwise, a stream error terminates the connection.
             bsR = encodeFrame einfoR $ RSTStreamFrame NoError
         cioWriteBytes bsR
+
+-- | MadeYouReset (CVE-2025-8671): the same churn as 'rapidRst' without a
+-- single RST_STREAM from us.  Each stream gets a handler that goes on
+-- running, then a PRIORITY making it depend on itself, which the server
+-- answers by resetting the stream -- giving its concurrency slot back while
+-- the handler runs on.  Those resets did not count against the limit on
+-- resets, so this could be kept up for as long as the peer liked.
+rapidStreamError :: IO (Maybe (ErrorCode, ByteString))
+rapidStreamError = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    forM_ [1, 3 .. 15] $ \sid -> do
+        let einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing
+            hdr =
+                hpackEncode
+                    [ (":scheme", "http")
+                    , (":authority", "127.0.0.1")
+                    , (":path", "/stream")
+                    , (":method", "GET")
+                    ]
+            einfoP = EncodeInfo defaultFlags sid Nothing
+        sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+        sendAll s $ encodeFrame einfoP $ PriorityFrame $ Priority False sid 16
+    awaitGoAway s
+  where
+    -- What the server says in its GOAWAY, if it sends one before closing.
+    awaitGoAway s = do
+        mh <- recvExactly s frameHeaderLength
+        case mh of
+            Nothing -> return Nothing
+            Just h -> do
+                let (ftyp, fh) = decodeFrameHeader h
+                mp <- recvExactly s $ payloadLength fh
+                case (ftyp, mp) of
+                    (FrameGoAway, Just p)
+                        | Right (GoAwayFrame _ err msg) <- decodeGoAwayFrame fh p ->
+                            return $ Just (err, msg)
+                    (_, Just _) -> awaitGoAway s
+                    _ -> return Nothing
+    recvExactly s n = go n []
+      where
+        go 0 acc = return $ Just $ B.concat $ reverse acc
+        go k acc = do
+            bs <- recv s k
+            if B.null bs
+                then return Nothing
+                else go (k - B.length bs) (bs : acc)
 
 -- | Open a stream, reset it, then open two more.  The server announced room
 -- for one concurrent stream, so the third one here must be refused.

@@ -29,7 +29,9 @@ data Settings = Settings
     , settingsRateLimit :: Int
     -- ^ Maximum number of settings frames allowed per second (CVE-2019-9515)
     , rstRateLimit :: Int
-    -- ^ Maximum number of reset frames allowed per second (CVE-2023-44487)
+    -- ^ Maximum number of streams reset per second, whether by the peer's
+    --   RST_STREAM (CVE-2023-44487) or by ours in answer to a stream error
+    --   the peer caused (CVE-2025-8671)
     }
     deriving (Eq, Show)
 

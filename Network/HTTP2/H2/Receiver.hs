@@ -195,6 +195,21 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
     resettable strm act = act `E.catch` reset
       where
         reset e@(StreamErrorIsSent err sid _msg) = do
+            -- MadeYouReset: CVE-2025-8671.  A reset we send because of
+            -- what the peer sent frees the stream's concurrency slot just as
+            -- one the peer sends does, while a handler already launched for
+            -- the stream runs on.  Counted with the peer's own resets, or a
+            -- peer that never sends RST_STREAM -- a PRIORITY on the stream
+            -- depending on itself is enough -- could keep any number of
+            -- handlers running past SETTINGS_MAX_CONCURRENT_STREAMS.
+            --
+            -- REFUSED_STREAM is left out: it launches nothing, and it is the
+            -- answer section 8.7 means a peer to be able to retry.
+            when (err /= RefusedStream) $ do
+                rate <- getRate rstRate
+                when (rate > rstRateLimit mySettings) $
+                    E.throwIO $
+                        ConnectionErrorIsSent EnhanceYourCalm sid "too many stream errors"
             resetContinued
             -- 'closed' hands the exception to whoever is reading the stream
             -- and takes it out of the stream table.
