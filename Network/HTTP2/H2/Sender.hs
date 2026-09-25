@@ -10,6 +10,7 @@ module Network.HTTP2.H2.Sender (
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
+import qualified Data.ByteString.Lazy as BS.Lazy
 import Data.IORef (modifyIORef', readIORef, writeIORef)
 import Data.IntMap.Strict (IntMap)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -311,22 +312,30 @@ frameSender
             let offkv = off0 + frameHeaderLength
                 bufkv = confWriteBuffer `plusPtr` offkv
                 limkv = buflim - offkv
-            (ths, kvlen) <- hpackEncodeHeader ctx bufkv limkv ths0
+            -- Encode all headers as a block, then emit fragments
+            ths1 <- hpackEncodeHeaderBlock ctx (buflim - frameHeaderLength) ths0
+            -- Start in a fresh buffer unless the full block fits in the current.
+            -- This avoids emitting a tiny HEADERS frame.
+            (ths, kvlen) <-
+                if fromIntegral (BS.Lazy.length ths1) <= limkv
+                    then copyFragment bufkv limkv ths1
+                    else return (ths1, 0)
             if kvlen == 0
                 then continue off0 ths FrameHeaders
                 else do
-                    let flag = getFlag ths
+                    let flag = getFlag FrameHeaders ths
                         buf = confWriteBuffer `plusPtr` off0
                         off = offkv + kvlen
                     fillFrameHeader FrameHeaders kvlen sid flag buf
                     continue off ths FrameContinuation
           where
             eos = if endOfStream then setEndStream else id
-            getFlag [] = eos $ setEndHeader defaultFlags
-            getFlag _ = eos defaultFlags
+            getFlag ft ths =
+                (if ft == FrameHeaders then eos else id) $
+                    if BS.Lazy.null ths then setEndHeader defaultFlags else defaultFlags
 
-            continue :: Offset -> TokenHeaderList -> FrameType -> IO Offset
-            continue off [] _ = return off
+            continue :: Offset -> BS.Lazy.ByteString -> FrameType -> IO Offset
+            continue off ths _ | BS.Lazy.null ths = return off
             continue off ths ft = do
                 flushN off
                 -- Now off is 0
@@ -335,14 +344,19 @@ frameSender
 
                     headerPayloadLim = buflim - frameHeaderLength
                 (ths', kvlen') <-
-                    hpackEncodeHeaderLoop ctx bufHeaderPayload headerPayloadLim ths
-                when (ths == ths') $
-                    E.throwIO $
-                        ConnectionErrorIsSent CompressionError sid "cannot compress the header"
-                let flag = getFlag ths'
+                    copyFragment bufHeaderPayload headerPayloadLim ths
+                let flag = getFlag ft ths'
                     off' = frameHeaderLength + kvlen'
                 fillFrameHeader ft kvlen' sid flag confWriteBuffer
                 continue off' ths' FrameContinuation
+
+        -- Copy as much of the block as fits; return the rest and the number of bytes copied
+        copyFragment
+            :: Buffer -> Int -> BS.Lazy.ByteString -> IO (BS.Lazy.ByteString, Int)
+        copyFragment buf lim ths = do
+            let (frag, rest) = BS.Lazy.splitAt (fromIntegral (max 0 lim)) ths
+            _ <- foldM copy buf (BS.Lazy.toChunks frag)
+            return (rest, fromIntegral (BS.Lazy.length frag))
 
         ----------------------------------------------------------------
         fillDataHeader
