@@ -309,6 +309,7 @@ test-suite spec
         http-types,
         http2,
         network,
+        network-byte-order,
         network-run >= 0.6 && <0.7,
         random,
         typed-process

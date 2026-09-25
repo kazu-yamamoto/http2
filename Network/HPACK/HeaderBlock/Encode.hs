@@ -297,49 +297,23 @@ encodeString
     -> IO ByteString
 encodeString h bs = withWriteBuffer 4096 $ \wbuf -> encStr wbuf h bs
 
-{-
-N+   1   2     3 <- bytes
-8  254 382 16638
-7  126 254 16510
-6   62 190 16446
-5   30 158 16414
-4   14 142 16398
-3    6 134 16390
-2    2 130 16386
-1    0 128 16384
--}
-
+-- | The number of octets 'encodeI' produces for @l@ with an N-bit prefix.
+--
+-- 'encodeS' reserves this much before it knows the Huffman-coded length, and
+-- moves the code if the guess was wrong, so it has to be exact.  It used to
+-- stop at three octets, which is enough only up to 2^N - 1 + 2^14 - 1:
+-- a Huffman-coded string of 16K or more needs four, and 'encodeI' then wrote
+-- the last of them over the first octet of the code.
+--
+-- >>> map (integerLength 7) [126, 127, 254, 255, 16510, 16511]
+-- [1,2,2,3,3,4]
 {-# INLINE integerLength #-}
 integerLength :: Int -> Int -> Int
-integerLength 8 l
-    | l <= 254 = 1
-    | l <= 382 = 2
-    | otherwise = 3
-integerLength 7 l
-    | l <= 126 = 1
-    | l <= 254 = 2
-    | otherwise = 3
-integerLength 6 l
-    | l <= 62 = 1
-    | l <= 190 = 2
-    | otherwise = 3
-integerLength 5 l
-    | l <= 30 = 1
-    | l <= 158 = 2
-    | otherwise = 3
-integerLength 4 l
-    | l <= 14 = 1
-    | l <= 142 = 2
-    | otherwise = 3
-integerLength 3 l
-    | l <= 6 = 1
-    | l <= 134 = 2
-    | otherwise = 3
-integerLength 2 l
-    | l <= 2 = 1
-    | l <= 130 = 2
-    | otherwise = 3
-integerLength _ l
-    | l <= 0 = 1
-    | l <= 128 = 2
-    | otherwise = 3
+integerLength n l
+    | l < p = 1
+    | otherwise = go 2 (l - p)
+  where
+    p = (1 `shiftL` n) - 1
+    go k r
+        | r < 128 = k
+        | otherwise = go (k + 1) (r `shiftR` 7)
