@@ -46,6 +46,31 @@ host = "127.0.0.1"
 spec :: Spec
 spec = do
     describe "server" $ do
+        it "sends a header block and trailers larger than a frame" $
+            -- Both have to go out as HEADERS and CONTINUATION frames and be
+            -- put back together on receipt; the requests after them check
+            -- that the two ends' HPACK tables still agree.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                r <- timeout 5000000 $ runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ -> do
+                            sendRequest (C.requestNoBody methodGet "/big" []) $ \rsp -> do
+                                getFieldValue (toToken "x-big") (snd (C.responseHeaders rsp))
+                                    `shouldBe` Just bigVal
+                                let drain = do
+                                        bs <- C.getResponseBodyChunk rsp
+                                        unless (B.null bs) drain
+                                drain
+                                mt <- C.getResponseTrailers rsp
+                                (mt >>= getFieldValue (toToken "x-big-trailer") . snd)
+                                    `shouldBe` Just bigVal
+                            -- Same connection: the HPACK state must still agree.
+                            forM_ [1 :: Int, 2] $ \_ ->
+                                sendRequest (C.requestNoBody methodGet "/" []) $ \rsp ->
+                                    C.responseStatus rsp `shouldBe` Just ok200
+                r `shouldBe` Just ()
+
         it "handles normal cases" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -200,6 +225,7 @@ server req aux sendResponse = case requestMethod req of
                 [("link", "</app.js>; rel=preload; as=script")]
             sendResponse responseHello []
         Just "/stream" -> sendResponse responseInfinite []
+        Just "/big" -> sendResponse responseBig []
         Just "/push" -> do
             let pp = pushPromise "/push-pp" responsePP 0
             sendResponse responseHello [pp]
@@ -208,6 +234,17 @@ server req aux sendResponse = case requestMethod req of
         Just "/echo" -> sendResponse (responseEcho req) []
         _ -> sendResponse responseHello []
     _ -> sendResponse response405 []
+
+-- | Larger than the default frame size and than the server's 32K buffer.
+bigVal :: ByteString
+bigVal = C8.replicate 40000 'x'
+
+responseBig :: Response
+responseBig = setResponseTrailersMaker rsp maker
+  where
+    rsp = responseBuilder ok200 [("x-big", bigVal)] "hello"
+    maker Nothing = return $ Trailers [("x-big-trailer", bigVal)]
+    maker (Just _) = return $ NextTrailersMaker maker
 
 responseHello :: Response
 responseHello = responseBuilder ok200 header body

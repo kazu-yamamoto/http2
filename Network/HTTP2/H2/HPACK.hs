@@ -3,7 +3,7 @@
 
 module Network.HTTP2.H2.HPACK (
     hpackEncodeHeader,
-    hpackEncodeHeaderBlock,
+    hpackEncodeHeaderRest,
     hpackDecodeHeader,
     hpackDecodeTrailer,
     hpackDiscardHeader,
@@ -74,28 +74,28 @@ hpackEncodeHeaderLoop
 hpackEncodeHeaderLoop Context{..} buf siz hs =
     encodeTokenHeader buf siz strategy False encodeDynamicTable hs
 
--- | Encode a complete header block
+-- | Encode the rest of a header block whose start 'hpackEncodeHeader' wrote
 --
--- Grows the buffer as needed: a header that does not fit is retried with a
--- larger buffer (the encoder does not modify the dynamic table for a header
--- it could not write).
-hpackEncodeHeaderBlock
+-- For a block that did not fit where it was being written.  Grows the buffer
+-- as needed: a header that does not fit is retried with a larger buffer (the
+-- encoder does not modify the dynamic table for a header it could not write).
+hpackEncodeHeaderRest
     :: Context
     -> BufferSize
-    -- ^ Initial buffer size (must fit a dynamic table size update)
+    -- ^ Initial buffer size
     -> TokenHeaderList
     -> IO BS.Lazy.ByteString
-hpackEncodeHeaderBlock ctx = go hpackEncodeHeader []
+hpackEncodeHeaderRest ctx = go []
   where
-    go _ acc _ [] = return $ BS.Lazy.fromChunks (reverse acc)
-    go enc acc siz ths = do
+    go acc _ [] = return $ BS.Lazy.fromChunks (reverse acc)
+    go acc siz ths = do
         (chunk, ths') <- E.bracket (mallocBytes siz) free $ \buf -> do
-            (ths', len) <- enc ctx buf siz ths
+            (ths', len) <- hpackEncodeHeaderLoop ctx buf siz ths
             chunk <- create len $ \p -> copyBytes p buf len
             return (chunk, ths')
         if BS.null chunk
-            then go enc acc (siz * 2) ths -- no progress: grow
-            else go hpackEncodeHeaderLoop (chunk : acc) siz ths'
+            then go acc (siz * 2) ths -- no progress: grow
+            else go (chunk : acc) siz ths'
 
 ----------------------------------------------------------------
 

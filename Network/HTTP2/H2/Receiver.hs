@@ -236,18 +236,24 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
         case mstrm of
             Just strm -> resettable strm $ do
                 state0 <- readStreamState strm
-                state <- case state0 of
+                case state0 of
                     Open hcl JustOpened -> do
                         tbl <- hpackDecodeHeader blk streamId ctx
-                        onResponseHeaders ctx streamId hcl (hcEndOfStream hc) tbl
+                        state <- onResponseHeaders ctx streamId hcl (hcEndOfStream hc) tbl
+                        processState state ctx strm streamId
                     Open _ (Body q _ _ tlr) -> do
-                        tbl <- hpackDecodeTrailer blk streamId ctx
-                        writeIORef tlr (Just tbl)
-                        atomically $ writeTQueue q $ Right (mempty, True)
-                        return HalfClosedRemote
+                        state <- onTrailers ctx streamId blk q tlr
+                        processState state ctx strm streamId
                     _otherwise ->
-                        stream ftyp header blk ctx state0 strm
-                processState state ctx strm streamId
+                        -- The block began on a stream that was open for
+                        -- headers or trailers, and the sender has since
+                        -- closed it -- a reset crossing the block.  There is
+                        -- nothing to deliver, but the block still has to go
+                        -- through the decoder, since it may have changed the
+                        -- dynamic table.  Handing it to 'stream' as a
+                        -- CONTINUATION would get it refused as one that
+                        -- cannot come here, closing the connection.
+                        hpackDiscardHeader blk streamId ctx
             Nothing ->
                 hpackDiscardHeader blk streamId ctx
 
@@ -541,11 +547,7 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open _ (Body q
     if endOfStream
         then do
             if testEndHeader flags
-                then do
-                    tbl <- hpackDecodeTrailer frag streamId ctx
-                    writeIORef tlr (Just tbl)
-                    atomically $ writeTQueue q $ Right (mempty, True)
-                    return HalfClosedRemote
+                then onTrailers ctx streamId frag q tlr
                 else do
                     startHeaderBlock ctx streamId endOfStream frag
                     return s
@@ -781,6 +783,20 @@ sendPing Context{..} ack bs = enqueueControl controlQ $ CFrames Nothing [frame]
     frame = pingFrame ack bs
 
 ----------------------------------------------------------------
+
+-- | Deliver a complete trailer block: the body ends with it.
+onTrailers
+    :: Context
+    -> StreamId
+    -> HeaderBlockFragment
+    -> TQueue (Either E.SomeException (ByteString, Bool))
+    -> IORef (Maybe TokenHeaderTable)
+    -> IO StreamState
+onTrailers ctx streamId blk q tlr = do
+    tbl <- hpackDecodeTrailer blk streamId ctx
+    writeIORef tlr (Just tbl)
+    atomically $ writeTQueue q $ Right (mempty, True)
+    return HalfClosedRemote
 
 -- | Start accumulating a header block that does not fit in a single frame
 startHeaderBlock
