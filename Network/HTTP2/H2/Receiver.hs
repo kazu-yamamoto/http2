@@ -139,7 +139,7 @@ readPayload Config{..} len = do
     return bs
 
 controlOrStream :: Context -> Config -> FrameType -> FrameHeader -> IO ()
-controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLength}
+controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, payloadLength}
     | isControl streamId = do
         bs <- readPayload conf payloadLength
         control ftyp header bs ctx
@@ -152,27 +152,32 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
         -- before one was made -- so this resets by identifier alone.
         push header bs ctx `E.catch` resetPromised
     | otherwise = do
-        checkContinued
+        mcont <- checkContinued
         mstrm <- getStream ctx ftyp streamId
         bs <- readPayload conf payloadLength
-        case mstrm of
-            Just strm -> resettable strm $ do
-                state0 <- readStreamState strm
-                state <- stream ftyp header bs ctx state0 strm
-                resetContinued
-                set <- processState state ctx strm streamId
-                when set setContinued
-            Nothing
-                | ftyp == FramePriority -> do
-                    -- for h2spec only
-                    PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
-                    checkPriority newpri streamId
-                | ftyp == FrameData ->
-                    -- Dropped, but still paid for.
-                    informIgnoredData ctx streamId payloadLength
-                | otherwise -> return ()
+        case mcont of
+            Just hc -> continuation hc bs mstrm
+            Nothing ->
+                case mstrm of
+                    Just strm -> resettable strm $ do
+                        state0 <- readStreamState strm
+                        state <- stream ftyp header bs ctx state0 strm
+                        processState state ctx strm streamId
+                    Nothing
+                        | ftyp == FramePriority -> do
+                            -- for h2spec only
+                            PriorityFrame newpri <- guardIt $ decodePriorityFrame header bs
+                            checkPriority newpri streamId
+                        | ftyp == FrameData ->
+                            -- Dropped, but still paid for.
+                            informIgnoredData ctx streamId payloadLength
+                        | ftyp == FrameHeaders -> do
+                            HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
+                            if testEndHeader flags
+                                then hpackDiscardHeader frag streamId ctx
+                                else startHeaderBlock ctx streamId (testEndStream flags) frag
+                        | otherwise -> return ()
   where
-    setContinued = writeIORef continued $ Just streamId
     resetContinued = writeIORef continued Nothing
     resetPromised (StreamErrorIsSent err sid _msg) =
         enqueueControl controlQ $ CFrames Nothing [resetFrame err sid]
@@ -196,19 +201,59 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{streamId, payloadLe
             closed ctx strm $ ResetByMe $ E.toException e
             enqueueControl controlQ $ CFrames Nothing [resetFrame err sid]
         reset e = E.throwIO e
+
+    checkContinued :: IO (Maybe HeaderContinuation)
     checkContinued = do
         mx <- readIORef continued
         case mx of
             Nothing -> return ()
-            Just sid
-                | sid == streamId && ftyp == FrameContinuation -> return ()
+            Just hc
+                | hcStreamId hc == streamId && ftyp == FrameContinuation -> return ()
                 | otherwise ->
                     E.throwIO $
                         ConnectionErrorIsSent ProtocolError streamId "continuation frame must follow"
+        return mx
+
+    continuation
+        :: HeaderContinuation -> HeaderBlockFragment -> Maybe Stream -> IO ()
+    continuation hc frag mstrm
+        | frag == "" && not (testEndHeader flags) = do
+            -- Empty Frame Flooding - CVE-2019-9518
+            rate <- getRate emptyFrameRate
+            when (rate > emptyFrameRateLimit mySettings) $
+                E.throwIO $
+                    ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty continuation"
+        | otherwise = do
+            phb' <- addFragment streamId frag (hcBlock hc)
+            if testEndHeader flags
+                then completeBlock hc (completeHeaderBlock phb') mstrm
+                else writeIORef continued $ Just hc{hcBlock = phb'}
+
+    completeBlock
+        :: HeaderContinuation -> HeaderBlockFragment -> Maybe Stream -> IO ()
+    completeBlock hc blk mstrm = do
+        resetContinued
+        case mstrm of
+            Just strm -> resettable strm $ do
+                state0 <- readStreamState strm
+                state <- case state0 of
+                    Open hcl JustOpened -> do
+                        tbl <- hpackDecodeHeader blk streamId ctx
+                        onResponseHeaders ctx streamId hcl (hcEndOfStream hc) tbl
+                    Open _ (Body q _ _ tlr) -> do
+                        tbl <- hpackDecodeTrailer blk streamId ctx
+                        writeIORef tlr (Just tbl)
+                        atomically $ writeTQueue q $ Right (mempty, True)
+                        return HalfClosedRemote
+                    _otherwise ->
+                        stream ftyp header blk ctx state0 strm
+                processState state ctx strm streamId
+            Nothing ->
+                hpackDiscardHeader blk streamId ctx
 
 ----------------------------------------------------------------
 
-processState :: StreamState -> Context -> Stream -> StreamId -> IO Bool
+processState :: StreamState -> Context -> Stream -> StreamId -> IO ()
 -- Transition (process1)
 processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
@@ -228,7 +273,6 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
             launch ctx strm inpObj
         else putMVar streamInput $ Right inpObj
     halfClosedRemote ctx strm
-    return False
 
 -- Transition (process2)
 processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
@@ -249,28 +293,19 @@ processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{str
             let ServerInfo{..} = toServerInfo roleInfo
             launch ctx strm inpObj
         else putMVar streamInput $ Right inpObj
-    return False
-
--- Transition (process3)
-processState s@(Open _ Continued{}) ctx strm _streamId = do
-    setStreamState ctx strm s
-    return True
 
 -- Transition (process4)
 processState HalfClosedRemote ctx strm _streamId = do
     halfClosedRemote ctx strm
-    return False
 
 -- Transition (process5)
 processState (Closed cc) ctx strm _streamId = do
     closed ctx strm cc
-    return False
 
 -- Transition (process6)
 processState s ctx strm _streamId = do
     -- Idle, Open Body, Closed
     setStreamState ctx strm s
-    return False
 
 ----------------------------------------------------------------
 
@@ -495,26 +530,31 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
                     tbl <- hpackDecodeHeader frag streamId ctx
                     onResponseHeaders ctx streamId hcl endOfStream tbl
                 else do
-                    let siz = BS.length frag
-                    return $ Open hcl $ Continued [frag] siz 1 endOfStream
+                    startHeaderBlock ctx streamId endOfStream frag
+                    return s
 
 -- Transition (stream2)
-stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx (Open _ (Body q _ _ tlr)) _ = do
+stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open _ (Body q _ _ tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
     -- checking frag == "" is not necessary
     if endOfStream
         then do
-            tbl <- hpackDecodeTrailer frag streamId ctx
-            writeIORef tlr (Just tbl)
-            atomically $ writeTQueue q $ Right (mempty, True)
-            return HalfClosedRemote
-        else -- we don't support continuation here.
+            if testEndHeader flags
+                then do
+                    tbl <- hpackDecodeTrailer frag streamId ctx
+                    writeIORef tlr (Just tbl)
+                    atomically $ writeTQueue q $ Right (mempty, True)
+                    return HalfClosedRemote
+                else do
+                    startHeaderBlock ctx streamId endOfStream frag
+                    return s
+        else
             E.throwIO $
                 ConnectionErrorIsSent
                     ProtocolError
                     streamId
-                    "continuation in trailer is not supported"
+                    "trailers without END_STREAM"
 
 -- Transition (stream4)
 stream
@@ -568,35 +608,6 @@ stream
                 atomically $ writeTQueue q $ Right (mempty, True)
                 return HalfClosedRemote
             else return s
-
--- Transition (stream5)
-stream FrameContinuation FrameHeader{flags, streamId} frag ctx s@(Open hcl (Continued rfrags siz n endOfStream)) _ = do
-    let endOfHeader = testEndHeader flags
-    if frag == "" && not endOfHeader
-        then do
-            -- Empty Frame Flooding - CVE-2019-9518
-            rate <- getRate $ emptyFrameRate ctx
-            if rate > emptyFrameRateLimit (mySettings ctx)
-                then
-                    E.throwIO $
-                        ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty continuation"
-                else return s
-        else do
-            let rfrags' = frag : rfrags
-                siz' = siz + BS.length frag
-                n' = n + 1
-            when (siz' > headerFragmentLimit) $
-                E.throwIO $
-                    ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too big"
-            when (n' > continuationLimit) $
-                E.throwIO $
-                    ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too fragmented"
-            if endOfHeader
-                then do
-                    let hdrblk = BS.concat $ reverse rfrags'
-                    tbl <- hpackDecodeHeader hdrblk streamId ctx
-                    onResponseHeaders ctx streamId hcl endOfStream tbl
-                else return $ Open hcl $ Continued rfrags' siz' n' endOfStream
 
 -- (No state transition)
 stream FrameWindowUpdate header bs _ s strm = do
@@ -675,12 +686,6 @@ stream FramePriority header bs _ s Stream{streamNumber} = do
 stream FrameContinuation FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         ConnectionErrorIsSent ProtocolError streamId "continue frame cannot come here"
-stream _ FrameHeader{streamId} _ _ (Open _ Continued{}) _ =
-    E.throwIO $
-        ConnectionErrorIsSent
-            ProtocolError
-            streamId
-            "an illegal frame follows header/continuation frames"
 -- Ignore frames to streams we have just reset, per section 5.1.
 stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st
 stream FrameData FrameHeader{streamId} _ _ _ _ =
@@ -774,3 +779,55 @@ sendPing :: Context -> Bool -> ByteString -> IO ()
 sendPing Context{..} ack bs = enqueueControl controlQ $ CFrames Nothing [frame]
   where
     frame = pingFrame ack bs
+
+----------------------------------------------------------------
+
+-- | Start accumulating a header block that does not fit in a single frame
+startHeaderBlock
+    :: Context
+    -> StreamId
+    -> Bool
+    -- ^ END_STREAM, from the HEADERS frame
+    -> HeaderBlockFragment
+    -- ^ The fragment in the HEADERS frame
+    -> IO ()
+startHeaderBlock Context{continued} streamId endOfStream frag =
+    writeIORef continued . Just $
+        HeaderContinuation
+            { hcStreamId = streamId
+            , hcBlock = newPartialHeaderBlock frag
+            , hcEndOfStream = endOfStream
+            }
+
+newPartialHeaderBlock :: HeaderBlockFragment -> PartialHeaderBlock
+newPartialHeaderBlock frag =
+    PartialHeaderBlock
+        { phbFragments = [frag]
+        , phbTotalSize = BS.length frag
+        , phbNumFrames = 1
+        }
+
+addFragment
+    :: StreamId
+    -- ^ Used for error messages only
+    -> HeaderBlockFragment
+    -> PartialHeaderBlock
+    -> IO PartialHeaderBlock
+addFragment streamId frag phb = do
+    when (phbTotalSize phb' > headerFragmentLimit) $
+        E.throwIO $
+            ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too big"
+    when (phbNumFrames phb' > continuationLimit) $
+        E.throwIO $
+            ConnectionErrorIsSent EnhanceYourCalm streamId "Header is too fragmented"
+    return phb'
+  where
+    phb' =
+        PartialHeaderBlock
+            { phbFragments = frag : phbFragments phb
+            , phbTotalSize = phbTotalSize phb + BS.length frag
+            , phbNumFrames = phbNumFrames phb + 1
+            }
+
+completeHeaderBlock :: PartialHeaderBlock -> HeaderBlockFragment
+completeHeaderBlock = BS.concat . reverse . phbFragments

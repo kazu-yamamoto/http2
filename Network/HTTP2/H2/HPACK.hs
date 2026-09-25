@@ -3,14 +3,20 @@
 
 module Network.HTTP2.H2.HPACK (
     hpackEncodeHeader,
-    hpackEncodeHeaderLoop,
+    hpackEncodeHeaderBlock,
     hpackDecodeHeader,
     hpackDecodeTrailer,
+    hpackDiscardHeader,
     just,
     fixHeaders,
 ) where
 
 import qualified Control.Exception as E
+import qualified Data.ByteString as BS
+import Data.ByteString.Internal (create)
+import qualified Data.ByteString.Lazy as BS.Lazy
+import Foreign.Marshal.Alloc (free, mallocBytes)
+import Foreign.Marshal.Utils (copyBytes)
 import Network.ByteOrder
 import Network.HTTP.Semantics
 import Network.HTTP.Types
@@ -68,6 +74,29 @@ hpackEncodeHeaderLoop
 hpackEncodeHeaderLoop Context{..} buf siz hs =
     encodeTokenHeader buf siz strategy False encodeDynamicTable hs
 
+-- | Encode a complete header block
+--
+-- Grows the buffer as needed: a header that does not fit is retried with a
+-- larger buffer (the encoder does not modify the dynamic table for a header
+-- it could not write).
+hpackEncodeHeaderBlock
+    :: Context
+    -> BufferSize
+    -- ^ Initial buffer size (must fit a dynamic table size update)
+    -> TokenHeaderList
+    -> IO BS.Lazy.ByteString
+hpackEncodeHeaderBlock ctx = go hpackEncodeHeader []
+  where
+    go _ acc _ [] = return $ BS.Lazy.fromChunks (reverse acc)
+    go enc acc siz ths = do
+        (chunk, ths') <- E.bracket (mallocBytes siz) free $ \buf -> do
+            (ths', len) <- enc ctx buf siz ths
+            chunk <- create len $ \p -> copyBytes p buf len
+            return (chunk, ths')
+        if BS.null chunk
+            then go enc acc (siz * 2) ths -- no progress: grow
+            else go hpackEncodeHeaderLoop (chunk : acc) siz ths'
+
 ----------------------------------------------------------------
 
 hpackDecodeHeader
@@ -81,6 +110,12 @@ hpackDecodeHeader hdrblk sid ctx = do
 hpackDecodeTrailer
     :: HeaderBlockFragment -> StreamId -> Context -> IO TokenHeaderTable
 hpackDecodeTrailer = hpackDecode "illegal trailer"
+
+-- | Decode a field block for a stream we no longer have, and discard the result
+--
+-- The block must still be decoded: it may modify the dynamic table.
+hpackDiscardHeader :: HeaderBlockFragment -> StreamId -> Context -> IO ()
+hpackDiscardHeader hdrblk sid ctx = void $ hpackDecode "illegal header" hdrblk sid ctx
 
 -- | Decode a field block, reporting a block we could not get through as a
 -- connection error.

@@ -45,29 +45,14 @@ omitting error cases (which result in exceptions being thrown). Each transition
 is labelled with the relevant case in either the function 'stream' or the
 function 'processState'.
 
->                        [Open JustOpened]
->                               |
->                               |
->                            HEADERS
->                               |
->                               | (stream1)
->                               |
->                          END_HEADERS?
->                               |
->                        ______/ \______
->                       /   yes   no    \
->                      |                |
->                      |         [Open Continued] <--\
->                      |                |            |
->                      |           CONTINUATION      |
->                      |                |            |
->                      |                | (stream5)  |
->                      |                |            |
->                      |           END_HEADERS?      |
->                      |                |            |
->                      v           yes / \ no        |
->                 END_STREAM? <-------/   \-----------/
->                      |                   (process3)
+>               [Open JustOpened]
+>                      |
+>                      |
+>              HEADERS CONTINUATION*
+>                      |
+>                      | (stream1)
+>                      |
+>                 END_STREAM?
 >                      |
 >            _________/ \_________
 >           /      yes   no       \
@@ -80,7 +65,7 @@ function 'processState'.
 >           |             |        |                             |
 >           |             |        +---------------\             |
 >       RST_STREAM        |        |               |             |
->           |             |     HEADERS           DATA           |
+>           |             |     HEADERS CONT*     DATA           |
 >           | (stream6)   |        |               |             |
 >           |             |        | (stream2)     | (stream4)   |
 >           | (process5)  |        |               |             |
@@ -101,11 +86,6 @@ Notes:
 
 data OpenState
     = JustOpened
-    | Continued
-        [HeaderBlockFragment]
-        Int -- Total size
-        Int -- The number of continuation frames
-        Bool -- End of stream
     | NoBody TokenHeaderTable
     | HasBody TokenHeaderTable
     | Body
@@ -114,6 +94,15 @@ data OpenState
         -- compared the body length for error checking
         (IORef Int) -- actual body length
         (IORef (Maybe TokenHeaderTable)) -- trailers
+
+-- | Header block fragments accumulated so far.
+--
+-- Fragments are stored in reverse order (newest first).
+data PartialHeaderBlock = PartialHeaderBlock
+    { phbFragments :: [HeaderBlockFragment]
+    , phbTotalSize :: Int
+    , phbNumFrames :: Int
+    }
 
 data ClosedCode
     = Finished
