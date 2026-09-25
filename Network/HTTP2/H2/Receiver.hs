@@ -171,6 +171,11 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
                         | ftyp == FrameData ->
                             -- Dropped, but still paid for.
                             informIgnoredData ctx streamId payloadLength
+                        | ftyp == FrameHeaders -> do
+                            HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
+                            if testEndHeader flags
+                                then hpackDiscardHeader frag streamId ctx
+                                else startHeaderBlock ctx streamId (testEndStream flags) frag
                         | otherwise -> return ()
   where
     resetContinued = writeIORef continued Nothing
@@ -239,12 +244,7 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
                         stream ftyp header blk ctx state0 strm
                 processState state ctx strm streamId
             Nothing ->
-                -- TODO: Properly implement this case
-                E.throwIO $
-                    ConnectionErrorIsSent
-                        CompressionError
-                        streamId
-                        "header block for unknown stream"
+                hpackDiscardHeader blk streamId ctx
 
 ----------------------------------------------------------------
 

@@ -99,6 +99,10 @@ data Context = Context
 -- RFC 9113 says "Other frames (from any stream) MUST NOT occur between the
 -- HEADERS frame and any CONTINUATION frames that might follow". This is used to
 -- implement this requirement.
+--
+-- It also accumulates the fragments of the block. These are connection-level
+-- state: the block must be decoded even if its stream is reset before the
+-- block is complete, since it may modify the dynamic table.
 data HeaderContinuation = HeaderContinuation
     { hcStreamId :: StreamId
     , hcBlock :: PartialHeaderBlock

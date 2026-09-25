@@ -6,6 +6,7 @@ module Network.HTTP2.H2.HPACK (
     hpackEncodeHeaderLoop,
     hpackDecodeHeader,
     hpackDecodeTrailer,
+    hpackDiscardHeader,
     just,
     fixHeaders,
 ) where
@@ -81,6 +82,12 @@ hpackDecodeHeader hdrblk sid ctx = do
 hpackDecodeTrailer
     :: HeaderBlockFragment -> StreamId -> Context -> IO TokenHeaderTable
 hpackDecodeTrailer = hpackDecode "illegal trailer"
+
+-- | Decode a field block for a stream we no longer have, and discard the result
+--
+-- The block must still be decoded: it may modify the dynamic table.
+hpackDiscardHeader :: HeaderBlockFragment -> StreamId -> Context -> IO ()
+hpackDiscardHeader hdrblk sid ctx = void $ hpackDecode "illegal header" hdrblk sid ctx
 
 -- | Decode a field block, reporting a block we could not get through as a
 -- connection error.
