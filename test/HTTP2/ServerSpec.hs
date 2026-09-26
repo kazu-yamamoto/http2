@@ -288,6 +288,16 @@ spec = do
                     expectationFailure $
                         "timed out after " ++ show n ++ " of 200 rounds"
 
+        it "uploads a file through runIO past the stream's window" $
+            -- The server announces an 8192-octet window.  runIO put the rest
+            -- of a body back on the queue without waiting for the window to
+            -- open; with none left, the file was read into no room, and a
+            -- read of 0 octets is the end of the file, so the request ended
+            -- with END_STREAM after the first window's worth.
+            E.bracket (forkIO runServerSmallWindow) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 10000000 uploadIO `shouldReturn` Just 100000
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -311,6 +321,26 @@ runServer = runTCPServer (Just host) port runHTTP2Server
             (\conf -> run defaultServerConfig conf server)
 
 -- | Like 'runServer', but announcing room for a single concurrent stream.
+-- | Uploading 100000 octets of a file through 'C.runIO', and what the server
+-- says it received.
+uploadIO :: IO Int
+uploadIO = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.runIO C.defaultClientConfig{C.authority = host} conf $ \C.ClientIO{..} ->
+            return $ do
+                let body rsp acc = do
+                        bs <- C.getResponseBodyChunk rsp
+                        if B.null bs then return acc else body rsp (acc <> bs)
+                    exchange req = cioWriteRequest req >>= cioReadResponse . snd
+                -- A request first, so that the server's SETTINGS -- and its
+                -- small window -- are known before the upload starts.
+                _ <- exchange (C.requestNoBody methodGet "/" []) >>= (`body` "")
+                rsp <-
+                    exchange $
+                        C.requestFile methodPost "/count" [] $
+                            FileSpec "test/inputFile" 0 100000
+                read . C8.unpack <$> body rsp ""
+
 -- | Running with at least this many capabilities.
 withCapabilities :: Int -> IO a -> IO a
 withCapabilities n act =
@@ -413,6 +443,13 @@ server req aux sendResponse = case requestMethod req of
         _ -> sendResponse response404 []
     Just "POST" -> case requestPath req of
         Just "/echo" -> sendResponse (responseEcho req) []
+        -- How many octets of body arrived.
+        Just "/count" -> do
+            let count n = do
+                    bs <- getRequestBodyChunk req
+                    if B.null bs then return n else count (n + B.length bs)
+            n <- count (0 :: Int)
+            sendResponse (responseBuilder ok200 [] (byteString (C8.pack (show n)))) []
         Just "/both" -> do
             -- Read the body on the side, so that the response does not
             -- wait for it.

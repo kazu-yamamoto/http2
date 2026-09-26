@@ -209,9 +209,23 @@ frameSender
                         sws <- getStreamWindowSize strm
                         cws <- getConnectionWindowSize ctx -- not 0
                         let lim = min cws sws
-                        (off', mout') <- output out off lim
-                        sync mout'
-                        return off'
+                        case otyp of
+                            ONext{}
+                                | lim <= 0 -> do
+                                    -- No room for any of the body: the
+                                    -- window was shut after this was queued
+                                    -- (a SETTINGS_INITIAL_WINDOW_SIZE
+                                    -- decrease, say).  Filling a DATA frame
+                                    -- into no room reads 0 octets of a file,
+                                    -- which is taken for its end; handed back
+                                    -- instead, it is queued again once the
+                                    -- window opens.
+                                    sync $ Just out
+                                    return off
+                            _ -> do
+                                (off', mout') <- output out off lim
+                                sync mout'
+                                return off'
 
         ----------------------------------------------------------------
         handler strm off e = do

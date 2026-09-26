@@ -71,7 +71,7 @@ withOutBodyIface ctx@Context{outputQ} strm tbq unmask k = do
 
         cancelAfterFinish :: Maybe SomeException -> STM ()
         cancelAfterFinish mErr =
-            writeTQueue outputQ $ makeOutputIO ctx strm (OReset mErr)
+            writeTQueue outputQ $ makeOutputIO ctx strm Nothing (OReset mErr)
 
         iface :: OutBodyIface
         iface =
