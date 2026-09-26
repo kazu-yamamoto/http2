@@ -17,6 +17,7 @@ import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder, byteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
+import Data.Maybe (isNothing)
 import Network.HTTP.Semantics
 import Network.HTTP.Types
 import Network.Run.TCP
@@ -160,7 +161,11 @@ spec = do
             withCapabilities 4 $
                 E.bracket (forkIO runServerSmallWindow) killThread $ \_ -> do
                     threadDelay 10000
-                    r <- timeout 60000000 $ runTCPClient host port $ \s ->
+                    done <- newIORef (0 :: Int)
+                    r <- timeout 60000000 $ runTCPClient host port $ \s -> do
+                        -- Fifty small writes each way per request: without
+                        -- this, Nagle and delayed ACKs can hold each one up.
+                        setSocketOption s NoDelay 1
                         E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
                             C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ ->
                                 forM_ [1 .. 2000 :: Int] $ \_ -> do
@@ -171,7 +176,12 @@ spec = do
                                                 bs <- C.getResponseBodyChunk rsp
                                                 if B.null bs then return n else drain (n + B.length bs)
                                         drain 0 `shouldReturn` 2500
-                    r `shouldBe` Just ()
+                                    modifyIORef' done (+ 1)
+                    -- How far it got tells a hang from a slow run.
+                    n <- readIORef done
+                    when (isNothing r) $
+                        expectationFailure $
+                            "timed out after " ++ show n ++ " of 2000 requests"
 
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
@@ -216,7 +226,8 @@ runServerSmallWindow = runTCPServer (Just host) port runHTTP2Server
                     , initialWindowSize = 8192
                     }
             }
-    runHTTP2Server s =
+    runHTTP2Server s = do
+        setSocketOption s NoDelay 1
         E.bracket
             (allocSimpleConfig s 32768)
             freeSimpleConfig
