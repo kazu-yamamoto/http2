@@ -7,6 +7,7 @@ module Network.HTTP2.Server.Worker (
 ) where
 
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Data.IORef
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.IO
@@ -125,28 +126,48 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         T.forkManaged threadManager "H2 server push" $ do
-            (pid, newstrm) <- makePushStream ctx pstrm
-            let scheme = fromJust $ getFieldValue tokenScheme reqvt
-                -- fixme: this value can be Nothing
-                auth =
-                    fromJust
-                        ( getFieldValue tokenAuthority reqvt
-                            <|> getFieldValue tokenHost reqvt
-                        )
-                path = promiseRequestPath pp
-                promiseRequest =
-                    [ (tokenMethod, methodGet)
-                    , (tokenScheme, scheme)
-                    , (tokenAuthority, auth)
-                    , (tokenPath, path)
-                    ]
-                ot = OPush promiseRequest pid
-                Response rsp = promiseResponse pp
-            increment tvar
-            lc <- newLoopCheck newstrm Nothing
-            syncWithSender ctx newstrm ot lc
+            (newstrm, lc) <- promise pp `E.finally` increment tvar
+            let Response rsp = promiseResponse pp
             sendHeaderBody conf ctx lc newstrm rsp
         push tvar pps (n + 1)
+    -- Sending the PUSH_PROMISE, and only then counting the push as done:
+    -- 'waiter' holds the parent's response back until every push is
+    -- counted.  The PUSH_PROMISE has to go out before the parent's frames
+    -- (RFC 9113, section 8.4.1) -- before its END_STREAM above all, after
+    -- which a PUSH_PROMISE on it is a connection error.  Counted before it
+    -- was queued, the parent's response could overtake it, and a client
+    -- asked for the pushed resource itself before hearing of the promise.
+    -- 'syncWithSender' returns once the sender has written the frame.
+    -- Counted however it ends, or the parent would wait for ever.
+    promise pp = do
+        (pid, newstrm) <- makePushStream ctx pstrm
+        let scheme = fromJust $ getFieldValue tokenScheme reqvt
+            -- fixme: this value can be Nothing
+            auth =
+                fromJust
+                    ( getFieldValue tokenAuthority reqvt
+                        <|> getFieldValue tokenHost reqvt
+                    )
+            path = promiseRequestPath pp
+            promiseRequest =
+                [ (tokenMethod, methodGet)
+                , (tokenScheme, scheme)
+                , (tokenAuthority, auth)
+                , (tokenPath, path)
+                ]
+            ot = OPush promiseRequest pid
+        lc <- newLoopCheck newstrm Nothing
+        syncWithSender ctx newstrm ot lc
+        -- Reserved (local) until now.  The peer sends nothing on a pushed
+        -- stream, so its side is closed from here (RFC 9113, section 5.1:
+        -- "half-closed (remote)" once the HEADERS go out), and the END_STREAM
+        -- of the pushed response closes the stream.  Left reserved, that
+        -- END_STREAM only half-closed it: the stream stayed in the table
+        -- holding a slot of the peer's SETTINGS_MAX_CONCURRENT_STREAMS, and
+        -- once that many pushes had been made, the next waited for a slot
+        -- for ever, and so did the response it belonged to.
+        halfClosedRemote ctx newstrm
+        return (newstrm, lc)
 
 ----------------------------------------------------------------
 
