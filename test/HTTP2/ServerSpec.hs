@@ -3,6 +3,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+-- GHC 9.12 and later (still on master), with -O, compile 'responseInfinite'
+-- to a response with no body: 'OutBodyNone' instead of 'OutBodyStreaming'.
+-- Full laziness floats the constructor application to a top-level thunk,
+-- and that thunk reaches code that switches on the pointer tag without
+-- evaluating it: https://gitlab.haskell.org/ghc/ghc/-/work_items/27857
+-- The "infinite" stream then ends with its HEADERS, and the MadeYouReset
+-- test sometimes sees a stream closed before its PRIORITY arrives (#191).
+-- 9.10 and earlier are not affected.
+{-# OPTIONS_GHC -fno-full-laziness #-}
 
 module HTTP2.ServerSpec (spec) where
 
