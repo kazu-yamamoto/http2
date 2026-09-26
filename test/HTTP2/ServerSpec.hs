@@ -17,7 +17,7 @@ import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder, byteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import Network.HTTP.Semantics
 import Network.HTTP.Types
 import Network.Run.TCP
@@ -183,6 +183,27 @@ spec = do
                         expectationFailure $
                             "timed out after " ++ show n ++ " of 2000 requests"
 
+        it "accepts a content-length on a response with no content" $
+            -- RFC 9113, section 8.1.1: the response to HEAD, 204 and 304 can
+            -- carry a non-zero content-length without content.  The client
+            -- used to take each of these for a malformed response.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ -> do
+                            let noContent method path =
+                                    sendRequest (C.requestNoBody method path []) $ \rsp -> do
+                                        C.responseStatus rsp `shouldSatisfy` isJust
+                                        C.getResponseBodyChunk rsp `shouldReturn` ""
+                            noContent methodHead "/"
+                            noContent methodHead "/data"
+                            noContent methodGet "/not-modified"
+                            -- A response that is meant to have content still
+                            -- has to match its content-length.
+                            sendRequest (C.requestNoBody methodGet "/no-content" []) (const $ return ())
+                                `shouldThrow` malformedResponse
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -298,6 +319,9 @@ server req aux sendResponse = case requestMethod req of
                 [("link", "</app.js>; rel=preload; as=script")]
             sendResponse responseHello []
         Just "/stream" -> sendResponse responseInfinite []
+        Just "/not-modified" -> sendResponse (responseNoBody notModified304 bigLength) []
+        -- Says it has content, and has none: malformed.
+        Just "/no-content" -> sendResponse (responseNoBody ok200 bigLength) []
         Just "/big" -> sendResponse responseBig []
         Just "/push" -> do
             let pp = pushPromise "/push-pp" responsePP 0
@@ -314,6 +338,11 @@ server req aux sendResponse = case requestMethod req of
                      in d
             sendResponse responseBoth []
         _ -> sendResponse responseHello []
+    Just "HEAD" -> case requestPath req of
+        -- HEADERS, then an empty DATA frame with END_STREAM.
+        Just "/data" -> sendResponse (responseBuilder ok200 bigLength mempty) []
+        -- HEADERS with END_STREAM.
+        _ -> sendResponse (responseNoBody ok200 bigLength) []
     _ -> sendResponse response405 []
 
 -- | Larger than the default frame size and than the server's 32K buffer.
@@ -326,6 +355,18 @@ responseBig = setResponseTrailersMaker rsp maker
     rsp = responseBuilder ok200 [("x-big", bigVal)] "hello"
     maker Nothing = return $ Trailers [("x-big-trailer", bigVal)]
     maker (Just _) = return $ NextTrailersMaker maker
+
+-- | The stream error a client raises for a malformed response, as
+-- 'sendRequest' hands it on.
+malformedResponse :: C.HTTP2Error -> Bool
+malformedResponse (C.StreamErrorIsSent C.ProtocolError _ _) = True
+malformedResponse (C.BadThingHappen se) =
+    maybe False malformedResponse $ E.fromException se
+malformedResponse _ = False
+
+-- | The content-length of content that is not there.
+bigLength :: ResponseHeaders
+bigLength = [("content-length", "1234")]
 
 responseHello :: Response
 responseHello = responseBuilder ok200 header body

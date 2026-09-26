@@ -53,6 +53,7 @@ newOddStream sid txwin rxwin =
         <*> newTVarIO (newTxFlow txwin)
         <*> newIORef (newRxFlow rxwin)
         <*> newIORef Nothing
+        <*> newIORef Nothing
 
 newEvenStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
 newEvenStream sid txwin rxwin =
@@ -61,6 +62,7 @@ newEvenStream sid txwin rxwin =
         <*> newEmptyMVar
         <*> newTVarIO (newTxFlow txwin)
         <*> newIORef (newRxFlow rxwin)
+        <*> newIORef Nothing
         <*> newIORef Nothing
 
 ----------------------------------------------------------------
