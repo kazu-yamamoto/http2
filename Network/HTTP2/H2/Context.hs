@@ -207,8 +207,37 @@ modifyPeerLastStreamId ctx sid = atomicModifyIORef' (peerLastStreamId ctx) $ \n 
 setStreamState :: Context -> Stream -> StreamState -> IO ()
 setStreamState _ Stream{streamNumber, streamState} newState = atomically $ do
     oldState <- readTVar streamState
+    informReplaced streamNumber oldState newState
+    writeTVar streamState newState
 
-    -- Inform consumers of any streams that we close
+-- | Replacing the open state of a stream as the receiver moves it on, from
+-- headers to body.
+--
+-- The receiver reads a stream's state, works out the next one from the
+-- frame, and writes it back -- in a transaction of its own.  In between, the
+-- sender may have half-closed the stream on our side ('halfClosedLocal',
+-- which records it as @Open (Just cc) _@) or closed it.  Writing the whole
+-- state back undid that: the half-close was lost, the peer's END_STREAM then
+-- took the stream to half-closed (remote) rather than closed, and it stayed
+-- in the stream table, holding its concurrency slot for good.  With both ends
+-- streaming at once -- gRPC-style -- a client ran out of streams and a
+-- server refused every new one.
+--
+-- So only the open state is replaced, keeping whatever the sender recorded
+-- about our side, and a stream that is no longer open is left alone.
+setOpenState :: Context -> Stream -> OpenState -> IO ()
+setOpenState _ Stream{streamNumber, streamState} o = atomically $ do
+    oldState <- readTVar streamState
+    case oldState of
+        Open hcl _ -> do
+            let newState = Open hcl o
+            informReplaced streamNumber oldState newState
+            writeTVar streamState newState
+        _otherwise -> return ()
+
+-- | Inform consumers of any streams that we close
+informReplaced :: StreamId -> StreamState -> StreamState -> STM ()
+informReplaced streamNumber oldState newState =
     case (oldState, newState) of
         (Open _ (Body q _ _ _), Open _ (Body q' _ _ _))
             | q == q' ->
@@ -222,8 +251,6 @@ setStreamState _ Stream{streamNumber, streamState} newState = atomically $ do
         _otherwise ->
             -- The stream wasn't open to start with; nothing to do
             return ()
-
-    writeTVar streamState newState
 
 opened :: Context -> Stream -> IO ()
 opened ctx strm = setStreamState ctx strm (Open Nothing JustOpened)

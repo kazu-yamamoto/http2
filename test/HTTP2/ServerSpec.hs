@@ -146,6 +146,33 @@ spec = do
                 timeout 5000000 rapidStreamError
                     `shouldReturn` Just (Just (EnhanceYourCalm, "too many stream errors"))
 
+        it "gives back the slot of a stream both sides streamed on" $
+            -- Room for four concurrent streams, so a few slots that are
+            -- never given back stop the connection within a few thousand
+            -- requests one after another.  Both sides stream with flushes: the receiver used to write back a stream state
+            -- it had read before the sender half-closed the stream, undoing
+            -- the half-close, so the peer's END_STREAM then left the stream
+            -- half-closed instead of closed and in the table for good.
+            --
+            -- It is a race between the receiver and the sender, so it needs
+            -- them running in parallel: on one capability it hardly ever
+            -- shows.
+            withCapabilities 4 $
+                E.bracket (forkIO runServerSmallWindow) killThread $ \_ -> do
+                    threadDelay 10000
+                    r <- timeout 60000000 $ runTCPClient host port $ \s ->
+                        E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                            C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ ->
+                                forM_ [1 .. 2000 :: Int] $ \_ -> do
+                                    let req = C.requestStreaming methodPost "/both" [] $ \write flush ->
+                                            replicateM_ 50 $ write (byteString (C8.replicate 50 'a')) >> flush
+                                    sendRequest req $ \rsp -> do
+                                        let drain n = do
+                                                bs <- C.getResponseBodyChunk rsp
+                                                if B.null bs then return n else drain (n + B.length bs)
+                                        drain 0 `shouldReturn` 2500
+                    r `shouldBe` Just ()
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -169,6 +196,32 @@ runServer = runTCPServer (Just host) port runHTTP2Server
             (\conf -> run defaultServerConfig conf server)
 
 -- | Like 'runServer', but announcing room for a single concurrent stream.
+-- | Running with at least this many capabilities.
+withCapabilities :: Int -> IO a -> IO a
+withCapabilities n act =
+    E.bracket getNumCapabilities setNumCapabilities $ \old -> do
+        setNumCapabilities (max n old)
+        act
+
+-- | Room for four concurrent streams and a small window, so that WINDOW_UPDATE
+-- frames go back and forth all the time.
+runServerSmallWindow :: IO ()
+runServerSmallWindow = runTCPServer (Just host) port runHTTP2Server
+  where
+    sconf =
+        defaultServerConfig
+            { settings =
+                (settings defaultServerConfig)
+                    { maxConcurrentStreams = Just 4
+                    , initialWindowSize = 8192
+                    }
+            }
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> run sconf conf server)
+
 runServerMaxConc1 :: IO ()
 runServerMaxConc1 = runTCPServer (Just host) port runHTTP2Server
   where
@@ -241,6 +294,14 @@ server req aux sendResponse = case requestMethod req of
         _ -> sendResponse response404 []
     Just "POST" -> case requestPath req of
         Just "/echo" -> sendResponse (responseEcho req) []
+        Just "/both" -> do
+            -- Read the body on the side, so that the response does not
+            -- wait for it.
+            _ <-
+                forkIO $
+                    let d = getRequestBodyChunk req >>= \bs -> unless (B.null bs) d
+                     in d
+            sendResponse responseBoth []
         _ -> sendResponse responseHello []
     _ -> sendResponse response405 []
 
@@ -272,6 +333,12 @@ responsePP = responseBuilder ok200 header body
         , ("x-push", "True")
         ]
     body = byteString "Push\n"
+
+-- | A streaming response that does not wait for the request body, so that
+-- both ends are sending at once and either can finish first.
+responseBoth :: Response
+responseBoth = responseStreaming ok200 [] $ \write flush ->
+    replicateM_ 50 $ write (byteString (C8.replicate 50 'b')) >> flush
 
 responseInfinite :: Response
 responseInfinite = responseStreaming ok200 header body

@@ -296,7 +296,7 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
     halfClosedRemote ctx strm
 
 -- Transition (process2)
-processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
+processState (Open _ (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (isServer ctx) $ checkOddConcurrency ctx _streamId
     let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
@@ -304,7 +304,7 @@ processState (Open hcl (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{str
     tlr <- newIORef Nothing
     q <- newTQueueIO
     writeIORef streamRxQ $ Just q
-    setStreamState ctx strm $ Open hcl (Body q mcl bodyLength tlr)
+    setOpenState ctx strm $ Body q mcl bodyLength tlr
     -- FLOW CONTROL: WINDOW_UPDATE 0: recv: announcing my limit properly
     -- FLOW CONTROL: WINDOW_UPDATE: recv: announcing my limit properly
     bodySource <- mkSource q $ informWindowUpdate ctx strm
@@ -324,8 +324,11 @@ processState (Closed cc) ctx strm _streamId = do
     closed ctx strm cc
 
 -- Transition (process6)
+processState (Open _ o) ctx strm _streamId =
+    -- Open JustOpened, Open Body.  Not the whole state: see 'setOpenState'.
+    setOpenState ctx strm o
 processState s ctx strm _streamId = do
-    -- Idle, Open Body, Closed
+    -- Idle
     setStreamState ctx strm s
 
 ----------------------------------------------------------------
