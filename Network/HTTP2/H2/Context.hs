@@ -252,8 +252,20 @@ informReplaced streamNumber oldState newState =
             -- The stream wasn't open to start with; nothing to do
             return ()
 
+-- | Opening an idle stream.
+--
+-- Only an idle one: the receiver checks that the stream is idle and then
+-- opens it, and a client's request stream stays idle while the request is
+-- being sent -- so by the time it opens the stream for the response's
+-- HEADERS, the sender may already have half-closed it ('halfClosedLocal'
+-- turns an idle stream into @Open (Just cc) JustOpened@).  Opening it over
+-- that lost the half-close, with the same result as described at
+-- 'setOpenState'.
 opened :: Context -> Stream -> IO ()
-opened ctx strm = setStreamState ctx strm (Open Nothing JustOpened)
+opened _ Stream{streamState} = atomically $ modifyTVar' streamState open
+  where
+    open Idle = Open Nothing JustOpened
+    open st = st
 
 halfClosedRemote :: Context -> Stream -> IO ()
 halfClosedRemote ctx stream@Stream{streamState} = do
