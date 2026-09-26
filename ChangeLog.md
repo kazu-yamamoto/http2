@@ -1,5 +1,63 @@
 # ChangeLog for http2
 
+## 5.4.6
+
+* Security: a regression in 5.4.5. Since stream errors reset the stream
+  rather than the connection, a peer could have the server reset streams
+  for it -- with a PRIORITY on a stream depending on itself, DATA on a
+  half-closed stream, and the like -- and so free concurrency slots while
+  the handlers went on running, without ever sending RST_STREAM itself
+  (MadeYouReset, CVE-2025-8671). Resets we send because of the peer now
+  count against `rstRateLimit` with the peer's own.
+  [#190](https://github.com/kazu-yamamoto/http2/pull/190)
+* Security: a PRIORITY frame for a stream that was never opened created
+  the stream and took a concurrency slot for good, so 64 PRIORITY frames
+  were enough to have every later request refused.
+  [#195](https://github.com/kazu-yamamoto/http2/pull/195)
+* Security: a SETTINGS_INITIAL_WINDOW_SIZE that overflowed a stream's
+  window stopped the sender without a word, leaving the connection open
+  and silent. It is now a connection error of type FLOW_CONTROL_ERROR,
+  and any failure of the sender closes the connection.
+  [#196](https://github.com/kazu-yamamoto/http2/pull/196)
+* The HPACK dynamic table lost entries, or had the encoder send the wrong
+  one (index 61 of the static table), once it held as many entries as it
+  has room for -- which a small or odd SETTINGS_HEADER_TABLE_SIZE from the
+  peer makes easy. Headers were silently wrong on both sides.
+  [#192](https://github.com/kazu-yamamoto/http2/pull/192)
+* A Huffman-coded string of 16K or more was corrupted by the encoder: the
+  length's fourth octet overwrote the start of the code.
+  [#188](https://github.com/kazu-yamamoto/http2/pull/188)
+* Header blocks and trailers larger than a frame are sent and received as
+  HEADERS and CONTINUATION frames, and the header blocks of streams that
+  are already reset are still decoded, so that the HPACK tables stay in
+  step. Thanks to Edsko de Vries.
+  [#187](https://github.com/kazu-yamamoto/http2/pull/187)
+  [#189](https://github.com/kazu-yamamoto/http2/pull/189)
+* A race between the receiver and the sender lost a stream's half-closed
+  state, so that it was never removed from the stream table: with both
+  ends streaming, a client ran out of streams and a server refused every
+  new one.
+  [#193](https://github.com/kazu-yamamoto/http2/pull/193)
+* A client no longer rejects a response that has no content but a
+  non-zero content-length, as responses to HEAD and 304 responses do.
+  [#194](https://github.com/kazu-yamamoto/http2/pull/194)
+* A client request that failed before it was queued -- a `requestFile` for
+  a file that cannot be opened, say -- made every later request on the
+  connection wait for ever.
+  [#198](https://github.com/kazu-yamamoto/http2/pull/198)
+* Server push: a PUSH_PROMISE could come after the response it belongs
+  to, and pushed streams were never closed, so a connection stopped after
+  64 pushes.
+  [#199](https://github.com/kazu-yamamoto/http2/pull/199)
+* An upload through `runIO` larger than the stream's window was cut short
+  with END_STREAM after the first window's worth.
+  [#200](https://github.com/kazu-yamamoto/http2/pull/200)
+* GHC 9.12 and later, with `-O`, miscompile a value holding a
+  never-returning streaming body into one with no body
+  ([GHC #27857](https://gitlab.haskell.org/ghc/ghc/-/work_items/27857)).
+  The test suite works around it.
+  [#197](https://github.com/kazu-yamamoto/http2/pull/197)
+
 ## 5.4.5
 
 * Security: frame payload decoders read their fixed-size fields without
