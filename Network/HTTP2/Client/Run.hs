@@ -243,7 +243,7 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
     let ot = OHeader outObjHeaders mnext outObjTrailers
     if io
         then do
-            let out = makeOutputIO ctx strm ot
+            let out = makeOutputIO ctx strm mtbq ot
             pushOutput sid out `E.onException` abandon sid
         else do
             (pop, out) <- makeOutput strm ot
