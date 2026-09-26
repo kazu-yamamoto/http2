@@ -204,6 +204,15 @@ spec = do
                             sendRequest (C.requestNoBody methodGet "/no-content" []) (const $ return ())
                                 `shouldThrow` malformedResponse
 
+        it "does not open a stream for a PRIORITY frame" $
+            -- Over a raw socket, as the client library does not send
+            -- PRIORITY.  The server allows 64 concurrent streams; each of
+            -- these PRIORITY frames used to open one and hold its slot,
+            -- so the request after them was refused.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 idlePriority `shouldReturn` Just (Just "HEADERS")
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -717,19 +726,63 @@ rapidStreamError = runTCPClient host port $ \s -> do
   where
     -- What the server says in its GOAWAY, if it sends one before closing.
     awaitGoAway s = do
-        mh <- recvExactly s frameHeaderLength
-        case mh of
+        mf <- recvFrame s
+        case mf of
             Nothing -> return Nothing
-            Just h -> do
-                let (ftyp, fh) = decodeFrameHeader h
-                mp <- recvExactly s $ payloadLength fh
-                case (ftyp, mp) of
-                    (FrameGoAway, Just p)
-                        | Right (GoAwayFrame _ err msg) <- decodeGoAwayFrame fh p ->
-                            return $ Just (err, msg)
-                    (_, Just _) -> awaitGoAway s
-                    _ -> return Nothing
-    recvExactly s n = go n []
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err msg) <- decodeGoAwayFrame fh p ->
+                    return $ Just (err, msg)
+            Just _ -> awaitGoAway s
+
+-- | PRIORITY frames for 100 streams that are never opened, then a request.
+-- What the server answers the request with.
+idlePriority :: IO (Maybe String)
+idlePriority = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    forM_ [3, 5 .. 201] $ \sid ->
+        sendAll s $
+            encodeFrame (EncodeInfo defaultFlags sid Nothing) $
+                PriorityFrame $
+                    Priority False 0 16
+    let sid = 203
+        einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/")
+                , (":method", "GET")
+                ]
+    sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+    answer s sid
+  where
+    answer s sid = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameHeaders, fh, _)
+                | streamId fh == sid -> return $ Just "HEADERS"
+            Just (FrameRSTStream, fh, p)
+                | streamId fh == sid
+                , Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
+                    return $ Just $ "RST_STREAM " ++ show err
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return $ Just $ "GOAWAY " ++ show err
+            Just _ -> answer s sid
+
+-- | One frame off a raw connection, or 'Nothing' once it is closed.
+recvFrame :: Socket -> IO (Maybe (FrameType, FrameHeader, ByteString))
+recvFrame s = do
+    mh <- recvExactly frameHeaderLength
+    case mh of
+        Nothing -> return Nothing
+        Just h -> do
+            let (ftyp, fh) = decodeFrameHeader h
+            fmap (\p -> (ftyp, fh, p)) <$> recvExactly (payloadLength fh)
+  where
+    recvExactly n = go n []
       where
         go 0 acc = return $ Just $ B.concat $ reverse acc
         go k acc = do
