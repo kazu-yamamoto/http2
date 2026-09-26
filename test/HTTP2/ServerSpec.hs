@@ -233,6 +233,27 @@ spec = do
                 timeout 5000000 settingsOverflow
                     `shouldReturn` Just (False, Just FlowControlError)
 
+        it "goes on sending requests after one fails before it is queued" $
+            -- The file of this requestFile does not exist, so the request
+            -- fails after its stream id is taken and before it is queued.
+            -- Requests are queued in stream id order, so every one after it
+            -- used to wait for its turn for ever.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                r <- timeout 5000000 $ runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ -> do
+                            let missing =
+                                    C.requestFile methodPost "/echo" [] $
+                                        FileSpec "test/no-such-file" 0 10
+                            failed <- E.try $ sendRequest missing (const $ return ())
+                            either (const True) (const False) (failed :: Either E.SomeException ())
+                                `shouldBe` True
+                            replicateM_ 3 $
+                                sendRequest (C.requestNoBody methodGet "/" []) $ \rsp ->
+                                    C.responseStatus rsp `shouldBe` Just ok200
+                r `shouldBe` Just ()
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000

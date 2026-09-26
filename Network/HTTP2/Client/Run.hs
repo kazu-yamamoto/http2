@@ -222,7 +222,7 @@ makeStream ctx@Context{..} scheme auth (Request req) = do
 sendRequest :: Config -> Context -> Stream -> OutObj -> Bool -> IO ()
 sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
     let sid = streamNumber strm
-    (mnext, mtbq) <- case outObjBody of
+    (mnext, mtbq) <- (`E.onException` abandon sid) $ case outObjBody of
         OutBodyNone -> return (Nothing, Nothing)
         OutBodyFile (FileSpec path fileoff bytecount) -> do
             (pread, sentinel) <- confPositionReadMaker path
@@ -244,10 +244,10 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
     if io
         then do
             let out = makeOutputIO ctx strm ot
-            pushOutput sid out
+            pushOutput sid out `E.onException` abandon sid
         else do
             (pop, out) <- makeOutput strm ot
-            pushOutput sid out
+            pushOutput sid out `E.onException` abandon sid
             lc <- newLoopCheck strm mtbq
             T.forkManaged threadManager label $ syncWithSender' ctx pop lc
   where
@@ -257,6 +257,22 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
         check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
         enqueueOutputSTM outputQ out
+    -- The request failed before it was queued -- the file of a
+    -- 'requestFile' could not be opened, say, or the thread was killed while
+    -- waiting for its turn.  Its stream id was taken but nothing went out on
+    -- it, and requests go out in stream id order: 'pushOutput' waits for
+    -- 'outputQStreamID' to reach its own id.  Left as it was, that turn never
+    -- came, so every later request waited for ever, and the stream held its
+    -- concurrency slot.  So the stream is taken out of the table, and a
+    -- thread passes its turn on once it arrives; the id goes unused, which a
+    -- later, higher one closes implicitly (RFC 9113, section 5.1.1).
+    abandon sid = do
+        closed ctx strm Killed
+        T.forkManaged threadManager ("H2 skipping stream " ++ show sid) $
+            atomically $ do
+                sidOK <- readTVar outputQStreamID
+                check (sidOK == sid)
+                writeTVar outputQStreamID (sid + 2)
 
 sendStreaming
     :: Context
