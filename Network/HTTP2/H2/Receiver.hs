@@ -418,9 +418,21 @@ getOddStream ctx ftyp streamId Nothing
                                     `BS.append` C8.pack (show ftyp)
                                 )
                     E.throwIO $ ConnectionErrorIsSent ProtocolError streamId errmsg
-                when (ftyp == FrameHeaders) $ setPeerStreamID ctx streamId
-                -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: recv: rejecting if over my limit
-                Just <$> openOddStreamCheck ctx streamId ftyp
+                if ftyp == FramePriority
+                    then
+                        -- PRIORITY does not open a stream (RFC 9113, section
+                        -- 5.1): it is checked and dropped like one for a
+                        -- stream we do not have.  It used to create the
+                        -- stream, taking a concurrency slot that nothing ever
+                        -- gave back, since no HEADERS need follow: a peer
+                        -- could fill SETTINGS_MAX_CONCURRENT_STREAMS with
+                        -- PRIORITY frames alone and have every request after
+                        -- them refused.
+                        return Nothing
+                    else do
+                        setPeerStreamID ctx streamId
+                        -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: recv: rejecting if over my limit
+                        Just <$> openOddStreamCheck ctx streamId ftyp
     | otherwise =
         -- We received a frame from the server on an unknown stream
         -- (likely a previously created and then subsequently reset stream).
