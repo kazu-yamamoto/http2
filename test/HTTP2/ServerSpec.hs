@@ -254,6 +254,40 @@ spec = do
                                     C.responseStatus rsp `shouldBe` Just ok200
                 r `shouldBe` Just ()
 
+        it "sends a PUSH_PROMISE before the response that carries it" $
+            -- /push answers with a push of /push-pp, so a request for
+            -- /push-pp after it is served from the push.  The server used to
+            -- let the response to /push overtake the PUSH_PROMISE now and
+            -- then; the client then asked the server for /push-pp itself,
+            -- and got 404.  One round in a few dozen did, so 200 of them --
+            -- which also takes more pushes than the peer allows concurrent
+            -- streams, so pushed streams that are never closed show too.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                done <- newIORef (0 :: Int)
+                r <- timeout 30000000 $ runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ ->
+                            replicateM_ 200 $ do
+                                -- Bodies are read to the end, so that the
+                                -- streams close and give their slots back.
+                                let drain rsp = do
+                                        bs <- C.getResponseBodyChunk rsp
+                                        unless (B.null bs) $ drain rsp
+                                sendRequest (C.requestNoBody methodGet "/push" []) $ \rsp -> do
+                                    C.responseStatus rsp `shouldBe` Just ok200
+                                    drain rsp
+                                sendRequest (C.requestNoBody methodGet "/push-pp" []) $ \rsp -> do
+                                    C.responseStatus rsp `shouldBe` Just ok200
+                                    drain rsp
+                                modifyIORef' done (+ 1)
+                -- How far it got tells a hang (at 64, the peer's concurrency
+                -- limit, if pushed streams leak) from a slow run.
+                n <- readIORef done
+                when (isNothing r) $
+                    expectationFailure $
+                        "timed out after " ++ show n ++ " of 200 rounds"
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
