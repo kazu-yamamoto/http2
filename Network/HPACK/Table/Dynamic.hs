@@ -55,7 +55,13 @@ fromHIndexToIndex DynamicTable{..} (DIndex didx) = do
     maxN <- readIORef maxNumOfEntries
     off <- readIORef offset
     x <- adj maxN (didx - off)
-    return $ x + staticTableSize
+    -- Entries sit at off+1 .. off+n, so the relative position is 1 .. n.
+    -- When the ring is full, n is maxN and the oldest entry is at off+maxN,
+    -- which is off itself: the modulus makes that 0 rather than maxN, and 0
+    -- is index 61 of the static table.  'toDynamicEntry', going the other
+    -- way, lands on the right slot either way.
+    let x' = if x == 0 then maxN else x
+    return $ x' + staticTableSize
 
 ----------------------------------------------------------------
 
@@ -312,17 +318,48 @@ withDynamicTableForDecoding maxsiz huftmpsiz action =
 ----------------------------------------------------------------
 
 -- | Inserting 'Entry' to 'DynamicTable'.
+--
+-- Entries are evicted first and the new one added after, as RFC 7541
+-- section 4.4 has it: "Before a new entry is added to the dynamic table,
+-- entries are evicted from the end of the dynamic table until the size of
+-- the dynamic table is less than or equal to (maximum size - new entry
+-- size) or until the table is empty."  An entry larger than the table
+-- empties it and is not added.
+--
+-- The order matters to the ring.  It has room for maxNumbers entries, and
+-- the table holds that many whenever they are all close to the 32-octet
+-- minimum -- at a size of 40 or 100, say.  Added first, the new entry
+-- landed on the oldest one's slot, and the eviction that followed read that
+-- slot back and took out the new entry instead, leaving a dummy.  After
+-- evicting there is always a free slot: every entry is 32 octets or more,
+-- so the entries left and the new one come to at most maxNumbers.
 insertEntry :: Entry -> DynamicTable -> IO ()
 insertEntry e dyntbl@DynamicTable{..} = do
-    -- Theoretically speaking, dropping entries by adjustTableSize
-    -- should be first. However, non-used slots always exist since the
-    -- size of dynamic table calculated via the minimum entry size (32
-    -- bytes). To simply adjustTableSize, insertFront is called first.
-    insertFront e dyntbl
-    es <- adjustTableSize dyntbl
+    es <- evictFor (entrySize e) dyntbl
+    -- Before the new entry goes in: the reverse index is keyed by name and
+    -- value, so an evicted entry equal to the new one would take its
+    -- mapping out with it.
     case codeInfo of
         CIE (EncodeInfo rev _) -> deleteRevIndexList es rev
         _ -> return ()
+    maxdsize <- readIORef maxDynamicTableSize
+    when (entrySize e <= maxdsize) $ insertFront e dyntbl
+
+-- | Evicting entries until one of the given size fits, or the table is
+-- empty.
+evictFor :: Size -> DynamicTable -> IO [Entry]
+evictFor siz dyntbl@DynamicTable{..} = evict []
+  where
+    evict :: [Entry] -> IO [Entry]
+    evict es = do
+        n <- readIORef numOfEntries
+        dsize <- readIORef dynamicTableSize
+        maxdsize <- readIORef maxDynamicTableSize
+        if n == 0 || dsize + siz <= maxdsize
+            then return es
+            else do
+                e <- removeEnd dyntbl
+                evict (e : es)
 
 insertFront :: Entry -> DynamicTable -> IO ()
 insertFront e DynamicTable{..} = do
@@ -344,19 +381,6 @@ insertFront e DynamicTable{..} = do
             case codeInfo of
                 CIE (EncodeInfo rev _) -> insertRevIndex e (DIndex i) rev
                 _ -> return ()
-
-adjustTableSize :: DynamicTable -> IO [Entry]
-adjustTableSize dyntbl@DynamicTable{..} = adjust []
-  where
-    adjust :: [Entry] -> IO [Entry]
-    adjust es = do
-        dsize <- readIORef dynamicTableSize
-        maxdsize <- readIORef maxDynamicTableSize
-        if dsize <= maxdsize
-            then return es
-            else do
-                e <- removeEnd dyntbl
-                adjust (e : es)
 
 ----------------------------------------------------------------
 
