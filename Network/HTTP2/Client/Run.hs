@@ -161,7 +161,25 @@ runH2 conf ctx runClient = do
     -- If the client terminated successfully, we ignore any other errors in the
     -- sender (indeed, any exception here might simply be that the background
     -- threads were cancelled /because/ the client terminated).
-    runAll = snd <$> concurrently runSender runClientReceiver
+    --
+    -- If the sender terminates first, it failed, and no request can go out
+    -- any more: the client is stopped and the sender's error reported, rather
+    -- than the client left waiting on a connection nothing sends on.
+    runAll =
+        withAsync runSender $ \as ->
+            withAsync runClientReceiver $ \ac -> do
+                r <- waitEither as ac
+                case r of
+                    Right x -> wait as >> return x
+                    Left e -> do
+                        -- The sender also finishes, normally, as soon as the
+                        -- receiver is done and the queues are empty, and may
+                        -- get there before the client side is seen to.  Only
+                        -- with the receiver still running did it fail.
+                        done <- readTVarIO $ receiverDone ctx
+                        case done of
+                            Just _ -> wait ac
+                            Nothing -> E.throwIO e
 
 makeStream
     :: Context

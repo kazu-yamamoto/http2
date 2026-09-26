@@ -222,6 +222,17 @@ spec = do
                 threadDelay 10000
                 timeout 5000000 idlePriority `shouldReturn` Just (Just "HEADERS")
 
+        it "closes the connection when SETTINGS overflow a stream's window" $
+            -- RFC 9113, section 6.9.2: a connection error of type
+            -- FLOW_CONTROL_ERROR.  The overflow is found in the sender,
+            -- which used to stop on it without a word, leaving the
+            -- connection open and silent.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                -- A connection error: GOAWAY, with no RST_STREAM before it.
+                timeout 5000000 settingsOverflow
+                    `shouldReturn` Just (False, Just FlowControlError)
+
         it "prevents attacks" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -732,16 +743,55 @@ rapidStreamError = runTCPClient host port $ \s -> do
         sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
         sendAll s $ encodeFrame einfoP $ PriorityFrame $ Priority False sid 16
     awaitGoAway s
+
+-- | What the server says in its GOAWAY, if it sends one before closing.
+awaitGoAway :: Socket -> IO (Maybe (ErrorCode, ByteString))
+awaitGoAway s = do
+    mf <- recvFrame s
+    case mf of
+        Nothing -> return Nothing
+        Just (FrameGoAway, fh, p)
+            | Right (GoAwayFrame _ err msg) <- decodeGoAwayFrame fh p ->
+                return $ Just (err, msg)
+        Just _ -> awaitGoAway s
+
+-- | A SETTINGS_INITIAL_WINDOW_SIZE that takes an open stream's window past
+-- 2^31-1.  What the server answers with: whether it reset the stream, and
+-- the error in its GOAWAY.
+settingsOverflow :: IO (Bool, Maybe ErrorCode)
+settingsOverflow = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let sid = 1
+        -- No END_STREAM: the stream stays open, waiting for the body.
+        einfoH = EncodeInfo (setEndHeader defaultFlags) sid Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/echo")
+                , (":method", "POST")
+                ]
+    sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+    -- The stream's window is now the largest there is ...
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags sid Nothing) $
+            WindowUpdateFrame (maxWindowSize - defaultWindowSize)
+    -- ... and one more octet of initial window takes it over.
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            SettingsFrame [(SettingsInitialWindowSize, defaultWindowSize + 1)]
+    answer s False
   where
-    -- What the server says in its GOAWAY, if it sends one before closing.
-    awaitGoAway s = do
+    answer s reset = do
         mf <- recvFrame s
         case mf of
-            Nothing -> return Nothing
+            Nothing -> return (reset, Nothing)
+            Just (FrameRSTStream, _, _) -> answer s True
             Just (FrameGoAway, fh, p)
-                | Right (GoAwayFrame _ err msg) <- decodeGoAwayFrame fh p ->
-                    return $ Just (err, msg)
-            Just _ -> awaitGoAway s
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return (reset, Just err)
+            Just _ -> answer s reset
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.
 -- What the server answers the request with.

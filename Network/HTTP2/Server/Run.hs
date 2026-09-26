@@ -126,9 +126,22 @@ runH2 conf ctx = do
     let mgr = threadManager ctx
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
-        runBackgroundThreads = do
-            e <- snd <$> concurrently runReceiver runSender
-            closureServer conf ctx e
+        runBackgroundThreads =
+            withAsync runReceiver $ \ar ->
+                withAsync runSender $ \as -> do
+                    r <- waitEither ar as
+                    e <- case r of
+                        -- The receiver is done; the sender finishes once it
+                        -- has flushed what is queued.
+                        Left _ -> wait as
+                        -- The sender finished first.  Either the receiver is
+                        -- done too and not yet seen to be, and this is its
+                        -- error, or the sender failed: nothing more would go
+                        -- out, and leaving the receiver to run on left the
+                        -- connection open and silent, with no GOAWAY.  Both
+                        -- are closed with it.
+                        Right e -> return e
+                    closureServer conf ctx e
     T.stopAfter mgr runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
