@@ -272,6 +272,26 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
             Nothing ->
                 hpackDiscardHeader blk streamId ctx
 
+-- | Is this a response that is defined to have no content?
+--
+-- RFC 9113, section 8.1.1: "A response that is defined to have no content,
+-- as described in Section 6.4.1 of [HTTP], can have a non-zero
+-- content-length header field, even though no content is included in DATA
+-- frames."  Those are the responses to HEAD, 204 and 304, and 2xx to
+-- CONNECT; the content-length of one to HEAD, in particular, is that of the
+-- content a GET would have had.  Checking it against the content that
+-- arrived made every such response to HEAD a stream error.
+hasNoContent :: Context -> Stream -> ValueTable -> IO Bool
+hasNoContent ctx Stream{streamRequestMethod} vt
+    | isServer ctx = return False
+    | otherwise = do
+        mmethod <- readIORef streamRequestMethod
+        let status = getFieldValue tokenStatus vt
+        return $
+            mmethod == Just "HEAD"
+                || status `elem` [Just "204", Just "304"]
+                || (mmethod == Just "CONNECT" && maybe False ("2" `BS.isPrefixOf`) status)
+
 ----------------------------------------------------------------
 
 processState :: StreamState -> Context -> Stream -> StreamId -> IO ()
@@ -279,8 +299,9 @@ processState :: StreamState -> Context -> Stream -> StreamId -> IO ()
 processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (isServer ctx) $ checkOddConcurrency ctx streamId
+    noContent <- hasNoContent ctx strm reqvt
     let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
-    when (just mcl (/= (0 :: Int))) $
+    when (not noContent && just mcl (/= (0 :: Int))) $
         E.throwIO $
             StreamErrorIsSent
                 ProtocolError
@@ -299,7 +320,11 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
 processState (Open _ (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (isServer ctx) $ checkOddConcurrency ctx _streamId
-    let mcl = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
+    noContent <- hasNoContent ctx strm reqvt
+    let mcl
+            -- Its content-length describes content it does not have.
+            | noContent = Just 0
+            | otherwise = fst <$> (getFieldValue tokenContentLength reqvt >>= C8.readInt)
     bodyLength <- newIORef 0
     tlr <- newIORef Nothing
     q <- newTQueueIO

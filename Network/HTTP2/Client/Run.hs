@@ -198,6 +198,7 @@ makeStream ctx@Context{..} scheme auth (Request req) = do
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
             (_sid, newstrm) <- openOddStreamWait ctx
+            writeIORef (streamRequestMethod newstrm) $ Just method
             return (newstrm, Just req')
 
 sendRequest :: Config -> Context -> Stream -> OutObj -> Bool -> IO ()

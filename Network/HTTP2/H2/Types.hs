@@ -152,6 +152,9 @@ data Stream = Stream
     , streamTxFlow :: TVar TxFlow
     , streamRxFlow :: IORef RxFlow
     , streamRxQ :: IORef (Maybe RxQ)
+    , streamRequestMethod :: IORef (Maybe ByteString)
+    -- ^ Client only: the method of the request, which decides whether the
+    --   response may have content at all (RFC 9110, section 6.4.1)
     }
 
 instance Show Stream where
