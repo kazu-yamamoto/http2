@@ -242,6 +242,14 @@ spec = do
                 threadDelay 10000
                 timeout 5000000 emptyTrailers `shouldReturn` Just (Just "HEADERS")
 
+        it "checks a padded body against its content-length" $
+            -- Padding is not content (RFC 9113, section 6.1).  It used to
+            -- be counted into the body's length, so a padded body that
+            -- matched its content-length was reset as one that did not.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 paddedBody `shouldReturn` Just (Just "DATA 4")
+
         it "goes on sending requests after one fails before it is queued" $
             -- The file of this requestFile does not exist, so the request
             -- fails after its stream id is taken and before it is queued.
@@ -921,6 +929,48 @@ emptyTrailers = runTCPClient host port $ \s -> do
             Nothing -> return Nothing
             Just (FrameHeaders, fh, _)
                 | streamId fh == sid -> return $ Just "HEADERS"
+            Just (FrameRSTStream, fh, p)
+                | streamId fh == sid
+                , Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
+                    return $ Just $ "RST_STREAM " ++ show err
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return $ Just $ "GOAWAY " ++ show err
+            Just _ -> answer s sid
+
+-- | A request with a content-length of 4, whose body comes in padded DATA
+-- frames: "bo", "dy", and an empty one with END_STREAM.  What the server
+-- answers it with: the body of its response, which is the number of octets
+-- of body that arrived.
+paddedBody :: IO (Maybe String)
+paddedBody = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let sid = 1
+        einfoH = EncodeInfo (setEndHeader defaultFlags) sid Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/count")
+                , (":method", "POST")
+                , ("content-length", "4")
+                ]
+        padding = C8.replicate 10 '\0'
+        einfoD = EncodeInfo defaultFlags sid (Just padding)
+        einfoE = EncodeInfo (setEndStream defaultFlags) sid (Just padding)
+    sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+    sendAll s $ encodeFrame einfoD $ DataFrame "bo"
+    sendAll s $ encodeFrame einfoD $ DataFrame "dy"
+    sendAll s $ encodeFrame einfoE $ DataFrame ""
+    answer s sid
+  where
+    answer s sid = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameData, fh, p)
+                | streamId fh == sid -> return $ Just $ "DATA " ++ C8.unpack p
             Just (FrameRSTStream, fh, p)
                 | streamId fh == sid
                 , Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
