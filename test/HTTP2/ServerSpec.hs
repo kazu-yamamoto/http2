@@ -250,6 +250,16 @@ spec = do
                 threadDelay 10000
                 timeout 5000000 paddedBody `shouldReturn` Just (Just "DATA 4")
 
+        it "gives the padding of a body back to the windows" $
+            -- 2000 DATA frames of one octet of content and 255 of padding:
+            -- about twice the stream's window.  The padding used to be
+            -- charged and never given back, so a peer keeping to the
+            -- windows stalled, and one that did not, like this one, broke
+            -- the stream's limit and had the connection closed.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 paddingWindow `shouldReturn` Just (Just "DATA 2000")
+
         it "goes on sending requests after one fails before it is queued" $
             -- The file of this requestFile does not exist, so the request
             -- fails after its stream id is taken and before it is queued.
@@ -978,6 +988,47 @@ paddedBody = runTCPClient host port $ \s -> do
             Just (FrameGoAway, fh, p)
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return $ Just $ "GOAWAY " ++ show err
+            Just _ -> answer s sid
+
+-- | A request whose body is 2000 DATA frames of one octet each, padded to
+-- 257 octets of payload, more than the stream's window in all.  Sent
+-- without waiting for WINDOW_UPDATE: every octet of padding has to have
+-- been given back by the time the next frame is checked.  What the server
+-- answers it with: the number of octets of body that arrived.
+paddingWindow :: IO (Maybe String)
+paddingWindow = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let sid = 1
+        einfoH = EncodeInfo (setEndHeader defaultFlags) sid Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/count")
+                , (":method", "POST")
+                ]
+        padding = C8.replicate 255 '\0'
+        einfoD = EncodeInfo defaultFlags sid (Just padding)
+        einfoE = EncodeInfo (setEndStream defaultFlags) sid Nothing
+    sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+    replicateM_ 2000 $ sendAll s $ encodeFrame einfoD $ DataFrame "x"
+    sendAll s $ encodeFrame einfoE $ DataFrame ""
+    answer s sid
+  where
+    answer s sid = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameData, fh, p)
+                | streamId fh == sid -> return $ Just $ "DATA " ++ C8.unpack p
+            Just (FrameRSTStream, fh, p)
+                | streamId fh == sid
+                , Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
+                    return $ Just $ "RST_STREAM " ++ show err
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err msg) <- decodeGoAwayFrame fh p ->
+                    return $ Just $ "GOAWAY " ++ show err ++ " " ++ C8.unpack msg
             Just _ -> answer s sid
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.

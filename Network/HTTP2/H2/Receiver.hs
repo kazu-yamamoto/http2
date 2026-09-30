@@ -618,9 +618,9 @@ stream
     FrameData
     header@FrameHeader{flags, payloadLength, streamId}
     bs
-    Context{emptyFrameRate, rxFlow, mySettings}
+    ctx@Context{emptyFrameRate, rxFlow, mySettings}
     s@(Open _ (Body q mcl bodyLength _))
-    Stream{..} = do
+    strm@Stream{..} = do
         DataFrame body <- guardIt $ decodeDataFrame header bs
         -- FLOW CONTROL: WINDOW_UPDATE 0: recv: rejecting if over my limit
         okc <- atomicModifyIORef' rxFlow $ checkRxLimit payloadLength
@@ -638,6 +638,12 @@ stream
                     EnhanceYourCalm
                     streamId
                     "exceeds stream flow-control limit"
+        -- The padding is charged to both windows, as it must be, but it
+        -- never reaches the reader, whose reading is what gives octets
+        -- back ('readSource').  Left there, each padded frame shrank the
+        -- peer's windows for good, until the connection stalled.  It is
+        -- done with as soon as it arrives, so it goes straight back.
+        informWindowUpdate ctx strm $ payloadLength - BS.length body
         len0 <- readIORef bodyLength
         -- The content itself: 'payloadLength', which flow control goes by,
         -- also counts the padding, and so made a padded body look longer
