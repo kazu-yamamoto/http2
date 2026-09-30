@@ -752,9 +752,20 @@ stream FramePriority header bs _ s Stream{streamNumber} = do
 stream FrameContinuation FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         ConnectionErrorIsSent ProtocolError streamId "continue frame cannot come here"
+-- DATA that is not taken in, below, is still paid for.  RFC 9113 section
+-- 6.9: "A receiver that receives a flow-controlled frame MUST always account
+-- for its contribution against the connection flow-control window, unless
+-- the receiver treats this as a connection error."  The peer charged it to
+-- the connection window before sending it, and unless it is charged and
+-- given back here as well, the peer's view of that window shrinks for good.
+--
 -- Ignore frames to streams we have just reset, per section 5.1.
+stream FrameData FrameHeader{payloadLength, streamId} _ ctx st@(Closed (ResetByMe _)) _ = do
+    informIgnoredData ctx streamId payloadLength
+    return st
 stream _ _ _ _ st@(Closed (ResetByMe _)) _ = return st
-stream FrameData FrameHeader{streamId} _ _ _ _ =
+stream FrameData FrameHeader{payloadLength, streamId} _ ctx _ _ = do
+    informIgnoredData ctx streamId payloadLength
     E.throwIO $
         StreamErrorIsSent StreamClosed streamId $
             fromString ("illegal data frame for " ++ show streamId)
