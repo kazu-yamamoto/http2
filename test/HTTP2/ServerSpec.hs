@@ -260,6 +260,17 @@ spec = do
                 threadDelay 10000
                 timeout 5000000 paddingWindow `shouldReturn` Just (Just "DATA 2000")
 
+        it "gives DATA it refuses back to the connection window" $
+            -- DATA on a stream the peer has half-closed is a stream error
+            -- (RFC 9113, section 5.1), but it still counts against the
+            -- connection window (section 6.9).  It used to be left out, so
+            -- the peer's view of that window shrank for good.  With a
+            -- window of 65535, the refused 16384 octets and the 16384 of
+            -- the next request make up the half that is given back.
+            E.bracket (forkIO runServerSmallConnWindow) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 refusedData `shouldReturn` Just (Just (32768, "16384"))
+
         it "goes on sending requests after one fails before it is queued" $
             -- The file of this requestFile does not exist, so the request
             -- fails after its stream id is taken and before it is queued.
@@ -390,6 +401,18 @@ runServerSmallWindow = runTCPServer (Just host) port runHTTP2Server
             }
     runHTTP2Server s = do
         setSocketOption s NoDelay 1
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> run sconf conf server)
+
+-- | Like 'runServer', but with the connection window left at its initial
+-- 65535 octets.
+runServerSmallConnWindow :: IO ()
+runServerSmallConnWindow = runTCPServer (Just host) port runHTTP2Server
+  where
+    sconf = defaultServerConfig{connectionWindowSize = defaultWindowSize}
+    runHTTP2Server s =
         E.bracket
             (allocSimpleConfig s 32768)
             freeSimpleConfig
@@ -1030,6 +1053,46 @@ paddingWindow = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame _ err msg) <- decodeGoAwayFrame fh p ->
                     return $ Just $ "GOAWAY " ++ show err ++ " " ++ C8.unpack msg
             Just _ -> answer s sid
+
+-- | 16384 octets of DATA on a stream we have half-closed, then a request
+-- with a body of 16384 octets.  What the server gives back to the
+-- connection window before answering the request, and the answer: the
+-- number of octets of body that arrived.
+refusedData :: IO (Maybe (Int, String))
+refusedData = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let request sid method path flags =
+            encodeFrame (EncodeInfo (flags $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", path)
+                        , (":method", method)
+                        ]
+        chunk = C8.replicate 16384 'x'
+    -- A response that goes on for ever keeps stream 1 in the table.
+    sendAll s $ request 1 "GET" "/stream" setEndStream
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 1 Nothing) $ DataFrame chunk
+    sendAll s $ request 3 "POST" "/count" id
+    sendAll s $
+        encodeFrame (EncodeInfo (setEndStream defaultFlags) 3 Nothing) $
+            DataFrame chunk
+    answer s 0
+  where
+    answer s n = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameWindowUpdate, fh, p)
+                | streamId fh == 0
+                , Right (WindowUpdateFrame w) <- decodeWindowUpdateFrame fh p ->
+                    answer s (n + w)
+            Just (FrameData, fh, p)
+                | streamId fh == 3 -> return $ Just (n, C8.unpack p)
+            Just (FrameGoAway, _, _) -> return Nothing
+            Just _ -> answer s n
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.
 -- What the server answers the request with.
