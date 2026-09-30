@@ -639,7 +639,10 @@ stream
                     streamId
                     "exceeds stream flow-control limit"
         len0 <- readIORef bodyLength
-        let len = len0 + payloadLength
+        -- The content itself: 'payloadLength', which flow control goes by,
+        -- also counts the padding, and so made a padded body look longer
+        -- than its content-length.
+        let len = len0 + BS.length body
             endOfStream = testEndStream flags
         -- Empty Frame Flooding - CVE-2019-9518
         if body == ""
