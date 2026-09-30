@@ -73,14 +73,22 @@ decodeHPACK
 decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
   where
     chkChange rbuf = do
-        w <- read8 rbuf
-        if isTableSizeUpdate w
-            then do
-                tableSizeUpdate dyntbl w rbuf
-                chkChange rbuf
+        -- A block can be empty, or hold nothing but table size updates:
+        -- no fields, which is what empty trailers are sent as.  Reading
+        -- on regardless threw 'BufferOverrun', reported as a truncated
+        -- block, so the connection was closed over them.
+        leftover <- remainingSize rbuf
+        if leftover < 1
+            then dec rbuf
             else do
-                ff rbuf (-1)
-                dec rbuf
+                w <- read8 rbuf
+                if isTableSizeUpdate w
+                    then do
+                        tableSizeUpdate dyntbl w rbuf
+                        chkChange rbuf
+                    else do
+                        ff rbuf (-1)
+                        dec rbuf
 
 -- | Converting to '[Header]'.
 --
