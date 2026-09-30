@@ -37,7 +37,6 @@ import Network.HPACK.Types
 --
 --   * Headers are decoded as is.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
---   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeHeader
     :: DynamicTable
     -> ByteString
@@ -58,7 +57,6 @@ decodeHeader dyntbl inp = decodeHPACK dyntbl inp (decodeSimple (toTokenHeader dy
 --   * If a header key contains capital letters,
 --     'IllegalHeaderName' is thrown.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
---   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeTokenHeader
     :: DynamicTable
     -> ByteString
@@ -88,7 +86,6 @@ decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
 --
 --   * Headers are decoded as is.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
---   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeSimple
     :: (Word8 -> ReadBuffer -> IO TokenHeader)
     -> ReadBuffer
@@ -125,7 +122,6 @@ headerLimit = 200
 --   * If the number of header fields is too large,
 --     'TooLargeHeader' is thrown
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
---   * 'BufferOverrun' will be thrown if the temporary buffer for Huffman decoding is too small.
 decodeSophisticated
     :: (Word8 -> ReadBuffer -> IO TokenHeader)
     -> ReadBuffer

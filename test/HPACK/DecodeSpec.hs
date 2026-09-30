@@ -4,9 +4,11 @@ module HPACK.DecodeSpec where
 
 import Control.Monad (forM_)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Data.String (fromString)
 import Network.HPACK
 import Network.HPACK.Table
+import Network.HPACK.Token (tokenKey)
 import Test.Hspec
 
 import HPACK.HeaderBlock
@@ -64,6 +66,20 @@ spec = do
                             , 0xbe -- indexed 62
                             ]
                 decodeHeader dtbl blk `shouldReturn` [("a", ""), ("b", ""), ("b", "")]
+        it "decodes a Huffman-coded value longer than the Huffman buffer" $
+            -- The value decodes to more than the 4096 octets of the
+            -- decoder's Huffman buffer.  It used to be reported as a
+            -- truncated block, although the same value as a plain literal
+            -- was accepted.
+            withDynamicTableForEncoding 4096 $ \etbl ->
+                withDynamicTableForDecoding 4096 4096 $ \dtbl ->
+                    forM_ [False, True] $ \huff -> do
+                        let hs = [("x-long", BS8.replicate 5000 'a')]
+                            stgy = defaultEncodeStrategy{useHuffman = huff}
+                        blk <- encodeHeader stgy 8192 etbl hs
+                        decodeHeader dtbl blk `shouldReturn` hs
+                        (tvs, _) <- decodeTokenHeader dtbl blk
+                        map (\(t, v) -> (tokenKey t, v)) tvs `shouldBe` hs
         it "round-trips through tables small enough to fill up" $
             -- Entries near the 32-octet minimum fill a table of these sizes
             -- to its last slot.  The encoder follows the peer's

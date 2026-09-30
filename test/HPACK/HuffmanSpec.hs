@@ -60,6 +60,10 @@ spec = do
             es <- encodeHuffman bs
             ds <- decodeHuffman es
             ds `shouldBe` bs
+        it "decodes a string longer than 4096 octets" $ do
+            let bs = BS.replicate 6000 'a' -- 3750 octets encoded
+            es <- encodeHuffman bs
+            decodeHuffman es `shouldReturn` bs
     describe "encode" $ do
         it "encodes" $ do
             mapM_ (\(x, y) -> x `shouldBeEncoded` y) testData

@@ -222,7 +222,8 @@ newDynamicTableForDecoding
     :: Size
     -- ^ The dynamic table size
     -> Size
-    -- ^ The size of temporary buffer for Huffman decoding
+    -- ^ The size of temporary buffer for Huffman decoding.
+    --   A longer value is decoded in a buffer of its own.
     -> IO DynamicTable
 newDynamicTableForDecoding maxsiz huftmpsiz = do
     lim <- newIORef maxsiz
@@ -309,7 +310,8 @@ withDynamicTableForDecoding
     :: Size
     -- ^ The dynamic table size
     -> Size
-    -- ^ The size of temporary buffer for Huffman
+    -- ^ The size of temporary buffer for Huffman decoding.
+    --   A longer value is decoded in a buffer of its own.
     -> (DynamicTable -> IO a)
     -> IO a
 withDynamicTableForDecoding maxsiz huftmpsiz action =
