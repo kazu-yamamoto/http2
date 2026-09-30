@@ -384,8 +384,16 @@ openOddStreamWait ctx@Context{oddStreamTable, mySettings, peerSettings} = do
             return (sid, newstrm)
 
 -- Server
-openEvenStreamWait :: Context -> IO (StreamId, Stream)
-openEvenStreamWait ctx@Context{..} = do
+
+-- | Opening a stream for a push, if the peer's
+-- SETTINGS_MAX_CONCURRENT_STREAMS leaves room for one.
+--
+-- Not waiting for room: the response the push belongs to waits for its
+-- PUSH_PROMISE to go out, and with no room -- a peer can announce 0 to
+-- refuse pushes (RFC 9113, section 8.4) -- it waited for ever.  A push is
+-- only ever an offer, so one there is no room for is not made.
+openEvenStreamTry :: Context -> IO (Maybe (StreamId, Stream))
+openEvenStreamTry ctx@Context{..} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
     let rxws = initialWindowSize mySettings
@@ -395,12 +403,15 @@ openEvenStreamWait ctx@Context{..} = do
             txws <- initialWindowSize <$> readIORef peerSettings
             newstrm <- newEvenStream sid txws rxws
             insertEven evenStreamTable sid newstrm
-            return (sid, newstrm)
+            return $ Just (sid, newstrm)
         Just maxConc -> do
-            sid <- atomically $ do
-                waitIncEven evenStreamTable maxConc
-                getMyNewStreamId ctx
-            txws <- initialWindowSize <$> readIORef peerSettings
-            newstrm <- newEvenStream sid txws rxws
-            insertEven' evenStreamTable sid newstrm
-            return (sid, newstrm)
+            msid <- atomically $ do
+                let open = do
+                        waitIncEven evenStreamTable maxConc
+                        Just <$> getMyNewStreamId ctx
+                open `orElse` return Nothing
+            forM msid $ \sid -> do
+                txws <- initialWindowSize <$> readIORef peerSettings
+                newstrm <- newEvenStream sid txws rxws
+                insertEven' evenStreamTable sid newstrm
+                return (sid, newstrm)

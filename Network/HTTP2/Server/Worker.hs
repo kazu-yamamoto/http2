@@ -126,9 +126,10 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
         T.forkManaged threadManager "H2 server push" $ do
-            (newstrm, lc) <- promise pp `E.finally` increment tvar
-            let Response rsp = promiseResponse pp
-            sendHeaderBody conf ctx lc newstrm rsp
+            mpushed <- promise pp `E.finally` increment tvar
+            forM_ mpushed $ \(newstrm, lc) -> do
+                let Response rsp = promiseResponse pp
+                sendHeaderBody conf ctx lc newstrm rsp
         push tvar pps (n + 1)
     -- Sending the PUSH_PROMISE, and only then counting the push as done:
     -- 'waiter' holds the parent's response back until every push is
@@ -138,9 +139,12 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
     -- was queued, the parent's response could overtake it, and a client
     -- asked for the pushed resource itself before hearing of the promise.
     -- 'syncWithSender' returns once the sender has written the frame.
-    -- Counted however it ends, or the parent would wait for ever.
+    -- Counted however it ends, or the parent would wait for ever.  A push
+    -- the peer has no room for is not made ('openEvenStreamTry').
     promise pp = do
-        (pid, newstrm) <- makePushStream ctx pstrm
+        mstrm <- makePushStream ctx pstrm
+        forM mstrm $ \(pid, newstrm) -> promiseOn pp pid newstrm
+    promiseOn pp pid newstrm = do
         let scheme = fromJust $ getFieldValue tokenScheme reqvt
             -- fixme: this value can be Nothing
             auth =
@@ -171,12 +175,12 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
 
 ----------------------------------------------------------------
 
-makePushStream :: Context -> Stream -> IO (StreamId, Stream)
+makePushStream :: Context -> Stream -> IO (Maybe (StreamId, Stream))
 makePushStream ctx pstrm = do
     -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
-    (_, newstrm) <- openEvenStreamWait ctx
+    mstrm <- openEvenStreamTry ctx
     let pid = streamNumber pstrm
-    return (pid, newstrm)
+    return $ (\(_, newstrm) -> (pid, newstrm)) <$> mstrm
 
 ----------------------------------------------------------------
 

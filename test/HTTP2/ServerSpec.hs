@@ -292,6 +292,14 @@ spec = do
                                     C.responseStatus rsp `shouldBe` Just ok200
                 r `shouldBe` Just ()
 
+        it "answers without a push when the peer has no room for one" $
+            -- SETTINGS_MAX_CONCURRENT_STREAMS of 0 is how a peer can refuse
+            -- pushes (RFC 9113, section 8.4).  The push of /push-pp used to
+            -- wait for room for ever, and the response to /push with it.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 pushNoRoom `shouldReturn` Just (Just "HEADERS")
+
         it "sends a PUSH_PROMISE before the response that carries it" $
             -- /push answers with a push of /push-pp, so a request for
             -- /push-pp after it is served from the push.  The server used to
@@ -1093,6 +1101,52 @@ refusedData = runTCPClient host port $ \s -> do
                 | streamId fh == 3 -> return $ Just (n, C8.unpack p)
             Just (FrameGoAway, _, _) -> return Nothing
             Just _ -> answer s n
+
+-- | A request for /push, which comes with a push, from a peer that has
+-- announced room for no streams of the server's.  What the server answers
+-- it with first.
+pushNoRoom :: IO (Maybe String)
+pushNoRoom = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            SettingsFrame [(SettingsMaxConcurrentStreams, 0)]
+    -- The server takes our SETTINGS on board once it has acknowledged them,
+    -- and before it goes on to what comes next: the answer to a PING sent
+    -- after them.
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            PingFrame "12345678"
+    awaitPingAck s
+    let sid = 1
+        einfoH = EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/push")
+                , (":method", "GET")
+                ]
+    sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+    answer s sid
+  where
+    awaitPingAck s = do
+        mf <- recvFrame s
+        case mf of
+            Just (FramePing, fh, _) | testAck (flags fh) -> return ()
+            Just _ -> awaitPingAck s
+            Nothing -> return ()
+    answer s sid = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameHeaders, fh, _)
+                | streamId fh == sid -> return $ Just "HEADERS"
+            Just (FramePushPromise, _, _) -> return $ Just "PUSH_PROMISE"
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return $ Just $ "GOAWAY " ++ show err
+            Just _ -> answer s sid
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.
 -- What the server answers the request with.
