@@ -59,10 +59,25 @@ decodeH
     -> Int
     -- ^ The target length
     -> IO ByteString
-decodeH gcbuf bufsiz rbuf len = withForeignPtr gcbuf $ \buf -> do
-    wbuf <- newWriteBuffer buf bufsiz
-    decH wbuf rbuf len
-    toByteString wbuf
+decodeH gcbuf bufsiz rbuf len
+    -- The working space is only a cache.  A value that may not fit gets a
+    -- buffer of its own: running out of room part-way used to throw
+    -- 'BufferOverrun', which the header block decoder reported as a
+    -- truncated block, so a valid field longer than the working space
+    -- (a long Huffman-coded @authorization@, say) closed the connection.
+    | maxDecodedLength len > bufsiz =
+        withWriteBuffer (maxDecodedLength len) $ \wbuf -> decH wbuf rbuf len
+    | otherwise = withForeignPtr gcbuf $ \buf -> do
+        wbuf <- newWriteBuffer buf bufsiz
+        decH wbuf rbuf len
+        toByteString wbuf
+
+-- | The longest a Huffman-coded string of this many octets can decode to.
+--
+-- The shortest code is 5 bits long (RFC 7541, Appendix B), so each
+-- decoded octet takes at least 5 of the input's bits.
+maxDecodedLength :: Int -> Int
+maxDecodedLength len = len * 8 `div` 5
 
 -- | Low devel Huffman decoding in a write buffer.
 decH :: WriteBuffer -> ReadBuffer -> Int -> IO ()
@@ -88,9 +103,9 @@ decH wbuf rbuf len = go len (way256 `unsafeAt` 0)
             write8 wbuf v2
             return $ way256 `unsafeAt` fromIntegral n
 
--- | Huffman decoding with a temporary buffer whose size is 4096.
+-- | Huffman decoding.
 decodeHuffman :: ByteString -> IO ByteString
-decodeHuffman bs = withWriteBuffer 4096 $ \wbuf ->
+decodeHuffman bs = withWriteBuffer (max 1 $ maxDecodedLength $ BS.length bs) $ \wbuf ->
     withReadBuffer bs $ \rbuf -> decH wbuf rbuf $ BS.length bs
 
 ----------------------------------------------------------------
