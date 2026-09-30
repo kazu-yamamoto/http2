@@ -233,6 +233,15 @@ spec = do
                 timeout 5000000 settingsOverflow
                     `shouldReturn` Just (False, Just FlowControlError)
 
+        it "accepts empty trailers" $
+            -- A HEADERS frame with END_STREAM and an empty field block ends
+            -- the body with no trailer fields.  The empty block used to be
+            -- taken for a truncated one: COMPRESSION_ERROR, and the
+            -- connection closed.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 emptyTrailers `shouldReturn` Just (Just "HEADERS")
+
         it "goes on sending requests after one fails before it is queued" $
             -- The file of this requestFile does not exist, so the request
             -- fails after its stream id is taken and before it is queued.
@@ -884,6 +893,42 @@ settingsOverflow = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return (reset, Just err)
             Just _ -> answer s reset
+
+-- | A request whose body ends with an empty trailer block.  What the
+-- server answers it with.
+emptyTrailers :: IO (Maybe String)
+emptyTrailers = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let sid = 1
+        einfoH = EncodeInfo (setEndHeader defaultFlags) sid Nothing
+        hdr =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/count")
+                , (":method", "POST")
+                ]
+        einfoT = EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing
+    sendAll s $ encodeFrame einfoH $ HeadersFrame Nothing hdr
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags sid Nothing) $ DataFrame "body"
+    sendAll s $ encodeFrame einfoT $ HeadersFrame Nothing ""
+    answer s sid
+  where
+    answer s sid = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameHeaders, fh, _)
+                | streamId fh == sid -> return $ Just "HEADERS"
+            Just (FrameRSTStream, fh, p)
+                | streamId fh == sid
+                , Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
+                    return $ Just $ "RST_STREAM " ++ show err
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return $ Just $ "GOAWAY " ++ show err
+            Just _ -> answer s sid
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.
 -- What the server answers the request with.

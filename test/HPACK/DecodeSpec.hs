@@ -80,6 +80,14 @@ spec = do
                         decodeHeader dtbl blk `shouldReturn` hs
                         (tvs, _) <- decodeTokenHeader dtbl blk
                         map (\(t, v) -> (tokenKey t, v)) tvs `shouldBe` hs
+        it "decodes a block with no fields" $
+            -- Empty, or only dynamic table size updates: both are valid
+            -- blocks of no fields, and both used to be taken for truncated.
+            withDynamicTableForDecoding 4096 4096 $ \dtbl ->
+                forM_ ["", "\x20", "\x3f\xe1\x1f"] $ \blk -> do
+                    decodeHeader dtbl blk `shouldReturn` []
+                    (tvs, _) <- decodeTokenHeader dtbl blk
+                    tvs `shouldBe` []
         it "round-trips through tables small enough to fill up" $
             -- Entries near the 32-octet minimum fill a table of these sizes
             -- to its last slot.  The encoder follows the peer's
