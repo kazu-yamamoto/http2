@@ -44,7 +44,6 @@ runServer conf server ctx@Context{..} strm req =
         lc <- newLoopCheck strm Nothing
         server request aux $ sendResponse conf ctx lc strm request
         adjustRxWindow ctx strm
-        modifyPeerLastStreamId ctx $ streamNumber strm
   where
     label = "H2 response sender for stream " ++ show (streamNumber strm)
     pauseRequestBody th = req{inpObjBody = readBody'}
