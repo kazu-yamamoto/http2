@@ -490,10 +490,19 @@ control FramePing FrameHeader{flags, streamId} bs ctx@Context{mySettings, pingRa
         if rate > pingRateLimit mySettings
             then E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many ping"
             else sendPing ctx True bs
-control FrameGoAway header bs _ = do
+control FrameGoAway header bs ctx = do
     GoAwayFrame sid err msg <- guardIt $ decodeGoAwayFrame header bs
     if err == NoError
-        then E.throwIO ConnectionIsClosed
+        then do
+            first <- goingAway ctx sid
+            -- The receiver goes on reading for the streams left, and stops
+            -- the way it does when the peer closes the connection, once
+            -- they are done.
+            when first $ do
+                receiver <- myThreadId
+                T.forkManaged (threadManager ctx) "H2 draining after GOAWAY" $ do
+                    atomically $ drained ctx
+                    E.throwTo receiver ConnectionIsClosed
         else E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 control FrameWindowUpdate header bs ctx = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs

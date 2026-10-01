@@ -357,6 +357,41 @@ spec = do
                 threadDelay 10000
                 timeout 5000000 goAwayLastStream `shouldReturn` Just (Just (3, ProtocolError))
 
+        it "finishes what the server will still answer after its GOAWAY" $
+            -- RFC 9113, section 6.8: a GOAWAY with NO_ERROR and last stream 1
+            -- says stream 1 will still be answered, stream 3 will not.  The
+            -- client used to close the connection as soon as it came,
+            -- failing both, and the client function with them.
+            E.bracket (forkIO runGoAwayServer) killThread $ \_ -> do
+                threadDelay 10000
+                r <- timeout 5000000 $ E.try $ runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ -> do
+                            let get = E.try . flip sendRequest readAll . C.requestNoBody methodGet "/" $ []
+                                readAll rsp = do
+                                    bs <- C.getResponseBodyChunk rsp
+                                    if B.null bs then return "" else (bs <>) <$> readAll rsp
+                            (r1, r3) <- concurrently get (threadDelay 50000 >> get)
+                            -- By now the connection has run its course,
+                            -- and the client function goes on: nothing new
+                            -- goes out, and it is not killed either.
+                            threadDelay 100000
+                            r5 <- get
+                            return (status r1, status r3, status r5)
+                case r of
+                    Just (Right rs) -> rs `shouldBe` ("hello", "closed", "closed")
+                    Just (Left e) -> expectationFailure $ show (e :: C.HTTP2Error)
+                    Nothing -> expectationFailure "timed out"
+
+        it "answers the requests it has after the client's GOAWAY" $
+            -- A client's GOAWAY speaks of the server's own streams, and
+            -- the requests it has already sent are still to be answered.
+            -- The server used to close the connection on it at once.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 goAwayFromClient
+                    `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
+
         it "sends a PUSH_PROMISE before the response that carries it" $
             -- /push answers with a push of /push-pp, so a request for
             -- /push-pp after it is served from the push.  The server used to
@@ -547,10 +582,89 @@ runFakeServer prefaceVar = do
         -- socket on its end
         threadDelay 10000
 
+-- | Answering two requests with a GOAWAY that leaves out the second: the
+-- headers of the first response, GOAWAY(NO_ERROR) with last stream 1, and
+-- the rest of the first response a little later.
+runGoAwayServer :: IO ()
+runGoAwayServer = runTCPServer (Just host) port $ \s -> do
+    _ <- recvAll s (B.length connectionPreface)
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let awaitRequests :: Int -> IO ()
+        awaitRequests 2 = return ()
+        awaitRequests n = do
+            mf <- recvFrame s
+            case mf of
+                Nothing -> return ()
+                Just (FrameSettings, fh, _)
+                    | not (testAck (flags fh)) -> do
+                        sendAll s $
+                            encodeFrame (EncodeInfo (setAck defaultFlags) 0 Nothing) $
+                                SettingsFrame []
+                        awaitRequests n
+                Just (FrameHeaders, _, _) -> awaitRequests (n + 1)
+                Just _ -> awaitRequests n
+    awaitRequests 0
+    sendAll s $
+        encodeFrame (EncodeInfo (setEndHeader defaultFlags) 1 Nothing) $
+            HeadersFrame Nothing $
+                hpackEncode [(":status", "200")]
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            GoAwayFrame 1 NoError "going"
+    threadDelay 200000
+    sendAll s $
+        encodeFrame (EncodeInfo (setEndStream defaultFlags) 1 Nothing) $
+            DataFrame "hello"
+    -- Until the client closes it.
+    let drain = recvFrame s >>= maybe (return ()) (const drain)
+    drain
+
+-- | How a request through the client ended: the body, or "closed" for
+-- 'ConnectionIsClosed'.
+status :: Either C.HTTP2Error ByteString -> ByteString
+status (Right bs) = bs
+status (Left C.ConnectionIsClosed) = "closed"
+status (Left e) = C8.pack $ show e
+
+-- | A request for /slow, then GOAWAY(NO_ERROR) at once.  What the server
+-- sends from then on until it closes the connection.
+goAwayFromClient :: IO [String]
+goAwayFromClient = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    sendAll s $
+        encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) 1 Nothing) $
+            HeadersFrame Nothing $
+                hpackEncode
+                    [ (":scheme", "http")
+                    , (":authority", "127.0.0.1")
+                    , (":path", "/slow")
+                    , (":method", "GET")
+                    ]
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            GoAwayFrame 0 NoError "going"
+    collect s
+  where
+    collect s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just (FrameHeaders, fh, _) -> (("HEADERS " ++ show (streamId fh)) :) <$> collect s
+            Just (FrameData, fh, _)
+                | testEndStream (flags fh) ->
+                    (("DATA " ++ show (streamId fh) ++ " END_STREAM") :) <$> collect s
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    (("GOAWAY " ++ show err) :) <$> collect s
+            Just _ -> collect s
+
 server :: Server
 server req aux sendResponse = case requestMethod req of
     Just "GET" -> case requestPath req of
         Just "/" -> sendResponse responseHello []
+        -- A moment before the answer.
+        Just "/slow" -> threadDelay 200000 >> sendResponse responseHello []
         Just "/early" -> do
             auxSendInformational
                 aux
@@ -1306,6 +1420,17 @@ idlePriority = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return $ Just $ "GOAWAY " ++ show err
             Just _ -> answer s sid
+
+-- | Exactly so many octets off a raw connection, or fewer once it is closed.
+recvAll :: Socket -> Int -> IO ByteString
+recvAll s n0 = go n0 []
+  where
+    go 0 acc = return $ B.concat $ reverse acc
+    go k acc = do
+        bs <- recv s k
+        if B.null bs
+            then return $ B.concat $ reverse acc
+            else go (k - B.length bs) (bs : acc)
 
 -- | One frame off a raw connection, or 'Nothing' once it is closed.
 recvFrame :: Socket -> IO (Maybe (FrameType, FrameHeader, ByteString))
