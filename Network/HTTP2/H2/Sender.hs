@@ -89,23 +89,29 @@ frameSender
     ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
     Config{..} = do
         labelMe "H2 sender"
+        -- DATA that has to wait for the connection window, in the order it
+        -- came: see 'dequeue'.
+        parked <- newTVarIO []
         -- This catches an asynchronous exception.
         -- It is re-thrown by "runH2"
-        loop 0 `E.catch` return
+        loop parked 0 `E.catch` return
       where
         ----------------------------------------------------------------
-        loop :: Offset -> IO E.SomeException
-        loop off = do
+        loop :: TVar [Output] -> Offset -> IO E.SomeException
+        loop parked off = do
             mDone <- checkDone ctx off
             case mDone of
                 Just done ->
                     return done
                 Nothing -> do
-                    x <- atomically $ dequeue off
+                    x <- atomically $ dequeue parked off
                     case x of
-                        C ctl -> flushN off >> control ctl >> loop 0
-                        O out -> outputAndSync out off >>= flushIfNecessary >>= loop
-                        Flush -> flushN off >> loop 0
+                        C ctl -> flushN off >> control ctl >> loop parked 0
+                        O out ->
+                            outputAndSync parked out off
+                                >>= flushIfNecessary
+                                >>= loop parked
+                        Flush -> flushN off >> loop parked 0
 
         -- Flush the connection buffer to the socket, where the first 'n' bytes of
         -- the buffer are filled.
@@ -122,17 +128,31 @@ frameSender
                     flushN off
                     return 0
 
-        dequeue :: Offset -> STM Switch
-        dequeue off = do
+        -- Only DATA is flow-controlled (RFC 9113, section 6.9), so only DATA
+        -- waits for the connection window.  The whole output queue used to:
+        -- with the window shut, no HEADERS, PUSH_PROMISE or RST_STREAM went
+        -- out either, on any stream -- not even the response to a request
+        -- that has no body, or the reset that would have freed some of the
+        -- window.  Now outputs are taken as they come, and DATA there is no
+        -- connection window for is parked ('outputAndSync') and goes out,
+        -- first and in order, once there is.
+        dequeue :: TVar [Output] -> Offset -> STM Switch
+        dequeue parked off = do
             isEmptyC <- isEmptyTQueue controlQ
             if isEmptyC
                 then do
-                    -- FLOW CONTROL: WINDOW_UPDATE 0: send: respecting peer's limit
-                    waitConnectionWindowSize ctx
-                    isEmptyO <- isEmptyTQueue outputQ
-                    if isEmptyO
-                        then if off /= 0 then return Flush else retry
-                        else O <$> readTQueue outputQ
+                    ps <- readTVar parked
+                    cws <- connectionWindowSizeSTM ctx
+                    case ps of
+                        -- FLOW CONTROL: WINDOW_UPDATE 0: send: respecting peer's limit
+                        p : rest | cws > 0 -> do
+                            writeTVar parked rest
+                            return $ O p
+                        _ -> do
+                            isEmptyO <- isEmptyTQueue outputQ
+                            if isEmptyO
+                                then if off /= 0 then return Flush else retry
+                                else O <$> readTQueue outputQ
                 else C <$> readTQueue controlQ
 
         ----------------------------------------------------------------
@@ -169,10 +189,10 @@ frameSender
         --
         -- Both the stream window and the connection window are open.
         ----------------------------------------------------------------
-        outputAndSync :: Output -> Offset -> IO Offset
+        outputAndSync :: TVar [Output] -> Output -> Offset -> IO Offset
         -- "handler" catches an asynchronous exception and
         -- re-throws it.
-        outputAndSync out@(Output strm otyp sync) off = E.handle (handler strm off) $ do
+        outputAndSync parked out@(Output strm otyp sync) off = E.handle (handler strm off) $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then do
@@ -207,10 +227,15 @@ frameSender
                         return off
                     _ -> do
                         sws <- getStreamWindowSize strm
-                        cws <- getConnectionWindowSize ctx -- not 0
+                        cws <- getConnectionWindowSize ctx
                         let lim = min cws sws
                         case otyp of
                             ONext{}
+                                | cws <= 0 -> do
+                                    -- To wait for the connection window,
+                                    -- without holding up anything else.
+                                    atomically $ modifyTVar' parked (++ [out])
+                                    return off
                                 | lim <= 0 -> do
                                     -- No room for any of the body: the
                                     -- window was shut after this was queued
