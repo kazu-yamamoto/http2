@@ -638,6 +638,11 @@ stream
                     EnhanceYourCalm
                     streamId
                     "exceeds stream flow-control limit"
+        -- A push gives the connection window everything back now, padding
+        -- and all ('connectionCreditedOnArrival'); its stream window, and
+        -- any other stream's windows, as below.
+        when (connectionCreditedOnArrival streamId) $
+            giveBackConnectionWindow ctx payloadLength
         -- The padding is charged to both windows, as it must be, but it
         -- never reaches the reader, whose reading is what gives octets
         -- back ('readSource').  Left there, each padded frame shrank the
@@ -671,7 +676,9 @@ stream
                         else do
                             writeTQueue q $ Right (body, endOfStream)
                             return True
-                unless queued $ giveBackConnectionWindow ctx $ BS.length body
+                unless (queued || connectionCreditedOnArrival streamId) $
+                    giveBackConnectionWindow ctx $
+                        BS.length body
         if endOfStream
             then do
                 case mcl of
