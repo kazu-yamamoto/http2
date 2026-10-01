@@ -323,6 +323,30 @@ spec = do
                                 C.responseStatus rsp `shouldBe` Just ok200
                 r `shouldBe` Just ()
 
+        it "goes on when pushes nobody asks for fill the connection window" $
+            -- Each /push-big comes with a push of 20000 octets that is never
+            -- asked for.  With a connection window of 65535, the fourth push
+            -- used to find it used up by the first three, unread, and the
+            -- connection stalled, the responses to /push-big with it.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                let cconf =
+                        C.defaultClientConfig
+                            { C.authority = host
+                            , C.connectionWindowSize = defaultWindowSize
+                            }
+                r <- timeout 5000000 $ runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        C.run cconf conf $ \sendRequest _ ->
+                            replicateM_ 10 $
+                                sendRequest (C.requestNoBody methodGet "/push-big" []) $ \rsp -> do
+                                    C.responseStatus rsp `shouldBe` Just ok200
+                                    let body = do
+                                            bs <- C.getResponseBodyChunk rsp
+                                            unless (B.null bs) body
+                                    body
+                r `shouldBe` Just ()
+
         it "sends a PUSH_PROMISE before the response that carries it" $
             -- /push answers with a push of /push-pp, so a request for
             -- /push-pp after it is served from the push.  The server used to
@@ -537,6 +561,10 @@ server req aux sendResponse = case requestMethod req of
         Just "/push" -> do
             let pp = pushPromise "/push-pp" responsePP 0
             sendResponse responseHello [pp]
+        -- A push of 20000 octets.
+        Just "/push-big" -> do
+            let pp = pushPromise "/push-big-pp" responsePushBig 0
+            sendResponse responseHello [pp]
         _ -> sendResponse response404 []
     Just "POST" -> case requestPath req of
         Just "/echo" -> sendResponse (responseEcho req) []
@@ -594,6 +622,9 @@ responseHello = responseBuilder ok200 header body
 
 earlyHints103 :: Status
 earlyHints103 = mkStatus 103 "Early Hints"
+
+responsePushBig :: Response
+responsePushBig = responseBuilder ok200 [] $ byteString $ C8.replicate 20000 'p'
 
 responsePP :: Response
 responsePP = responseBuilder ok200 header body

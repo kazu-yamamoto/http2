@@ -68,14 +68,22 @@ decreaseWindowSize Context{txFlow} Stream{streamTxFlow} siz = do
 ----------------------------------------------------------------
 -- Sending window update
 
+-- | Whether a stream's DATA is given back to the connection window as it
+-- arrives, rather than as it is read.
+--
+-- So it is for pushes, the only streams of the server's we receive on.  A
+-- push is read only if a request for it comes along, and maybe never: held
+-- against the connection window until then, pushes that nobody asked for
+-- used it up, and the connection stalled, responses to requests and all.
+-- Their stream windows still hold back what each can send unread.
+connectionCreditedOnArrival :: StreamId -> Bool
+connectionCreditedOnArrival = isServerInitiated
+
 informWindowUpdate :: Context -> Stream -> Int -> IO ()
 informWindowUpdate _ _ 0 = return ()
-informWindowUpdate Context{controlQ, rxFlow} Stream{streamNumber, streamRxFlow} len = do
-    mxc <- atomicModifyIORef rxFlow $ maybeOpenRxWindow len FCTWindowUpdate
-    forM_ mxc $ \ws -> do
-        let frame = windowUpdateFrame 0 ws
-            cframe = CFrames Nothing [frame]
-        enqueueControl controlQ cframe
+informWindowUpdate ctx@Context{controlQ} Stream{streamNumber, streamRxFlow} len = do
+    unless (connectionCreditedOnArrival streamNumber) $
+        giveBackConnectionWindow ctx len
     mxs <- atomicModifyIORef streamRxFlow $ maybeOpenRxWindow len FCTWindowUpdate
     forM_ mxs $ \ws -> do
         let frame = windowUpdateFrame streamNumber ws
@@ -126,7 +134,10 @@ adjustRxWindow ctx stream = do
 -- receiver does not queue DATA for a closed stream ('stream'), but gives
 -- it back to the connection window itself.
 giveBackUnread :: Context -> Stream -> IO ()
-giveBackUnread ctx stream = takeUnread stream >>= giveBackConnectionWindow ctx
+giveBackUnread ctx stream = do
+    len <- takeUnread stream
+    unless (connectionCreditedOnArrival $ streamNumber stream) $
+        giveBackConnectionWindow ctx len
 
 -- | Take what is left unread in a stream's queue, and say how many octets
 -- of body it was.
