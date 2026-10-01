@@ -289,6 +289,31 @@ halfClosedLocal ctx stream@Stream{streamState} cc = do
     closeHalf (Open Nothing o) = (False, Open (Just cc) o)
     closeHalf _ = (False, Open (Just cc) JustOpened)
 
+-- | Closing a stream whose response is still coming in, and saying
+-- whether it was.
+--
+-- Decided and done in one transaction, so that a stream the peer finishes
+-- meanwhile is not taken for one still open.  A response whose END_STREAM
+-- the receiver has already queued, and not yet recorded in the state, can
+-- still be taken for one coming in; the reset that follows is one RFC 9113
+-- section 5.1 has the peer ignore ("for a short period after a DATA or
+-- HEADERS frame containing an END_STREAM flag is sent").
+closeIfReceiving :: Context -> Stream -> ClosedCode -> IO Bool
+closeIfReceiving ctx strm@Stream{streamNumber, streamState} cc = do
+    receiving <- atomically $ do
+        st <- readTVar streamState
+        case st of
+            -- END_STREAM came with the headers.
+            Open _ (NoBody _) -> return False
+            Open{} -> do
+                informReplaced streamNumber st (Closed cc)
+                writeTVar streamState (Closed cc)
+                return True
+            _otherwise -> return False
+    -- Out of the stream table, giving its concurrency slot back.
+    when receiving $ closed ctx strm cc
+    return receiving
+
 closed :: Context -> Stream -> ClosedCode -> IO ()
 closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc = do
     if isServerInitiated streamNumber

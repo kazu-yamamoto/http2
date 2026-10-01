@@ -300,6 +300,29 @@ spec = do
                 threadDelay 10000
                 timeout 5000000 pushNoRoom `shouldReturn` Just (Just "HEADERS")
 
+        it "frees the stream of a response the client did not read to the end" $
+            -- /endless never ends.  Each request here reads one chunk of it
+            -- and is done, by returning or by throwing.  Its stream used to
+            -- stay open, holding one of the server's 64 slots, with what the
+            -- server sent never given back to the connection window: the
+            -- 65th request waited for a slot for ever.  Now each is reset,
+            -- 70 in a burst, which takes a server allowing more resets a
+            -- second than the default.
+            E.bracket (forkIO runServerManyResets) killThread $ \_ -> do
+                threadDelay 10000
+                r <- timeout 10000000 $ runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        C.run C.defaultClientConfig{C.authority = host} conf $ \sendRequest _ -> do
+                            forM_ [1 .. 70 :: Int] $ \i -> do
+                                let abandon rsp = do
+                                        _ <- C.getResponseBodyChunk rsp
+                                        when (even i) $ E.throwIO $ userError "done with it"
+                                r <- E.try $ sendRequest (C.requestNoBody methodGet "/endless" []) abandon
+                                either (\e -> const (return ()) (e :: E.IOException)) return r
+                            sendRequest (C.requestNoBody methodGet "/" []) $ \rsp ->
+                                C.responseStatus rsp `shouldBe` Just ok200
+                r `shouldBe` Just ()
+
         it "sends a PUSH_PROMISE before the response that carries it" $
             -- /push answers with a push of /push-pp, so a request for
             -- /push-pp after it is served from the push.  The server used to
@@ -426,6 +449,20 @@ runServerSmallConnWindow = runTCPServer (Just host) port runHTTP2Server
             freeSimpleConfig
             (\conf -> run sconf conf server)
 
+-- | Like 'runServer', but allowing a client to reset 1000 streams a second.
+runServerManyResets :: IO ()
+runServerManyResets = runTCPServer (Just host) port runHTTP2Server
+  where
+    sconf =
+        defaultServerConfig
+            { settings = (settings defaultServerConfig){rstRateLimit = 1000}
+            }
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> run sconf conf server)
+
 runServerMaxConc1 :: IO ()
 runServerMaxConc1 = runTCPServer (Just host) port runHTTP2Server
   where
@@ -491,6 +528,8 @@ server req aux sendResponse = case requestMethod req of
                 [("link", "</app.js>; rel=preload; as=script")]
             sendResponse responseHello []
         Just "/stream" -> sendResponse responseInfinite []
+        -- Like /stream, but going quietly once the client resets it.
+        Just "/endless" -> sendResponse responseEndless []
         Just "/not-modified" -> sendResponse (responseNoBody notModified304 bigLength) []
         -- Says it has content, and has none: malformed.
         Just "/no-content" -> sendResponse (responseNoBody ok200 bigLength) []
@@ -570,6 +609,15 @@ responsePP = responseBuilder ok200 header body
 responseBoth :: Response
 responseBoth = responseStreaming ok200 [] $ \write flush ->
     replicateM_ 50 $ write (byteString (C8.replicate 50 'b')) >> flush
+
+responseEndless :: Response
+responseEndless = responseStreaming ok200 [] body
+  where
+    body :: (Builder -> IO ()) -> IO () -> IO ()
+    body write flush = forever (write (byteString chunk) *> flush) `E.catch` quiet
+    chunk = C8.replicate 1024 'x'
+    quiet :: E.SomeException -> IO ()
+    quiet _ = return ()
 
 responseInfinite :: Response
 responseInfinite = responseStreaming ok200 header body
