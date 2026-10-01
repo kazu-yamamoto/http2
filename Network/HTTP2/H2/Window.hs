@@ -30,6 +30,9 @@ waitStreamWindowSize Stream{streamTxFlow} = atomically $ do
     w <- txWindowSize <$> readTVar streamTxFlow
     check (w > 0)
 
+connectionWindowSizeSTM :: Context -> STM WindowSize
+connectionWindowSizeSTM Context{txFlow} = txWindowSize <$> readTVar txFlow
+
 waitConnectionWindowSize :: Context -> STM ()
 waitConnectionWindowSize Context{txFlow} = do
     w <- txWindowSize <$> readTVar txFlow

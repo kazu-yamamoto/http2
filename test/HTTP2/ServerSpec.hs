@@ -401,6 +401,15 @@ spec = do
                 timeout 5000000 malformedRequest
                     `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
 
+        it "answers without a body while the connection window is shut" $
+            -- HEADERS are not flow-controlled (RFC 9113, section 6.9).  The
+            -- sender used to wait for the connection window before taking
+            -- anything off its queue, so once /endless had used it up, the
+            -- response to a request with no body never went out.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 shutWindow `shouldReturn` Just (Just "HEADERS 3, then DATA 1")
+
         it "sends a PUSH_PROMISE before the response that carries it" $
             -- /push answers with a push of /push-pp, so a request for
             -- /push-pp after it is served from the push.  The server used to
@@ -1425,6 +1434,65 @@ malformedRequest = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return ["GOAWAY " ++ show err]
             Just _ -> collect s
+
+-- | /endless until the server has used up the connection window, which we
+-- do not open, then a request whose answer has no body: what the server
+-- sends for it.  Then the windows opened a little: whether the body held
+-- back goes on.
+shutWindow :: IO (Maybe String)
+shutWindow = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let request sid path =
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", path)
+                        , (":method", "GET")
+                        ]
+    sendAll s $ request 1 "/endless"
+    used <- untilShut s 0
+    if not used
+        then return Nothing
+        else do
+            sendAll s $ request 3 "/not-modified"
+            ma <- answer s
+            case ma of
+                Just "HEADERS 3" -> do
+                    forM_ [0, 1] $ \sid ->
+                        sendAll s $
+                            encodeFrame (EncodeInfo defaultFlags sid Nothing) $
+                                WindowUpdateFrame 1000
+                    fmap ("HEADERS 3, then " ++) <$> resumed s
+                _ -> return ma
+  where
+    resumed s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameData, fh, _)
+                | streamId fh == 1 -> return $ Just "DATA 1"
+            Just _ -> resumed s
+    untilShut s n
+        | n >= defaultWindowSize = return True
+        | otherwise = do
+            mf <- recvFrame s
+            case mf of
+                Nothing -> return False
+                Just (FrameData, fh, _) -> untilShut s (n + payloadLength fh)
+                Just _ -> untilShut s n
+    answer s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameHeaders, fh, _)
+                | streamId fh == 3 -> return $ Just "HEADERS 3"
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return $ Just $ "GOAWAY " ++ show err
+            Just _ -> answer s
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.
 -- What the server answers the request with.
