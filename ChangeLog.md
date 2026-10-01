@@ -1,5 +1,57 @@
 # ChangeLog for http2
 
+## 5.4.7
+
+* A valid request could close the whole connection, with every other
+  stream on it:
+  - a Huffman-coded field value longer than 4096 octets, such as a long
+    token in `authorization`, was taken for a truncated block
+    [#201](https://github.com/kazu-yamamoto/http2/pull/201);
+  - so was a header block with no fields, which is what empty trailers
+    are sent as [#202](https://github.com/kazu-yamamoto/http2/pull/202);
+  - a malformed field (an upper-case name, a pseudo-header out of place,
+    more than 200 fields) left the rest of its block undecoded, and the
+    HPACK tables out of step.  The block is now decoded to the end and the
+    message refused with RST_STREAM(PROTOCOL_ERROR) on its stream alone
+    (RFC 9113, section 8.1.1).
+    [#211](https://github.com/kazu-yamamoto/http2/pull/211)
+* Flow control lost octets, so that a long-lived connection could stall:
+  - the padding of DATA frames was charged to both windows and never
+    given back [#204](https://github.com/kazu-yamamoto/http2/pull/204);
+  - DATA refused on a stream in the wrong state, or ignored on a stream we
+    had reset, was not charged to the connection window, though the peer
+    had charged it [#205](https://github.com/kazu-yamamoto/http2/pull/205);
+  - on a client, the rest of a response that `processResponse` did not
+    read to the end, or that it threw on, was never given back, and its
+    stream held a slot of the server's SETTINGS_MAX_CONCURRENT_STREAMS.
+    Such a stream is now reset with CANCEL.
+    [#207](https://github.com/kazu-yamamoto/http2/pull/207)
+  - on a client, the DATA of a push nobody asked for was held against the
+    connection window for good.  Pushes now give it back as it arrives.
+    [#208](https://github.com/kazu-yamamoto/http2/pull/208)
+* A padded body that matched its content-length was reset as malformed:
+  the padding was counted into its length.
+  [#203](https://github.com/kazu-yamamoto/http2/pull/203)
+* A response carrying a push waited for ever when the client announced
+  SETTINGS_MAX_CONCURRENT_STREAMS of 0, the way to refuse pushes.  A push
+  there is no room for is now not made.
+  [#206](https://github.com/kazu-yamamoto/http2/pull/206)
+* GOAWAY:
+  - the last stream identifier of the server's GOAWAY left out streams
+    whose handlers were still running, so a client could send again a
+    request that had been acted on
+    [#209](https://github.com/kazu-yamamoto/http2/pull/209);
+  - a GOAWAY with NO_ERROR closed the connection at once, failing every
+    stream in flight.  Streams up to its last stream identifier now go
+    on, those above it fail with `ConnectionIsClosed`, no new stream is
+    opened, and the connection closes once nothing is left; on a client,
+    the client function is let finish.
+    [#210](https://github.com/kazu-yamamoto/http2/pull/210)
+* With the connection window shut, nothing went out at all, though only
+  DATA is flow-controlled: not the response to a request with no body,
+  not RST_STREAM.  DATA now waits for the window on its own.
+  [#212](https://github.com/kazu-yamamoto/http2/pull/212)
+
 ## 5.4.6
 
 * Security: a regression in 5.4.5. Since stream errors reset the stream
