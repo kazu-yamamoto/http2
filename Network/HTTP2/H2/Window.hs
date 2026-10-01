@@ -92,7 +92,7 @@ informWindowUpdate Context{controlQ, rxFlow} Stream{streamNumber, streamRxFlow} 
 -- charge them and give them straight back.
 informIgnoredData :: Context -> StreamId -> Int -> IO ()
 informIgnoredData _ _ 0 = return ()
-informIgnoredData Context{controlQ, rxFlow} sid len = do
+informIgnoredData ctx@Context{rxFlow} sid len = do
     ok <- atomicModifyIORef' rxFlow $ checkRxLimit len
     unless ok $
         E.throwIO $
@@ -100,6 +100,14 @@ informIgnoredData Context{controlQ, rxFlow} sid len = do
                 EnhanceYourCalm
                 sid
                 "exceeds connection flow-control limit"
+    giveBackConnectionWindow ctx len
+
+-- | Give octets already charged to the connection window back to it, and to
+-- it alone: for a stream that is closed, whose own window no longer
+-- matters.
+giveBackConnectionWindow :: Context -> Int -> IO ()
+giveBackConnectionWindow _ 0 = return ()
+giveBackConnectionWindow Context{controlQ, rxFlow} len = do
     mxc <- atomicModifyIORef rxFlow $ maybeOpenRxWindow len FCTWindowUpdate
     forM_ mxc $ \ws ->
         enqueueControl controlQ $ CFrames Nothing [windowUpdateFrame 0 ws]
@@ -107,22 +115,34 @@ informIgnoredData Context{controlQ, rxFlow} sid len = do
 -- This must be called after an application is finished
 -- to adjust RX window.
 adjustRxWindow :: Context -> Stream -> IO ()
-adjustRxWindow ctx stream@Stream{streamRxQ} = do
+adjustRxWindow ctx stream = do
+    len <- takeUnread stream
+    informWindowUpdate ctx stream len
+
+-- | Like 'adjustRxWindow', for a stream that has been closed: what was
+-- left unread goes back to the connection window only.
+--
+-- Closed first, so that nothing is queued after this has looked: the
+-- receiver does not queue DATA for a closed stream ('stream'), but gives
+-- it back to the connection window itself.
+giveBackUnread :: Context -> Stream -> IO ()
+giveBackUnread ctx stream = takeUnread stream >>= giveBackConnectionWindow ctx
+
+-- | Take what is left unread in a stream's queue, and say how many octets
+-- of body it was.
+takeUnread :: Stream -> IO Int
+takeUnread Stream{streamRxQ} = do
     mq <- readIORef streamRxQ
     case mq of
-        Nothing -> return ()
-        Just q -> do
-            len <- readQ q
-            informWindowUpdate ctx stream len
+        Nothing -> return 0
+        Just q -> atomically $ loop q 0
   where
-    readQ q = atomically $ loop 0
-      where
-        loop !total = do
-            meb <- tryReadTQueue q
-            case meb of
-                Just (Right (bs, _)) -> loop (total + BS.length bs)
-                Just le@(Left _) -> do
-                    -- reserving HTTP2Error
-                    writeTQueue q le
-                    return total
-                _ -> return total
+    loop q !total = do
+        meb <- tryReadTQueue q
+        case meb of
+            Just (Right (bs, _)) -> loop q (total + BS.length bs)
+            Just le@(Left _) -> do
+                -- reserving HTTP2Error
+                writeTQueue q le
+                return total
+            _ -> return total

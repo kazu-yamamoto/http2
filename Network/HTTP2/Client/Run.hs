@@ -95,9 +95,7 @@ run cconf@ClientConfig{..} conf client = do
             Nothing -> return ()
             Just outobj -> sendRequest conf ctx strm outobj False
         rsp <- getResponse strm
-        x <- processResponse rsp
-        adjustRxWindow ctx strm
-        return x
+        processResponse rsp `E.finally` doneWithStream ctx strm
     runClient ctx = client (clientCore ctx) $ aux ctx
 
 -- | Launching a receiver and a sender.
@@ -116,6 +114,26 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
     runH2 conf ctx runClient
+
+-- | Called once 'processResponse' is done with a stream, however it ended.
+--
+-- A response it did not read to the end left its stream open.  The server
+-- went on sending the rest of the body, which nobody would read: it held
+-- the stream's slot of the server's SETTINGS_MAX_CONCURRENT_STREAMS, and
+-- the octets that came in were never given back to the connection window.
+-- Enough such requests, or ones whose 'processResponse' threw, and new
+-- requests waited for a slot, or the connection stalled.  So such a stream
+-- is reset (CANCEL), and what was left of its body is given back.
+doneWithStream :: Context -> Stream -> IO ()
+doneWithStream ctx strm = do
+    cancelled <-
+        closeIfReceiving ctx strm $ ResetByMe $ E.toException CancelledStream
+    if cancelled
+        then do
+            enqueueControl (controlQ ctx) $
+                CFrames Nothing [resetFrame Cancel $ streamNumber strm]
+            giveBackUnread ctx strm
+        else adjustRxWindow ctx strm
 
 getResponse :: Stream -> IO Response
 getResponse strm = do

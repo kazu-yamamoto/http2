@@ -658,7 +658,20 @@ stream
                     E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty data"
             else do
                 writeIORef bodyLength len
-                atomically $ writeTQueue q $ Right (body, endOfStream)
+                -- Not for a stream closed since its state was read, by
+                -- a reader that has done with it ('giveBackUnread') or a
+                -- reset of ours: nothing would ever read it, or give it
+                -- back to the connection window.  Checked in the same
+                -- transaction, so that a closer that has emptied the
+                -- queue finds nothing put in after it.
+                queued <- atomically $ do
+                    st <- readTVar streamState
+                    if isClosed st
+                        then return False
+                        else do
+                            writeTQueue q $ Right (body, endOfStream)
+                            return True
+                unless queued $ giveBackConnectionWindow ctx $ BS.length body
         if endOfStream
             then do
                 case mcl of
