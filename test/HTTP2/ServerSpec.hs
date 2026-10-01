@@ -347,6 +347,16 @@ spec = do
                                     body
                 r `shouldBe` Just ()
 
+        it "counts streams whose handlers are running in its GOAWAY" $
+            -- RFC 9113, section 6.8: the last stream identifier is the
+            -- highest one that "might have been processed".  Streams 1 and
+            -- 3 are being answered when the connection is closed, and used
+            -- to be left out until their handlers had returned, so the
+            -- GOAWAY said 0: as if the client could send them again.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 goAwayLastStream `shouldReturn` Just (Just (3, ProtocolError))
+
         it "sends a PUSH_PROMISE before the response that carries it" $
             -- /push answers with a push of /push-pp, so a request for
             -- /push-pp after it is served from the push.  The server used to
@@ -1226,6 +1236,38 @@ pushNoRoom = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return $ Just $ "GOAWAY " ++ show err
             Just _ -> answer s sid
+
+-- | Two requests that are answered for ever, then SETTINGS that are a
+-- connection error.  The last stream identifier and the error of the
+-- server's GOAWAY.
+goAwayLastStream :: IO (Maybe (StreamId, ErrorCode))
+goAwayLastStream = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    forM_ [1, 3] $ \sid ->
+        sendAll s $
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", "/endless")
+                        , (":method", "GET")
+                        ]
+    -- SETTINGS_ENABLE_PUSH can only be 0 or 1.
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            SettingsFrame [(SettingsEnablePush, 2)]
+    answer s
+  where
+    answer s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return Nothing
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame sid err _) <- decodeGoAwayFrame fh p ->
+                    return $ Just (sid, err)
+            Just _ -> answer s
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.
 -- What the server answers the request with.

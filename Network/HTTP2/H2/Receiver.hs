@@ -296,7 +296,7 @@ hasNoContent ctx Stream{streamRequestMethod} vt
 
 processState :: StreamState -> Context -> Stream -> StreamId -> IO ()
 -- Transition (process1)
-processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput} streamId = do
+processState (Open _ (NoBody tbl@(_, reqvt))) ctx strm@Stream{streamInput} streamId = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (isServer ctx) $ checkOddConcurrency ctx streamId
     noContent <- hasNoContent ctx strm reqvt
@@ -311,13 +311,12 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{stream
     let inpObj = InpObj tbl (Just 0) (return (mempty, True)) tlr
     if isServer ctx
         then do
-            let ServerInfo{..} = toServerInfo roleInfo
-            launch ctx strm inpObj
+            launchHandler ctx strm inpObj
         else putMVar streamInput $ Right inpObj
     halfClosedRemote ctx strm
 
 -- Transition (process2)
-processState (Open _ (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{streamInput, streamRxQ} _streamId = do
+processState (Open _ (HasBody tbl@(_, reqvt))) ctx strm@Stream{streamInput, streamRxQ} _streamId = do
     -- My SETTINGS_MAX_CONCURRENT_STREAMS
     when (isServer ctx) $ checkOddConcurrency ctx _streamId
     noContent <- hasNoContent ctx strm reqvt
@@ -336,8 +335,7 @@ processState (Open _ (HasBody tbl@(_, reqvt))) ctx@Context{..} strm@Stream{strea
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx
         then do
-            let ServerInfo{..} = toServerInfo roleInfo
-            launch ctx strm inpObj
+            launchHandler ctx strm inpObj
         else putMVar streamInput $ Right inpObj
 
 -- Transition (process4)
@@ -355,6 +353,21 @@ processState (Open _ o) ctx strm _streamId =
 processState s ctx strm _streamId = do
     -- Idle
     setStreamState ctx strm s
+
+-- | Handing a request to the server's handler.
+--
+-- The stream counts towards the last stream identifier of our GOAWAY from
+-- here on: from now its request "might have been processed" (RFC 9113,
+-- section 6.8), and a client is free to retry, on another connection, any
+-- request on a stream above it.  It used to be counted once the handler
+-- had returned, so a GOAWAY sent while handlers were running left their
+-- streams out, and a client could send again a request -- a POST, say --
+-- that had been acted on.
+launchHandler :: Context -> Stream -> InpObj -> IO ()
+launchHandler ctx@Context{roleInfo} strm inpObj = do
+    modifyPeerLastStreamId ctx $ streamNumber strm
+    let ServerInfo{..} = toServerInfo roleInfo
+    launch ctx strm inpObj
 
 ----------------------------------------------------------------
 
