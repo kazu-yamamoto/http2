@@ -56,6 +56,11 @@ decodeHeader dyntbl inp = decodeHPACK dyntbl inp (decodeSimple (toTokenHeader dy
 --     'IllegalHeaderName' is thrown.
 --   * If a header key contains capital letters,
 --     'IllegalHeaderName' is thrown.
+--   * If the number of header fields is too large,
+--     'TooLargeHeader' is thrown.
+--   * 'IllegalHeaderName' and 'TooLargeHeader' are thrown only once the
+--     whole block has been decoded, so that the dynamic table is up to
+--     date: the message is malformed, not the block.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
 decodeTokenHeader
     :: DynamicTable
@@ -129,6 +134,9 @@ headerLimit = 200
 --     'IllegalHeaderName' is thrown.
 --   * If the number of header fields is too large,
 --     'TooLargeHeader' is thrown
+--   * 'IllegalHeaderName' and 'TooLargeHeader' are thrown only once the
+--     whole block has been decoded, so that the dynamic table is up to
+--     date: the message is malformed, not the block.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
 decodeSophisticated
     :: (Word8 -> ReadBuffer -> IO TokenHeader)
@@ -154,34 +162,34 @@ decodeSophisticated decTokenHeader rbuf = do
                         then do
                             mx <- unsafeRead arr tokenIx
                             -- duplicated
-                            when (isJust mx) $ E.throwIO IllegalHeaderName
+                            when (isJust mx) $ malformed IllegalHeaderName
                             -- unknown
-                            when (isMaxTokenIx tokenIx) $ E.throwIO IllegalHeaderName
+                            when (isMaxTokenIx tokenIx) $ malformed IllegalHeaderName
                             unsafeWrite arr tokenIx (Just v)
                             pseudo
                         else do
                             -- 0-Length Headers Leak - CVE-2019-9516
-                            when (tokenKey == "") $ E.throwIO IllegalHeaderName
+                            when (tokenKey == "") $ malformed IllegalHeaderName
                             when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
-                                E.throwIO IllegalHeaderName
+                                malformed IllegalHeaderName
                             unsafeWrite arr tokenIx (Just v)
                             if isCookieTokenIx tokenIx
                                 then normal 0 empty (empty << v)
                                 else normal 0 (empty << tv) empty
                 else return []
         normal n builder cookie
-            | n > headerLimit = E.throwIO TooLargeHeader
+            | n > headerLimit = malformed TooLargeHeader
             | otherwise = do
                 leftover <- remainingSize rbuf
                 if leftover >= 1
                     then do
                         w <- read8 rbuf
                         tv@(Token{..}, v) <- decTokenHeader w rbuf
-                        when isPseudo $ E.throwIO IllegalHeaderName
+                        when isPseudo $ malformed IllegalHeaderName
                         -- 0-Length Headers Leak - CVE-2019-9516
-                        when (tokenKey == "") $ E.throwIO IllegalHeaderName
+                        when (tokenKey == "") $ malformed IllegalHeaderName
                         when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
-                            E.throwIO IllegalHeaderName
+                            malformed IllegalHeaderName
                         unsafeWrite arr tokenIx (Just v)
                         if isCookieTokenIx tokenIx
                             then normal (n + 1) builder (cookie << v)
@@ -196,6 +204,22 @@ decodeSophisticated decTokenHeader rbuf = do
                                     tvs = (tokenCookie, v) : tvs0
                                 unsafeWrite arr cookieTokenIx (Just v)
                                 return tvs
+
+    -- A field that makes the message malformed, as opposed to the block.
+    -- The rest of the block is decoded all the same, and only then is the
+    -- error thrown: every field of it may change the dynamic table, and one
+    -- left undecoded leaves our table out of step with the peer's encoder,
+    -- so that nothing after it on the connection decodes.  So decoded, a
+    -- malformed message can be refused on its own (RFC 9113, section 8.1.1:
+    -- a stream error), rather than with the connection.
+    malformed :: DecodeError -> IO a
+    malformed err = skipRest >> E.throwIO err
+    skipRest = do
+        leftover <- remainingSize rbuf
+        when (leftover >= 1) $ do
+            w <- read8 rbuf
+            _ <- decTokenHeader w rbuf
+            skipRest
 
 toTokenHeader :: DynamicTable -> Word8 -> ReadBuffer -> IO TokenHeader
 toTokenHeader dyntbl w rbuf

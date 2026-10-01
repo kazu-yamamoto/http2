@@ -392,6 +392,15 @@ spec = do
                 timeout 5000000 goAwayFromClient
                     `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
 
+        it "resets a malformed request and goes on serving the connection" $
+            -- An upper-case field name makes the request malformed: a
+            -- stream error (RFC 9113, section 8.1.1).  It used to close the
+            -- connection, and the next request on it went unanswered.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 malformedRequest
+                    `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
+
         it "sends a PUSH_PROMISE before the response that carries it" $
             -- /push answers with a push of /push-pp, so a request for
             -- /push-pp after it is served from the push.  The server used to
@@ -1382,6 +1391,40 @@ goAwayLastStream = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame sid err _) <- decodeGoAwayFrame fh p ->
                     return $ Just (sid, err)
             Just _ -> answer s
+
+-- | A request with an upper-case field name on stream 1, then a good one
+-- on stream 3.  What the server sends on them, up to the answer on 3.
+malformedRequest :: IO [String]
+malformedRequest = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let request sid extra =
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode $
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", "/")
+                        , (":method", "GET")
+                        ]
+                            ++ extra
+    sendAll s $ request 1 [("X-Upper", "1")]
+    sendAll s $ request 3 []
+    collect s
+  where
+    collect s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just (FrameHeaders, fh, _)
+                | streamId fh == 3 -> return ["HEADERS 3"]
+            Just (FrameRSTStream, fh, p)
+                | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
+                    (("RST_STREAM " ++ show (streamId fh) ++ " " ++ show err) :) <$> collect s
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return ["GOAWAY " ++ show err]
+            Just _ -> collect s
 
 -- | PRIORITY frames for 100 streams that are never opened, then a request.
 -- What the server answers the request with.
