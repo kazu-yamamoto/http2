@@ -32,14 +32,14 @@ spec = do
             -- Six octets is the smallest payload the header check accepts for
             -- PADDED and PRIORITY together, and a Pad Length of five leaves
             -- none of the five priority octets behind.
-            let flags = setPadded $ setPriority defaultFlags
-                header = FrameHeader 6 flags 1
+            let flags' = setPadded $ setPriority defaultFlags
+                header = FrameHeader 6 flags' 1
             decodeError FrameHeaders header (BS.pack [5, 0, 0, 0, 0, 0])
                 `shouldBe` Just FrameSizeError
 
         it "rejects a padded PUSH_PROMISE whose padding covers the promised id" $ do
-            let flags = setPadded defaultFlags
-                header = FrameHeader 5 flags 1
+            let flags' = setPadded defaultFlags
+                header = FrameHeader 5 flags' 1
             decodeError FramePushPromise header (BS.pack [4, 0, 0, 0, 0])
                 `shouldBe` Just FrameSizeError
 

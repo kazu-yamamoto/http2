@@ -575,7 +575,7 @@ runServerCancel doneVar = runTCPServer (Just host) port runHTTP2Server
             (\conf -> run defaultServerConfig conf cancelServer)
     cancelServer _req _aux sendResponse = do
         threadDelay 200000
-        sendResponse responseHello []
+        _ <- sendResponse responseHello []
         putMVar doneVar ()
 
 runFakeServer :: MVar ByteString -> IO ()
