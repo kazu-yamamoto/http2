@@ -6,6 +6,7 @@ import Control.Monad (forM_)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import Data.String (fromString)
+import Data.Word (Word8)
 import Network.HPACK
 import Network.HPACK.Table
 import Network.HPACK.Token (tokenKey)
@@ -88,6 +89,18 @@ spec = do
                     decodeHeader dtbl blk `shouldReturn` []
                     (tvs, _) <- decodeTokenHeader dtbl blk
                     tvs `shouldBe` []
+        it "decodes the rest of a block with a malformed field" $
+            -- The field after the malformed ones goes into the dynamic
+            -- table, and the next block refers to it: index 62, the newest
+            -- entry.  The decoder used to stop at the malformed field, so
+            -- that reference went astray.
+            forM_ [illegalName, tooMany] $ \(fields, err) ->
+                withDynamicTableForDecoding 4096 4096 $ \dtbl -> do
+                    let blk1 = fields <> incremental "x-after" "2"
+                        blk2 = BS.pack [0xbe]
+                    decodeTokenHeader dtbl blk1 `shouldThrow` (== err)
+                    (tvs, _) <- decodeTokenHeader dtbl blk2
+                    map (\(t, v) -> (tokenKey t, v)) tvs `shouldBe` [("x-after", "2")]
         it "round-trips through tables small enough to fill up" $
             -- Entries near the 32-octet minimum fill a table of these sizes
             -- to its last slot.  The encoder follows the peer's
@@ -102,6 +115,33 @@ spec = do
                                 let stgy = defaultEncodeStrategy{useHuffman = huff}
                                 blk <- encodeHeader stgy 4096 etbl hs
                                 decodeHeader dtbl blk `shouldReturn` hs
+
+-- | A field name the encoder would have made lower-case.
+illegalName :: (BS.ByteString, DecodeError)
+illegalName = (literal "X-Upper" "1", IllegalHeaderName)
+
+-- | One field more than the decoder takes.
+tooMany :: (BS.ByteString, DecodeError)
+tooMany =
+    ( mconcat [literal (BS8.pack ('f' : show i)) "v" | i <- [1 .. 202 :: Int]]
+    , TooLargeHeader
+    )
+
+-- | A literal field with a new name, without indexing (RFC 7541, 6.2.2).
+literal :: BS.ByteString -> BS.ByteString -> BS.ByteString
+literal = field 0x00
+
+-- | A literal field with a new name, with incremental indexing (6.2.1).
+incremental :: BS.ByteString -> BS.ByteString -> BS.ByteString
+incremental = field 0x40
+
+-- | Names and values shorter than 127 octets.
+field :: Word8 -> BS.ByteString -> BS.ByteString -> BS.ByteString
+field w k v =
+    BS.pack [w, fromIntegral (BS.length k)]
+        <> k
+        <> BS.pack [fromIntegral (BS.length v)]
+        <> v
 
 -- | Blocks of fields close to the 32-octet minimum entry size, coming back
 -- to earlier ones so that the encoder refers to what it inserted.

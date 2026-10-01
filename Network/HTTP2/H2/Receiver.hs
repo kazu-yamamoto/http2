@@ -529,7 +529,9 @@ push header@FrameHeader{streamId} bs ctx = do
                 ProtocolError
                 streamId
                 "wrong header fragment for push promise"
-    (_, vt) <- hpackDecodeHeader frag streamId ctx
+    -- A malformed promised request is an error on the promised stream,
+    -- which 'resetPromised' resets.
+    (_, vt) <- hpackDecodeHeader frag streamId ctx `E.catch` onPromised sid
     let ClientInfo{..} = toClientInfo $ roleInfo ctx
     when
         ( getFieldValue tokenAuthority vt == Just (UTF8.fromString authority)
@@ -545,6 +547,10 @@ push header@FrameHeader{streamId} bs ctx = do
                 _ -> return ()
 
 ----------------------------------------------------------------
+
+onPromised :: StreamId -> HTTP2Error -> IO a
+onPromised sid (StreamErrorIsSent err _ msg) = E.throwIO $ StreamErrorIsSent err sid msg
+onPromised _ e = E.throwIO e
 
 {-# INLINE guardIt #-}
 guardIt :: Either FrameDecodeError a -> IO a

@@ -115,10 +115,17 @@ hpackDecodeTrailer = hpackDecode "illegal trailer"
 --
 -- The block must still be decoded: it may modify the dynamic table.
 hpackDiscardHeader :: HeaderBlockFragment -> StreamId -> Context -> IO ()
-hpackDiscardHeader hdrblk sid ctx = void $ hpackDecode "illegal header" hdrblk sid ctx
+hpackDiscardHeader hdrblk sid ctx =
+    void (hpackDecode "illegal header" hdrblk sid ctx) `E.catch` ignore
+  where
+    -- Decoded to the end, so there is nothing to refuse: the message goes
+    -- nowhere anyway.
+    ignore StreamErrorIsSent{} = return ()
+    ignore e = E.throwIO e
 
 -- | Decode a field block, reporting a block we could not get through as a
--- connection error.
+-- connection error, and a malformed message in a block decoded to the end
+-- as a stream error.
 --
 -- The first argument says which kind of block it was, since the peer reads
 -- this in the GOAWAY and "illegal trailer" about a request's headers is a
@@ -132,18 +139,21 @@ hpackDecode
 hpackDecode illegal hdrblk sid Context{..} =
     decodeTokenHeader decodeDynamicTable hdrblk `E.catch` handl
   where
-    -- Connection errors, both of them, even though a malformed message is a
-    -- stream error by RFC 9113 section 8.1.1.  Either way the field block was
-    -- abandoned part-way through, so our dynamic table now holds the entries
-    -- decoded before the throw and nothing after them -- no longer what the
-    -- peer's encoder believes we have.  Section 10.5.1: "The field block MUST
-    -- be processed to ensure a consistent connection state, unless the
-    -- connection is closed."  We did not, so it must be.
-    --
-    -- A malformed message caught /after/ a complete decode is a different
-    -- matter, and 'hpackDecodeHeader' reports those as stream errors.
+    -- A malformed message: 'decodeTokenHeader' says so only once it has
+    -- decoded the whole block, so the dynamic table is up to date and the
+    -- connection can go on.  A stream error, as RFC 9113 section 8.1.1 has
+    -- it.  This used to be a connection error, as the block was abandoned
+    -- at the malformed field; one request with an upper-case field name
+    -- closed the connection, every other stream on it with it.
     handl IllegalHeaderName =
-        E.throwIO $ ConnectionErrorIsSent ProtocolError sid illegal
+        E.throwIO $ StreamErrorIsSent ProtocolError sid illegal
+    handl TooLargeHeader =
+        E.throwIO $ StreamErrorIsSent ProtocolError sid "too many fields"
+    -- A block we could not get through: our dynamic table now holds the
+    -- entries decoded before the throw and nothing after them -- no longer
+    -- what the peer's encoder believes we have.  Section 10.5.1: "The field
+    -- block MUST be processed to ensure a consistent connection state,
+    -- unless the connection is closed."  We did not, so it must be.
     handl e = do
         let msg = fromString $ show e
         E.throwIO $ ConnectionErrorIsSent CompressionError sid msg
