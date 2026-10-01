@@ -7,6 +7,7 @@ module Network.HTTP2.H2.Context where
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Data.IORef
+import qualified Data.IntMap.Strict as IntMap
 import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
@@ -91,6 +92,13 @@ data Context = Context
     -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
     --   Hints) is received, ahead of the final response. Copied from
     --   'confOnInformational'; no-op by default.
+    , peerGoAway         :: TVar (Maybe StreamId)
+    -- ^ The last stream identifier of the peer's GOAWAY(NO_ERROR), once
+    --   one has come: see 'goingAway'.
+    , activeRequests     :: TVar Int
+    -- ^ Client only: requests whose 'processResponse' has not returned.
+    --   A response can be complete, its stream gone from the table, and
+    --   its body still being read.
     }
 {- FOURMOLU_ENABLE -}
 
@@ -156,6 +164,8 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     receiverDone    <- newTVarIO Nothing
     let informationalCallback = confOnInformational
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone
+    peerGoAway      <- newTVarIO Nothing
+    activeRequests  <- newTVarIO 0
     return Context{..}
   where
     role = case roleInfo of
@@ -394,13 +404,16 @@ openOddStreamWait ctx@Context{oddStreamTable, mySettings, peerSettings} = do
     let rxws = initialWindowSize mySettings
     case mMaxConc of
         Nothing -> do
-            sid <- atomically $ getMyNewStreamId ctx
+            sid <- atomically $ do
+                refuseIfGoingAway ctx
+                getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
             newstrm <- newOddStream sid txws rxws
             insertOdd oddStreamTable sid newstrm
             return (sid, newstrm)
         Just maxConc -> do
             sid <- atomically $ do
+                refuseIfGoingAway ctx
                 waitIncOdd oddStreamTable maxConc
                 getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
@@ -419,6 +432,11 @@ openOddStreamWait ctx@Context{oddStreamTable, mySettings, peerSettings} = do
 -- only ever an offer, so one there is no room for is not made.
 openEvenStreamTry :: Context -> IO (Maybe (StreamId, Stream))
 openEvenStreamTry ctx@Context{..} = do
+    goingaway <- isJust <$> readTVarIO peerGoAway
+    if goingaway then return Nothing else openEvenStreamTry' ctx
+
+openEvenStreamTry' :: Context -> IO (Maybe (StreamId, Stream))
+openEvenStreamTry' ctx@Context{..} = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
     let rxws = initialWindowSize mySettings
@@ -440,3 +458,62 @@ openEvenStreamTry ctx@Context{..} = do
                 newstrm <- newEvenStream sid txws rxws
                 insertEven' evenStreamTable sid newstrm
                 return (sid, newstrm)
+
+----------------------------------------------------------------
+-- GOAWAY from the peer
+
+-- | No new stream once the peer has sent GOAWAY: "Receivers of a GOAWAY
+-- frame MUST NOT open additional streams on the connection" (RFC 9113,
+-- section 6.8).  A request that has not got a stream yet is answered as
+-- one on a stream above the last stream identifier would be.
+refuseIfGoingAway :: Context -> STM ()
+refuseIfGoingAway Context{peerGoAway} = do
+    goingaway <- isJust <$> readTVar peerGoAway
+    when goingaway $ throwSTM ConnectionIsClosed
+
+-- | Taking the peer's GOAWAY(NO_ERROR) on board.
+--
+-- The peer has said it will go no further than the last stream identifier,
+-- not that it is going at once.  Streams of ours above it will not be
+-- processed, and are closed with 'ConnectionIsClosed', which a client may
+-- retry elsewhere; no stream is opened from now on.  The others go on
+-- until they are done, and then so is the connection: 'drained' tells
+-- when.  It used to be closed right away, cutting off every stream in
+-- flight, even those the peer had promised to finish.
+--
+-- A later GOAWAY can lower the last stream identifier, not raise it.
+-- Answers whether this is the first.
+goingAway :: Context -> StreamId -> IO Bool
+goingAway ctx@Context{peerGoAway, oddStreamTable, evenStreamTable} lastSid = do
+    first <- atomically $ do
+        old <- readTVar peerGoAway
+        writeTVar peerGoAway $ Just $ maybe lastSid (min lastSid) old
+        return $ isNothing old
+    mine <-
+        if isClient ctx
+            then getOddStreams oddStreamTable
+            else getEvenStreams evenStreamTable
+    let (_, above) = IntMap.split lastSid mine
+    forM_ above $ \strm -> closed ctx strm Finished
+    return first
+
+-- | Waiting until nothing is left in flight after the peer's GOAWAY:
+-- neither a stream of the peer's, nor one of ours the peer is to process,
+-- nor -- on a client -- a response still being read.  Streams of ours above
+-- the last stream identifier are not waited for; those that got their
+-- identifier too late to be closed by 'goingAway' are closed with the
+-- connection.
+drained :: Context -> STM ()
+drained ctx@Context{peerGoAway, oddStreamTable, evenStreamTable, activeRequests} = do
+    mlast <- readTVar peerGoAway
+    case mlast of
+        Nothing -> retry
+        Just lastSid -> do
+            odds <- oddTable <$> readTVar oddStreamTable
+            evens <- evenTable <$> readTVar evenStreamTable
+            active <- readTVar activeRequests
+            let (mine, theirs)
+                    | isClient ctx = (odds, evens)
+                    | otherwise = (evens, odds)
+                noneOfMine = maybe True ((> lastSid) . fst) $ IntMap.lookupMin mine
+            check $ IntMap.null theirs && noneOfMine && active == 0

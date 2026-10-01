@@ -89,13 +89,19 @@ run cconf@ClientConfig{..} conf client = do
                     False
                     "Haskell!" -- 8 bytes
             }
-    clientCore ctx req processResponse = do
+    clientCore ctx req processResponse = counted ctx $ do
         (strm, moutobj) <- makeStream ctx scheme authority req
         case moutobj of
             Nothing -> return ()
             Just outobj -> sendRequest conf ctx strm outobj False
         rsp <- getResponse strm
         processResponse rsp `E.finally` doneWithStream ctx strm
+    -- After a GOAWAY, the connection lasts as long as a request is in
+    -- 'activeRequests' ('drained').
+    counted ctx =
+        E.bracket_
+            (atomically $ modifyTVar' (activeRequests ctx) (+ 1))
+            (atomically $ modifyTVar' (activeRequests ctx) (subtract 1))
     runClient ctx = client (clientCore ctx) $ aux ctx
 
 -- | Launching a receiver and a sender.
@@ -167,10 +173,27 @@ runH2 conf ctx runClient = do
     runSender = frameSender ctx conf
     runClientReceiver = do
         labelMe "H2 ClientReceiver"
-        er <- race runReceiver runClient
-        case er of
-            Right r -> return r
-            Left err -> E.throwIO err
+        withAsync runReceiver $ \ar ->
+            withAsync runClient $ \ac -> do
+                er <- waitEither ar ac
+                case er of
+                    Right r -> return r
+                    Left err -> do
+                        goingaway <- isJust <$> readTVarIO (peerGoAway ctx)
+                        case E.fromException err of
+                            -- The connection has run its course after the
+                            -- server's GOAWAY.  The client function is let
+                            -- finish, rather than killed with it: every
+                            -- request it makes from here is refused, and
+                            -- one still waiting is failed now.
+                            Just ConnectionIsClosed
+                                | goingaway -> do
+                                    closeAllStreams
+                                        (oddStreamTable ctx)
+                                        (evenStreamTable ctx)
+                                        (Just err)
+                                    wait ac
+                            _ -> E.throwIO err
 
     -- When 'runClientReceiver' terminates, it is important we give the sender
     -- a chance to terminate cleanly also (it's possible the client terminated
