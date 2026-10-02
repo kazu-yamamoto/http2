@@ -32,6 +32,7 @@ import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
+import Network.HTTP2.H2.Watchdog
 
 ----------------------------------------------------------------
 
@@ -39,6 +40,7 @@ data Switch
     = C Control
     | O Output
     | Flush
+    | TimedOut
 
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
@@ -70,7 +72,8 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
     connectionError e = E.throwIO e
 
 -- | Whether the sender is done: nothing left to send, and the receiver
--- done or the application done.  Otherwise it waits for something to send.
+-- done or the application done.  Otherwise it waits for something to send,
+-- or for the watchdog to give up on the connection.
 --
 -- The application is done once outputs waiting for their stream windows,
 -- each in a thread of its own, are gone too.  Workers are not waited for
@@ -83,27 +86,34 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
 -- other frame happened to come along -- and when none did, the connection
 -- stalled.
 checkDone :: Context -> TVar [Output] -> Int -> IO (Maybe E.SomeException)
-checkDone ctx@Context{..} parked 0 = atomically $ do
-    isEmptyC <- isEmptyControlQ controlQ
-    isEmptyO <- isEmptyTQueue outputQ
-    ps <- readTVar parked
-    cws <- connectionWindowSizeSTM ctx
-    if not isEmptyC || not isEmptyO || (not (null ps) && cws > 0)
-        then
-            return Nothing
-        else do
-            app <- appDone
-            gone <- T.isAllGone threadManager
-            if app && gone && null ps
-                then
-                    return $ Just $ E.toException ConnectionIsClosed
-                else do
-                    recv <- readTVar receiverDone
-                    case recv of
-                        Just done ->
-                            return $ Just done
-                        _otherwise ->
-                            retry
+checkDone ctx@Context{..} parked 0 = atomically $
+    timedOut <|> do
+        isEmptyC <- isEmptyControlQ controlQ
+        isEmptyO <- isEmptyTQueue outputQ
+        ps <- readTVar parked
+        cws <- connectionWindowSizeSTM ctx
+        if not isEmptyC || not isEmptyO || (not (null ps) && cws > 0)
+            then
+                return Nothing
+            else do
+                app <- appDone
+                gone <- T.isAllGone threadManager
+                if app && gone && null ps
+                    then
+                        return $ Just $ E.toException ConnectionIsClosed
+                    else do
+                        recv <- readTVar receiverDone
+                        case recv of
+                            Just done ->
+                                return $ Just done
+                            _otherwise ->
+                                retry
+  where
+    -- The watchdog gave up on this connection: finishing by itself,
+    -- the caller closes the connection with GOAWAY.
+    timedOut = do
+        timedOutSTM watchdog
+        return $ Just $ E.toException ConnectionIsTimeout
 checkDone _ _ _ = return Nothing
 
 frameSender :: Context -> Config -> IO E.SomeException
@@ -126,8 +136,14 @@ frameSender
                 Just done ->
                     return done
                 Nothing -> do
-                    x <- atomically $ dequeue parked off
+                    x <-
+                        atomically $
+                            (timedOutSTM (watchdog ctx) >> return TimedOut)
+                                <|> dequeue parked off
                     case x of
+                        TimedOut -> do
+                            flushN off
+                            return $ E.toException ConnectionIsTimeout
                         C ctl -> flushN off >> control ctl >> loop parked 0
                         O out ->
                             outputAndSync parked out off
@@ -139,7 +155,8 @@ frameSender
         -- the buffer are filled.
         flushN :: Offset -> IO ()
         flushN 0 = return ()
-        flushN n = bufferIO confWriteBuffer n confSendAll
+        flushN n =
+            sending (watchdog ctx) $ bufferIO confWriteBuffer n confSendAll
 
         flushIfNecessary :: Offset -> IO Offset
         flushIfNecessary off = do

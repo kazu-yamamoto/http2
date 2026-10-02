@@ -25,7 +25,6 @@ import Network.Control
 import Network.HTTP.Semantics
 import qualified System.IO.Error as E
 import qualified System.ThreadManager as T
-import qualified System.TimeManager as TM
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -38,6 +37,7 @@ import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
+import Network.HTTP2.H2.Watchdog
 
 ----------------------------------------------------------------
 
@@ -65,32 +65,20 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
     switch :: IO Void
     switch = do
         labelMe "H2 receiver"
-        tid <- myThreadId
-        if confReadNTimeout
-            then
-                loop1
-            else
-                TM.withHandle (timeoutManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+        loop
 
-    loop1 :: IO Void
-    loop1 = do
-        atomically $ waitControlQ $ controlQ ctx
-        hd <- confReadN frameHeaderLength -- throwing an exception on timeout
-        when (BS.null hd) $ E.throwIO ConnectionIsClosed
-        processFrame ctx conf $ decodeFrameHeader hd
-        loop1
-
-    loop2 :: TM.Handle -> IO Void
-    loop2 th = do
-        -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
-        -- to destroy the thread trees.  So it is if the peer does not
-        -- read what we send, and we wait here for ever.
+    -- Timeouts are decided by the watchdog of the connection. It is told
+    -- of every frame which arrives.
+    loop :: IO Void
+    loop = do
+        -- Stop reading a peer that does not read what we send, rather
+        -- than queue control frames for a sender that cannot send.
         atomically $ waitControlQ $ controlQ ctx
         hd <- confReadN frameHeaderLength
-        TM.tickle th
+        rxTick $ watchdog ctx
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
-        loop2 th
+        loop
 
 ----------------------------------------------------------------
 
