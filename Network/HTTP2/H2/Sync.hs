@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -18,11 +17,11 @@ import Control.Monad
 import Network.Control
 import Network.HTTP.Semantics.IO
 import qualified System.ThreadManager as T
-import qualified System.TimeManager as TM
 
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Watchdog (H2Watchdog, waitingForPeer)
 
 syncWithSender
     :: Context
@@ -67,13 +66,13 @@ makeOutputIO Context{..} strm mtbq otyp = out
     push mout = case mout of
         Nothing -> return ()
         Just ot -> do
-            now <- atomically $ (Just <$> ready) `orElse` return Nothing
+            now <- atomically $ (Just <$> ready (return Nothing)) `orElse` return Nothing
             case now of
-                Just True -> enqueueOutput outputQ ot
-                Just False -> return ()
-                Nothing ->
+                Just (Just True) -> enqueueOutput outputQ ot
+                Just (Just False) -> return ()
+                _ ->
                     T.forkManaged threadManager "H2 output waiting for its window" $ do
-                        ok <- atomically ready
+                        ok <- waitToContinue watchdog ready
                         when ok $ enqueueOutput outputQ ot
     ready = readyToContinue strm mtbq
     out =
@@ -83,18 +82,32 @@ makeOutputIO Context{..} strm mtbq otyp = out
             , outputSync = push
             }
 
--- | Whether the rest of a stream's body can go on: waiting while the
--- stream's window is shut or a streaming body has nothing queued, and 'False'
--- once the stream is closed.
-readyToContinue :: Stream -> Maybe (TBQueue StreamingChunk) -> STM Bool
-readyToContinue Stream{streamState, streamTxFlow} mtbq = do
+-- | Whether the rest of a stream's body can go on: waiting while a
+-- streaming body has nothing queued, and 'False' once the stream is closed.
+-- While the stream's window is shut, it is the third argument.
+readyToContinue
+    :: Stream
+    -> Maybe (TBQueue StreamingChunk)
+    -> STM (Maybe Bool)
+    -> STM (Maybe Bool)
+readyToContinue Stream{streamState, streamTxFlow} mtbq shut = do
     state <- readTVar streamState
     case state of
-        Closed{} -> return False
+        Closed{} -> return $ Just False
         _ -> do
             waitStreaming' mtbq
-            waitStreamWindowSizeSTM streamTxFlow
-            return True
+            open <- isStreamWindowOpen streamTxFlow
+            if open then return (Just True) else shut
+
+-- | Waiting for one of the above to decide.  Only the peer can open a shut
+-- window, so that wait is the peer's to end, unlike one for the application.
+waitToContinue
+    :: H2Watchdog -> (STM (Maybe Bool) -> STM (Maybe Bool)) -> IO Bool
+waitToContinue wd ready = do
+    now <- atomically $ ready (return Nothing)
+    case now of
+        Just ok -> return ok
+        Nothing -> waitingForPeer wd $ atomically $ ready retry >>= maybe retry return
 
 enqueueOutputSIO :: Context -> Stream -> OutputType -> IO ()
 enqueueOutputSIO ctx@Context{..} strm otyp = do
@@ -109,44 +122,35 @@ syncWithSender' Context{..} pop lc = loop
         case s of
             Done -> return ()
             Cont newout -> do
-                mapM_ TM.tickle (lcTimeHandle lc)
-                cont <- checkLoop lc
+                cont <- checkLoop watchdog lc
                 when cont $ do
                     enqueueOutput outputQ newout
                     loop
 
-newLoopCheck
-    :: Stream -> Maybe (TBQueue StreamingChunk) -> Maybe TM.Handle -> IO LoopCheck
-newLoopCheck strm mtbq mth = do
-    tovar <- newTVarIO False
+newLoopCheck :: Stream -> Maybe (TBQueue StreamingChunk) -> IO LoopCheck
+newLoopCheck strm mtbq =
     return $
         LoopCheck
             { lcState = streamState strm
             , lcTBQ = mtbq
-            , lcTimeout = tovar
             , lcWindow = streamTxFlow strm
-            , lcTimeHandle = mth
             }
 
 data LoopCheck = LoopCheck
     { lcState :: TVar StreamState
     , lcTBQ :: Maybe (TBQueue StreamingChunk)
-    , lcTimeout :: TVar Bool
     , lcWindow :: TVar TxFlow
-    , lcTimeHandle :: Maybe TM.Handle
     }
 
-checkLoop :: LoopCheck -> IO Bool
-checkLoop LoopCheck{..} = atomically $ do
-    tout <- readTVar lcTimeout
+checkLoop :: H2Watchdog -> LoopCheck -> IO Bool
+checkLoop wd LoopCheck{..} = waitToContinue wd $ \shut -> do
     state <- readTVar lcState
-    if
-        | tout -> return False
-        | Closed{} <- state -> return False
-        | otherwise -> do
+    case state of
+        Closed{} -> return $ Just False
+        _ -> do
             waitStreaming' lcTBQ
-            waitStreamWindowSizeSTM lcWindow
-            return True
+            open <- isStreamWindowOpen lcWindow
+            if open then return (Just True) else shut
 
 waitStreaming' :: Maybe (TBQueue a) -> STM ()
 waitStreaming' Nothing = return ()
@@ -154,7 +158,5 @@ waitStreaming' (Just tbq) = do
     isEmpty <- isEmptyTBQueue tbq
     check (not isEmpty)
 
-waitStreamWindowSizeSTM :: TVar TxFlow -> STM ()
-waitStreamWindowSizeSTM txf = do
-    w <- txWindowSize <$> readTVar txf
-    check (w > 0)
+isStreamWindowOpen :: TVar TxFlow -> STM Bool
+isStreamWindowOpen txf = (> 0) . txWindowSize <$> readTVar txf
