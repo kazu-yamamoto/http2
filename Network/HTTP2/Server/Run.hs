@@ -124,6 +124,9 @@ setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
 runH2 :: Config -> Context -> IO ()
 runH2 conf ctx = do
     let mgr = threadManager ctx
+        supervised =
+            withWatchdog (confTimeoutManager conf) (watchdog ctx) $
+                runBackgroundThreads
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
         runBackgroundThreads =
@@ -142,7 +145,7 @@ runH2 conf ctx = do
                         -- are closed with it.
                         Right e -> return e
                     closureServer conf ctx e
-    T.stopAfter mgr runBackgroundThreads $ \res ->
+    T.stopAfter mgr supervised $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- connClose must not be called here since Run:fork calls it
