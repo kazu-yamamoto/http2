@@ -35,6 +35,7 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Watchdog
 import Network.HTTP2.H2.Window
 
 ----------------------------------------------------------------
@@ -63,29 +64,17 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
     switch :: IO Void
     switch = do
         labelMe "H2 receiver"
-        tid <- myThreadId
-        if confReadNTimeout
-            then
-                loop1
-            else
-                T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+        loop
 
-    loop1 :: IO Void
-    loop1 = do
-        hd <- confReadN frameHeaderLength -- throwing an exception on timeout
-        when (BS.null hd) $ E.throwIO ConnectionIsClosed
-        processFrame ctx conf $ decodeFrameHeader hd
-        loop1
-
-    loop2 :: T.Handle -> IO Void
-    loop2 th = do
-        -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
-        -- to destroy the thread trees.
+    -- Timeouts are decided by the watchdog of the connection. It is told
+    -- of every frame which arrives.
+    loop :: IO Void
+    loop = do
         hd <- confReadN frameHeaderLength
-        T.tickle th
+        rxTick $ watchdog ctx
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
-        loop2 th
+        loop
 
 ----------------------------------------------------------------
 

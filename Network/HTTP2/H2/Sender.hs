@@ -30,6 +30,7 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Watchdog
 import Network.HTTP2.H2.Window
 
 ----------------------------------------------------------------
@@ -38,6 +39,7 @@ data Switch
     = C Control
     | O Output
     | Flush
+    | TimedOut
 
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
@@ -69,19 +71,27 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
     connectionError e = E.throwIO e
 
 checkDone :: Context -> Int -> IO (Maybe E.SomeException)
-checkDone Context{..} 0 = atomically $ do
-    isEmptyC <- isEmptyTQueue controlQ
-    isEmptyO <- isEmptyTQueue outputQ
-    if not isEmptyC || not isEmptyO
-        then
-            return Nothing
-        else do
-            recv <- readTVar receiverDone
-            case recv of
-                Just done ->
-                    return $ Just done
-                _otherwise ->
-                    retry
+checkDone Context{..} 0 =
+    atomically $
+        timedOut <|> do
+            isEmptyC <- isEmptyTQueue controlQ
+            isEmptyO <- isEmptyTQueue outputQ
+            if not isEmptyC || not isEmptyO
+                then
+                    return Nothing
+                else do
+                    recv <- readTVar receiverDone
+                    case recv of
+                        Just done ->
+                            return $ Just done
+                        _otherwise ->
+                            retry
+  where
+    -- The watchdog gave up on this connection: finishing by itself,
+    -- the caller closes the connection with GOAWAY.
+    timedOut = do
+        timedOutSTM watchdog
+        return $ Just $ E.toException ConnectionIsTimeout
 checkDone _ _ = return Nothing
 
 frameSender :: Context -> Config -> IO E.SomeException
@@ -104,8 +114,14 @@ frameSender
                 Just done ->
                     return done
                 Nothing -> do
-                    x <- atomically $ dequeue parked off
+                    x <-
+                        atomically $
+                            (timedOutSTM (watchdog ctx) >> return TimedOut)
+                                <|> dequeue parked off
                     case x of
+                        TimedOut -> do
+                            flushN off
+                            return $ E.toException ConnectionIsTimeout
                         C ctl -> flushN off >> control ctl >> loop parked 0
                         O out ->
                             outputAndSync parked out off
@@ -117,7 +133,8 @@ frameSender
         -- the buffer are filled.
         flushN :: Offset -> IO ()
         flushN 0 = return ()
-        flushN n = bufferIO confWriteBuffer n confSendAll
+        flushN n =
+            sending (watchdog ctx) $ bufferIO confWriteBuffer n confSendAll
 
         flushIfNecessary :: Offset -> IO Offset
         flushIfNecessary off = do
