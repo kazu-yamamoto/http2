@@ -2,152 +2,84 @@
 
 ## 5.4.7
 
-* A valid request could close the whole connection, with every other
-  stream on it:
-  - a Huffman-coded field value longer than 4096 octets, such as a long
-    token in `authorization`, was taken for a truncated block
-    [#201](https://github.com/kazu-yamamoto/http2/pull/201);
-  - so was a header block with no fields, which is what empty trailers
-    are sent as [#202](https://github.com/kazu-yamamoto/http2/pull/202);
-  - a malformed field (an upper-case name, a pseudo-header out of place,
-    more than 200 fields) left the rest of its block undecoded, and the
-    HPACK tables out of step.  The block is now decoded to the end and the
-    message refused with RST_STREAM(PROTOCOL_ERROR) on its stream alone
-    (RFC 9113, section 8.1.1).
-    [#211](https://github.com/kazu-yamamoto/http2/pull/211)
-* Flow control lost octets, so that a long-lived connection could stall:
-  - the padding of DATA frames was charged to both windows and never
-    given back [#204](https://github.com/kazu-yamamoto/http2/pull/204);
-  - DATA refused on a stream in the wrong state, or ignored on a stream we
-    had reset, was not charged to the connection window, though the peer
-    had charged it [#205](https://github.com/kazu-yamamoto/http2/pull/205);
-  - on a client, the rest of a response that `processResponse` did not
-    read to the end, or that it threw on, was never given back, and its
-    stream held a slot of the server's SETTINGS_MAX_CONCURRENT_STREAMS.
-    Such a stream is now reset with CANCEL.
-    [#207](https://github.com/kazu-yamamoto/http2/pull/207)
-  - on a client, the DATA of a push nobody asked for was held against the
-    connection window for good.  Pushes now give it back as it arrives.
-    [#208](https://github.com/kazu-yamamoto/http2/pull/208)
-* A padded body that matched its content-length was reset as malformed:
-  the padding was counted into its length.
+* Decode a Huffman-coded field value longer than 4096 octets.
+  [#201](https://github.com/kazu-yamamoto/http2/pull/201)
+* Accept a header block with no fields, as empty trailers are sent.
+  [#202](https://github.com/kazu-yamamoto/http2/pull/202)
+* Decode a malformed field block to the end and reset only its stream.
+  [#211](https://github.com/kazu-yamamoto/http2/pull/211)
+* Give the padding of DATA frames back to the flow control windows.
+  [#204](https://github.com/kazu-yamamoto/http2/pull/204)
+* Charge refused or ignored DATA to the connection window.
+  [#205](https://github.com/kazu-yamamoto/http2/pull/205)
+* Client: reset with CANCEL a response not read to the end.
+  [#207](https://github.com/kazu-yamamoto/http2/pull/207)
+* Client: give back the window used by unwanted pushes.
+  [#208](https://github.com/kazu-yamamoto/http2/pull/208)
+* Do not count padding into the length checked against content-length.
   [#203](https://github.com/kazu-yamamoto/http2/pull/203)
-* A response carrying a push waited for ever when the client announced
-  SETTINGS_MAX_CONCURRENT_STREAMS of 0, the way to refuse pushes.  A push
-  there is no room for is now not made.
+* Make no push when the client allows no concurrent streams.
   [#206](https://github.com/kazu-yamamoto/http2/pull/206)
-* GOAWAY:
-  - the last stream identifier of the server's GOAWAY left out streams
-    whose handlers were still running, so a client could send again a
-    request that had been acted on
-    [#209](https://github.com/kazu-yamamoto/http2/pull/209);
-  - a GOAWAY with NO_ERROR closed the connection at once, failing every
-    stream in flight.  Streams up to its last stream identifier now go
-    on, those above it fail with `ConnectionIsClosed`, no new stream is
-    opened, and the connection closes once nothing is left; on a client,
-    the client function is let finish.
-    [#210](https://github.com/kazu-yamamoto/http2/pull/210)
-* With the connection window shut, nothing went out at all, though only
-  DATA is flow-controlled: not the response to a request with no body,
-  not RST_STREAM.  DATA now waits for the window on its own.
+* Include running streams in the last stream identifier of GOAWAY.
+  [#209](https://github.com/kazu-yamamoto/http2/pull/209)
+* Let streams up to the last stream identifier finish after a GOAWAY
+  with NO_ERROR.
+  [#210](https://github.com/kazu-yamamoto/http2/pull/210)
+* Send frames other than DATA while the connection window is shut.
   [#212](https://github.com/kazu-yamamoto/http2/pull/212)
 
 ## 5.4.6
 
-* Security: a regression in 5.4.5. Since stream errors reset the stream
-  rather than the connection, a peer could have the server reset streams
-  for it -- with a PRIORITY on a stream depending on itself, DATA on a
-  half-closed stream, and the like -- and so free concurrency slots while
-  the handlers went on running, without ever sending RST_STREAM itself
-  (MadeYouReset, CVE-2025-8671). Resets we send because of the peer now
-  count against `rstRateLimit` with the peer's own.
+* Security: count the resets we send against `rstRateLimit`
+  (MadeYouReset, CVE-2025-8671).
   [#190](https://github.com/kazu-yamamoto/http2/pull/190)
-* Security: a PRIORITY frame for a stream that was never opened created
-  the stream and took a concurrency slot for good, so 64 PRIORITY frames
-  were enough to have every later request refused.
+* Security: do not create a stream for a PRIORITY frame.
   [#195](https://github.com/kazu-yamamoto/http2/pull/195)
-* Security: a SETTINGS_INITIAL_WINDOW_SIZE that overflowed a stream's
-  window stopped the sender without a word, leaving the connection open
-  and silent. It is now a connection error of type FLOW_CONTROL_ERROR,
-  and any failure of the sender closes the connection.
+* Security: treat an overflowing SETTINGS_INITIAL_WINDOW_SIZE as
+  FLOW_CONTROL_ERROR.
   [#196](https://github.com/kazu-yamamoto/http2/pull/196)
-* The HPACK dynamic table lost entries, or had the encoder send the wrong
-  one (index 61 of the static table), once it held as many entries as it
-  has room for -- which a small or odd SETTINGS_HEADER_TABLE_SIZE from the
-  peer makes easy. Headers were silently wrong on both sides.
+* Fix the HPACK dynamic table when it is full.
   [#192](https://github.com/kazu-yamamoto/http2/pull/192)
-* A Huffman-coded string of 16K or more was corrupted by the encoder: the
-  length's fourth octet overwrote the start of the code.
+* Fix encoding a Huffman-coded string of 16K or more.
   [#188](https://github.com/kazu-yamamoto/http2/pull/188)
-* Header blocks and trailers larger than a frame are sent and received as
-  HEADERS and CONTINUATION frames, and the header blocks of streams that
-  are already reset are still decoded, so that the HPACK tables stay in
-  step. Thanks to Edsko de Vries.
+* Send and receive large header blocks with CONTINUATION frames, and keep
+  decoding the header blocks of reset streams.  Thanks to Edsko de Vries.
   [#187](https://github.com/kazu-yamamoto/http2/pull/187)
   [#189](https://github.com/kazu-yamamoto/http2/pull/189)
-* A race between the receiver and the sender lost a stream's half-closed
-  state, so that it was never removed from the stream table: with both
-  ends streaming, a client ran out of streams and a server refused every
-  new one.
+* Fix a race that lost a stream's half-closed state.
   [#193](https://github.com/kazu-yamamoto/http2/pull/193)
-* A client no longer rejects a response that has no content but a
-  non-zero content-length, as responses to HEAD and 304 responses do.
+* Client: accept a response with no content but a non-zero
+  content-length.
   [#194](https://github.com/kazu-yamamoto/http2/pull/194)
-* A client request that failed before it was queued -- a `requestFile` for
-  a file that cannot be opened, say -- made every later request on the
-  connection wait for ever.
+* Client: a request that fails before it is queued no longer blocks later
+  ones.
   [#198](https://github.com/kazu-yamamoto/http2/pull/198)
-* Server push: a PUSH_PROMISE could come after the response it belongs
-  to, and pushed streams were never closed, so a connection stopped after
-  64 pushes.
+* Server push: send PUSH_PROMISE before the response and close pushed
+  streams.
   [#199](https://github.com/kazu-yamamoto/http2/pull/199)
-* An upload through `runIO` larger than the stream's window was cut short
-  with END_STREAM after the first window's worth.
+* Fix an upload through `runIO` larger than the stream's window.
   [#200](https://github.com/kazu-yamamoto/http2/pull/200)
-* GHC 9.12 and later, with `-O`, miscompile a value holding a
-  never-returning streaming body into one with no body
-  ([GHC #27857](https://gitlab.haskell.org/ghc/ghc/-/work_items/27857)).
-  The test suite works around it.
+* Tests: work around a GHC 9.12 miscompilation.
   [#197](https://github.com/kazu-yamamoto/http2/pull/197)
 
 ## 5.4.5
 
-* Security: frame payload decoders read their fixed-size fields without
-  checking that the payload holds them, so a truncated frame, or padding
-  covering a field, read past the end of the buffer -- and an empty payload
-  is the shared empty `ByteString`, whose pointer is null. An
-  unauthenticated peer could segfault the process with 33 bytes.
+* Security: check the length of a frame payload before decoding its
+  fixed-size fields.
   [#182](https://github.com/kazu-yamamoto/http2/pull/182)
-* Security: HPACK integer decoding overflowed `Int` silently, so a long
-  enough encoding decoded to whatever value the sender aimed at and two
-  different byte strings could decode to the same header. Integers are now
-  bounded and over-long encodings are a decoding error, as RFC 7541
-  section 5.1 requires.
+* Security: bound HPACK integer decoding.
   [#181](https://github.com/kazu-yamamoto/http2/pull/181)
-* A RST_STREAM gave a stream's concurrency slot back twice, so a peer could
-  walk `SETTINGS_MAX_CONCURRENT_STREAMS` upwards and hold open as many
-  streams as it liked.
+* Give a stream's concurrency slot back only once on RST_STREAM.
   [#178](https://github.com/kazu-yamamoto/http2/pull/178)
-* A stream reset while its response was still being produced left the
-  worker blocked until the timeout manager killed it, one thread per reset
-  stream.
+* Stop the worker of a stream reset while its response is produced.
   [#179](https://github.com/kazu-yamamoto/http2/pull/179)
-* Stream errors now reset the stream and the connection carries on, as
-  RFC 9113 section 5.4.2 requires. A field block abandoned part-way is
-  still a connection error, since the HPACK tables have diverged by then.
+* Reset the stream, not the connection, on a stream error.
   [#183](https://github.com/kazu-yamamoto/http2/pull/183)
-* A stream over `SETTINGS_MAX_CONCURRENT_STREAMS` is refused with
-  RST_STREAM(REFUSED_STREAM) rather than ending the connection.
+* Refuse a stream over `SETTINGS_MAX_CONCURRENT_STREAMS` with
+  RST_STREAM(REFUSED_STREAM).
   [#184](https://github.com/kazu-yamamoto/http2/pull/184)
-* `DecodeError` has a new constructor, `TooLargeInteger`. Strictly this is
-  a breaking change -- an exhaustive match on `DecodeError` no longer
-  compiles -- but it ships as a patch version on purpose: no package on
-  Hackage names any constructor of that type, while a minor bump would
-  shut out every dependant carrying a `< 5.5` bound, these security fixes
-  along with it.
-* A malformed request now reaches a client as `StreamResetIsReceived` on
-  the stream it concerns, where it used to arrive as
-  `ConnectionErrorIsReceived` on the connection.
+* `DecodeError` has a new constructor, `TooLargeInteger`.
+* A malformed request reaches a client as `StreamResetIsReceived`.
 
 ## 5.4.4
 
