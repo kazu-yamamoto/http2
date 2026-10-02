@@ -3,14 +3,18 @@
 
 module Network.HTTP2.Server.Run where
 
+import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
+import qualified System.TimeManager as TM
+import Network.HTTP2.H2.Watchdog
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -57,12 +61,25 @@ runWith = runMaybe . Just
 
 -- Nothing for 'run': no thread waits on an action which never fires.
 runMaybe :: Maybe (STM ()) -> ServerConfig -> Config -> Server -> IO ()
-runMaybe mGoAway sconf conf server = do
+runMaybe mGoAway sconf conf server = supervising conf $ \wd -> do
     ok <- checkPreface conf
     when ok $ do
         let lnch = runServer conf server
-        ctx <- setup sconf conf lnch Nothing
+        ctx <- setup sconf conf wd lnch Nothing
         runH2 conf ctx mGoAway
+
+-- | Running an action with the watchdog of this connection.
+--
+--   The preface is the first thing read from the peer, and a peer which
+--   does not send it is a peer this connection waits for.  So the
+--   watchdog starts here, before 'checkPreface', rather than in 'runH2'
+--   after it: the 'withWatchdog' there sees that this one is already
+--   supervising and only runs what it was given.
+supervising :: Config -> (H2Watchdog -> IO a) -> IO a
+supervising Config{..} action = do
+    wd <- newH2Watchdog confTimeout
+    tid <- myThreadId
+    withWatchdog wd (E.throwTo tid ConnectionIsTimeout) $ action wd
 
 ----------------------------------------------------------------
 
@@ -103,13 +120,13 @@ runIOMaybe
     -> Config
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
-runIOMaybe mGoAway sconf conf@Config{..} action = do
+runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
     ok <- checkPreface conf
     when ok $ do
         inpQ <- newTQueueIO
         let lnch _ strm inpObj = atomically $ writeTQueue inpQ (strm, inpObj)
         done <- newTVarIO False
-        ctx <- setup sconf conf lnch $ Just $ readTVar done
+        ctx <- setup sconf conf wd lnch $ Just $ readTVar done
         let get = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
                 return (strm, Request inpObj)
@@ -140,21 +157,34 @@ checkPreface conf@Config{..} = do
             return False
         else return True
 
-setup :: ServerConfig -> Config -> Launch -> Maybe (STM Bool) -> IO Context
-setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
+setup
+    :: ServerConfig
+    -> Config
+    -> H2Watchdog
+    -> Launch
+    -> Maybe (STM Bool)
+    -> IO Context
+setup ServerConfig{..} conf wd lnch mIsDone = do
     let serverInfo = newServerInfo lnch
     newContext
         serverInfo
         conf
+        wd
         0
         connectionWindowSize
         settings
-        confTimeoutManager
+        TM.defaultManager
         mIsDone
 
 runH2 :: Config -> Context -> Maybe (STM ()) -> IO ()
 runH2 conf ctx mGoAway = do
+    tid <- myThreadId
     let mgr = threadManager ctx
+        -- The last resort, if the connection does not finish by itself
+        -- after it timed out.
+        supervised =
+            withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
+                runBackgroundThreads
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
         -- Two GOAWAYs, as RFC 9113 section 6.8 has it: the first, with
@@ -208,7 +238,7 @@ runH2 conf ctx mGoAway = do
                                     void (waitCatchSTM ar) `orElse` (readTVar late >>= check)
                                 return e
                         closureServer conf ctx e
-    stopAfterAndWait mgr runBackgroundThreads $ \res ->
+    stopAfterAndWait mgr supervised $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- | The payload of the PING sent with the first GOAWAY.

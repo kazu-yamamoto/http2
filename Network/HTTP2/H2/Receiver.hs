@@ -24,7 +24,6 @@ import Data.Void
 import Network.Control
 import Network.HTTP.Semantics
 import qualified System.ThreadManager as T
-import qualified System.TimeManager as TM
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -37,6 +36,7 @@ import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
+import Network.HTTP2.H2.Watchdog
 
 ----------------------------------------------------------------
 
@@ -49,7 +49,7 @@ headerFragmentLimit = 51200 -- 50K
 ----------------------------------------------------------------
 
 frameReceiver :: Context -> Config -> IO E.SomeException
-frameReceiver ctx@Context{receiverDone} conf@Config{..} =
+frameReceiver ctx@Context{receiverDone} conf =
     E.mask $ \unmask -> do
         -- This catches an asynchronous exception.
         -- It is re-thrown by "runH2"
@@ -64,15 +64,12 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
     switch :: IO Void
     switch = do
         labelMe "H2 receiver"
-        tid <- myThreadId
-        if confReadNTimeout
-            then
-                loop1
-            else
-                TM.withHandle (timeoutManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+        loop
 
     -- Told to stop, the receiver ends between frames as at end of input.
     stopped = receiverStopped ctx
+    -- Stop reading a peer that does not read what we send, rather than
+    -- queue control frames for a sender that cannot send.
     waitOrStop = do
         stop <-
             atomically $
@@ -80,25 +77,16 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
         when stop $ E.throwIO ConnectionIsClosed
     readHeader = readNGivingUp conf stopped frameHeaderLength
 
-    loop1 :: IO Void
-    loop1 = do
-        waitOrStop
-        hd <- readHeader -- throwing an exception on timeout
-        when (BS.null hd) $ E.throwIO ConnectionIsClosed
-        processFrame ctx conf $ decodeFrameHeader hd
-        loop1
-
-    loop2 :: TM.Handle -> IO Void
-    loop2 th = do
-        -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
-        -- to destroy the thread trees.  So it is if the peer does not
-        -- read what we send, and we wait here for ever.
+    -- Timeouts are decided by the watchdog of the connection. It is told
+    -- of every frame which arrives.
+    loop :: IO Void
+    loop = do
         waitOrStop
         hd <- readHeader
-        TM.tickle th
+        rxTick $ watchdog ctx
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
-        loop2 th
+        loop
 
 ----------------------------------------------------------------
 

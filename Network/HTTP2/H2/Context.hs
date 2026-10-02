@@ -24,6 +24,7 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Watchdog
 
 data Role = Client | Server deriving (Eq, Show)
 
@@ -145,6 +146,8 @@ data Context = Context
     , resetByMe          :: IORef IntSet.IntSet
     -- ^ Server only: the latest streams of the peer's we have reset, gone
     --   from the stream table: see 'wasResetByMe'.
+    , watchdog           :: H2Watchdog
+    -- ^ The timeout supervisor of this connection, for 'confTimeout'.
     }
 {- FOURMOLU_ENABLE -}
 
@@ -170,13 +173,14 @@ data HeaderContinuation = HeaderContinuation
 newContext
     :: RoleInfo
     -> Config
+    -> H2Watchdog
     -> Int
     -> Int
     -> Settings
     -> TM.Manager
     -> Maybe (STM Bool)
     -> IO Context
-newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
+newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings timmgr mdone = do
     -- My: Use this even if ack has not been received yet.
     myFirstSettings <- newIORef False
     -- Peer: The spec defines max concurrency is infinite unless
@@ -254,17 +258,6 @@ stopReceiver Context{stopReceiving, receiverStoppable} receiver
 -- | Fires once the receiver has been told to stop.
 receiverStopped :: Context -> STM ()
 receiverStopped Context{stopReceiving} = readTVar stopReceiving >>= check
-
-----------------------------------------------------------------
-
--- | Fires once the receiver has ended with 'ConnectionIsTimeout': a
---   write still blocked then is given up on.
-timedOut :: Context -> STM ()
-timedOut Context{receiverDone} = do
-    done <- readTVar receiverDone
-    case done >>= E.fromException of
-        Just ConnectionIsTimeout -> return ()
-        _ -> retry
 
 ----------------------------------------------------------------
 
