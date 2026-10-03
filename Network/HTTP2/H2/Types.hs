@@ -16,6 +16,7 @@ import Network.HTTP.Semantics.IO
 import Network.Socket hiding (Stream)
 import System.IO.Unsafe
 import qualified System.TimeManager as T
+import System.Watchdog
 
 import Imports
 import Network.HPACK
@@ -260,17 +261,44 @@ data Config = Config
     , confReadN :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: T.Manager
+    -- ^ Not used any more. Pass 'T.defaultManager'. Timeouts are decided
+    --   by 'confWatchdog'.
     , confMySockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confPeerSockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confReadNTimeout :: Bool
+    -- ^ Deprecated field. Not used any more. Timeouts are decided by
+    --   'confWatchdog'.
     , confOnInformational :: StreamId -> TokenHeaderTable -> IO ()
     -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
     --   Hints) is received on the given stream, ahead of the final response.
     --   No-op by default.
     --
     --   @since 5.4.2
+    , confWatchdog :: Maybe Watchdog
+    -- ^ The timeout supervisor of this connection. The library records
+    --   the activity of the connection into it, gives up on the connection
+    --   with GOAWAY when it times out, and runs it unless the caller
+    --   already does (see 'withWatchdog'). 'Nothing' means no timeout.
+    --
+    --   Progress is exactly this:
+    --
+    --   * The peer makes progress when the header of a frame arrives,
+    --     which also means that the payload of the previous frame was
+    --     read in full. Any frame counts, on any stream, including PING,
+    --     SETTINGS and WINDOW_UPDATE. So a peer can keep an idle
+    --     connection alive with PINGs, as far as the PING rate limit
+    --     allows. A frame which trickles in counts only once its header
+    --     is complete.
+    --
+    --   * A write makes progress when a call to 'confSendAll' returns. A
+    --     call which is blocked counts for nothing, however many bytes
+    --     the kernel took.
+    --
+    --   A server application runs from when its stream is handed to it
+    --   until it returns, and is not limited in time. A stream waits for
+    --   its request body while the application reads it.
     }
 
 -- | Default config. This is just a template to modify via
@@ -288,6 +316,7 @@ defaultConfig =
         , confPeerSockAddr = SockAddrInet 0 0
         , confReadNTimeout = False
         , confOnInformational = \_ _ -> return ()
+        , confWatchdog = Nothing
         }
 
 isAsyncException :: E.Exception e => e -> Bool

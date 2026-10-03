@@ -98,7 +98,6 @@ library
         Network.HTTP2.H2.StreamTable
         Network.HTTP2.H2.Sync
         Network.HTTP2.H2.Types
-        Network.HTTP2.H2.Watchdog
         Network.HTTP2.H2.Window
         Network.HTTP2.Frame.Decode
         Network.HTTP2.Frame.Encode
@@ -123,7 +122,7 @@ library
         network-byte-order >=0.1.7 && <0.2,
         network-control >=0.1 && <0.2,
         stm >=2.5 && <2.6,
-        time-manager >=0.3.0 && <0.4,
+        time-manager >=0.4 && <0.5,
         unix-time >=0.4.11 && <0.6,
         utf8-string >=1.0 && <1.1
 

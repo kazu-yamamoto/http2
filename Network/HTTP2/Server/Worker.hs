@@ -16,6 +16,7 @@ import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.ThreadManager as T
 import qualified System.TimeManager as TM
+import System.Watchdog
 
 import Imports hiding (insert)
 import Network.HTTP2.Frame

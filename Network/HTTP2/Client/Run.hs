@@ -17,6 +17,7 @@ import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import System.Watchdog
 import Text.Read (readMaybe)
 
 import Imports
@@ -165,13 +166,16 @@ setup ClientConfig{..} conf@Config{..} = do
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
+    tid <- myThreadId
+    -- The last resort, if the connection does not finish by itself
+    -- after it timed out.
+    let supervised =
+            withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
+                E.try runAll >>= closureClient conf ctx
     T.stopAfter mgr supervised $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx
-    supervised =
-        withWatchdog (confTimeoutManager conf) (watchdog ctx) $
-            E.try runAll >>= closureClient conf ctx
     runReceiver = frameReceiver ctx conf
     runSender = frameSender ctx conf
     runClientReceiver = do

@@ -3,7 +3,9 @@
 
 module Network.HTTP2.Server.Run where
 
+import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
+import qualified Control.Exception as E
 import Control.Concurrent.STM
 import Imports
 import Network.Control (defaultMaxData)
@@ -12,6 +14,7 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import System.Watchdog
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -123,9 +126,12 @@ setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
 
 runH2 :: Config -> Context -> IO ()
 runH2 conf ctx = do
+    tid <- myThreadId
     let mgr = threadManager ctx
+        -- The last resort, if the connection does not finish by itself
+        -- after it timed out.
         supervised =
-            withWatchdog (confTimeoutManager conf) (watchdog ctx) $
+            withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
                 runBackgroundThreads
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf

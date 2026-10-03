@@ -11,7 +11,6 @@ module Network.HTTP2.H2 (
     module Network.HTTP2.H2.StreamTable,
     module Network.HTTP2.H2.Sync,
     module Network.HTTP2.H2.Types,
-    module Network.HTTP2.H2.Watchdog,
     module Network.HTTP2.H2.Window,
 ) where
 
@@ -27,5 +26,4 @@ import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Sync
 import Network.HTTP2.H2.Types
-import Network.HTTP2.H2.Watchdog
 import Network.HTTP2.H2.Window

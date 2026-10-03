@@ -35,8 +35,8 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
-import Network.HTTP2.H2.Watchdog
 import Network.HTTP2.H2.Window
+import System.Watchdog
 
 ----------------------------------------------------------------
 
