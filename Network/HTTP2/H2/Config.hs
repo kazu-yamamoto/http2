@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Network.HTTP2.H2.Config where
 
@@ -7,7 +7,6 @@ import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
-import qualified System.TimeManager as T
 import System.Watchdog
 
 import Network.HPACK
@@ -30,13 +29,23 @@ allocSimpleConfig' s bufsiz usec = do
     let confSendAll = sendAll s
     confReadN <- defaultReadN s <$> newIORef Nothing
     let confPositionReadMaker = defaultPositionReadMaker
-    let confTimeoutManager = T.defaultManager
     confWatchdog <- Just <$> newWatchdog usec
     confMySockAddr <- getSocketName s
     confPeerSockAddr <- getPeerName s
-    let confReadNTimeout = False
     let confOnInformational = \_ _ -> return ()
-    return Config{..}
+    -- The deprecated fields are left as in 'defaultConfig'.
+    return
+        defaultConfig
+            { confWriteBuffer
+            , confBufferSize
+            , confSendAll
+            , confReadN
+            , confPositionReadMaker
+            , confWatchdog
+            , confMySockAddr
+            , confPeerSockAddr
+            , confOnInformational
+            }
 
 -- | Deallocating the resource of the simple configuration.
 freeSimpleConfig :: Config -> IO ()
