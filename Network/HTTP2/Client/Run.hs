@@ -17,6 +17,8 @@ import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
+import System.Watchdog
 import Text.Read (readMaybe)
 
 import Imports
@@ -149,7 +151,7 @@ getResponse strm = do
         Right rsp -> return $ Response rsp
 
 setup :: ClientConfig -> Config -> IO Context
-setup ClientConfig{..} conf@Config{..} = do
+setup ClientConfig{..} conf = do
     let clientInfo = newClientInfo scheme authority
     ctx <-
         newContext
@@ -158,14 +160,20 @@ setup ClientConfig{..} conf@Config{..} = do
             cacheLimit
             connectionWindowSize
             settings
-            confTimeoutManager
+            TM.defaultManager
             Nothing
     exchangeSettings ctx
     return ctx
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
-    T.stopAfter mgr (E.try runAll >>= closureClient conf ctx) $ \res ->
+    tid <- myThreadId
+    -- The last resort, if the connection does not finish by itself
+    -- after it timed out.
+    let supervised =
+            withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
+                E.try runAll >>= closureClient conf ctx
+    T.stopAfter mgr supervised $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx

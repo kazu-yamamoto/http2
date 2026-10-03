@@ -3,8 +3,10 @@
 
 module Network.HTTP2.Server.Run where
 
+import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
@@ -12,6 +14,8 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
+import System.Watchdog
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -110,7 +114,7 @@ checkPreface conf@Config{..} = do
         else return True
 
 setup :: ServerConfig -> Config -> Launch -> Maybe (STM Bool) -> IO Context
-setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
+setup ServerConfig{..} conf lnch mIsDone = do
     let serverInfo = newServerInfo lnch
     newContext
         serverInfo
@@ -118,12 +122,18 @@ setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
         0
         connectionWindowSize
         settings
-        confTimeoutManager
+        TM.defaultManager
         mIsDone
 
 runH2 :: Config -> Context -> IO ()
 runH2 conf ctx = do
+    tid <- myThreadId
     let mgr = threadManager ctx
+        -- The last resort, if the connection does not finish by itself
+        -- after it timed out.
+        supervised =
+            withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
+                runBackgroundThreads
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
         runBackgroundThreads =
@@ -142,7 +152,7 @@ runH2 conf ctx = do
                         -- are closed with it.
                         Right e -> return e
                     closureServer conf ctx e
-    T.stopAfter mgr runBackgroundThreads $ \res ->
+    T.stopAfter mgr supervised $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- connClose must not be called here since Run:fork calls it

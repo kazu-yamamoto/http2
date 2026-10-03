@@ -1,4 +1,4 @@
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Network.HTTP2.H2.Config where
 
@@ -7,21 +7,21 @@ import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
-import qualified System.TimeManager as T
+import System.Watchdog
 
 import Network.HPACK
 import Network.HTTP2.H2.Types
 
 -- | Making simple configuration whose IO is not efficient.
 --   A write buffer is allocated internally.
---   WAI timeout manger is initialized with 30_000_000 microseconds.
+--   The timeout of the connection is 30_000_000 microseconds.
 allocSimpleConfig :: Socket -> BufferSize -> IO Config
 allocSimpleConfig s bufsiz = allocSimpleConfig' s bufsiz (30 * 1000000)
 
 -- | Making simple configuration whose IO is not efficient.
 --   A write buffer is allocated internally.
---   The third argument is microseconds to initialize WAI
---   timeout manager.
+--   The third argument is the timeout of the connection in
+--   microseconds. Zero or less means no timeout.
 allocSimpleConfig' :: Socket -> BufferSize -> Int -> IO Config
 allocSimpleConfig' s bufsiz usec = do
     confWriteBuffer <- mallocBytes bufsiz
@@ -29,15 +29,24 @@ allocSimpleConfig' s bufsiz usec = do
     let confSendAll = sendAll s
     confReadN <- defaultReadN s <$> newIORef Nothing
     let confPositionReadMaker = defaultPositionReadMaker
-    confTimeoutManager <- T.initialize usec
+    confWatchdog <- Just <$> newWatchdog usec
     confMySockAddr <- getSocketName s
     confPeerSockAddr <- getPeerName s
-    let confReadNTimeout = False
     let confOnInformational = \_ _ -> return ()
-    return Config{..}
+    -- The deprecated fields are left as in 'defaultConfig'.
+    return
+        defaultConfig
+            { confWriteBuffer
+            , confBufferSize
+            , confSendAll
+            , confReadN
+            , confPositionReadMaker
+            , confWatchdog
+            , confMySockAddr
+            , confPeerSockAddr
+            , confOnInformational
+            }
 
 -- | Deallocating the resource of the simple configuration.
 freeSimpleConfig :: Config -> IO ()
-freeSimpleConfig conf = do
-    free $ confWriteBuffer conf
-    T.killManager $ confTimeoutManager conf
+freeSimpleConfig conf = free $ confWriteBuffer conf

@@ -19,6 +19,7 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
+import System.Watchdog
 
 data Role = Client | Server deriving (Eq, Show)
 
@@ -99,6 +100,9 @@ data Context = Context
     -- ^ Client only: requests whose 'processResponse' has not returned.
     --   A response can be complete, its stream gone from the table, and
     --   its body still being read.
+    , watchdog           :: Watchdog
+    -- ^ The timeout supervisor of this connection: 'confWatchdog', or a
+    --   disabled one.
     }
 {- FOURMOLU_ENABLE -}
 
@@ -166,6 +170,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone
     peerGoAway      <- newTVarIO Nothing
     activeRequests  <- newTVarIO 0
+    watchdog        <- maybe (newWatchdog 0) return confWatchdog
     return Context{..}
   where
     role = case roleInfo of
