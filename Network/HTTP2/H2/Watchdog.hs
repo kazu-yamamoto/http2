@@ -19,6 +19,26 @@
 --
 -- 4. Otherwise the connection is idle and the peer must make progress.
 --
+-- Progress is exactly this:
+--
+-- * The peer makes progress when the header of a frame arrives, which
+--   also means that the payload of the previous frame was read in full.
+--   Any frame counts, on any stream, including PING, SETTINGS and
+--   WINDOW_UPDATE. So a peer can keep an idle connection alive with
+--   PINGs, as far as 'pingRateLimit' allows. A frame which trickles in
+--   counts only once its header is complete.
+--
+-- * A write makes progress when a call to 'confSendAll' returns. A call
+--   which is blocked counts for nothing, however many bytes the kernel
+--   took.
+--
+-- Under rules 1, 2 and 4, progress restarts the timer: the connection
+-- times out when the timeout passes without any. Moving from one rule
+-- to another, such as a write starting or an application finishing, also
+-- restarts it. The watchdog looks at the connection at most once a
+-- second, so progress may be noticed up to a second late, and a timeout
+-- may fire up to a second late accordingly.
+--
 -- The timer is the one 'T.Handle' of the connection, taken from
 -- 'confTimeoutManager' and touched by the watchdog thread only. So, with
 -- 'T.defaultManager', nothing ever times out.
