@@ -261,8 +261,8 @@ data Config = Config
     , confReadN :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: T.Manager
-    -- ^ Not used any more. Pass 'T.defaultManager'. Timeouts are decided
-    --   by 'confWatchdog'.
+    -- ^ Deprecated field. Not used any more. Timeouts are decided by
+    --   'confWatchdog'.
     , confMySockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confPeerSockAddr :: SockAddr
@@ -300,6 +300,9 @@ data Config = Config
     --   until it returns, and is not limited in time. A stream waits for
     --   its request body while the application reads it.
     }
+
+{-# DEPRECATED confTimeoutManager "No effect anymore. Use confWatchdog" #-}
+{-# DEPRECATED confReadNTimeout "No effect anymore. Use confWatchdog" #-}
 
 -- | Default config. This is just a template to modify via
 --   field names. Don't use this without modifications.

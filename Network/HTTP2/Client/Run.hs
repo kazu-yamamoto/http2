@@ -17,6 +17,7 @@ import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
 import System.Watchdog
 import Text.Read (readMaybe)
 
@@ -150,7 +151,7 @@ getResponse strm = do
         Right rsp -> return $ Response rsp
 
 setup :: ClientConfig -> Config -> IO Context
-setup ClientConfig{..} conf@Config{..} = do
+setup ClientConfig{..} conf = do
     let clientInfo = newClientInfo scheme authority
     ctx <-
         newContext
@@ -159,7 +160,7 @@ setup ClientConfig{..} conf@Config{..} = do
             cacheLimit
             connectionWindowSize
             settings
-            confTimeoutManager
+            TM.defaultManager
             Nothing
     exchangeSettings ctx
     return ctx
