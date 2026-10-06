@@ -16,7 +16,6 @@ import Network.HTTP.Semantics.IO
 import Network.Socket hiding (Stream)
 import System.IO.Unsafe
 import qualified System.TimeManager as T
-import System.Watchdog
 
 import Imports
 import Network.HPACK
@@ -262,25 +261,28 @@ data Config = Config
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: T.Manager
     -- ^ Deprecated field. Not used any more. Timeouts are decided by
-    --   'confWatchdog'.
+    --   'confTimeout'.
     , confMySockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confPeerSockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confReadNTimeout :: Bool
     -- ^ Deprecated field. Not used any more. Timeouts are decided by
-    --   'confWatchdog'.
+    --   'confTimeout'.
     , confOnInformational :: StreamId -> TokenHeaderTable -> IO ()
     -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
     --   Hints) is received on the given stream, ahead of the final response.
     --   No-op by default.
     --
     --   @since 5.4.2
-    , confWatchdog :: Maybe Watchdog
-    -- ^ The timeout supervisor of this connection. The library records
-    --   the activity of the connection into it, gives up on the connection
-    --   with GOAWAY when it times out, and runs it unless the caller
-    --   already does (see 'withWatchdog'). 'Nothing' means no timeout.
+    , confTimeout :: Int
+    -- ^ How long this connection may make no progress, in microseconds.
+    --   Zero or less means no timeout.
+    --
+    --   The library supervises the connection itself, and gives up on it
+    --   with GOAWAY when the time passes. A connection belongs to one
+    --   supervisor: a caller which watched the connection before handing
+    --   it here, as Warp does, stops watching it when it does.
     --
     --   Progress is exactly this:
     --
@@ -301,8 +303,8 @@ data Config = Config
     --   its request body while the application reads it.
     }
 
-{-# DEPRECATED confTimeoutManager "No effect anymore. Use confWatchdog" #-}
-{-# DEPRECATED confReadNTimeout "No effect anymore. Use confWatchdog" #-}
+{-# DEPRECATED confTimeoutManager "No effect anymore. Use confTimeout" #-}
+{-# DEPRECATED confReadNTimeout "No effect anymore. Use confTimeout" #-}
 
 -- | Default config. This is just a template to modify via
 --   field names. Don't use this without modifications.
@@ -319,7 +321,7 @@ defaultConfig =
         , confPeerSockAddr = SockAddrInet 0 0
         , confReadNTimeout = False
         , confOnInformational = \_ _ -> return ()
-        , confWatchdog = Nothing
+        , confTimeout = 0
         }
 
 isAsyncException :: E.Exception e => e -> Bool

@@ -7,7 +7,6 @@ import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
 import Network.Socket
 import Network.Socket.ByteString (sendAll)
-import System.Watchdog
 
 import Network.HPACK
 import Network.HTTP2.H2.Types
@@ -29,7 +28,7 @@ allocSimpleConfig' s bufsiz usec = do
     let confSendAll = sendAll s
     confReadN <- defaultReadN s <$> newIORef Nothing
     let confPositionReadMaker = defaultPositionReadMaker
-    confWatchdog <- Just <$> newWatchdog usec
+    let confTimeout = usec
     confMySockAddr <- getSocketName s
     confPeerSockAddr <- getPeerName s
     let confOnInformational = \_ _ -> return ()
@@ -41,7 +40,7 @@ allocSimpleConfig' s bufsiz usec = do
             , confSendAll
             , confReadN
             , confPositionReadMaker
-            , confWatchdog
+            , confTimeout
             , confMySockAddr
             , confPeerSockAddr
             , confOnInformational

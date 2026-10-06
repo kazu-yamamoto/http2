@@ -62,7 +62,7 @@ module Network.HTTP2.Server (
     confMySockAddr,
     confPeerSockAddr,
     confReadNTimeout,
-    confWatchdog,
+    confTimeout,
     confOnInformational,
     allocSimpleConfig,
     allocSimpleConfig',

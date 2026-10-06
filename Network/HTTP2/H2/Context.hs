@@ -101,8 +101,7 @@ data Context = Context
     --   A response can be complete, its stream gone from the table, and
     --   its body still being read.
     , watchdog           :: Watchdog
-    -- ^ The timeout supervisor of this connection: 'confWatchdog', or a
-    --   disabled one.
+    -- ^ The timeout supervisor of this connection, for 'confTimeout'.
     }
 {- FOURMOLU_ENABLE -}
 
@@ -170,7 +169,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone
     peerGoAway      <- newTVarIO Nothing
     activeRequests  <- newTVarIO 0
-    watchdog        <- maybe (newWatchdog 0) return confWatchdog
+    watchdog        <- newWatchdog confTimeout
     return Context{..}
   where
     role = case roleInfo of

@@ -82,7 +82,7 @@ module Network.HTTP2.Client (
     confMySockAddr,
     confPeerSockAddr,
     confReadNTimeout,
-    confWatchdog,
+    confTimeout,
     confOnInformational,
     allocSimpleConfig,
     allocSimpleConfig',
