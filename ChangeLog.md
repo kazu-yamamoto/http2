@@ -1,5 +1,18 @@
 # ChangeLog for http2
 
+## 5.4.8
+
+* Reset a stream cancelled with an asynchronous exception instead of
+  closing the connection.
+  [#214](https://github.com/kazu-yamamoto/http2/pull/214)
+* Server: tickle the worker's timer on sending, so that a response
+  streamed longer than the timeout is not killed.
+  [#174](https://github.com/kazu-yamamoto/http2/pull/174)
+* `freeSimpleConfig` no longer calls the no-op `killManager`.
+  Timeout actions registered with `confTimeoutManager` must be
+  cancelled by their owner.
+  [#215](https://github.com/kazu-yamamoto/http2/pull/215)
+
 ## 5.4.7
 
 * Decode a Huffman-coded field value longer than 4096 octets.
