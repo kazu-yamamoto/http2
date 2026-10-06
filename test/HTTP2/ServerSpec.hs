@@ -147,6 +147,13 @@ spec = do
                 threadDelay 10000
                 runStreamErrorClient
 
+        it "resets a stream cancelled with an asynchronous exception and goes on" $
+            -- The exception is only the reason for the reset.  The sender
+            -- once threw it, which took the whole connection down.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runAsyncCancelClient
+
         it "limits the resets a peer can make us send (MadeYouReset)" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -694,6 +701,8 @@ server req aux sendResponse = case requestMethod req of
                 [("link", "</app.js>; rel=preload; as=script")]
             sendResponse responseHello []
         Just "/stream" -> sendResponse responseInfinite []
+        -- Some of the body, then cancelled with an asynchronous exception.
+        Just "/cancel-async" -> sendResponse responseCancelAsync []
         -- Like /stream, but going quietly once the client resets it.
         Just "/endless" -> sendResponse responseEndless []
         Just "/not-modified" -> sendResponse (responseNoBody notModified304 bigLength) []
@@ -791,6 +800,12 @@ responseEndless = responseStreaming ok200 [] body
     chunk = C8.replicate 1024 'x'
     quiet :: E.SomeException -> IO ()
     quiet _ = return ()
+
+responseCancelAsync :: Response
+responseCancelAsync = responseStreamingIface ok200 [] $ \iface -> do
+    outBodyPush iface "x"
+    outBodyFlush iface
+    outBodyCancel iface $ Just $ E.toException AsyncCancelled
 
 responseInfinite :: Response
 responseInfinite = responseStreaming ok200 header body
@@ -1670,6 +1685,21 @@ runStreamErrorClient = runTCPClient host port $ \s ->
             -- "connection" it is not one of the headers the sender strips.
             let bad = C.requestNoBody methodGet "/" [("te", "gzip")]
             sendRequest bad (\_ -> return ()) `shouldThrow` streamWasReset
+            let good = C.requestNoBody methodGet "/" []
+            sendRequest good $ \rsp ->
+                C.responseStatus rsp `shouldBe` Just ok200
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
+
+runAsyncCancelClient :: IO ()
+runAsyncCancelClient = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let req = C.requestNoBody methodGet "/cancel-async" []
+                drain rsp = do
+                    bs <- C.getResponseBodyChunk rsp
+                    unless (B.null bs) $ drain rsp
+            sendRequest req drain `shouldThrow` streamWasReset
             let good = C.requestNoBody methodGet "/" []
             sendRequest good $ \rsp ->
                 C.responseStatus rsp `shouldBe` Just ok200
