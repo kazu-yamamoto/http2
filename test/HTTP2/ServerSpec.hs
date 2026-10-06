@@ -154,6 +154,14 @@ spec = do
                 threadDelay 10000
                 runAsyncCancelClient
 
+        it "keeps a stream that goes on sending past the timeout" $
+            -- The worker's timer was only tickled by reading the request
+            -- body, so a response streamed for longer than the timeout was
+            -- killed half-way (#173).
+            E.bracket (forkIO runServerShortTimeout) killThread $ \_ -> do
+                threadDelay 10000
+                runDripClient `shouldReturn` dripChunks
+
         it "limits the resets a peer can make us send (MadeYouReset)" $
             E.bracket (forkIO runServer) killThread $ \_ -> do
                 threadDelay 10000
@@ -557,6 +565,21 @@ runServerManyResets = runTCPServer (Just host) port runHTTP2Server
             freeSimpleConfig
             (\conf -> run sconf conf server)
 
+-- | A server whose timeout is one second.  Like Warp, it sets
+-- 'confReadNTimeout', so the receiver has no timer of its own, which would
+-- close a connection the client sends nothing on.
+runServerShortTimeout :: IO ()
+runServerShortTimeout = runTCPServer (Just host) port runHTTP2Server
+  where
+    alloc s = do
+        conf <- allocSimpleConfig' s 32768 1000000
+        return conf{confReadNTimeout = True}
+    runHTTP2Server s =
+        E.bracket
+            (alloc s)
+            freeSimpleConfig
+            (\conf -> run defaultServerConfig conf server)
+
 runServerMaxConc1 :: IO ()
 runServerMaxConc1 = runTCPServer (Just host) port runHTTP2Server
   where
@@ -703,6 +726,8 @@ server req aux sendResponse = case requestMethod req of
         Just "/stream" -> sendResponse responseInfinite []
         -- Some of the body, then cancelled with an asynchronous exception.
         Just "/cancel-async" -> sendResponse responseCancelAsync []
+        -- Longer than the timeout of 'runServerShortTimeout', a chunk at a time.
+        Just "/drip" -> sendResponse responseDrip []
         -- Like /stream, but going quietly once the client resets it.
         Just "/endless" -> sendResponse responseEndless []
         Just "/not-modified" -> sendResponse (responseNoBody notModified304 bigLength) []
@@ -800,6 +825,16 @@ responseEndless = responseStreaming ok200 [] body
     chunk = C8.replicate 1024 'x'
     quiet :: E.SomeException -> IO ()
     quiet _ = return ()
+
+dripChunks :: Int
+dripChunks = 8
+
+-- | A chunk every 300 milliseconds: 2.4 seconds in all.
+responseDrip :: Response
+responseDrip = responseStreaming ok200 [] $ \write flush ->
+    replicateM_ dripChunks $ do
+        write (byteString "x") >> flush
+        threadDelay 300000
 
 responseCancelAsync :: Response
 responseCancelAsync = responseStreamingIface ok200 [] $ \iface -> do
@@ -1688,6 +1723,19 @@ runStreamErrorClient = runTCPClient host port $ \s ->
             let good = C.requestNoBody methodGet "/" []
             sendRequest good $ \rsp ->
                 C.responseStatus rsp `shouldBe` Just ok200
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
+
+-- | How many octets of '/drip' arrive.
+runDripClient :: IO Int
+runDripClient = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let req = C.requestNoBody methodGet "/drip" []
+                count rsp n = do
+                    bs <- C.getResponseBodyChunk rsp
+                    if B.null bs then return n else count rsp (n + B.length bs)
+            sendRequest req $ \rsp -> count rsp 0
   where
     cliconf = C.defaultClientConfig{C.authority = host}
 
