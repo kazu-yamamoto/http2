@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module HTTP2.WatchdogSpec (spec) where
 
@@ -124,8 +125,12 @@ consume rbody = B.concat <$> loop
 recvAll :: Socket -> IO ByteString
 recvAll s = B.concat <$> loop
   where
+    -- A peer which resets rather than closes is an EOF for our purposes.
+    -- Only an 'E.IOException': the caller wraps this in 'timeout', which
+    -- ends it by throwing, and catching that would turn "the server never
+    -- closed the connection" into bytes it never sent.
     loop = do
-        bs <- recv s 4096 `E.catch` \(E.SomeException _) -> return ""
+        bs <- recv s 4096 `E.catch` \(_ :: E.IOException) -> return ""
         if B.null bs then return [] else (bs :) <$> loop
 
 -- | A SETTINGS frame with no parameters.
