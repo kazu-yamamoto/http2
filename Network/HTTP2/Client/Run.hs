@@ -18,7 +18,7 @@ import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
 import qualified System.TimeManager as TM
-import System.Watchdog
+import Network.HTTP2.H2.Watchdog
 import Text.Read (readMaybe)
 
 import Imports

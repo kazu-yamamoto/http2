@@ -98,6 +98,7 @@ library
         Network.HTTP2.H2.StreamTable
         Network.HTTP2.H2.Sync
         Network.HTTP2.H2.Types
+        Network.HTTP2.H2.Watchdog
         Network.HTTP2.H2.Window
         Network.HTTP2.Frame.Decode
         Network.HTTP2.Frame.Encode
