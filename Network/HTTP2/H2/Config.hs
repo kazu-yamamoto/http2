@@ -37,7 +37,12 @@ allocSimpleConfig' s bufsiz usec = do
     return Config{..}
 
 -- | Deallocating the resource of the simple configuration.
+--
+--   This does not cancel timeout actions registered with
+--   'confTimeoutManager'.  Since time-manager 0.3, a manager holds no
+--   registrations, so there is nothing to kill: an action registered with
+--   'System.TimeManager.register' runs even after this returns unless it
+--   is cancelled with 'System.TimeManager.cancel'.  Use
+--   'System.TimeManager.withHandle', which cancels it when the scope ends.
 freeSimpleConfig :: Config -> IO ()
-freeSimpleConfig conf = do
-    free $ confWriteBuffer conf
-    T.killManager $ confTimeoutManager conf
+freeSimpleConfig conf = free $ confWriteBuffer conf
