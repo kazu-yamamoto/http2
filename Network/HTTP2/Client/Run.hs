@@ -297,7 +297,7 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
         else do
             (pop, out) <- makeOutput strm ot
             pushOutput sid out `E.onException` abandon sid
-            lc <- newLoopCheck strm mtbq Nothing
+            lc <- newLoopCheck strm mtbq
             T.forkManaged threadManager label $ syncWithSender' ctx pop lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)

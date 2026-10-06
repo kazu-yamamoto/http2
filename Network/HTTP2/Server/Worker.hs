@@ -45,7 +45,7 @@ runServer conf server ctx@Context{..} strm req =
 #endif
                     }
             request = Request req'
-        lc <- newLoopCheck strm Nothing (Just th)
+        lc <- newLoopCheck strm Nothing
         server request aux $ sendResponse conf ctx lc strm request
         adjustRxWindow ctx strm
   where
@@ -62,7 +62,7 @@ runServer conf server ctx@Context{..} strm req =
 --   ordering with respect to the final response.
 sendInformational :: Context -> Stream -> Status -> ResponseHeaders -> IO ()
 sendInformational ctx strm st hdrs = do
-    lc <- newLoopCheck strm Nothing Nothing
+    lc <- newLoopCheck strm Nothing
     let hdr = (":status", C8.pack (show (statusCode st))) : hdrs
     syncWithSender ctx strm (OInformational hdr) lc
 #endif
@@ -156,7 +156,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                 , (tokenPath, path)
                 ]
             ot = OPush promiseRequest pid
-        lc <- newLoopCheck newstrm Nothing Nothing
+        lc <- newLoopCheck newstrm Nothing
         syncWithSender ctx newstrm ot lc
         -- Reserved (local) until now.  The peer sends nothing on a pushed
         -- stream, so its side is closed from here (RFC 9113, section 5.1:

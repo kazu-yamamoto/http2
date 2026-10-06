@@ -157,7 +157,8 @@ spec = do
         it "keeps a stream that goes on sending past the timeout" $
             -- The worker's timer was only tickled by reading the request
             -- body, so a response streamed for longer than the timeout was
-            -- killed half-way (#173).
+            -- killed half-way (#173).  The watchdog counts a write that
+            -- returns as progress, so the drip keeps the connection.
             E.bracket (forkIO runServerShortTimeout) killThread $ \_ -> do
                 threadDelay 10000
                 runDripClient `shouldReturn` dripChunks
@@ -565,18 +566,13 @@ runServerManyResets = runTCPServer (Just host) port runHTTP2Server
             freeSimpleConfig
             (\conf -> run sconf conf server)
 
--- | A server whose timeout is one second.  Like Warp, it sets
--- 'confReadNTimeout', so the receiver has no timer of its own, which would
--- close a connection the client sends nothing on.
+-- | A server whose timeout is one second.
 runServerShortTimeout :: IO ()
 runServerShortTimeout = runTCPServer (Just host) port runHTTP2Server
   where
-    alloc s = do
-        conf <- allocSimpleConfig' s 32768 1000000
-        return conf{confReadNTimeout = True}
     runHTTP2Server s =
         E.bracket
-            (alloc s)
+            (allocSimpleConfig' s 32768 1000000)
             freeSimpleConfig
             (\conf -> run defaultServerConfig conf server)
 
