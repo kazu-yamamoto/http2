@@ -253,17 +253,23 @@ frameSender
                                 return off'
 
         ----------------------------------------------------------------
-        handler strm off e = do
-            resetStream strm InternalError e
-            return off
-
-        resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
-        resetStream strm err e
+        handler strm off e
             | isAsyncException e = E.throwIO e
             | otherwise = do
-                closed ctx strm (ResetByMe e)
-                let rst = resetFrame err $ streamNumber strm
-                enqueueControl controlQ $ CFrames Nothing [rst]
+                resetStream strm InternalError e
+                return off
+
+        -- 'e' is the reason for the reset, not something thrown to the
+        -- sender.  It may well be asynchronous: a streaming body killed
+        -- by 'cancel' passes the exception to 'outBodyCancel'.  Throwing
+        -- it here would kill the sender and the whole connection with it.
+        -- Asynchronous exceptions actually thrown to the sender are
+        -- re-thrown by 'handler'.
+        resetStream :: Stream -> ErrorCode -> E.SomeException -> IO ()
+        resetStream strm err e = do
+            closed ctx strm (ResetByMe e)
+            let rst = resetFrame err $ streamNumber strm
+            enqueueControl controlQ $ CFrames Nothing [rst]
 
         resetStreamWith :: Stream -> Maybe E.SomeException -> IO ()
         resetStreamWith strm (Just err) =
