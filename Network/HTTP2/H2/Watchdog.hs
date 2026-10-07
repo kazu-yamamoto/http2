@@ -38,6 +38,7 @@ module Network.HTTP2.H2.Watchdog (
 import Control.Concurrent.STM (STM, retry)
 import qualified Control.Exception as E
 import Control.Monad (when)
+import Data.Word (Word64)
 import System.Watchdog hiding (
     handOver,
     isTimedOut,
@@ -61,7 +62,7 @@ data H2Watchdog = H2Watchdog !Bool !(Watchdog H2)
 --   connection never times out.
 newH2Watchdog :: Int -> IO H2Watchdog
 newH2Watchdog us = do
-    wd <- W.newWatchdog $ H2Context us $ Activity 0 0 0 0 0
+    wd <- W.newWatchdog $ H2Context (fromIntegral $ max 0 us) $ Activity 0 0 0 0 0
     -- Nothing to watch, so no thread watches it.
     when (us <= 0) $ W.handOver wd
     return $ H2Watchdog (us > 0) wd
@@ -97,7 +98,7 @@ rule a
 
 instance WatchdogFor H2 where
     data ContextFor H2 = H2Context
-        { h2Timeout :: Int
+        { h2Timeout :: Word64
         , h2Activity :: Activity
         }
 
