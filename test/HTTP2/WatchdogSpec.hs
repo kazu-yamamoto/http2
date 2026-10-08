@@ -35,6 +35,17 @@ serverTimeout = 1000000
 
 spec :: Spec
 spec = describe "watchdog" $ do
+    it "closes a connection that stops half way through the preface" $
+        -- The preface is read before anything else is set up, so the
+        -- watchdog has to start before it rather than after.
+        withServer (\_ _ _ -> return ()) $ do
+            r <- timeout 3000000 $ runTCPClient host port $ \s -> do
+                sendAll s $ B.take 8 connectionPreface
+                recvAll s
+            -- Closed, with nothing sent: there was no connection to say
+            -- GOAWAY on yet.
+            r `shouldBe` Just ""
+
     it "closes an idle connection with GOAWAY" $
         withServer (\_ _ _ -> return ()) $ do
             r <- timeout 3000000 $ runTCPClient host port $ \s -> do

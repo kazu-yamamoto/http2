@@ -127,13 +127,14 @@ data HeaderContinuation = HeaderContinuation
 newContext
     :: RoleInfo
     -> Config
+    -> H2Watchdog
     -> Int
     -> Int
     -> Settings
     -> T.Manager
     -> Maybe (STM Bool)
     -> IO Context
-newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
+newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings timmgr mdone = do
     -- My: Use this even if ack has not been received yet.
     myFirstSettings <- newIORef False
     -- Peer: The spec defines max concurrency is infinite unless
@@ -169,7 +170,6 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone
     peerGoAway      <- newTVarIO Nothing
     activeRequests  <- newTVarIO 0
-    watchdog        <- newH2Watchdog confTimeout
     return Context{..}
   where
     role = case roleInfo of

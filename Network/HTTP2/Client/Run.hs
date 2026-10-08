@@ -153,10 +153,14 @@ getResponse strm = do
 setup :: ClientConfig -> Config -> IO Context
 setup ClientConfig{..} conf = do
     let clientInfo = newClientInfo scheme authority
+    -- Nothing is read from the peer before 'runH2' starts the watchdog:
+    -- 'exchangeSettings' only queues what this end sends.
+    wd <- newH2Watchdog $ confTimeout conf
     ctx <-
         newContext
             clientInfo
             conf
+            wd
             cacheLimit
             connectionWindowSize
             settings
