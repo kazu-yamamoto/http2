@@ -19,6 +19,7 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
+import Network.HTTP2.H2.Watchdog
 
 data Role = Client | Server deriving (Eq, Show)
 
@@ -99,6 +100,8 @@ data Context = Context
     -- ^ Client only: requests whose 'processResponse' has not returned.
     --   A response can be complete, its stream gone from the table, and
     --   its body still being read.
+    , watchdog           :: H2Watchdog
+    -- ^ The timeout supervisor of this connection, for 'confTimeout'.
     }
 {- FOURMOLU_ENABLE -}
 
@@ -124,13 +127,14 @@ data HeaderContinuation = HeaderContinuation
 newContext
     :: RoleInfo
     -> Config
+    -> H2Watchdog
     -> Int
     -> Int
     -> Settings
     -> T.Manager
     -> Maybe (STM Bool)
     -> IO Context
-newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
+newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings timmgr mdone = do
     -- My: Use this even if ack has not been received yet.
     myFirstSettings <- newIORef False
     -- Peer: The spec defines max concurrency is infinite unless

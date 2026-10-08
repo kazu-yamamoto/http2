@@ -17,6 +17,8 @@ import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
+import Network.HTTP2.H2.Watchdog
 import Text.Read (readMaybe)
 
 import Imports
@@ -149,23 +151,33 @@ getResponse strm = do
         Right rsp -> return $ Response rsp
 
 setup :: ClientConfig -> Config -> IO Context
-setup ClientConfig{..} conf@Config{..} = do
+setup ClientConfig{..} conf = do
     let clientInfo = newClientInfo scheme authority
+    -- Nothing is read from the peer before 'runH2' starts the watchdog:
+    -- 'exchangeSettings' only queues what this end sends.
+    wd <- newH2Watchdog $ confTimeout conf
     ctx <-
         newContext
             clientInfo
             conf
+            wd
             cacheLimit
             connectionWindowSize
             settings
-            confTimeoutManager
+            TM.defaultManager
             Nothing
     exchangeSettings ctx
     return ctx
 
 runH2 :: Config -> Context -> IO a -> IO a
 runH2 conf ctx runClient = do
-    T.stopAfter mgr (E.try runAll >>= closureClient conf ctx) $ \res ->
+    tid <- myThreadId
+    -- The last resort, if the connection does not finish by itself
+    -- after it timed out.
+    let supervised =
+            withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
+                E.try runAll >>= closureClient conf ctx
+    T.stopAfter mgr supervised $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     mgr = threadManager ctx
@@ -289,7 +301,7 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
         else do
             (pop, out) <- makeOutput strm ot
             pushOutput sid out `E.onException` abandon sid
-            lc <- newLoopCheck strm mtbq Nothing
+            lc <- newLoopCheck strm mtbq
             T.forkManaged threadManager label $ syncWithSender' ctx pop lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)

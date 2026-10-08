@@ -15,6 +15,8 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
+import Network.HTTP2.H2.Watchdog
 
 import Imports hiding (insert)
 import Network.HTTP2.Frame
@@ -29,11 +31,13 @@ import qualified Data.ByteString.Char8 as C8
 
 runServer :: Config -> Server -> Launch
 runServer conf server ctx@Context{..} strm req =
-    T.forkManagedTimeout threadManager label $ \th -> do
-        let req' = pauseRequestBody th
+    -- No timer per stream: the application may take as long as it likes,
+    -- and the connection is supervised by its watchdog.
+    T.forkManaged threadManager label $ runningApp watchdog $ do
+        let req' = watchRequestBody
             aux =
                 defaultAux
-                    { auxTimeHandle = th
+                    { auxTimeHandle = TM.emptyHandle
                     , auxMySockAddr = mySockAddr
                     , auxPeerSockAddr = peerSockAddr
 #if MIN_VERSION_http_semantics(0,4,1)
@@ -41,19 +45,12 @@ runServer conf server ctx@Context{..} strm req =
 #endif
                     }
             request = Request req'
-        lc <- newLoopCheck strm Nothing (Just th)
+        lc <- newLoopCheck strm Nothing
         server request aux $ sendResponse conf ctx lc strm request
         adjustRxWindow ctx strm
   where
     label = "H2 response sender for stream " ++ show (streamNumber strm)
-    pauseRequestBody th = req{inpObjBody = readBody'}
-      where
-        readBody = inpObjBody req
-        readBody' = do
-            T.pause th
-            bs <- readBody
-            T.resume th -- this is the same as 'tickle'
-            return bs
+    watchRequestBody = req{inpObjBody = waitingForPeer watchdog $ inpObjBody req}
 
 ----------------------------------------------------------------
 
@@ -65,7 +62,7 @@ runServer conf server ctx@Context{..} strm req =
 --   ordering with respect to the final response.
 sendInformational :: Context -> Stream -> Status -> ResponseHeaders -> IO ()
 sendInformational ctx strm st hdrs = do
-    lc <- newLoopCheck strm Nothing Nothing
+    lc <- newLoopCheck strm Nothing
     let hdr = (":status", C8.pack (show (statusCode st))) : hdrs
     syncWithSender ctx strm (OInformational hdr) lc
 #endif
@@ -159,7 +156,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
                 , (tokenPath, path)
                 ]
             ot = OPush promiseRequest pid
-        lc <- newLoopCheck newstrm Nothing Nothing
+        lc <- newLoopCheck newstrm Nothing
         syncWithSender ctx newstrm ot lc
         -- Reserved (local) until now.  The peer sends nothing on a pushed
         -- stream, so its side is closed from here (RFC 9113, section 5.1:
@@ -220,20 +217,8 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming ctx@Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    T.forkManagedTimeout threadManager label $ \th ->
-        withOutBodyIface ctx strm tbq id $ \iface -> do
-            let iface' =
-                    iface
-                        { outBodyPush = \b -> do
-                            T.pause th
-                            outBodyPush iface b
-                            T.resume th -- this is the same as 'tickle'
-                        , outBodyPushFinal = \b -> do
-                            T.pause th
-                            outBodyPushFinal iface b
-                            T.resume th -- this is the same as 'tickle'
-                        }
-            strmbdy iface'
+    T.forkManaged threadManager label $
+        withOutBodyIface ctx strm tbq id strmbdy
     return tbq
   where
     label = "H2 response streaming sender for " ++ show (streamNumber strm)

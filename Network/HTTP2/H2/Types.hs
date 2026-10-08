@@ -260,18 +260,51 @@ data Config = Config
     , confReadN :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: T.Manager
+    -- ^ Deprecated field. Not used any more. Timeouts are decided by
+    --   'confTimeout'.
     , confMySockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confPeerSockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confReadNTimeout :: Bool
+    -- ^ Deprecated field. Not used any more. Timeouts are decided by
+    --   'confTimeout'.
     , confOnInformational :: StreamId -> TokenHeaderTable -> IO ()
     -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
     --   Hints) is received on the given stream, ahead of the final response.
     --   No-op by default.
     --
     --   @since 5.4.2
+    , confTimeout :: Int
+    -- ^ How long this connection may make no progress, in microseconds.
+    --   Zero or less means no timeout.
+    --
+    --   The library supervises the connection itself, and gives up on it
+    --   with GOAWAY when the time passes. A connection belongs to one
+    --   supervisor: a caller which watched the connection before handing
+    --   it here, as Warp does, stops watching it when it does.
+    --
+    --   Progress is exactly this:
+    --
+    --   * The peer makes progress when the header of a frame arrives,
+    --     which also means that the payload of the previous frame was
+    --     read in full. Any frame counts, on any stream, including PING,
+    --     SETTINGS and WINDOW_UPDATE. So a peer can keep an idle
+    --     connection alive with PINGs, as far as the PING rate limit
+    --     allows. A frame which trickles in counts only once its header
+    --     is complete.
+    --
+    --   * A write makes progress when a call to 'confSendAll' returns. A
+    --     call which is blocked counts for nothing, however many bytes
+    --     the kernel took.
+    --
+    --   A server application runs from when its stream is handed to it
+    --   until it returns, and is not limited in time. A stream waits for
+    --   its request body while the application reads it.
     }
+
+{-# DEPRECATED confTimeoutManager "No effect anymore. Use confTimeout" #-}
+{-# DEPRECATED confReadNTimeout "No effect anymore. Use confTimeout" #-}
 
 -- | Default config. This is just a template to modify via
 --   field names. Don't use this without modifications.
@@ -288,6 +321,7 @@ defaultConfig =
         , confPeerSockAddr = SockAddrInet 0 0
         , confReadNTimeout = False
         , confOnInformational = \_ _ -> return ()
+        , confTimeout = 0
         }
 
 isAsyncException :: E.Exception e => e -> Bool
