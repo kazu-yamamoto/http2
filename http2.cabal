@@ -123,7 +123,7 @@ library
         network-byte-order >=0.1.7 && <0.2,
         network-control >=0.1 && <0.2,
         stm >=2.5 && <2.6,
-        time-manager >=0.4 && <0.5,
+        time-manager >=0.4.1 && <0.5,
         unix-time >=0.4.11 && <0.6,
         utf8-string >=1.0 && <1.1
 
