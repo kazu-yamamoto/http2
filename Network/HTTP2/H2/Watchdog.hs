@@ -62,18 +62,25 @@ data H2Watchdog = H2Watchdog !Bool !(Watchdog H2)
 --   connection never times out.
 newH2Watchdog :: Int -> IO H2Watchdog
 newH2Watchdog us = do
-    wd <- W.newWatchdog $ H2Context (fromIntegral $ max 0 us) $ Activity 0 0 0 0 0
+    wd <-
+        W.newWatchdog $
+            H2Context (fromIntegral $ max 0 us) $
+                Activity 0 0 False 0 0
     -- Nothing to watch, so no thread watches it.
     when (us <= 0) $ W.handOver wd
     return $ H2Watchdog (us > 0) wd
 
+-- | A write is a flag and the other two are counts, because there is one
+--   sender on a connection -- 'Network.HTTP2.H2.Sender.frameSender', run
+--   once by 'Network.HTTP2.Server.run' -- and as many applications and
+--   request bodies as the connection has streams.
 data Activity = Activity
     { actRx :: Int
     -- ^ Progress of the peer.
     , actTx :: Int
     -- ^ Completed writes.
-    , actSending :: Int
-    -- ^ Writes in progress.
+    , actSending :: Bool
+    -- ^ A write is in progress.
     , actWaiting :: Int
     -- ^ Request bodies being waited for.
     , actApps :: Int
@@ -91,7 +98,7 @@ data Rule
 
 rule :: Activity -> Rule
 rule a
-    | actSending a > 0 = Writing $ actTx a
+    | actSending a = Writing $ actTx a
     | actWaiting a > 0 = ReadingForApp $ actRx a
     | actApps a > 0 = RunningApp
     | otherwise = Idling $ actRx a
@@ -156,12 +163,7 @@ during begin end wd act =
 -- | Running a write.
 sending :: H2Watchdog -> IO a -> IO a
 sending wd act = do
-    r <-
-        during
-            (\a -> a{actSending = actSending a + 1})
-            (\a -> a{actSending = actSending a - 1})
-            wd
-            act
+    r <- during (\a -> a{actSending = True}) (\a -> a{actSending = False}) wd act
     txTick wd
     return r
 
