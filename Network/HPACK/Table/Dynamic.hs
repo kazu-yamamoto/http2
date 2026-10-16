@@ -199,9 +199,12 @@ needChangeTableSize DynamicTable{..} = do
             | lim < maxsiz -> Change lim
             | otherwise -> Ignore maxsiz
 
--- | Setting the limit on the decoded header list size for decoding.
---   'Nothing' means no limit. A limit of zero is a limit, too: every
---   field exceeds it. See 'headerListSizeLimit'.
+-- | Setting the limit on the decoded header list size for decoding, as
+--   defined in RFC 9113 section 6.5.2: the sum over each field of the
+--   length of its name, the length of its value, and 32.  A field block
+--   over the limit makes decoding throw 'TooLargeHeader'.  'Nothing'
+--   means no limit, which is the default. A limit of zero is a limit,
+--   too: every field exceeds it.
 setHeaderListSizeLimit :: Maybe Int -> DynamicTable -> IO ()
 setHeaderListSizeLimit lim DynamicTable{..} =
     writeIORef headerListSizeLimit lim

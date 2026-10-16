@@ -21,7 +21,11 @@ data Settings = Settings
     , maxFrameSize :: Int
     -- ^ SETTINGS_MAX_FRAME_SIZE
     , maxHeaderListSize :: Maybe Int
-    -- ^ SETTINGS_MAX_HEADER_LIST_SIZE
+    -- ^ SETTINGS_MAX_HEADER_LIST_SIZE. Our own value is also enforced:
+    --   a field block whose decoded size (RFC 9113 section 6.5.2: the
+    --   length of each field's name plus its value plus 32) exceeds it
+    --   resets the stream. With 'Nothing', nothing is advertised but a
+    --   limit of 64 KiB is enforced all the same (CVE-2026-49975).
     , pingRateLimit :: Int
     -- ^ Maximum number of pings allowed per second (CVE-2019-9512)
     , emptyFrameRateLimit :: Int
