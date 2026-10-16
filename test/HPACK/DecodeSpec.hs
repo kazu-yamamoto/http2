@@ -101,6 +101,39 @@ spec = do
                     decodeTokenHeader dtbl blk1 `shouldThrow` (== err)
                     (tvs, _) <- decodeTokenHeader dtbl blk2
                     map (\(t, v) -> (tokenKey t, v)) tvs `shouldBe` [("x-after", "2")]
+        it "rejects a field block whose decoded size exceeds the limit" $
+            -- CVE-2026-49975: a large value inserted into the dynamic table
+            -- once and then referenced expands cheaply on the wire.  The
+            -- decoded header list size (RFC 9113 6.5.2) is bounded all the
+            -- same.  The crumbs of one Cookie are the worst case, each
+            -- reproducing the whole value.
+            withDynamicTableForEncoding 4096 $ \etbl ->
+                withDynamicTableForDecoding 4096 4096 $ \dtbl -> do
+                    setHeaderListSizeLimit (64 * 1024) dtbl
+                    let big = BS8.replicate 4000 'a'
+                        many = replicate 20 ("cookie", big) -- ~80 KiB decoded
+                    blk <- encodeHeader defaultEncodeStrategy 131072 etbl many
+                    decodeTokenHeader dtbl blk `shouldThrow` (== TooLargeHeader)
+        it "accepts a field block within the limit" $
+            withDynamicTableForEncoding 4096 $ \etbl ->
+                withDynamicTableForDecoding 4096 4096 $ \dtbl -> do
+                    setHeaderListSizeLimit (64 * 1024) dtbl
+                    let big = BS8.replicate 4000 'a'
+                        few = replicate 5 ("cookie", big) -- ~20 KiB decoded
+                    blk <- encodeHeader defaultEncodeStrategy 131072 etbl few
+                    (tvs, _) <- decodeTokenHeader dtbl blk
+                    -- The crumbs are merged into one Cookie value.
+                    map (\(t, v) -> (tokenKey t, v)) tvs
+                        `shouldBe` [("cookie", BS.intercalate "; " (replicate 5 big))]
+        it "does not limit the decoded size when the limit is zero" $
+            withDynamicTableForEncoding 4096 $ \etbl ->
+                withDynamicTableForDecoding 4096 4096 $ \dtbl -> do
+                    let big = BS8.replicate 4000 'a'
+                        many = replicate 20 ("cookie", big)
+                    blk <- encodeHeader defaultEncodeStrategy 131072 etbl many
+                    -- Default table limit is 0 (no limit): decodes fine.
+                    (tvs, _) <- decodeTokenHeader dtbl blk
+                    length tvs `shouldBe` 1
         it "round-trips through tables small enough to fill up" $
             -- Entries near the 32-octet minimum fill a table of these sizes
             -- to its last slot.  The encoder follows the peer's

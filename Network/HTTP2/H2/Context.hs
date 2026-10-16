@@ -120,6 +120,14 @@ data HeaderContinuation = HeaderContinuation
 
 ----------------------------------------------------------------
 
+-- | The default limit on the decoded size of a field block, used when
+--   SETTINGS_MAX_HEADER_LIST_SIZE is not set. 64 KiB, measured as in RFC
+--   9113 section 6.5.2.
+defaultHeaderListSizeLimit :: Int
+defaultHeaderListSizeLimit = 64 * 1024
+
+----------------------------------------------------------------
+
 {- FOURMOLU_DISABLE -}
 newContext
     :: RoleInfo
@@ -152,6 +160,13 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     encodeDynamicTable <- newDynamicTableForEncoding defaultDynamicTableSize
     decodeDynamicTable <-
         newDynamicTableForDecoding (headerTableSize mySettings) 4096
+    -- Bound the decoded size of a field block: a near-empty field or a
+    -- Cookie referenced thousands of times is cheap on the wire but large
+    -- once decoded (CVE-2026-49975).  Our own advertised limit is enforced
+    -- when one is set, and a default is used otherwise.
+    setHeaderListSizeLimit
+        (fromMaybe defaultHeaderListSizeLimit (maxHeaderListSize mySettings))
+        decodeDynamicTable
     txFlow          <- newTVarIO (newTxFlow defaultWindowSize) -- 64K
     rxFlow          <- newIORef (newRxFlow connRxWS)
     pingRate        <- newRate

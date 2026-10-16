@@ -16,6 +16,8 @@ module Network.HPACK.Table (
     needChangeTableSize,
     setLimitForEncoding,
     resetLimitForEncoding,
+    setHeaderListSizeLimit,
+    getHeaderListSizeLimit,
 
     -- * Insertion
     insertEntry,
