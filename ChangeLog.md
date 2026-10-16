@@ -6,6 +6,9 @@
   defend against the HPACK amplification of the HTTP/2 Bomb
   (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
   and 64 KiB otherwise.
+* Reset the stream (`INTERNAL_ERROR`) when a streaming body throws, on a
+  response or a request.  The stream used to be ended with `END_STREAM`, so
+  the peer took a truncated body for a complete one.
 * Server: reset the stream (`INTERNAL_ERROR`) of a handler that throws or
   is killed by the timeout.  The stream used to be left open with no
   response: the client waited for ever, and the stream kept its slot of

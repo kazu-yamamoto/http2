@@ -112,14 +112,23 @@ withOutBodyIface ctx@Context{outputQ} strm tbq unmask k = do
                             return ()
                 }
 
-        finished :: IO ()
-        finished = atomically $ do
+        -- The body is done with: it returned, or it threw.  One that returned
+        -- has sent all it had, and END_STREAM goes out.  One that threw has
+        -- not: ending the stream all the same delivered a truncated body to
+        -- the peer as if it were complete.  So it is cancelled instead, and
+        -- the peer gets RST_STREAM (INTERNAL_ERROR).
+        finished :: Maybe SomeException -> IO ()
+        finished mErr = atomically $ do
             mTerminated <- readTVar terminated
             mClosed <- getIsClosed
             case (mClosed, mTerminated) of
-                (Nothing, Nothing) -> do
-                    writeTVar terminated (Just StreamOutOfScope)
-                    writeTBQueue tbq $ StreamingFinished Nothing
+                (Nothing, Nothing) -> case mErr of
+                    Nothing -> do
+                        writeTVar terminated (Just StreamOutOfScope)
+                        writeTBQueue tbq $ StreamingFinished Nothing
+                    Just _ -> do
+                        writeTVar terminated (Just StreamCancelled)
+                        writeTBQueue tbq $ StreamingCancelled mErr
                 (Nothing, Just _) ->
                     -- We already terminated
                     return ()
@@ -127,4 +136,8 @@ withOutBodyIface ctx@Context{outputQ} strm tbq unmask k = do
                     -- Peer already closed
                     return ()
 
-    k iface `finally` finished
+    -- Like 'finally', telling the two apart.
+    mask $ \restore -> do
+        r <- restore (k iface) `catch` \e -> finished (Just e) >> throwIO e
+        finished Nothing
+        return r
