@@ -431,6 +431,24 @@ spec = do
                         , "HEADERS 3"
                         ]
 
+        it "resets the stream of a handler that throws and gives its slot back" $
+            -- The handler throws before it responds.  The stream used to be
+            -- left open: no response and no RST_STREAM, so the client waited
+            -- for ever, and the stream kept its slot of
+            -- SETTINGS_MAX_CONCURRENT_STREAMS.  With room for one stream,
+            -- the next request was refused.
+            E.bracket (forkIO runServerMaxConc1) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 (failingHandler "/throw")
+                    `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
+
+        it "resets the stream of a handler killed by the timeout" $
+            -- Likewise for a handler the timeout manager kills.
+            E.bracket (forkIO runServerShortTimeout) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 10000000 (failingHandler "/hang")
+                    `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
+
         it "answers without a body while the connection window is shut" $
             -- HEADERS are not flow-controlled (RFC 9113, section 6.9).  The
             -- sender used to wait for the connection window before taking
@@ -746,6 +764,11 @@ server req aux sendResponse = case requestMethod req of
         -- Like /stream, but going quietly once the client resets it.
         Just "/endless" -> sendResponse responseEndless []
         Just "/not-modified" -> sendResponse (responseNoBody notModified304 bigLength) []
+        -- A handler that fails before it responds.
+        Just "/throw" -> E.throwIO $ userError "handler failed"
+        -- A handler that outlives the timeout of 'runServerShortTimeout'
+        -- without a word, and is killed.
+        Just "/hang" -> threadDelay 10000000 >> sendResponse responseHello []
         -- Says it has content, and has none: malformed.
         Just "/no-content" -> sendResponse (responseNoBody ok200 bigLength) []
         Just "/big" -> sendResponse responseBig []
@@ -1551,6 +1574,49 @@ bombRequest = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return ["GOAWAY " ++ show err]
             Just _ -> collect s
+
+-- | A request to a handler that fails, and once its stream is reset, a
+-- request to one that answers: what the server says about each.
+--
+-- The second request goes out only after the first stream is reset, so
+-- that a server with room for one stream has given the slot back if it
+-- ever will.  PINGs keep the connection from timing out meanwhile.
+failingHandler :: ByteString -> IO [String]
+failingHandler path = runTCPClient host port $ \s -> do
+    lock <- newMVar ()
+    let send bs = withMVar lock $ \_ -> sendAll s bs
+        request sid p =
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", p)
+                        , (":method", "GET")
+                        ]
+        ping = encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ PingFrame "01234567"
+        pinger = forever $ threadDelay 300000 >> send ping
+    send connectionPreface
+    send $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    send $ request 1 path
+    withAsync pinger $ \_ -> collect s send request False
+  where
+    collect s send request sent = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just (FrameHeaders, fh, _)
+                | streamId fh == 1 -> return ["HEADERS 1"]
+                | streamId fh == 3 -> return ["HEADERS 3"]
+            Just (FrameRSTStream, fh, p)
+                | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p -> do
+                    unless (sent || streamId fh /= 1) $ send $ request 3 "/"
+                    (("RST_STREAM " ++ show (streamId fh) ++ " " ++ show err) :)
+                        <$> collect s send request (sent || streamId fh == 1)
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return ["GOAWAY " ++ show err]
+            Just _ -> collect s send request sent
 
 -- | /endless until the server has used up the connection window, which we
 -- do not open, then a request whose answer has no body: what the server
