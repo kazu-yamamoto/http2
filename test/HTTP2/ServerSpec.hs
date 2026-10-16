@@ -154,6 +154,20 @@ spec = do
                 threadDelay 10000
                 runAsyncCancelClient
 
+        it "resets a stream whose response body throws" $
+            -- The body was ended with END_STREAM all the same, and the client
+            -- took what had been sent so far for the whole of it.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runStreamThrowClient
+
+        it "resets a stream whose request body throws" $
+            -- Likewise the other way round: the server took a truncated
+            -- request body for a complete one, and answered it.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                runRequestThrowClient
+
         it "keeps a stream that goes on sending past the timeout" $
             -- The worker's timer was only tickled by reading the request
             -- body, so a response streamed for longer than the timeout was
@@ -759,6 +773,8 @@ server req aux sendResponse = case requestMethod req of
         Just "/stream" -> sendResponse responseInfinite []
         -- Some of the body, then cancelled with an asynchronous exception.
         Just "/cancel-async" -> sendResponse responseCancelAsync []
+        -- Some of the body, then the body throws.
+        Just "/stream-throw" -> sendResponse responseStreamThrow []
         -- Longer than the timeout of 'runServerShortTimeout', a chunk at a time.
         Just "/drip" -> sendResponse responseDrip []
         -- Like /stream, but going quietly once the client resets it.
@@ -879,6 +895,12 @@ responseCancelAsync = responseStreamingIface ok200 [] $ \iface -> do
     outBodyPush iface "x"
     outBodyFlush iface
     outBodyCancel iface $ Just $ E.toException AsyncCancelled
+
+responseStreamThrow :: Response
+responseStreamThrow = responseStreaming ok200 [] $ \write flush -> do
+    write "partial-"
+    flush
+    E.throwIO $ userError "body failed"
 
 responseInfinite :: Response
 responseInfinite = responseStreaming ok200 header body
@@ -1886,6 +1908,49 @@ runAsyncCancelClient = runTCPClient host port $ \s ->
                 C.responseStatus rsp `shouldBe` Just ok200
   where
     cliconf = C.defaultClientConfig{C.authority = host}
+
+runStreamThrowClient :: IO ()
+runStreamThrowClient = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let req = C.requestNoBody methodGet "/stream-throw" []
+                drain rsp = do
+                    bs <- C.getResponseBodyChunk rsp
+                    unless (B.null bs) $ drain rsp
+            sendRequest req drain `shouldThrow` resetWith C.InternalError
+            let good = C.requestNoBody methodGet "/" []
+            sendRequest good $ \rsp ->
+                C.responseStatus rsp `shouldBe` Just ok200
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
+
+-- | A request whose streaming body throws after "partial-": what
+-- the server makes of it must not be an answer to an 8-octet body.
+runRequestThrowClient :: IO ()
+runRequestThrowClient = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let req = C.requestStreaming methodPost "/count" [] $ \write flush -> do
+                    write "partial-"
+                    flush
+                    threadDelay 10000
+                    E.throwIO $ userError "body failed"
+                body rsp acc = do
+                    bs <- C.getResponseBodyChunk rsp
+                    if B.null bs then return acc else body rsp (acc <> bs)
+            r <- E.try $ sendRequest req $ \rsp -> body rsp ""
+            case r :: Either C.HTTP2Error ByteString of
+                Left _ -> return ()
+                Right bs -> expectationFailure $ "answered: " ++ show bs
+            let good = C.requestNoBody methodGet "/" []
+            sendRequest good $ \rsp ->
+                C.responseStatus rsp `shouldBe` Just ok200
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
+
+resetWith :: C.ErrorCode -> Selector C.HTTP2Error
+resetWith ec (C.StreamResetIsReceived ec' _) = ec == ec'
+resetWith _ _ = False
 
 streamWasReset :: Selector C.HTTP2Error
 streamWasReset C.StreamResetIsReceived{} = True
