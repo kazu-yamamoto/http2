@@ -87,7 +87,8 @@ data DecodeError
       IllegalTableSizeUpdate
     | HeaderBlockTruncated
     | IllegalHeaderName
-    | TooLargeHeader
+    | -- | Too many fields, or a decoded header list size over the limit
+      TooLargeHeader
     deriving (Eq, Show)
 
 instance E.Exception DecodeError
