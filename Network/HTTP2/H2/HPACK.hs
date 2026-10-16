@@ -147,8 +147,10 @@ hpackDecode illegal hdrblk sid Context{..} =
     -- closed the connection, every other stream on it with it.
     handl IllegalHeaderName =
         E.throwIO $ StreamErrorIsSent ProtocolError sid illegal
+    -- Too many fields, or too large a decoded size (RFC 9113 section
+    -- 6.5.2): either way, the header list is too large.
     handl TooLargeHeader =
-        E.throwIO $ StreamErrorIsSent ProtocolError sid "too many fields"
+        E.throwIO $ StreamErrorIsSent ProtocolError sid "header list too large"
     -- A block we could not get through: our dynamic table now holds the
     -- entries decoded before the throw and nothing after them -- no longer
     -- what the peer's encoder believes we have.  Section 10.5.1: "The field

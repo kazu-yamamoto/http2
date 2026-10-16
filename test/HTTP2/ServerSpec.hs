@@ -416,6 +416,21 @@ spec = do
                 timeout 5000000 malformedRequest
                     `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
 
+        it "resets a request whose decoded headers are too large and goes on" $
+            -- The HTTP/2 Bomb (CVE-2026-49975): a field inserted into the
+            -- dynamic table once and referred to again and again is cheap
+            -- on the wire but large once decoded.  The server advertises
+            -- its limit, resets the stream over it, and keeps its dynamic
+            -- table in step: the next request refers to the same entry.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 bombRequest
+                    `shouldReturn` Just
+                        [ "SETTINGS_MAX_HEADER_LIST_SIZE 65536"
+                        , "RST_STREAM 1 ProtocolError"
+                        , "HEADERS 3"
+                        ]
+
         it "answers without a body while the connection window is shut" $
             -- HEADERS are not flow-controlled (RFC 9113, section 6.9).  The
             -- sender used to wait for the connection window before taking
@@ -1475,6 +1490,58 @@ malformedRequest = runTCPClient host port $ \s -> do
         mf <- recvFrame s
         case mf of
             Nothing -> return []
+            Just (FrameHeaders, fh, _)
+                | streamId fh == 3 -> return ["HEADERS 3"]
+            Just (FrameRSTStream, fh, p)
+                | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
+                    (("RST_STREAM " ++ show (streamId fh) ++ " " ++ show err) :) <$> collect s
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return ["GOAWAY " ++ show err]
+            Just _ -> collect s
+
+-- | A request whose 4000-octet field is inserted into the dynamic table
+-- and referred to 16 times more, about 68 KiB decoded, then one referring
+-- to it once: the SETTINGS_MAX_HEADER_LIST_SIZE the server advertises, and
+-- what it answers.
+bombRequest :: IO [String]
+bombRequest = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let pseudo =
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/")
+                , (":method", "GET")
+                ]
+        request sid blk =
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing blk
+        big = C8.replicate 4000 'a'
+        -- A literal with a new name, with incremental indexing (RFC 7541,
+        -- section 6.2.1): index 62 from now on.
+        insert =
+            B.singleton 0x40
+                <> unsafePerformIO (encodeInteger 7 5)
+                <> "x-big"
+                <> unsafePerformIO (encodeInteger 7 (B.length big))
+                <> big
+        ref = B.singleton 0xbe
+    sendAll s $ request 1 $ pseudo <> insert <> mconcat (replicate 16 ref)
+    sendAll s $ request 3 $ pseudo <> ref
+    collect s
+  where
+    collect s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just (FrameSettings, fh, p)
+                | not (testAck (flags fh))
+                , Right (SettingsFrame alist) <- decodeSettingsFrame fh p ->
+                    let lim = lookup SettingsMaxHeaderListSize alist
+                     in (maybe id (\x -> (("SETTINGS_MAX_HEADER_LIST_SIZE " ++ show x) :)) lim)
+                            <$> collect s
             Just (FrameHeaders, fh, _)
                 | streamId fh == 3 -> return ["HEADERS 3"]
             Just (FrameRSTStream, fh, p)
