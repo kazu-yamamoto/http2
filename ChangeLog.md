@@ -6,6 +6,12 @@
   defend against the HPACK amplification of the HTTP/2 Bomb
   (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
   and 64 KiB otherwise.
+* Behavior change: `defaultSettings` now advertises
+  `SETTINGS_MAX_HEADER_LIST_SIZE` of 64 KiB, so that peers know the limit
+  above.  Both servers and clients refuse a field block that exceeds it,
+  even with `maxHeaderListSize = Nothing`: a response with headers larger
+  than 64 KiB that used to be accepted is now reset.  Set
+  `maxHeaderListSize` to raise the limit.
 
 ## 5.4.8
 

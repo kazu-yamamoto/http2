@@ -120,14 +120,6 @@ data HeaderContinuation = HeaderContinuation
 
 ----------------------------------------------------------------
 
--- | The default limit on the decoded size of a field block, used when
---   SETTINGS_MAX_HEADER_LIST_SIZE is not set. 64 KiB, measured as in RFC
---   9113 section 6.5.2.
-defaultHeaderListSizeLimit :: Int
-defaultHeaderListSizeLimit = 64 * 1024
-
-----------------------------------------------------------------
-
 {- FOURMOLU_DISABLE -}
 newContext
     :: RoleInfo

@@ -57,13 +57,21 @@ baseSettings =
 -- | The default settings.
 --
 -- >>> defaultSettings
--- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}
+-- Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 65536, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}
 defaultSettings :: Settings
 defaultSettings =
     baseSettings
         { maxConcurrentStreams = Just defaultMaxStreams
         , initialWindowSize = defaultMaxStreamData
+        , maxHeaderListSize = Just defaultHeaderListSizeLimit
         }
+
+-- | The limit on the decoded size of a field block, measured as in RFC
+--   9113 section 6.5.2: 64 KiB.  'defaultSettings' advertises it as
+--   SETTINGS_MAX_HEADER_LIST_SIZE, and it is enforced even when
+--   'maxHeaderListSize' is 'Nothing'.
+defaultHeaderListSizeLimit :: Int
+defaultHeaderListSizeLimit = 64 * 1024
 
 ----------------------------------------------------------------
 
