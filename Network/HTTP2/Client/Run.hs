@@ -94,8 +94,9 @@ run cconf@ClientConfig{..} conf client = do
         case moutobj of
             Nothing -> return ()
             Just outobj -> sendRequest conf ctx strm outobj False
-        rsp <- getResponse strm
-        processResponse rsp `E.finally` doneWithStream ctx strm
+        -- Waiting for the response is in it too: a request interrupted
+        -- there -- by 'timeout', say -- left its stream open just the same.
+        (getResponse strm >>= processResponse) `E.finally` doneWithStream ctx strm
     -- After a GOAWAY, the connection lasts as long as a request is in
     -- 'activeRequests' ('drained').
     counted ctx =
@@ -121,7 +122,8 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
     runH2 conf ctx runClient
 
--- | Called once 'processResponse' is done with a stream, however it ended.
+-- | Called once a request is done with its stream, however it ended: once
+-- 'processResponse' is, or once waiting for the response was interrupted.
 --
 -- A response it did not read to the end left its stream open.  The server
 -- went on sending the rest of the body, which nobody would read: it held
@@ -130,8 +132,25 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
 -- Enough such requests, or ones whose 'processResponse' threw, and new
 -- requests waited for a slot, or the connection stalled.  So such a stream
 -- is reset (CANCEL), and what was left of its body is given back.
+--
+-- A stream still idle is one whose request is still being sent: its
+-- HEADERS may not have gone out yet, and a RST_STREAM ahead of them would
+-- be one on an idle stream, a connection error (RFC 9113, section 5.1).
+-- So that is left until the stream opens -- the request sent, or the
+-- response begun -- or closes.
 doneWithStream :: Context -> Stream -> IO ()
 doneWithStream ctx strm = do
+    idle <- isIdle <$> readTVarIO (streamState strm)
+    if idle
+        then T.forkManaged (threadManager ctx) label $ do
+            atomically $ readTVar (streamState strm) >>= check . not . isIdle
+            doneWithOpenStream ctx strm
+        else doneWithOpenStream ctx strm
+  where
+    label = "H2 done with stream " ++ show (streamNumber strm)
+
+doneWithOpenStream :: Context -> Stream -> IO ()
+doneWithOpenStream ctx strm = do
     cancelled <-
         closeIfReceiving ctx strm $ ResetByMe $ E.toException CancelledStream
     if cancelled

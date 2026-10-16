@@ -168,6 +168,26 @@ spec = do
                 threadDelay 10000
                 runRequestThrowClient
 
+        it "gives back the window of requests interrupted waiting for the response" $
+            -- 'timeout' fired while the client waited for the response
+            -- headers, and the stream was left open: the 60000 octets of
+            -- each response came in and were never given back to the
+            -- connection window, so after a few the connection stalled.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                interruptedRequests $ \_ ->
+                    C.requestNoBody methodGet "/late-big" []
+
+        it "gives back the window of requests interrupted sending the body" $
+            -- Likewise while the request body was still going out: the
+            -- stream is idle then, and its reset waits until it is not.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                interruptedRequests $ \_ ->
+                    C.requestStreaming methodPost "/big-after-body" [] $ \write flush -> do
+                        write "x" >> flush
+                        threadDelay 300000
+
         it "keeps a stream that goes on sending past the timeout" $
             -- The worker's timer was only tickled by reading the request
             -- body, so a response streamed for longer than the timeout was
@@ -775,6 +795,8 @@ server req aux sendResponse = case requestMethod req of
         Just "/cancel-async" -> sendResponse responseCancelAsync []
         -- Some of the body, then the body throws.
         Just "/stream-throw" -> sendResponse responseStreamThrow []
+        -- 60000 octets, a moment later.
+        Just "/late-big" -> threadDelay 200000 >> sendResponse response60k []
         -- Longer than the timeout of 'runServerShortTimeout', a chunk at a time.
         Just "/drip" -> sendResponse responseDrip []
         -- Like /stream, but going quietly once the client resets it.
@@ -813,6 +835,11 @@ server req aux sendResponse = case requestMethod req of
                     let d = getRequestBodyChunk req >>= \bs -> unless (B.null bs) d
                      in d
             sendResponse responseBoth []
+        -- 60000 octets, once the whole of the request body is in.
+        Just "/big-after-body" -> do
+            let d = getRequestBodyChunk req >>= \bs -> unless (B.null bs) d
+            d
+            sendResponse response60k []
         _ -> sendResponse responseHello []
     Just "HEAD" -> case requestPath req of
         -- HEADERS, then an empty DATA frame with END_STREAM.
@@ -895,6 +922,9 @@ responseCancelAsync = responseStreamingIface ok200 [] $ \iface -> do
     outBodyPush iface "x"
     outBodyFlush iface
     outBodyCancel iface $ Just $ E.toException AsyncCancelled
+
+response60k :: Response
+response60k = responseBuilder ok200 [] $ byteString $ B.replicate 60000 0x61
 
 responseStreamThrow :: Response
 responseStreamThrow = responseStreaming ok200 [] $ \write flush -> do
@@ -1947,6 +1977,31 @@ runRequestThrowClient = runTCPClient host port $ \s ->
                 C.responseStatus rsp `shouldBe` Just ok200
   where
     cliconf = C.defaultClientConfig{C.authority = host}
+
+-- | Three requests, each interrupted by 'timeout' 100 ms in, before any
+-- response, on a connection window of 100000 octets.  Then a request for
+-- the 60000 octets of /late-big, which must still come in full.
+interruptedRequests :: (Int -> C.Request) -> IO ()
+interruptedRequests mkreq = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let body rsp n = do
+                    bs <- C.getResponseBodyChunk rsp
+                    if B.null bs then return n else body rsp (n + B.length bs)
+            forM_ [1 .. 3] $ \i ->
+                timeout 100000 (sendRequest (mkreq i) $ \rsp -> body rsp 0)
+                    `shouldReturn` Nothing
+            -- The interrupted responses come in meanwhile.
+            threadDelay 500000
+            let req = C.requestNoBody methodGet "/late-big" []
+            timeout 3000000 (sendRequest req $ \rsp -> body rsp 0)
+                `shouldReturn` Just 60000
+  where
+    cliconf =
+        C.defaultClientConfig
+            { C.authority = host
+            , C.connectionWindowSize = 100000
+            }
 
 resetWith :: C.ErrorCode -> Selector C.HTTP2Error
 resetWith ec (C.StreamResetIsReceived ec' _) = ec == ec'
