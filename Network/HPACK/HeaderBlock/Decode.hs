@@ -67,8 +67,10 @@ decodeTokenHeader
     -> ByteString
     -- ^ An HPACK format
     -> IO TokenHeaderTable
-decodeTokenHeader dyntbl inp =
-    decodeHPACK dyntbl inp (decodeSophisticated (toTokenHeader dyntbl)) `E.catch` \BufferOverrun -> E.throwIO HeaderBlockTruncated
+decodeTokenHeader dyntbl inp = do
+    lim <- getHeaderListSizeLimit dyntbl
+    decodeHPACK dyntbl inp (decodeSophisticated lim (toTokenHeader dyntbl))
+        `E.catch` \BufferOverrun -> E.throwIO HeaderBlockTruncated
 
 decodeHPACK
     :: DynamicTable
@@ -139,25 +141,36 @@ headerLimit = 200
 --     date: the message is malformed, not the block.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
 decodeSophisticated
-    :: (Word8 -> ReadBuffer -> IO TokenHeader)
+    :: Int
+    -- ^ The limit on the decoded header list size (0 means no limit)
+    -> (Word8 -> ReadBuffer -> IO TokenHeader)
     -> ReadBuffer
     -> IO TokenHeaderTable
-decodeSophisticated decTokenHeader rbuf = do
+decodeSophisticated lim decTokenHeader rbuf = do
     -- using maxTokenIx to reduce condition
     arr <- IOA.newArray (minTokenIx, maxTokenIx) Nothing
     tvs <- pseudoNormal arr
     tbl <- Unsafe.unsafeFreeze arr
     return (tvs, tbl)
   where
+    -- RFC 9113 section 6.5.2: the length of the name plus the length of
+    -- the value plus 32, summed over the fields.  A near-empty field
+    -- referenced thousands of times, or a Cookie split into many crumbs,
+    -- is cheap on the wire but large here; the limit bounds it.
+    tooLarge :: Int -> Bool
+    tooLarge siz = lim > 0 && siz > lim
+    fieldSize :: TokenHeader -> Int
+    fieldSize (Token{..}, v) = BS.length (original tokenKey) + BS.length v + 32
     pseudoNormal :: IOA.IOArray Int (Maybe FieldValue) -> IO TokenHeaderList
-    pseudoNormal arr = pseudo
+    pseudoNormal arr = pseudo 0
       where
-        pseudo = do
+        pseudo siz = do
             leftover <- remainingSize rbuf
             if leftover >= 1
                 then do
                     w <- read8 rbuf
                     tv@(Token{..}, v) <- decTokenHeader w rbuf
+                    let siz' = siz + fieldSize tv
                     if isPseudo
                         then do
                             mx <- unsafeRead arr tokenIx
@@ -165,19 +178,21 @@ decodeSophisticated decTokenHeader rbuf = do
                             when (isJust mx) $ malformed IllegalHeaderName
                             -- unknown
                             when (isMaxTokenIx tokenIx) $ malformed IllegalHeaderName
+                            when (tooLarge siz') $ malformed TooLargeHeader
                             unsafeWrite arr tokenIx (Just v)
-                            pseudo
+                            pseudo siz'
                         else do
                             -- 0-Length Headers Leak - CVE-2019-9516
                             when (tokenKey == "") $ malformed IllegalHeaderName
                             when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
                                 malformed IllegalHeaderName
+                            when (tooLarge siz') $ malformed TooLargeHeader
                             unsafeWrite arr tokenIx (Just v)
                             if isCookieTokenIx tokenIx
-                                then normal 0 empty (empty << v)
-                                else normal 0 (empty << tv) empty
+                                then normal 0 siz' empty (empty << v)
+                                else normal 0 siz' (empty << tv) empty
                 else return []
-        normal n builder cookie
+        normal n siz builder cookie
             | n > headerLimit = malformed TooLargeHeader
             | otherwise = do
                 leftover <- remainingSize rbuf
@@ -190,10 +205,12 @@ decodeSophisticated decTokenHeader rbuf = do
                         when (tokenKey == "") $ malformed IllegalHeaderName
                         when (isMaxTokenIx tokenIx && B8.any isUpper (original tokenKey)) $
                             malformed IllegalHeaderName
+                        let siz' = siz + fieldSize tv
+                        when (tooLarge siz') $ malformed TooLargeHeader
                         unsafeWrite arr tokenIx (Just v)
                         if isCookieTokenIx tokenIx
-                            then normal (n + 1) builder (cookie << v)
-                            else normal (n + 1) (builder << tv) cookie
+                            then normal (n + 1) siz' builder (cookie << v)
+                            else normal (n + 1) siz' (builder << tv) cookie
                     else do
                         let tvs0 = run builder
                             cook = run cookie

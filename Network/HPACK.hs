@@ -22,6 +22,8 @@ module Network.HPACK (
     withDynamicTableForEncoding,
     withDynamicTableForDecoding,
     setLimitForEncoding,
+    setHeaderListSizeLimit,
+    getHeaderListSizeLimit,
 
     -- * Strategy for encoding
     CompressionAlgo (..),

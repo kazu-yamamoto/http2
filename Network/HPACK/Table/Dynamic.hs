@@ -14,6 +14,8 @@ module Network.HPACK.Table.Dynamic (
     needChangeTableSize,
     setLimitForEncoding,
     resetLimitForEncoding,
+    setHeaderListSizeLimit,
+    getHeaderListSizeLimit,
     insertEntry,
     toDynamicEntry,
     CodeInfo (..),
@@ -122,6 +124,11 @@ data DynamicTable = DynamicTable
     -- ^ The current dynamic table size (defined in HPACK)
     , maxDynamicTableSize :: IORef Size
     -- ^ The max dynamic table size (defined in HPACK)
+    , headerListSizeLimit :: IORef Size
+    -- ^ The limit on the decoded header list size, as defined in RFC 9113
+    --   section 6.5.2 (the sum over each field of the length of its name,
+    --   the length of its value, and 32). Zero means no limit. Used when
+    --   decoding only.
     }
 
 {-# INLINE adj #-}
@@ -192,6 +199,16 @@ needChangeTableSize DynamicTable{..} = do
             | lim < maxsiz -> Change lim
             | otherwise -> Ignore maxsiz
 
+-- | Setting the limit on the decoded header list size for decoding.
+--   Zero or less means no limit. See 'headerListSizeLimit'.
+setHeaderListSizeLimit :: Int -> DynamicTable -> IO ()
+setHeaderListSizeLimit lim DynamicTable{..} =
+    writeIORef headerListSizeLimit $ max 0 lim
+
+-- | Getting the limit on the decoded header list size. Zero means no limit.
+getHeaderListSizeLimit :: DynamicTable -> IO Int
+getHeaderListSizeLimit DynamicTable{..} = readIORef headerListSizeLimit
+
 -- | When SETTINGS_HEADER_TABLE_SIZE is received from a peer,
 --   its value should be set by this function.
 setLimitForEncoding :: Size -> DynamicTable -> IO ()
@@ -242,6 +259,7 @@ newDynamicTable maxsiz info = do
         <*> newIORef maxN -- maxNumOfEntries
         <*> newIORef 0 -- dynamicTableSize
         <*> newIORef maxsiz -- maxDynamicTableSize
+        <*> newIORef 0 -- headerListSizeLimit (0 = no limit)
   where
     maxN = maxNumbers maxsiz
     end = maxN - 1

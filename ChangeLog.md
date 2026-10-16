@@ -1,5 +1,12 @@
 # ChangeLog for http2
 
+## Unreleased
+
+* Security: bound the decoded size of a field block (RFC 9113 6.5.2) to
+  defend against the HPACK amplification of the HTTP/2 Bomb
+  (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
+  and 64 KiB otherwise.
+
 ## 5.4.8
 
 * Reset a stream cancelled with an asynchronous exception instead of
