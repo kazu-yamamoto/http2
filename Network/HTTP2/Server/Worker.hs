@@ -42,7 +42,10 @@ runServer conf server ctx@Context{..} strm req =
                     }
             request = Request req'
         lc <- newLoopCheck strm Nothing (Just th)
-        server request aux $ sendResponse conf ctx lc strm request
+        server request aux (sendResponse conf ctx lc strm request)
+            `E.catch` \e -> do
+                resetFailedStream ctx strm e
+                E.throwIO (e :: E.SomeException)
         adjustRxWindow ctx strm
   where
     label = "H2 response sender for stream " ++ show (streamNumber strm)
@@ -54,6 +57,38 @@ runServer conf server ctx@Context{..} strm req =
             bs <- readBody
             T.resume th -- this is the same as 'tickle'
             return bs
+
+-- | Reset the stream of a handler that has failed: it threw, or the timeout
+-- manager killed it.
+--
+-- Nothing else would.  The response, or the rest of it, never comes, so
+-- the stream stayed open: the client waited for ever, the stream held its
+-- slot of our SETTINGS_MAX_CONCURRENT_STREAMS -- after that many failures
+-- every new request was refused -- and, after a GOAWAY, the connection
+-- never drained.  A stream already closed, by a response that went out in
+-- full or by a reset, is left alone.
+--
+-- Closed in the same transaction as it is checked, so that a reader of the
+-- request body is told ('informReplaced'), and so is the sender, which
+-- sends nothing more on a closed stream.  What was left unread goes back
+-- to the connection window.
+resetFailedStream :: Context -> Stream -> E.SomeException -> IO ()
+resetFailedStream ctx strm@Stream{..} e = do
+    open <- atomically $ do
+        st <- readTVar streamState
+        if isClosed st
+            then return False
+            else do
+                informReplaced streamNumber st (Closed cc)
+                writeTVar streamState (Closed cc)
+                return True
+    when open $ do
+        closed ctx strm cc
+        enqueueControl (controlQ ctx) $
+            CFrames Nothing [resetFrame InternalError streamNumber]
+        giveBackUnread ctx strm
+  where
+    cc = ResetByMe e
 
 ----------------------------------------------------------------
 
