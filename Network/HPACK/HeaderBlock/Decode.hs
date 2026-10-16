@@ -141,8 +141,8 @@ headerLimit = 200
 --     date: the message is malformed, not the block.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
 decodeSophisticated
-    :: Int
-    -- ^ The limit on the decoded header list size (0 means no limit)
+    :: Maybe Int
+    -- ^ The limit on the decoded header list size ('Nothing' means no limit)
     -> (Word8 -> ReadBuffer -> IO TokenHeader)
     -> ReadBuffer
     -> IO TokenHeaderTable
@@ -158,7 +158,7 @@ decodeSophisticated lim decTokenHeader rbuf = do
     -- referenced thousands of times, or a Cookie split into many crumbs,
     -- is cheap on the wire but large here; the limit bounds it.
     tooLarge :: Int -> Bool
-    tooLarge siz = lim > 0 && siz > lim
+    tooLarge siz = maybe False (siz >) lim
     fieldSize :: TokenHeader -> Int
     fieldSize (Token{..}, v) = BS.length (original tokenKey) + BS.length v + 32
     pseudoNormal :: IOA.IOArray Int (Maybe FieldValue) -> IO TokenHeaderList

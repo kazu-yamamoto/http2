@@ -165,7 +165,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     -- once decoded (CVE-2026-49975).  Our own advertised limit is enforced
     -- when one is set, and a default is used otherwise.
     setHeaderListSizeLimit
-        (fromMaybe defaultHeaderListSizeLimit (maxHeaderListSize mySettings))
+        (Just (fromMaybe defaultHeaderListSizeLimit (maxHeaderListSize mySettings)))
         decodeDynamicTable
     txFlow          <- newTVarIO (newTxFlow defaultWindowSize) -- 64K
     rxFlow          <- newIORef (newRxFlow connRxWS)
