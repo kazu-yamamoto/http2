@@ -69,7 +69,7 @@ decodeTokenHeader
     -> IO TokenHeaderTable
 decodeTokenHeader dyntbl inp = do
     lim <- getHeaderListSizeLimit dyntbl
-    decodeHPACK dyntbl inp (decodeSophisticated lim (toTokenHeader dyntbl))
+    decodeHPACK dyntbl inp (decodeSophisticatedWithLimit lim (toTokenHeader dyntbl))
         `E.catch` \BufferOverrun -> E.throwIO HeaderBlockTruncated
 
 decodeHPACK
@@ -159,13 +159,28 @@ headerLimit = 200
 --     whole block has been decoded, so that the dynamic table is up to
 --     date: the message is malformed, not the block.
 --   * 'DecodeError' would be thrown if the HPACK format is broken.
+--
+--   The decoded size of the block is not limited: see 'decodeTokenHeader'
+--   and 'setHeaderListSizeLimit' for that.
 decodeSophisticated
+    :: (Word8 -> ReadBuffer -> IO TokenHeader)
+    -> ReadBuffer
+    -> IO TokenHeaderTable
+decodeSophisticated = decodeSophisticatedWithLimit Nothing
+
+-- | Like 'decodeSophisticated', throwing 'TooLargeHeader' as well once
+--   the decoded header list size exceeds the limit.
+--
+--   Not exported: 'decodeSophisticated' is, from "Network.HPACK.Internal",
+--   and used by other packages (http3, for QPACK), so its type stays as it
+--   was.
+decodeSophisticatedWithLimit
     :: Maybe Int
     -- ^ The limit on the decoded header list size ('Nothing' means no limit)
     -> (Word8 -> ReadBuffer -> IO TokenHeader)
     -> ReadBuffer
     -> IO TokenHeaderTable
-decodeSophisticated lim decTokenHeader rbuf = do
+decodeSophisticatedWithLimit lim decTokenHeader rbuf = do
     -- using maxTokenIx to reduce condition
     arr <- IOA.newArray (minTokenIx, maxTokenIx) Nothing
     tvs <- pseudoNormal arr
