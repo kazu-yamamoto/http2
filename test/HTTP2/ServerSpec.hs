@@ -1656,7 +1656,7 @@ bombRequest = runTCPClient host port $ \s -> do
 failingHandler :: ByteString -> IO [String]
 failingHandler path = runTCPClient host port $ \s -> do
     lock <- newMVar ()
-    let send bs = withMVar lock $ \_ -> sendAll s bs
+    let sendFrame bs = withMVar lock $ \_ -> sendAll s bs
         request sid p =
             encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
                 HeadersFrame Nothing $
@@ -1667,13 +1667,13 @@ failingHandler path = runTCPClient host port $ \s -> do
                         , (":method", "GET")
                         ]
         ping = encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ PingFrame "01234567"
-        pinger = forever $ threadDelay 300000 >> send ping
-    send connectionPreface
-    send $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
-    send $ request 1 path
-    withAsync pinger $ \_ -> collect s send request False
+        pinger = forever $ threadDelay 300000 >> sendFrame ping
+    sendFrame connectionPreface
+    sendFrame $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    sendFrame $ request 1 path
+    withAsync pinger $ \_ -> collect s sendFrame request False
   where
-    collect s send request sent = do
+    collect s sendFrame request sent = do
         mf <- recvFrame s
         case mf of
             Nothing -> return []
@@ -1682,13 +1682,13 @@ failingHandler path = runTCPClient host port $ \s -> do
                 | streamId fh == 3 -> return ["HEADERS 3"]
             Just (FrameRSTStream, fh, p)
                 | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p -> do
-                    unless (sent || streamId fh /= 1) $ send $ request 3 "/"
+                    unless (sent || streamId fh /= 1) $ sendFrame $ request 3 "/"
                     (("RST_STREAM " ++ show (streamId fh) ++ " " ++ show err) :)
-                        <$> collect s send request (sent || streamId fh == 1)
+                        <$> collect s sendFrame request (sent || streamId fh == 1)
             Just (FrameGoAway, fh, p)
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return ["GOAWAY " ++ show err]
-            Just _ -> collect s send request sent
+            Just _ -> collect s sendFrame request sent
 
 -- | Never reading, an endless response with all the room it wants, then
 -- 200000 streams over the limit: whether they all go out within 5 seconds.
