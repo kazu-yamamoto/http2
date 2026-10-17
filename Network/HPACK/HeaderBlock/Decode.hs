@@ -77,25 +77,44 @@ decodeHPACK
     -> ByteString
     -> (ReadBuffer -> IO a)
     -> IO a
-decodeHPACK dyntbl inp dec = withReadBuffer inp chkChange
+decodeHPACK dyntbl inp dec = withReadBuffer inp $ chkChange Nothing
   where
-    chkChange rbuf = do
+    chkChange mupd rbuf = do
         -- A block can be empty, or hold nothing but table size updates:
         -- no fields, which is what empty trailers are sent as.  Reading
         -- on regardless threw 'BufferOverrun', reported as a truncated
         -- block, so the connection was closed over them.
         leftover <- remainingSize rbuf
         if leftover < 1
-            then dec rbuf
+            then apply mupd >> dec rbuf
             else do
                 w <- read8 rbuf
                 if isTableSizeUpdate w
                     then do
-                        tableSizeUpdate dyntbl w rbuf
-                        chkChange rbuf
+                        siz <- tableSizeUpdate dyntbl w rbuf
+                        let upd = case mupd of
+                                Nothing -> (siz, siz)
+                                Just (lo, _) -> (min lo siz, siz)
+                        chkChange (Just upd) rbuf
                     else do
                         ff rbuf (-1)
+                        apply mupd
                         dec rbuf
+    -- The table size updates at the beginning of a block, applied at once.
+    --
+    -- Each used to be applied as it came, and each that changed the size
+    -- copied the whole table into a new one.  RFC 7541, section 4.2, needs
+    -- two at most -- the smallest size since the last block, then the
+    -- final one -- but nothing stopped a peer from sending thousands,
+    -- alternating between two sizes, each cheap on the wire and costly
+    -- here.  Applied one after another, they leave the entries that fit
+    -- in the smallest of them, in a table of the last one's size: so the
+    -- table is shrunk to the smallest, then set to the last, two copies
+    -- however many updates there are.
+    apply Nothing = return ()
+    apply (Just (lo, final)) = do
+        when (lo < final) $ renewDynamicTable lo dyntbl
+        renewDynamicTable final dyntbl
 
 -- | Converting to '[Header]'.
 --
@@ -246,13 +265,15 @@ toTokenHeader dyntbl w rbuf
     | w `testBit` 4 = neverIndexing dyntbl w rbuf
     | otherwise = withoutIndexing dyntbl w rbuf
 
-tableSizeUpdate :: DynamicTable -> Word8 -> ReadBuffer -> IO ()
+-- | Read a table size update, and check it against our limit: it is
+-- applied by 'decodeHPACK', with the others at the beginning of the block.
+tableSizeUpdate :: DynamicTable -> Word8 -> ReadBuffer -> IO Size
 tableSizeUpdate dyntbl w rbuf = do
     let w' = mask5 w
     siz <- decodeI 5 w' rbuf
     suitable <- isSuitableSize siz dyntbl
     unless suitable $ E.throwIO TooLargeTableSize
-    renewDynamicTable siz dyntbl
+    return siz
 
 ----------------------------------------------------------------
 

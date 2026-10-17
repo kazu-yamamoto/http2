@@ -6,6 +6,9 @@
   defend against the HPACK amplification of the HTTP/2 Bomb
   (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
   and 64 KiB otherwise.
+* HPACK: apply the dynamic table size updates at the beginning of a block at
+  once, copying the table twice at most.  Each used to copy it, and a peer
+  could send thousands of them in a block: some 30 times slower to decode.
 * Server: ignore trailers that arrive on a stream we have reset, as RFC 9113
   section 5.1 requires, decoding their field block for the dynamic table.
   They used to close the connection, as if a stream identifier were reused.
