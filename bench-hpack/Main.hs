@@ -21,7 +21,7 @@ main :: IO ()
 main = do
     hdrs <- read <$> readFile "bench-hpack/headers.hs"
     hpacks <- prepare hdrs
-    _ <- evaluate hpacks
+    _ <- E.evaluate hpacks
     defaultMain
         [ bgroup
             "HPACK decoding"
