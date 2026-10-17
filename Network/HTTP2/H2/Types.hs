@@ -190,6 +190,10 @@ data Sync = Done | Cont Output
 
 data Control = CFrames (Maybe SettingsList) [ByteString]
 
+-- | Control frames waiting for the sender, and how many there are: see
+-- 'Network.HTTP2.H2.Queue.waitControlQ'.
+data ControlQ = ControlQ (TQueue Control) (TVar Int)
+
 ----------------------------------------------------------------
 
 type ReasonPhrase = ShortByteString

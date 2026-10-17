@@ -6,6 +6,10 @@
   defend against the HPACK amplification of the HTTP/2 Bomb
   (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
   and 64 KiB otherwise.
+* Stop reading a peer that does not read what we send, once 1000 control
+  frames are waiting for the sender.  Refusals of streams over
+  `SETTINGS_MAX_CONCURRENT_STREAMS`, acks and the like used to pile up
+  without bound for a peer that never read them.
 * Wake the sender when a WINDOW_UPDATE opens the connection window for DATA
   parked on it.  With nothing else to send, the sender went on waiting, and
   the connection stalled.

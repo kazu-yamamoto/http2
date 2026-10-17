@@ -493,6 +493,16 @@ spec = do
                 threadDelay 10000
                 timeout 5000000 unreadBody `shouldReturn` Just "100000"
 
+        it "stops reading a peer that does not read what it sends" $
+            -- A peer that never reads, with a response filling the socket, and
+            -- streams over SETTINGS_MAX_CONCURRENT_STREAMS one after another.
+            -- Each refusal is queued for a sender that cannot send, and the
+            -- server read on regardless: the queue grew without bound.  Now
+            -- it stops reading, and the peer's sending blocks.
+            E.bracket (forkIO runServerMaxConc1) killThread $ \_ -> do
+                threadDelay 10000
+                unreadFlood `shouldReturn` Nothing
+
         it "answers without a body while the connection window is shut" $
             -- HEADERS are not flow-controlled (RFC 9113, section 6.9).  The
             -- sender used to wait for the connection window before taking
@@ -1679,6 +1689,34 @@ failingHandler path = runTCPClient host port $ \s -> do
                 | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
                     return ["GOAWAY " ++ show err]
             Just _ -> collect s send request sent
+
+-- | Never reading, an endless response with all the room it wants, then
+-- 200000 streams over the limit: whether they all go out within 5 seconds.
+unreadFlood :: IO (Maybe ())
+unreadFlood = runTCPClient host port $ \s -> do
+    let maxWindow = 2147483647
+        request sid path =
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", path)
+                        , (":method", "GET")
+                        ]
+    sendAll s connectionPreface
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            SettingsFrame [(SettingsInitialWindowSize, maxWindow)]
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            WindowUpdateFrame (maxWindow - defaultWindowSize)
+    sendAll s $ request 1 "/endless"
+    -- Time for the response to fill the socket.
+    threadDelay 200000
+    timeout 5000000 $
+        forM_ [3, 5 .. 400001] $
+            \sid -> sendAll s $ request sid "/"
 
 -- | /endless until the server has used up the connection window, which we
 -- do not open, then a request whose answer has no body: what the server

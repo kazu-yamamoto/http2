@@ -73,6 +73,7 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
 
     loop1 :: IO Void
     loop1 = do
+        atomically $ waitControlQ $ controlQ ctx
         hd <- confReadN frameHeaderLength -- throwing an exception on timeout
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
@@ -81,7 +82,9 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
     loop2 :: T.Handle -> IO Void
     loop2 th = do
         -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
-        -- to destroy the thread trees.
+        -- to destroy the thread trees.  So it is if the peer does not
+        -- read what we send, and we wait here for ever.
+        atomically $ waitControlQ $ controlQ ctx
         hd <- confReadN frameHeaderLength
         T.tickle th
         when (BS.null hd) $ E.throwIO ConnectionIsClosed

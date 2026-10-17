@@ -79,7 +79,7 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
 -- stalled.
 checkDone :: Context -> TVar [Output] -> Int -> IO (Maybe E.SomeException)
 checkDone ctx@Context{..} parked 0 = atomically $ do
-    isEmptyC <- isEmptyTQueue controlQ
+    isEmptyC <- isEmptyControlQ controlQ
     isEmptyO <- isEmptyTQueue outputQ
     ps <- readTVar parked
     cws <- connectionWindowSizeSTM ctx
@@ -149,7 +149,7 @@ frameSender
         -- first and in order, once there is.
         dequeue :: TVar [Output] -> Offset -> STM Switch
         dequeue parked off = do
-            isEmptyC <- isEmptyTQueue controlQ
+            isEmptyC <- isEmptyControlQ controlQ
             if isEmptyC
                 then do
                     ps <- readTVar parked
@@ -164,7 +164,7 @@ frameSender
                             if isEmptyO
                                 then if off /= 0 then return Flush else retry
                                 else O <$> readTQueue outputQ
-                else C <$> readTQueue controlQ
+                else C <$> dequeueControlSTM controlQ
 
         ----------------------------------------------------------------
         copyAll [] buf = return buf
