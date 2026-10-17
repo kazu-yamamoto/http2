@@ -6,6 +6,9 @@
   defend against the HPACK amplification of the HTTP/2 Bomb
   (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
   and 64 KiB otherwise.
+* Wake the sender when a WINDOW_UPDATE opens the connection window for DATA
+  parked on it.  With nothing else to send, the sender went on waiting, and
+  the connection stalled.
 * Server: once a handler has returned, throw away the rest of the request
   body as it comes and give it back to the flow-control windows.  It used to
   be queued for nobody, one entry per DATA frame, so a peer sending tiny

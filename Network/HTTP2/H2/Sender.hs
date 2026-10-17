@@ -68,11 +68,22 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
         E.throwIO $ ConnectionErrorIsSent err sid msg
     connectionError e = E.throwIO e
 
-checkDone :: Context -> Int -> IO (Maybe E.SomeException)
-checkDone Context{..} 0 = atomically $ do
+-- | Whether the sender is done: nothing left to send, and the receiver
+-- done.  Otherwise it waits for something to send.
+--
+-- DATA parked for the connection window is something to send once the
+-- window opens.  Left out, a sender with nothing else queued waited here
+-- for the control or output queue, and a WINDOW_UPDATE opening the window
+-- puts nothing in either: everything parked stayed parked, until some
+-- other frame happened to come along -- and when none did, the connection
+-- stalled.
+checkDone :: Context -> TVar [Output] -> Int -> IO (Maybe E.SomeException)
+checkDone ctx@Context{..} parked 0 = atomically $ do
     isEmptyC <- isEmptyTQueue controlQ
     isEmptyO <- isEmptyTQueue outputQ
-    if not isEmptyC || not isEmptyO
+    ps <- readTVar parked
+    cws <- connectionWindowSizeSTM ctx
+    if not isEmptyC || not isEmptyO || (not (null ps) && cws > 0)
         then
             return Nothing
         else do
@@ -82,7 +93,7 @@ checkDone Context{..} 0 = atomically $ do
                     return $ Just done
                 _otherwise ->
                     retry
-checkDone _ _ = return Nothing
+checkDone _ _ _ = return Nothing
 
 frameSender :: Context -> Config -> IO E.SomeException
 frameSender
@@ -99,7 +110,7 @@ frameSender
         ----------------------------------------------------------------
         loop :: TVar [Output] -> Offset -> IO E.SomeException
         loop parked off = do
-            mDone <- checkDone ctx off
+            mDone <- checkDone ctx parked off
             case mDone of
                 Just done ->
                     return done
