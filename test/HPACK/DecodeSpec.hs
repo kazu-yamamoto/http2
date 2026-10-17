@@ -3,6 +3,7 @@
 module HPACK.DecodeSpec where
 
 import Control.Monad (forM_)
+import Data.Bits ((.|.))
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
 import Data.String (fromString)
@@ -175,6 +176,30 @@ spec = do
                 decodeTokenHeader dtbl blk1 `shouldThrow` (== TooLargeHeader)
                 (tvs, _) <- decodeTokenHeader dtbl blk2
                 map (\(t, v) -> (tokenKey t, v)) tvs `shouldBe` [("x-after", "2")]
+        it "applies table size updates as if one after another" $
+            -- Applied at once now, two copies of the table at most: the
+            -- entries that fit in the smallest size are kept, in a table of
+            -- the last size.  "aa: x" and "bb: y" are 35 octets each, and 40
+            -- keeps only the newer, index 62.
+            withDynamicTableForDecoding 4096 4096 $ \dtbl -> do
+                _ <- decodeHeader dtbl $ incremental "aa" "x" <> incremental "bb" "y"
+                let ref62 = BS.pack [0xbe]
+                    ref63 = BS.pack [0xbf]
+                decodeHeader dtbl (sizeUpdate 40 <> sizeUpdate 4096 <> ref62)
+                    `shouldReturn` [("bb", "y")]
+                decodeHeader dtbl ref63 `shouldThrow` anyException
+                -- The table has its last size: room for both again.
+                _ <- decodeHeader dtbl $ incremental "cc" "z"
+                decodeHeader dtbl (ref62 <> BS.pack [0xbf])
+                    `shouldReturn` [("cc", "z"), ("bb", "y")]
+        it "takes any number of table size updates" $
+            -- RFC 7541 needs two at most; a peer sending thousands, each
+            -- one copying the table, made a block costly to decode.
+            withDynamicTableForDecoding 4096 4096 $ \dtbl -> do
+                _ <- decodeHeader dtbl $ incremental "aa" "x" <> incremental "bb" "y"
+                let updates = mconcat $ replicate 1000 $ sizeUpdate 4095 <> sizeUpdate 4096
+                decodeHeader dtbl (updates <> BS.pack [0xbe, 0xbf])
+                    `shouldReturn` [("bb", "y"), ("aa", "x")]
         it "rejects every field when the limit is zero" $
             -- A limit of zero must not be taken for no limit.
             withDynamicTableForEncoding 4096 $ \etbl ->
@@ -215,6 +240,16 @@ literal = field 0x00
 -- | A literal field with a new name, with incremental indexing (6.2.1).
 incremental :: BS.ByteString -> BS.ByteString -> BS.ByteString
 incremental = field 0x40
+
+-- | A dynamic table size update (RFC 7541, section 6.3).
+sizeUpdate :: Int -> BS.ByteString
+sizeUpdate n
+    | n < 31 = BS.singleton (0x20 .|. fromIntegral n)
+    | otherwise = BS.pack (0x3f : go (n - 31))
+  where
+    go m
+        | m < 128 = [fromIntegral m]
+        | otherwise = fromIntegral (m `mod` 128 + 128) : go (m `div` 128)
 
 -- | Names and values shorter than 127 octets.
 field :: Word8 -> BS.ByteString -> BS.ByteString -> BS.ByteString
