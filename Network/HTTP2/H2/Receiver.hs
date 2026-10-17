@@ -260,8 +260,8 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
                         tbl <- hpackDecodeHeader blk streamId ctx
                         state <- onResponseHeaders ctx streamId hcl (hcEndOfStream hc) tbl
                         processState state ctx strm streamId
-                    Open _ (Body q _ _ tlr) -> do
-                        state <- onTrailers ctx streamId blk q tlr
+                    Open _ (Body q mcl bodyLength tlr) -> do
+                        state <- onTrailers ctx streamId blk q mcl bodyLength tlr
                         processState state ctx strm streamId
                     _otherwise ->
                         -- The block began on a stream that was open for
@@ -627,14 +627,14 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
                     return s
 
 -- Transition (stream2)
-stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open _ (Body q _ _ tlr)) _ = do
+stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open _ (Body q mcl bodyLength tlr)) _ = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
     -- checking frag == "" is not necessary
     if endOfStream
         then do
             if testEndHeader flags
-                then onTrailers ctx streamId frag q tlr
+                then onTrailers ctx streamId frag q mcl bodyLength tlr
                 else do
                     startHeaderBlock ctx streamId endOfStream frag
                     return s
@@ -687,6 +687,25 @@ stream
         -- than its content-length.
         let len = len0 + BS.length body
             endOfStream = testEndStream flags
+        -- RFC 9113, section 8.1.1: a body that does not add up to its
+        -- content-length makes the message malformed.  Checked before any
+        -- of this frame is delivered: it used to be checked once the last
+        -- of the body had been queued with END_STREAM, and the reader took
+        -- the body for complete before the reset reached it -- a server
+        -- handler, say, or a proxy that went by the content-length.  Now
+        -- the reader gets the reset ('closed', by 'resettable') in place of
+        -- the end, and a body longer than its content-length is cut off as
+        -- soon as it is.  What is not queued goes back to the connection
+        -- window.
+        when (just mcl (len >) || (endOfStream && just mcl (len <))) $ do
+            unless (connectionCreditedOnArrival streamId) $
+                giveBackConnectionWindow ctx $
+                    BS.length body
+            E.throwIO $
+                StreamErrorIsSent
+                    ProtocolError
+                    streamId
+                    "actual body length is not the same as content-length"
         -- Empty Frame Flooding - CVE-2019-9518
         if body == ""
             then unless endOfStream $ do
@@ -723,15 +742,6 @@ stream
                                 BS.length body
         if endOfStream
             then do
-                case mcl of
-                    Nothing -> return ()
-                    Just cl ->
-                        when (cl /= len) $
-                            E.throwIO $
-                                StreamErrorIsSent
-                                    ProtocolError
-                                    streamId
-                                    "actual body length is not the same as content-length"
                 -- no trailers
                 atomically $ writeTQueue q $ Right (mempty, True)
                 return HalfClosedRemote
@@ -933,15 +943,31 @@ sendPing Context{..} ack bs = enqueueControl controlQ $ CFrames Nothing [frame]
 ----------------------------------------------------------------
 
 -- | Deliver a complete trailer block: the body ends with it.
+--
+-- So it has to add up to its content-length, as it does when it ends with
+-- END_STREAM on DATA ('stream').  It was not checked here at all: a body
+-- of any length went through as long as trailers ended it.  Checked once
+-- the block is decoded, for the dynamic table.
 onTrailers
     :: Context
     -> StreamId
     -> HeaderBlockFragment
     -> TQueue (Either E.SomeException (ByteString, Bool))
+    -> Maybe Int
+    -- ^ content-length
+    -> IORef Int
+    -- ^ The length of the body received
     -> IORef (Maybe TokenHeaderTable)
     -> IO StreamState
-onTrailers ctx streamId blk q tlr = do
+onTrailers ctx streamId blk q mcl bodyLength tlr = do
     tbl <- hpackDecodeTrailer blk streamId ctx
+    len <- readIORef bodyLength
+    when (just mcl (/= len)) $
+        E.throwIO $
+            StreamErrorIsSent
+                ProtocolError
+                streamId
+                "actual body length is not the same as content-length"
     writeIORef tlr (Just tbl)
     atomically $ writeTQueue q $ Right (mempty, True)
     return HalfClosedRemote

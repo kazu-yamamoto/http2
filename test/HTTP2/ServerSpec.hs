@@ -503,6 +503,31 @@ spec = do
                 threadDelay 10000
                 unreadFlood `shouldReturn` Nothing
 
+        it "tells the handler of a body that does not add up to its content-length" $
+            -- RFC 9113, section 8.1.1: malformed.  The handler used to read
+            -- the body to a clean end, and only the client heard of it: one
+            -- short of its content-length was checked once its END_STREAM had
+            -- been delivered, one longer only at its end, and one ending with
+            -- trailers not at all.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                let short = [dataFrame 1 "0123456789" True]
+                    long = [dataFrame 1 "0123456789" False, dataFrame 1 "0123456789" True]
+                    trailers = [dataFrame 1 "0123456789" False, trailersFrame 1]
+                forM_ [("100", short), ("5", long), ("100", trailers)] $ \(cl, frames) -> do
+                    r <- recordExchange (recordRequest cl : frames)
+                    r `shouldSatisfy` \x -> case x of
+                        Just (Left _) -> True
+                        _ -> False
+
+        it "gives the handler a body that adds up to its content-length" $
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                let plain = [dataFrame 1 "0123456789" True]
+                    trailers = [dataFrame 1 "0123456789" False, trailersFrame 1]
+                forM_ [plain, trailers] $ \frames ->
+                    recordExchange (recordRequest "10" : frames) `shouldReturn` Just (Right 10)
+
         it "answers without a body while the connection window is shut" $
             -- HEADERS are not flow-controlled (RFC 9113, section 6.9).  The
             -- sender used to wait for the connection window before taking
@@ -841,6 +866,15 @@ server req aux sendResponse = case requestMethod req of
     Just "POST" -> case requestPath req of
         Just "/echo" -> sendResponse (responseEcho req) []
         -- How many octets of body arrived.
+        -- What the handler made of the body: how long it was, or what it
+        -- was told instead of the end ('recordedBody').
+        Just "/record" -> do
+            let count n = do
+                    bs <- getRequestBodyChunk req
+                    if B.null bs then return n else count (n + B.length bs)
+            r <- E.try $ count (0 :: Int)
+            putMVar recordedBody $ either (\e -> Left (show (e :: E.SomeException))) Right r
+            sendResponse responseHello []
         Just "/count" -> do
             let count n = do
                     bs <- getRequestBodyChunk req
@@ -1717,6 +1751,48 @@ unreadFlood = runTCPClient host port $ \s -> do
     timeout 5000000 $
         forM_ [3, 5 .. 400001] $
             \sid -> sendAll s $ request sid "/"
+
+-- | What the handler of /record made of the body it was sent.
+recordedBody :: MVar (Either String Int)
+recordedBody = unsafePerformIO newEmptyMVar
+{-# NOINLINE recordedBody #-}
+
+-- | Send raw frames, and what the handler of /record made of the body.
+--
+-- The connection stays open until the handler has said, or it would take
+-- the connection closing under it for what it is told.
+recordExchange :: [ByteString] -> IO (Maybe (Either String Int))
+recordExchange out = runTCPClient host port $ \s -> do
+    _ <- tryTakeMVar recordedBody
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    mapM_ (sendAll s) out
+    timeout 5000000 $ takeMVar recordedBody
+
+-- | A POST to /record with the given content-length, its body to follow.
+recordRequest :: ByteString -> ByteString
+recordRequest cl =
+    encodeFrame (EncodeInfo (setEndHeader defaultFlags) 1 Nothing) $
+        HeadersFrame Nothing $
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/record")
+                , (":method", "POST")
+                , ("content-length", cl)
+                ]
+
+dataFrame :: StreamId -> ByteString -> Bool -> ByteString
+dataFrame sid body end =
+    encodeFrame (EncodeInfo flags' sid Nothing) $ DataFrame body
+  where
+    flags' = if end then setEndStream defaultFlags else defaultFlags
+
+trailersFrame :: StreamId -> ByteString
+trailersFrame sid =
+    encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+        HeadersFrame Nothing $
+            hpackEncode [("x-trailer", "1")]
 
 -- | /endless until the server has used up the connection window, which we
 -- do not open, then a request whose answer has no body: what the server

@@ -6,6 +6,10 @@
   defend against the HPACK amplification of the HTTP/2 Bomb
   (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
   and 64 KiB otherwise.
+* Check a body against its content-length before delivering it, and when
+  trailers end it too.  A reader used to get a clean end of a body that did
+  not add up -- short or long, or of any length when trailers ended it --
+  and only the peer heard of the error.
 * Stop reading a peer that does not read what we send, once 1000 control
   frames are waiting for the sender.  Refusals of streams over
   `SETTINGS_MAX_CONCURRENT_STREAMS`, acks and the like used to pile up
