@@ -155,6 +155,10 @@ data Stream = Stream
     , streamRequestMethod :: IORef (Maybe ByteString)
     -- ^ Client only: the method of the request, which decides whether the
     --   response may have content at all (RFC 9110, section 6.4.1)
+    , streamDiscardBody :: TVar Bool
+    -- ^ Server only: the handler has returned, and nobody will read the
+    --   rest of the request body.  It is taken in and thrown away, both
+    --   windows given back as it comes, until the peer ends it.
     }
 
 instance Show Stream where

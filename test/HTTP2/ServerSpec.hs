@@ -483,6 +483,16 @@ spec = do
                 timeout 10000000 (failingHandler "/hang")
                     `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
 
+        it "takes in the rest of a body its handler did not wait for" $
+            -- The handler answers a POST without reading the body.  The rest
+            -- of it was queued for nobody, and never given back to the
+            -- windows: the upload stalled, and with it the connection, whose
+            -- window is 64K here.  The rest is now thrown away as it comes,
+            -- and given back.
+            E.bracket (forkIO runServerSmallConnWindow) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 unreadBody `shouldReturn` Just "100000"
+
         it "answers without a body while the connection window is shut" $
             -- HEADERS are not flow-controlled (RFC 9113, section 6.9).  The
             -- sender used to wait for the connection window before taking
@@ -2002,6 +2012,30 @@ interruptedRequests mkreq = runTCPClient host port $ \s ->
             { C.authority = host
             , C.connectionWindowSize = 100000
             }
+
+-- | A POST of 200000 octets to a handler that does not read them, then a
+-- POST of 100000 octets to /count: what /count says.
+unreadBody :: IO ByteString
+unreadBody = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let upload path n = C.requestStreaming methodPost path [] $ \write flush ->
+                    replicateM_ (n `div` 1000) $
+                        write (byteString (C8.replicate 1000 'a')) >> flush
+                body rsp acc = do
+                    bs <- C.getResponseBodyChunk rsp
+                    if B.null bs then return acc else body rsp (acc <> bs)
+            -- The response read to the end, or the client would reset the
+            -- stream itself ('doneWithStream') and send no more of the body.
+            sendRequest (upload "/" 200000) $ \rsp ->
+                body rsp ""
+                    `shouldReturn` "Hello, world!\n"
+            -- Time for the rest of the first body to use up what it can of
+            -- the connection window.
+            threadDelay 300000
+            sendRequest (upload "/count" 100000) $ \rsp -> body rsp ""
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
 
 resetWith :: C.ErrorCode -> Selector C.HTTP2Error
 resetWith ec (C.StreamResetIsReceived ec' _) = ec == ec'
