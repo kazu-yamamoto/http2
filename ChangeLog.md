@@ -1,51 +1,27 @@
 # ChangeLog for http2
 
-## Unreleased
+## 5.4.9
 
-* Security: bound the decoded size of a field block (RFC 9113 6.5.2) to
-  defend against the HPACK amplification of the HTTP/2 Bomb
-  (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
-  and 64 KiB otherwise.
-* HPACK: apply the dynamic table size updates at the beginning of a block at
-  once, copying the table twice at most.  Each used to copy it, and a peer
-  could send thousands of them in a block: some 30 times slower to decode.
-* Server: ignore trailers that arrive on a stream we have reset, as RFC 9113
-  section 5.1 requires, decoding their field block for the dynamic table.
-  They used to close the connection, as if a stream identifier were reused.
-* Check a body against its content-length before delivering it, and when
-  trailers end it too.  A reader used to get a clean end of a body that did
-  not add up -- short or long, or of any length when trailers ended it --
-  and only the peer heard of the error.
-* Stop reading a peer that does not read what we send, once 1000 control
-  frames are waiting for the sender.  Refusals of streams over
-  `SETTINGS_MAX_CONCURRENT_STREAMS`, acks and the like used to pile up
-  without bound for a peer that never read them.
-* Wake the sender when a WINDOW_UPDATE opens the connection window for DATA
-  parked on it.  With nothing else to send, the sender went on waiting, and
-  the connection stalled.
-* Server: once a handler has returned, throw away the rest of the request
-  body as it comes and give it back to the flow-control windows.  It used to
-  be queued for nobody, one entry per DATA frame, so a peer sending tiny
-  frames had the server hold far more than it sent; and as it was never
-  given back, the upload stalled, and with it the connection.  The body can
-  no longer be read once the handler has returned.
-* Client: reset the stream (`CANCEL`) of a request interrupted, by `timeout`
-  say, before its response came.  The stream used to be left open, and the
-  response that came in was never given back to the connection window: a
-  few such requests stalled the connection.
-* Reset the stream (`INTERNAL_ERROR`) when a streaming body throws, on a
-  response or a request.  The stream used to be ended with `END_STREAM`, so
-  the peer took a truncated body for a complete one.
-* Server: reset the stream (`INTERNAL_ERROR`) of a handler that throws or
-  is killed by the timeout.  The stream used to be left open with no
-  response: the client waited for ever, and the stream kept its slot of
-  `SETTINGS_MAX_CONCURRENT_STREAMS`.
-* Behavior change: `defaultSettings` now advertises
-  `SETTINGS_MAX_HEADER_LIST_SIZE` of 64 KiB, so that peers know the limit
-  above.  Both servers and clients refuse a field block that exceeds it,
-  even with `maxHeaderListSize = Nothing`: a response with headers larger
-  than 64 KiB that used to be accepted is now reset.  Set
-  `maxHeaderListSize` to raise the limit.
+* Bound the decoded size of a field block (CVE-2026-49975).
+  [#216](https://github.com/kazu-yamamoto/http2/pull/216)
+* Follow-ups to the header list size limit (CVE-2026-49975).
+  [#217](https://github.com/kazu-yamamoto/http2/pull/217)
+* Reset the stream of a server handler that fails.
+  [#218](https://github.com/kazu-yamamoto/http2/pull/218)
+* Reset the stream when a streaming body throws.
+  [#219](https://github.com/kazu-yamamoto/http2/pull/219)
+* Reset the stream of a client request interrupted before its response.
+  [#220](https://github.com/kazu-yamamoto/http2/pull/220)
+* Throw away the request body its handler did not read.
+  [#221](https://github.com/kazu-yamamoto/http2/pull/221)
+* Stop reading a peer that does not read what we send.
+  [#222](https://github.com/kazu-yamamoto/http2/pull/222)
+* Check the body against its content-length before delivering it.
+  [#223](https://github.com/kazu-yamamoto/http2/pull/223)
+* Ignore trailers on a stream we have reset.
+  [#224](https://github.com/kazu-yamamoto/http2/pull/224)
+* Apply the table size updates of a block at once.
+  [#225](https://github.com/kazu-yamamoto/http2/pull/225)
 
 ## 5.4.8
 
