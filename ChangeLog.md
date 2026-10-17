@@ -6,6 +6,9 @@
   defend against the HPACK amplification of the HTTP/2 Bomb
   (CVE-2026-49975).  The limit is `SETTINGS_MAX_HEADER_LIST_SIZE` when set,
   and 64 KiB otherwise.
+* Server: ignore trailers that arrive on a stream we have reset, as RFC 9113
+  section 5.1 requires, decoding their field block for the dynamic table.
+  They used to close the connection, as if a stream identifier were reused.
 * Check a body against its content-length before delivering it, and when
   trailers end it too.  A reader used to get a clean end of a body that did
   not add up -- short or long, or of any length when trailers ended it --

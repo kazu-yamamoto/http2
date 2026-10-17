@@ -528,6 +528,35 @@ spec = do
                 forM_ [plain, trailers] $ \frames ->
                     recordExchange (recordRequest "10" : frames) `shouldReturn` Just (Right 10)
 
+        it "ignores trailers on a stream it has reset" $
+            -- The server resets a request whose body outgrows its
+            -- content-length; the trailers the client had sent by then arrive
+            -- on a stream gone from the table.  They used to be taken for the
+            -- reuse of a stream identifier, and closed the connection.  Now
+            -- they are ignored, their field block decoded all the same: the
+            -- next request refers to the entry they put in the dynamic table.
+            -- In one HEADERS frame, or splitBlock with a CONTINUATION.
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                let whole = [trailerBlock (setEndHeader defaultFlags) indexedTrailer]
+                    (frag1, frag2) = B.splitAt 4 indexedTrailer
+                    splitBlock =
+                        [ trailerBlock defaultFlags frag1
+                        , encodeFrame (EncodeInfo (setEndHeader defaultFlags) 1 Nothing) $
+                            ContinuationFrame frag2
+                        ]
+                forM_ [whole, splitBlock] $ \trailers ->
+                    timeout 5000000 (trailersAfterReset trailers)
+                        `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
+
+        it "closes the connection on HEADERS reusing a closed stream" $
+            -- Not to be taken for the above: a stream closed without a reset
+            -- of ours, its response over and gone from the table, is not to
+            -- be reused (RFC 9113, section 5.1.1).
+            E.bracket (forkIO runServer) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 reuseClosedStream `shouldReturn` Just "GOAWAY ProtocolError"
+
         it "answers without a body while the connection window is shut" $
             -- HEADERS are not flow-controlled (RFC 9113, section 6.9).  The
             -- sender used to wait for the connection window before taking
@@ -1751,6 +1780,95 @@ unreadFlood = runTCPClient host port $ \s -> do
     timeout 5000000 $
         forM_ [3, 5 .. 400001] $
             \sid -> sendAll s $ request sid "/"
+
+-- | A literal field with a new name and incremental indexing (RFC 7541,
+-- section 6.2.1): index 62 once decoded.
+indexedTrailer :: ByteString
+indexedTrailer = B.pack [0x40, 9] <> "x-trailer" <> B.pack [1] <> "1"
+
+-- | HEADERS with END_STREAM on stream 1: trailers.
+trailerBlock :: FrameFlags -> ByteString -> ByteString
+trailerBlock flags' frag =
+    encodeFrame (EncodeInfo (setEndStream flags') 1 Nothing) $
+        HeadersFrame Nothing frag
+
+-- | A GET on stream 1, and once its response is over, another HEADERS on
+-- stream 1: what the server says to that.
+reuseClosedStream :: IO String
+reuseClosedStream = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    sendAll s $ openStreamFrame' 1
+    let awaitEnd = do
+            mf <- recvFrame s
+            case mf of
+                Just (FrameData, fh, _) | testEndStream (flags fh) -> return ()
+                Just _ -> awaitEnd
+                Nothing -> return ()
+        collect = do
+            mf <- recvFrame s
+            case mf of
+                Nothing -> return "closed"
+                Just (FrameGoAway, fh, p)
+                    | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                        return $ "GOAWAY " ++ show err
+                Just _ -> collect
+    awaitEnd
+    -- The stream is closed once the response is out; a moment for the
+    -- server to have taken it out of the table.
+    threadDelay 100000
+    sendAll s $ openStreamFrame' 1
+    collect
+
+-- | A GET on a stream, ending it.
+openStreamFrame' :: StreamId -> ByteString
+openStreamFrame' sid =
+    encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+        HeadersFrame Nothing $
+            hpackEncode
+                [ (":scheme", "http")
+                , (":authority", "127.0.0.1")
+                , (":path", "/")
+                , (":method", "GET")
+                ]
+
+-- | A body outgrowing its content-length, which the server resets; once it
+-- has, the given trailers on that stream, then a request referring to index
+-- 62 of the dynamic table.  What the server says.
+trailersAfterReset :: [ByteString] -> IO [String]
+trailersAfterReset trailers = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    sendAll s $ recordRequest "5"
+    sendAll s $ dataFrame 1 "0123456789" False
+    collect s
+  where
+    sendTrailers s = do
+        mapM_ (sendAll s) trailers
+        sendAll s $
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) 3 Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", "/")
+                        , (":method", "GET")
+                        ]
+                        <> B.singleton 0xbe
+    collect s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just (FrameHeaders, fh, _)
+                | streamId fh == 3 -> return ["HEADERS 3"]
+            Just (FrameRSTStream, fh, p)
+                | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p -> do
+                    when (streamId fh == 1) $ sendTrailers s
+                    (("RST_STREAM " ++ show (streamId fh) ++ " " ++ show err) :) <$> collect s
+            Just (FrameGoAway, fh, p)
+                | Right (GoAwayFrame _ err _) <- decodeGoAwayFrame fh p ->
+                    return ["GOAWAY " ++ show err]
+            Just _ -> collect s
 
 -- | What the handler of /record made of the body it was sent.
 recordedBody :: MVar (Either String Int)
