@@ -8,6 +8,7 @@ import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Data.IORef
 import qualified Data.IntMap.Strict as IntMap
+import qualified Data.IntSet as IntSet
 import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
@@ -100,6 +101,9 @@ data Context = Context
     -- ^ Client only: requests whose 'processResponse' has not returned.
     --   A response can be complete, its stream gone from the table, and
     --   its body still being read.
+    , resetByMe          :: IORef IntSet.IntSet
+    -- ^ Server only: the latest streams of the peer's we have reset, gone
+    --   from the stream table: see 'wasResetByMe'.
     }
 {- FOURMOLU_ENABLE -}
 
@@ -174,6 +178,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone
     peerGoAway      <- newTVarIO Nothing
     activeRequests  <- newTVarIO 0
+    resetByMe       <- newIORef IntSet.empty
     return Context{..}
   where
     role = case roleInfo of
@@ -338,9 +343,35 @@ closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc
         then deleteEven evenStreamTable streamNumber err
         else deleteOdd oddStreamTable streamNumber err
     setStreamState ctx strm (Closed cc) -- anyway
+    case cc of
+        ResetByMe _
+            | isServer ctx && not (isServerInitiated streamNumber) ->
+                rememberReset ctx streamNumber
+        _otherwise -> return ()
   where
     err :: E.SomeException
     err = E.toException (closedCodeToError streamNumber cc)
+
+-- | Remember that we reset a stream of the peer's.
+--
+-- RFC 9113, section 5.1: "An endpoint MUST ignore frames that it receives
+-- on closed streams after it has sent a RST_STREAM frame."  Trailers among
+-- them -- the peer sent them before our reset reached it -- but once the
+-- stream is gone from the table, HEADERS on it look like the reuse of a
+-- stream identifier, a connection error.  So the latest streams we reset
+-- are remembered, 'resetByMeLimit' of them, the oldest forgotten first.
+rememberReset :: Context -> StreamId -> IO ()
+rememberReset Context{resetByMe} sid =
+    atomicModifyIORef' resetByMe $ \s ->
+        let s' = IntSet.insert sid s
+         in (if IntSet.size s' > resetByMeLimit then IntSet.deleteMin s' else s', ())
+
+-- | Whether we reset a stream of the peer's lately: see 'rememberReset'.
+wasResetByMe :: Context -> StreamId -> IO Bool
+wasResetByMe Context{resetByMe} sid = IntSet.member sid <$> readIORef resetByMe
+
+resetByMeLimit :: Int
+resetByMeLimit = 1000
 
 ----------------------------------------------------------------
 -- From peer

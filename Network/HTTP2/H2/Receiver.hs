@@ -410,15 +410,22 @@ getOddStream ctx ftyp streamId Nothing
     | isServer ctx = do
         csid <- getPeerStreamID ctx
         if streamId <= csid -- consider the stream closed
-            then
+            then do
                 -- RFC 9113 section 5.1: "An endpoint MUST ignore frames that
                 -- it receives on closed streams after it has sent a
                 -- RST_STREAM frame."  DATA is in that list because resetting a
                 -- stream mid-body leaves whatever the peer already put on the
-                -- wire still to arrive.  HEADERS is not: that would be reuse
-                -- of a stream identifier, which section 5.1.1 makes a
-                -- connection error.
+                -- wire still to arrive.  HEADERS is, for a stream we reset:
+                -- trailers the peer sent before our reset reached it.  They
+                -- used to close the connection, every other stream on it with
+                -- it.  Their field block is still decoded, for the dynamic
+                -- table ('hpackDiscardHeader'), CONTINUATION and all.
+                -- HEADERS on any other closed
+                -- stream is the reuse of a stream identifier, which section
+                -- 5.1.1 makes a connection error.
+                resetByUs <- wasResetByMe ctx streamId
                 if ftyp `elem` [FrameData, FrameWindowUpdate, FrameRSTStream, FramePriority]
+                    || (ftyp `elem` [FrameHeaders, FrameContinuation] && resetByUs)
                     then return Nothing -- will be ignored
                     else
                         E.throwIO $
