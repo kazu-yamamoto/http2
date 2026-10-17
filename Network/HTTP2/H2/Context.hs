@@ -15,6 +15,7 @@ import qualified System.ThreadManager as T
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
+import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
@@ -73,7 +74,7 @@ data Context = Context
     -- ^ Invariant: Each stream will only ever have at most one 'Output'
     -- object in this queue at any moment.
     , outputQStreamID    :: TVar StreamId
-    , controlQ           :: TQueue Control
+    , controlQ           :: ControlQ
     , encodeDynamicTable :: DynamicTable
     , decodeDynamicTable :: DynamicTable
     , -- the connection window for sending data
@@ -147,7 +148,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     outputBufferLimit <- newIORef buflim
     outputQ           <- newTQueueIO
     outputQStreamID   <- newTVarIO sid0
-    controlQ          <- newTQueueIO
+    controlQ          <- newControlQ
     -- My SETTINGS_HEADER_TABLE_SIZE
     encodeDynamicTable <- newDynamicTableForEncoding defaultDynamicTableSize
     decodeDynamicTable <-
