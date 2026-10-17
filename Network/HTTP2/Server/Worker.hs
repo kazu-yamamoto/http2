@@ -46,7 +46,7 @@ runServer conf server ctx@Context{..} strm req =
             `E.catch` \e -> do
                 resetFailedStream ctx strm e
                 E.throwIO (e :: E.SomeException)
-        adjustRxWindow ctx strm
+        doneWithRequestBody ctx strm
   where
     label = "H2 response sender for stream " ++ show (streamNumber strm)
     pauseRequestBody th = req{inpObjBody = readBody'}
@@ -57,6 +57,29 @@ runServer conf server ctx@Context{..} strm req =
             bs <- readBody
             T.resume th -- this is the same as 'tickle'
             return bs
+
+-- | Called once the handler has returned: nobody reads the request body
+-- from here on.
+--
+-- What is left of it used to be queued all the same, for a reader that was
+-- gone, one entry per DATA frame.  Flow control bounds the octets, not the
+-- frames: a peer sending one octet a frame had us hold some ten times what
+-- it sent, for as long as it kept the stream open.  Nor was any of it given
+-- back to the windows, so a peer still sending the rest of a body the
+-- handler had not waited for -- a 404 to a POST, say -- stalled once the
+-- stream's window was used up, and took the connection window with it.
+--
+-- So the rest is thrown away as it comes ('streamDiscardBody') and given
+-- back to both windows, and the peer can send it to the end and close the
+-- stream.  What was already queued is given back too, and a reader still
+-- there -- a thread the handler left behind -- is told.
+doneWithRequestBody :: Context -> Stream -> IO ()
+doneWithRequestBody ctx strm@Stream{..} = do
+    atomically $ writeTVar streamDiscardBody True
+    adjustRxWindow ctx strm
+    mq <- readIORef streamRxQ
+    forM_ mq $ \q ->
+        atomically $ writeTQueue q $ Left $ E.toException CancelledStream
 
 -- | Reset the stream of a handler that has failed: it threw, or the timeout
 -- manager killed it.

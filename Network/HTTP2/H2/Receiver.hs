@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -694,19 +695,29 @@ stream
                 -- Not for a stream closed since its state was read, by
                 -- a reader that has done with it ('giveBackUnread') or a
                 -- reset of ours: nothing would ever read it, or give it
-                -- back to the connection window.  Checked in the same
-                -- transaction, so that a closer that has emptied the
-                -- queue finds nothing put in after it.
-                queued <- atomically $ do
+                -- back to the connection window.  Nor for one whose
+                -- handler has returned ('streamDiscardBody'): nobody
+                -- will read it either, and it is given back to both
+                -- windows, so that the peer can send the rest and end
+                -- the stream.  Checked in the same transaction, so that
+                -- a closer that has emptied the queue finds nothing put
+                -- in after it.
+                outcome <- atomically $ do
                     st <- readTVar streamState
-                    if isClosed st
-                        then return False
-                        else do
+                    discard <- readTVar streamDiscardBody
+                    if
+                        | isClosed st -> return Dropped
+                        | discard -> return Discarded
+                        | otherwise -> do
                             writeTQueue q $ Right (body, endOfStream)
-                            return True
-                unless (queued || connectionCreditedOnArrival streamId) $
-                    giveBackConnectionWindow ctx $
-                        BS.length body
+                            return Queued
+                case outcome of
+                    Queued -> return ()
+                    Discarded -> informWindowUpdate ctx strm $ BS.length body
+                    Dropped ->
+                        unless (connectionCreditedOnArrival streamId) $
+                            giveBackConnectionWindow ctx $
+                                BS.length body
         if endOfStream
             then do
                 case mcl of
@@ -821,6 +832,17 @@ stream x FrameHeader{streamId} _ _ _ _ =
     E.throwIO $
         StreamErrorIsSent ProtocolError streamId $
             fromString ("illegal frame " ++ show x ++ " for " ++ show streamId)
+
+----------------------------------------------------------------
+
+-- | What became of the content of a DATA frame.
+data DataOutcome
+    = -- | Put in the stream's queue for the reader
+      Queued
+    | -- | Thrown away, the reader gone ('streamDiscardBody')
+      Discarded
+    | -- | Thrown away, the stream closed
+      Dropped
 
 ----------------------------------------------------------------
 
