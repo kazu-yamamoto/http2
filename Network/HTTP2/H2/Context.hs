@@ -12,6 +12,7 @@ import qualified Data.IntSet as IntSet
 import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
 
 import Imports hiding (insert)
 import Network.HPACK
@@ -88,6 +89,9 @@ data Context = Context
     , mySockAddr         :: SockAddr
     , peerSockAddr       :: SockAddr
     , threadManager      :: T.ThreadManager
+    , timeoutManager     :: TM.Manager
+    -- ^ For the threads that are timed out: owning a thread and
+    --   timing it out are separate, so the manager carries no timer.
     , receiverDone       :: TVar (Maybe E.SomeException)
     , workersDone        :: STM Bool
     , informationalCallback :: StreamId -> TokenHeaderTable -> IO ()
@@ -132,7 +136,7 @@ newContext
     -> Int
     -> Int
     -> Settings
-    -> T.Manager
+    -> TM.Manager
     -> Maybe (STM Bool)
     -> IO Context
 newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
@@ -172,7 +176,8 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     rstRate         <- newRate
     let mySockAddr   = confMySockAddr
     let peerSockAddr = confPeerSockAddr
-    threadManager   <- T.newThreadManager timmgr
+    threadManager   <- T.newThreadManager
+    let timeoutManager = timmgr
     receiverDone    <- newTVarIO Nothing
     let informationalCallback = confOnInformational
     let workersDone = fromMaybe (T.isAllGone threadManager) mdone

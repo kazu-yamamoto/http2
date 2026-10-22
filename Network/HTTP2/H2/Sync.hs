@@ -18,6 +18,7 @@ import Control.Monad
 import Network.Control
 import Network.HTTP.Semantics.IO
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
 
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.Queue
@@ -108,14 +109,14 @@ syncWithSender' Context{..} pop lc = loop
         case s of
             Done -> return ()
             Cont newout -> do
-                mapM_ T.tickle (lcTimeHandle lc)
+                mapM_ TM.tickle (lcTimeHandle lc)
                 cont <- checkLoop lc
                 when cont $ do
                     enqueueOutput outputQ newout
                     loop
 
 newLoopCheck
-    :: Stream -> Maybe (TBQueue StreamingChunk) -> Maybe T.Handle -> IO LoopCheck
+    :: Stream -> Maybe (TBQueue StreamingChunk) -> Maybe TM.Handle -> IO LoopCheck
 newLoopCheck strm mtbq mth = do
     tovar <- newTVarIO False
     return $
@@ -132,7 +133,7 @@ data LoopCheck = LoopCheck
     , lcTBQ :: Maybe (TBQueue StreamingChunk)
     , lcTimeout :: TVar Bool
     , lcWindow :: TVar TxFlow
-    , lcTimeHandle :: Maybe T.Handle
+    , lcTimeHandle :: Maybe TM.Handle
     }
 
 checkLoop :: LoopCheck -> IO Bool
