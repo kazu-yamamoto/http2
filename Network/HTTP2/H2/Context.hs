@@ -93,7 +93,9 @@ data Context = Context
     -- ^ For the threads that are timed out: owning a thread and
     --   timing it out are separate, so the manager carries no timer.
     , receiverDone       :: TVar (Maybe E.SomeException)
-    , workersDone        :: STM Bool
+    , appDone            :: STM Bool
+    -- ^ Server only: set by 'sioDone' once a 'runIO' application has
+    --   nothing more to send.  Never for 'run' and clients.
     , informationalCallback :: StreamId -> TokenHeaderTable -> IO ()
     -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
     --   Hints) is received, ahead of the final response. Copied from
@@ -180,7 +182,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let timeoutManager = timmgr
     receiverDone    <- newTVarIO Nothing
     let informationalCallback = confOnInformational
-    let workersDone = fromMaybe (T.isAllGone threadManager) mdone
+    let appDone = fromMaybe (return False) mdone
     peerGoAway      <- newTVarIO Nothing
     activeRequests  <- newTVarIO 0
     resetByMe       <- newIORef IntSet.empty

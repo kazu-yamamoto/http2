@@ -44,6 +44,7 @@ import qualified Network.HTTP2.Client as C
 import qualified Network.HTTP2.Client.Internal as C
 import Network.HTTP2.Frame
 import Network.HTTP2.Server
+import qualified Network.HTTP2.Server.Internal as S
 
 port :: String
 port = show $ unsafePerformIO (randomPort <$> getStdGen)
@@ -432,6 +433,30 @@ spec = do
                     Just (Left e) -> expectationFailure $ show (e :: C.HTTP2Error)
                     Nothing -> expectationFailure "timed out"
 
+        it "closes the connection once a runIO application is done" $
+            -- 'sioDone' set a flag that nothing read, so the connection
+            -- stayed open until the client closed it.
+            E.bracket (forkIO runServerIO) killThread $ \_ -> do
+                threadDelay 10000
+                timeout 5000000 (requestAndCollect [] (\_ -> return ()))
+                    `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
+
+        it "sends a runIO body waiting for its window before closing" $
+            -- The rest of the body waits in a thread of the thread manager.
+            -- The queues are empty meanwhile, but the application is not
+            -- done until it is gone.
+            E.bracket (forkIO runServerIO) killThread $ \_ -> do
+                threadDelay 10000
+                let openWindow s =
+                        threadDelay 100000
+                            >> sendAll
+                                s
+                                (encodeFrame (EncodeInfo defaultFlags 1 Nothing) $ WindowUpdateFrame 100000)
+                timeout
+                    5000000
+                    (requestAndCollect [(SettingsInitialWindowSize, 1000)] openWindow)
+                    `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
+
         it "answers the requests it has after the client's GOAWAY" $
             -- A client's GOAWAY speaks of the server's own streams, and
             -- the requests it has already sent are still to be answered.
@@ -815,6 +840,40 @@ status (Right bs) = bs
 status (Left C.ConnectionIsClosed) = "closed"
 status (Left e) = C8.pack $ show e
 
+-- | A 'S.runIO' server answering a single request, then done.
+runServerIO :: IO ()
+runServerIO = runTCPServer (Just host) port $ \s ->
+    E.bracket (allocSimpleConfig s 32768) freeSimpleConfig $ \conf ->
+        E.handle ignoreHTTP2Error $ S.runIO defaultServerConfig conf (return . app)
+  where
+    app S.ServerIO{..} = do
+        (strm, _) <- sioReadRequest
+        sioWriteResponse strm $
+            responseBuilder ok200 [] $
+                byteString $
+                    B.replicate 30000 0x61
+        sioDone
+
+-- | A request for / with these settings, then the action, and what the
+-- server sends until it closes the connection.
+requestAndCollect :: SettingsList -> (Socket -> IO ()) -> IO [String]
+requestAndCollect settings action = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $
+        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+            SettingsFrame settings
+    sendAll s $
+        encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) 1 Nothing) $
+            HeadersFrame Nothing $
+                hpackEncode
+                    [ (":scheme", "http")
+                    , (":authority", "127.0.0.1")
+                    , (":path", "/")
+                    , (":method", "GET")
+                    ]
+    _ <- E.try (action s) :: IO (Either E.IOException ())
+    collectFrames s
+
 -- | A request for /slow, then GOAWAY(NO_ERROR) at once.  What the server
 -- sends from then on until it closes the connection.
 goAwayFromClient :: IO [String]
@@ -833,7 +892,11 @@ goAwayFromClient = runTCPClient host port $ \s -> do
     sendAll s $
         encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
             GoAwayFrame 0 NoError "going"
-    collect s
+    collectFrames s
+
+-- | What the server sends until it closes the connection.
+collectFrames :: Socket -> IO [String]
+collectFrames = collect
   where
     collect s = do
         mf <- recvFrame s
