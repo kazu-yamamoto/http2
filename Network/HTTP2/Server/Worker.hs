@@ -15,6 +15,7 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
 
 import Imports hiding (insert)
 import Network.HTTP2.Frame
@@ -29,7 +30,7 @@ import qualified Data.ByteString.Char8 as C8
 
 runServer :: Config -> Server -> Launch
 runServer conf server ctx@Context{..} strm req =
-    T.forkManagedTimeout threadManager label $ \th -> do
+    T.forkManagedTimeout threadManager timeoutManager label $ \th -> do
         let req' = pauseRequestBody th
             aux =
                 defaultAux
@@ -53,9 +54,9 @@ runServer conf server ctx@Context{..} strm req =
       where
         readBody = inpObjBody req
         readBody' = do
-            T.pause th
+            TM.pause th
             bs <- readBody
-            T.resume th -- this is the same as 'tickle'
+            TM.resume th -- this is the same as 'tickle'
             return bs
 
 -- | Called once the handler has returned: nobody reads the request body
@@ -278,18 +279,18 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming ctx@Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    T.forkManagedTimeout threadManager label $ \th ->
+    T.forkManagedTimeout threadManager timeoutManager label $ \th ->
         withOutBodyIface ctx strm tbq id $ \iface -> do
             let iface' =
                     iface
                         { outBodyPush = \b -> do
-                            T.pause th
+                            TM.pause th
                             outBodyPush iface b
-                            T.resume th -- this is the same as 'tickle'
+                            TM.resume th -- this is the same as 'tickle'
                         , outBodyPushFinal = \b -> do
-                            T.pause th
+                            TM.pause th
                             outBodyPushFinal iface b
-                            T.resume th -- this is the same as 'tickle'
+                            TM.resume th -- this is the same as 'tickle'
                         }
             strmbdy iface'
     return tbq

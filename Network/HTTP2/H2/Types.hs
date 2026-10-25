@@ -8,6 +8,7 @@ module Network.HTTP2.H2.Types where
 import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
+import qualified System.TimeManager as TM
 import Data.IORef
 import Foreign.Ptr (nullPtr)
 import Network.Control
@@ -267,7 +268,7 @@ data Config = Config
     , confSendAll :: ByteString -> IO ()
     , confReadN :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
-    , confTimeoutManager :: T.Manager
+    , confTimeoutManager :: TM.Manager
     , confMySockAddr :: SockAddr
     -- ^ This is copied into 'Aux', if exist, on server.
     , confPeerSockAddr :: SockAddr

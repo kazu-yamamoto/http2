@@ -11,7 +11,6 @@ import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
-import qualified System.ThreadManager as T
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -142,7 +141,7 @@ runH2 conf ctx = do
                         -- are closed with it.
                         Right e -> return e
                     closureServer conf ctx e
-    T.stopAfter mgr runBackgroundThreads $ \res ->
+    stopAfterAndWait mgr runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- connClose must not be called here since Run:fork calls it

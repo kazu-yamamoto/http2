@@ -12,6 +12,8 @@ import qualified Data.IntSet as IntSet
 import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
+import System.Timeout (timeout)
 
 import Imports hiding (insert)
 import Network.HPACK
@@ -23,6 +25,26 @@ import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 
 data Role = Client | Server deriving (Eq, Show)
+
+----------------------------------------------------------------
+
+-- | Telling a connection's threads to stop and seeing them out before the
+--   cleanup, which closes the streams they are still writing to.
+--
+-- The wait is capped because one of the threads waited for runs the
+-- application's handler: an application which swallows the asynchronous
+-- exception would otherwise keep this from ever returning.
+stopAfterAndWait
+    :: T.ThreadManager -> IO a -> (Maybe E.SomeException -> IO ()) -> IO a
+stopAfterAndWait mgr action cleanup =
+    T.stopAfter mgr action $ \res -> do
+        void $ timeout stopTimeout $ T.waitUntilAllGone mgr
+        cleanup res
+
+-- | How long the threads are given to end after they have been told to.
+--   Unwinding takes milliseconds; this is for one that does not stop.
+stopTimeout :: Int
+stopTimeout = 5000000
 
 ----------------------------------------------------------------
 
@@ -88,8 +110,13 @@ data Context = Context
     , mySockAddr         :: SockAddr
     , peerSockAddr       :: SockAddr
     , threadManager      :: T.ThreadManager
+    , timeoutManager     :: TM.Manager
+    -- ^ For the threads that are timed out: owning a thread and
+    --   timing it out are separate, so the manager carries no timer.
     , receiverDone       :: TVar (Maybe E.SomeException)
-    , workersDone        :: STM Bool
+    , appDone            :: STM Bool
+    -- ^ Server only: set by 'sioDone' once a 'runIO' application has
+    --   nothing more to send.  Never for 'run' and clients.
     , informationalCallback :: StreamId -> TokenHeaderTable -> IO ()
     -- ^ Client only: called when a 1xx informational response (e.g. 103 Early
     --   Hints) is received, ahead of the final response. Copied from
@@ -132,7 +159,7 @@ newContext
     -> Int
     -> Int
     -> Settings
-    -> T.Manager
+    -> TM.Manager
     -> Maybe (STM Bool)
     -> IO Context
 newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
@@ -172,10 +199,11 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     rstRate         <- newRate
     let mySockAddr   = confMySockAddr
     let peerSockAddr = confPeerSockAddr
-    threadManager   <- T.newThreadManager timmgr
+    threadManager   <- T.newThreadManager
+    let timeoutManager = timmgr
     receiverDone    <- newTVarIO Nothing
     let informationalCallback = confOnInformational
-    let workersDone = fromMaybe (T.isAllGone threadManager) mdone
+    let appDone = fromMaybe (return False) mdone
     peerGoAway      <- newTVarIO Nothing
     activeRequests  <- newTVarIO 0
     resetByMe       <- newIORef IntSet.empty

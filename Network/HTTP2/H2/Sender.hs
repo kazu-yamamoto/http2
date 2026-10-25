@@ -18,6 +18,7 @@ import Foreign.Ptr (castPtr, minusPtr, plusPtr)
 import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
+import qualified System.ThreadManager as T
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
@@ -69,7 +70,11 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
     connectionError e = E.throwIO e
 
 -- | Whether the sender is done: nothing left to send, and the receiver
--- done.  Otherwise it waits for something to send.
+-- done or the application done.  Otherwise it waits for something to send.
+--
+-- The application is done once outputs waiting for their stream windows,
+-- each in a thread of its own, are gone too.  Workers are not waited for
+-- when the receiver is done: they wait on streams closed only after this.
 --
 -- DATA parked for the connection window is something to send once the
 -- window opens.  Left out, a sender with nothing else queued waited here
@@ -87,12 +92,18 @@ checkDone ctx@Context{..} parked 0 = atomically $ do
         then
             return Nothing
         else do
-            recv <- readTVar receiverDone
-            case recv of
-                Just done ->
-                    return $ Just done
-                _otherwise ->
-                    retry
+            app <- appDone
+            gone <- T.isAllGone threadManager
+            if app && gone && null ps
+                then
+                    return $ Just $ E.toException ConnectionIsClosed
+                else do
+                    recv <- readTVar receiverDone
+                    case recv of
+                        Just done ->
+                            return $ Just done
+                        _otherwise ->
+                            retry
 checkDone _ _ _ = return Nothing
 
 frameSender :: Context -> Config -> IO E.SomeException

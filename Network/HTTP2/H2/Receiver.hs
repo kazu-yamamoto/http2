@@ -25,6 +25,7 @@ import Network.Control
 import Network.HTTP.Semantics
 import qualified System.IO.Error as E
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -69,7 +70,7 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
             then
                 loop1
             else
-                T.withHandle (threadManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
+                TM.withHandle (timeoutManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
 
     loop1 :: IO Void
     loop1 = do
@@ -79,14 +80,14 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
         processFrame ctx conf $ decodeFrameHeader hd
         loop1
 
-    loop2 :: T.Handle -> IO Void
+    loop2 :: TM.Handle -> IO Void
     loop2 th = do
         -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
         -- to destroy the thread trees.  So it is if the peer does not
         -- read what we send, and we wait here for ever.
         atomically $ waitControlQ $ controlQ ctx
         hd <- confReadN frameHeaderLength
-        T.tickle th
+        TM.tickle th
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
         loop2 th
