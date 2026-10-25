@@ -13,6 +13,7 @@ import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
 import qualified System.TimeManager as TM
+import System.Timeout (timeout)
 
 import Imports hiding (insert)
 import Network.HPACK
@@ -24,6 +25,26 @@ import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 
 data Role = Client | Server deriving (Eq, Show)
+
+----------------------------------------------------------------
+
+-- | Telling a connection's threads to stop and seeing them out before the
+--   cleanup, which closes the streams they are still writing to.
+--
+-- The wait is capped because one of the threads waited for runs the
+-- application's handler: an application which swallows the asynchronous
+-- exception would otherwise keep this from ever returning.
+stopAfterAndWait
+    :: T.ThreadManager -> IO a -> (Maybe E.SomeException -> IO ()) -> IO a
+stopAfterAndWait mgr action cleanup =
+    T.stopAfter mgr action $ \res -> do
+        void $ timeout stopTimeout $ T.waitUntilAllGone mgr
+        cleanup res
+
+-- | How long the threads are given to end after they have been told to.
+--   Unwinding takes milliseconds; this is for one that does not stop.
+stopTimeout :: Int
+stopTimeout = 5000000
 
 ----------------------------------------------------------------
 
