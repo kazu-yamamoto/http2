@@ -1,5 +1,18 @@
 # ChangeLog for http2
 
+## 5.4.10
+
+* `decodeSophisticated` has the type it had before 5.4.9; the header list
+  size limit moved to an unexported function.
+  [#226](https://github.com/kazu-yamamoto/http2/pull/226)
+* A `runIO` connection ends, with a GOAWAY, once the application says it is
+  done.
+  [#228](https://github.com/kazu-yamamoto/http2/pull/228)
+* The threads of a connection are waited for, up to five seconds, before
+  its streams are closed and the caller tears the connection down.
+  [#228](https://github.com/kazu-yamamoto/http2/pull/228)
+* Requires `time-manager` 0.5.
+
 ## 5.4.9
 
 * Bound the decoded size of a field block (CVE-2026-49975).
