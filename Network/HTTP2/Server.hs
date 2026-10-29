@@ -65,6 +65,7 @@ module Network.HTTP2.Server (
     confOnInformational,
     allocSimpleConfig,
     allocSimpleConfig',
+    allocSimpleConfigWith,
     freeSimpleConfig,
     module Network.HTTP.Semantics.Server,
 ) where
