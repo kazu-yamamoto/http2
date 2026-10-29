@@ -5,3 +5,6 @@ packages:
     .
     ../http-semantics
     ../network
+    ../network-run
+
+tests: True

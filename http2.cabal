@@ -140,7 +140,7 @@ executable h2c-client
         http-types,
         http2,
         network,
-        network-run >= 0.6 && <0.7,
+        network-run >= 0.7 && <0.8,
         unix-time
 
     if flag(devel)
@@ -310,7 +310,7 @@ test-suite spec
         http2,
         network,
         network-byte-order,
-        network-run >= 0.6 && <0.7,
+        network-run >= 0.7 && <0.8,
         random,
         typed-process
 
@@ -329,7 +329,7 @@ test-suite spec2
         hspec >=1.3,
         http-types,
         http2,
-        network-run >= 0.6 && <0.7,
+        network-run >= 0.7 && <0.8,
         typed-process
 
     if flag(h2spec)
