@@ -1,5 +1,10 @@
 # ChangeLog for http2
 
+## 5.4.12
+
+* Close a connection's streams before waiting for its threads.
+  [#232](https://github.com/kazu-yamamoto/http2/pull/232)
+
 ## 5.4.11
 
 * `allocSimpleConfigWith` is `allocSimpleConfig'` with an `STM` action beside
