@@ -36,6 +36,7 @@ import Network.Socket.ByteString
 import System.IO
 import System.IO.Unsafe
 import System.Random
+import System.ThreadManager (KilledByThreadManager (..))
 import System.Timeout (timeout)
 import Test.Hspec
 
@@ -137,6 +138,16 @@ spec = do
                 threadDelay 10000
                 runAttack cancelInFlight
                 timeout 1000000 (takeMVar doneVar) `shouldReturn` Just ()
+
+        it "tells a handler waiting on a thread of its own that the peer is gone" $ do
+            -- The handler swallows the manager's kill and goes on waiting for
+            -- a thread which only the request body can tell, which is what
+            -- grapesy does (#231).
+            doneVar <- newEmptyMVar
+            withServer (runServerWaitingHandler doneVar) $ do
+                threadDelay 10000
+                openStreamAndDisconnect
+                timeout 2000000 (takeMVar doneVar) `shouldReturn` Just True
 
         it "survives a padded HEADERS whose padding covers the priority fields" $
             withServer runServer $ do
@@ -783,6 +794,41 @@ runServerCancel doneVar set = runTCPServerWithSettings set (Just host) port runH
         threadDelay 200000
         _ <- sendResponse responseHello []
         putMVar doneVar ()
+
+-- | A server whose handler leaves the work to a thread of its own and goes on
+-- waiting for it when the manager kills it, as grapesy's does.  Nothing but
+-- the request body tells that thread that the peer is gone.
+runServerWaitingHandler :: MVar Bool -> ServerSettings -> IO ()
+runServerWaitingHandler doneVar set =
+    runTCPServerWithSettings set (Just host) port runHTTP2Server
+  where
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> run defaultServerConfig conf waitingServer)
+    waitingServer req _aux _sendResponse = do
+        told <- newEmptyMVar
+        let readAll = do
+                bs <- getRequestBodyChunk req
+                if B.null bs then return False else readAll
+            wasTold :: Either E.SomeException Bool -> Bool
+            wasTold = either (const True) id
+        _ <- forkIO $ E.try readAll >>= putMVar told . wasTold
+        takeMVarIgnoringKill told >>= putMVar doneVar
+
+-- | Taking an 'MVar', ignoring the manager's kill as grapesy's handler does.
+takeMVarIgnoringKill :: MVar a -> IO a
+takeMVarIgnoringKill var =
+    takeMVar var `E.catch` \(KilledByThreadManager _) -> takeMVarIgnoringKill var
+
+-- | Open a stream the server waits for a body on, then drop the connection.
+openStreamAndDisconnect :: IO ()
+openStreamAndDisconnect = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    sendAll s $ openStreamFrame 1
+    threadDelay 100000
 
 runFakeServer :: MVar ByteString -> ServerSettings -> IO ()
 runFakeServer prefaceVar set = do

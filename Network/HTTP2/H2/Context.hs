@@ -28,18 +28,22 @@ data Role = Client | Server deriving (Eq, Show)
 
 ----------------------------------------------------------------
 
--- | Telling a connection's threads to stop and seeing them out before the
---   cleanup, which closes the streams they are still writing to.
+-- | Telling a connection's threads to stop, and seeing them out before
+--   returning to a caller which tears the connection down under them.
+--
+-- The cleanup comes first: it closes the streams, which is how a thread
+-- blocked on a request body is told the peer is gone.  Waiting for the
+-- threads before it would be waiting for what the cleanup has to say.
 --
 -- The wait is capped because one of the threads waited for runs the
--- application's handler: an application which swallows the asynchronous
--- exception would otherwise keep this from ever returning.
+-- application's handler: an application which never stops would otherwise
+-- keep this from ever returning.
 stopAfterAndWait
     :: T.ThreadManager -> IO a -> (Maybe E.SomeException -> IO ()) -> IO a
 stopAfterAndWait mgr action cleanup =
     T.stopAfter mgr action $ \res -> do
-        void $ timeout stopTimeout $ T.waitUntilAllGone mgr
         cleanup res
+        void $ timeout stopTimeout $ T.waitUntilAllGone mgr
 
 -- | How long the threads are given to end after they have been told to.
 --   Unwinding takes milliseconds; this is for one that does not stop.
