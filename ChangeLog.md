@@ -1,5 +1,12 @@
 # ChangeLog for http2
 
+## 5.4.11
+
+* `allocSimpleConfigWith` is `allocSimpleConfig'` with an `STM` action beside
+  each receive.  When it fires, the reader ends as it does at end of input,
+  so a connection can be stopped without closing its socket under the reader
+  or throwing into it -- neither of which works on every platform.
+
 ## 5.4.10
 
 * `decodeSophisticated` has the type it had before 5.4.9; the header list

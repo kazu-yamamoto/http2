@@ -85,6 +85,7 @@ module Network.HTTP2.Client (
     confOnInformational,
     allocSimpleConfig,
     allocSimpleConfig',
+    allocSimpleConfigWith,
     freeSimpleConfig,
     module Network.HTTP.Semantics.Client,
 

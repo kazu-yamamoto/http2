@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
@@ -61,7 +62,7 @@ spec = do
             -- Both have to go out as HEADERS and CONTINUATION frames and be
             -- put back together on receipt; the requests after them check
             -- that the two ends' HPACK tables still agree.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 r <- timeout 5000000 $ runTCPClient host port $ \s ->
                     E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
@@ -83,12 +84,12 @@ spec = do
                 r `shouldBe` Just ()
 
         it "handles normal cases" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runClient allocSimpleConfig
 
         it "delivers 103 Early Hints to the client's informational handler" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 hintsRef <- newIORef []
                 runClientEarly hintsRef >>= (`shouldBe` Just ok200)
@@ -100,7 +101,7 @@ spec = do
 
         it "should always send the connection preface first" $ do
             prefaceVar <- newEmptyMVar
-            E.bracket (forkIO (runFakeServer prefaceVar)) killThread $ \_ -> do
+            withServer (runFakeServer prefaceVar) $ do
                 threadDelay 10000
                 E.catch (runClient allocSlowPrefaceConfig) ignoreHTTP2Error
 
@@ -108,7 +109,7 @@ spec = do
             preface `shouldBe` connectionPreface
 
         it "refuses one stream over the limit and keeps the connection" $
-            E.bracket (forkIO runServerMaxConc1) killThread $ \_ -> do
+            withServer runServerMaxConc1 $ do
                 threadDelay 10000
                 -- The server announced room for one concurrent stream.  Open
                 -- one, reset it, then open two more: the second of those is
@@ -132,40 +133,40 @@ spec = do
 
         it "releases a worker whose stream the peer reset" $ do
             doneVar <- newEmptyMVar
-            E.bracket (forkIO (runServerCancel doneVar)) killThread $ \_ -> do
+            withServer (runServerCancel doneVar) $ do
                 threadDelay 10000
                 runAttack cancelInFlight
                 timeout 1000000 (takeMVar doneVar) `shouldReturn` Just ()
 
         it "survives a padded HEADERS whose padding covers the priority fields" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runAttack paddingOverPriority
                     `shouldThrow` connectionError "no room for priority fields"
 
         it "resets one stream and goes on serving the connection" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runStreamErrorClient
 
         it "resets a stream cancelled with an asynchronous exception and goes on" $
             -- The exception is only the reason for the reset.  The sender
             -- once threw it, which took the whole connection down.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runAsyncCancelClient
 
         it "resets a stream whose response body throws" $
             -- The body was ended with END_STREAM all the same, and the client
             -- took what had been sent so far for the whole of it.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runStreamThrowClient
 
         it "resets a stream whose request body throws" $
             -- Likewise the other way round: the server took a truncated
             -- request body for a complete one, and answered it.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runRequestThrowClient
 
@@ -174,7 +175,7 @@ spec = do
             -- headers, and the stream was left open: the 60000 octets of
             -- each response came in and were never given back to the
             -- connection window, so after a few the connection stalled.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 interruptedRequests $ \_ ->
                     C.requestNoBody methodGet "/late-big" []
@@ -182,7 +183,7 @@ spec = do
         it "gives back the window of requests interrupted sending the body" $
             -- Likewise while the request body was still going out: the
             -- stream is idle then, and its reset waits until it is not.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 interruptedRequests $ \_ ->
                     C.requestStreaming methodPost "/big-after-body" [] $ \write flush -> do
@@ -193,12 +194,12 @@ spec = do
             -- The worker's timer was only tickled by reading the request
             -- body, so a response streamed for longer than the timeout was
             -- killed half-way (#173).
-            E.bracket (forkIO runServerShortTimeout) killThread $ \_ -> do
+            withServer runServerShortTimeout $ do
                 threadDelay 10000
                 runDripClient `shouldReturn` dripChunks
 
         it "limits the resets a peer can make us send (MadeYouReset)" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 -- Not through the client library: it would take the
                 -- server's first RST_STREAM, on a stream it never opened
@@ -218,7 +219,7 @@ spec = do
             -- them running in parallel: on one capability it hardly ever
             -- shows.
             withCapabilities 4 $
-                E.bracket (forkIO runServerSmallWindow) killThread $ \_ -> do
+                withServer runServerSmallWindow $ do
                     threadDelay 10000
                     done <- newIORef (0 :: Int)
                     r <- timeout 60000000 $ runTCPClient host port $ \s -> do
@@ -246,7 +247,7 @@ spec = do
             -- RFC 9113, section 8.1.1: the response to HEAD, 204 and 304 can
             -- carry a non-zero content-length without content.  The client
             -- used to take each of these for a malformed response.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runTCPClient host port $ \s ->
                     E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
@@ -268,7 +269,7 @@ spec = do
             -- PRIORITY.  The server allows 64 concurrent streams; each of
             -- these PRIORITY frames used to open one and hold its slot,
             -- so the request after them was refused.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 idlePriority `shouldReturn` Just (Just "HEADERS")
 
@@ -277,7 +278,7 @@ spec = do
             -- FLOW_CONTROL_ERROR.  The overflow is found in the sender,
             -- which used to stop on it without a word, leaving the
             -- connection open and silent.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 -- A connection error: GOAWAY, with no RST_STREAM before it.
                 timeout 5000000 settingsOverflow
@@ -288,7 +289,7 @@ spec = do
             -- the body with no trailer fields.  The empty block used to be
             -- taken for a truncated one: COMPRESSION_ERROR, and the
             -- connection closed.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 emptyTrailers `shouldReturn` Just (Just "HEADERS")
 
@@ -296,7 +297,7 @@ spec = do
             -- Padding is not content (RFC 9113, section 6.1).  It used to
             -- be counted into the body's length, so a padded body that
             -- matched its content-length was reset as one that did not.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 paddedBody `shouldReturn` Just (Just "DATA 4")
 
@@ -306,7 +307,7 @@ spec = do
             -- charged and never given back, so a peer keeping to the
             -- windows stalled, and one that did not, like this one, broke
             -- the stream's limit and had the connection closed.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 paddingWindow `shouldReturn` Just (Just "DATA 2000")
 
@@ -317,7 +318,7 @@ spec = do
             -- the peer's view of that window shrank for good.  With a
             -- window of 65535, the refused 16384 octets and the 16384 of
             -- the next request make up the half that is given back.
-            E.bracket (forkIO runServerSmallConnWindow) killThread $ \_ -> do
+            withServer runServerSmallConnWindow $ do
                 threadDelay 10000
                 timeout 5000000 refusedData `shouldReturn` Just (Just (32768, "16384"))
 
@@ -326,7 +327,7 @@ spec = do
             -- fails after its stream id is taken and before it is queued.
             -- Requests are queued in stream id order, so every one after it
             -- used to wait for its turn for ever.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 r <- timeout 5000000 $ runTCPClient host port $ \s ->
                     E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
@@ -346,7 +347,7 @@ spec = do
             -- SETTINGS_MAX_CONCURRENT_STREAMS of 0 is how a peer can refuse
             -- pushes (RFC 9113, section 8.4).  The push of /push-pp used to
             -- wait for room for ever, and the response to /push with it.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 pushNoRoom `shouldReturn` Just (Just "HEADERS")
 
@@ -358,7 +359,7 @@ spec = do
             -- 65th request waited for a slot for ever.  Now each is reset,
             -- 70 in a burst, which takes a server allowing more resets a
             -- second than the default.
-            E.bracket (forkIO runServerManyResets) killThread $ \_ -> do
+            withServer runServerManyResets $ do
                 threadDelay 10000
                 r <- timeout 10000000 $ runTCPClient host port $ \s ->
                     E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
@@ -378,7 +379,7 @@ spec = do
             -- asked for.  With a connection window of 65535, the fourth push
             -- used to find it used up by the first three, unread, and the
             -- connection stalled, the responses to /push-big with it.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 let cconf =
                         C.defaultClientConfig
@@ -403,7 +404,7 @@ spec = do
             -- 3 are being answered when the connection is closed, and used
             -- to be left out until their handlers had returned, so the
             -- GOAWAY said 0: as if the client could send them again.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 goAwayLastStream `shouldReturn` Just (Just (3, ProtocolError))
 
@@ -412,7 +413,7 @@ spec = do
             -- says stream 1 will still be answered, stream 3 will not.  The
             -- client used to close the connection as soon as it came,
             -- failing both, and the client function with them.
-            E.bracket (forkIO runGoAwayServer) killThread $ \_ -> do
+            withServer runGoAwayServer $ do
                 threadDelay 10000
                 r <- timeout 5000000 $ E.try $ runTCPClient host port $ \s ->
                     E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
@@ -436,7 +437,7 @@ spec = do
         it "closes the connection once a runIO application is done" $
             -- 'sioDone' set a flag that nothing read, so the connection
             -- stayed open until the client closed it.
-            E.bracket (forkIO runServerIO) killThread $ \_ -> do
+            withServer runServerIO $ do
                 threadDelay 10000
                 timeout 5000000 (requestAndCollect [] (\_ -> return ()))
                     `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
@@ -445,7 +446,7 @@ spec = do
             -- The rest of the body waits in a thread of the thread manager.
             -- The queues are empty meanwhile, but the application is not
             -- done until it is gone.
-            E.bracket (forkIO runServerIO) killThread $ \_ -> do
+            withServer runServerIO $ do
                 threadDelay 10000
                 let openWindow s =
                         threadDelay 100000
@@ -461,7 +462,7 @@ spec = do
             -- A client's GOAWAY speaks of the server's own streams, and
             -- the requests it has already sent are still to be answered.
             -- The server used to close the connection on it at once.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 goAwayFromClient
                     `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
@@ -470,7 +471,7 @@ spec = do
             -- An upper-case field name makes the request malformed: a
             -- stream error (RFC 9113, section 8.1.1).  It used to close the
             -- connection, and the next request on it went unanswered.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 malformedRequest
                     `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
@@ -481,7 +482,7 @@ spec = do
             -- on the wire but large once decoded.  The server advertises
             -- its limit, resets the stream over it, and keeps its dynamic
             -- table in step: the next request refers to the same entry.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 bombRequest
                     `shouldReturn` Just
@@ -496,14 +497,14 @@ spec = do
             -- for ever, and the stream kept its slot of
             -- SETTINGS_MAX_CONCURRENT_STREAMS.  With room for one stream,
             -- the next request was refused.
-            E.bracket (forkIO runServerMaxConc1) killThread $ \_ -> do
+            withServer runServerMaxConc1 $ do
                 threadDelay 10000
                 timeout 5000000 (failingHandler "/throw")
                     `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
 
         it "resets the stream of a handler killed by the timeout" $
             -- Likewise for a handler the timeout manager kills.
-            E.bracket (forkIO runServerShortTimeout) killThread $ \_ -> do
+            withServer runServerShortTimeout $ do
                 threadDelay 10000
                 timeout 10000000 (failingHandler "/hang")
                     `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
@@ -514,7 +515,7 @@ spec = do
             -- windows: the upload stalled, and with it the connection, whose
             -- window is 64K here.  The rest is now thrown away as it comes,
             -- and given back.
-            E.bracket (forkIO runServerSmallConnWindow) killThread $ \_ -> do
+            withServer runServerSmallConnWindow $ do
                 threadDelay 10000
                 timeout 5000000 unreadBody `shouldReturn` Just "100000"
 
@@ -524,9 +525,18 @@ spec = do
             -- Each refusal is queued for a sender that cannot send, and the
             -- server read on regardless: the queue grew without bound.  Now
             -- it stops reading, and the peer's sending blocks.
-            E.bracket (forkIO runServerMaxConc1) killThread $ \_ -> do
+#if defined(mingw32_HOST_OS)
+            -- The flood is given up on with System.Timeout, which cannot
+            -- cut a send short on Windows: the call is a safe foreign one
+            -- and no asynchronous exception reaches it.  Giving up on a
+            -- send is not something network offers, so this waits for
+            -- ever there.
+            pendingWith "a send cannot be given up on here"
+#else
+            withServer runServerMaxConc1 $ do
                 threadDelay 10000
                 unreadFlood `shouldReturn` Nothing
+#endif
 
         it "tells the handler of a body that does not add up to its content-length" $
             -- RFC 9113, section 8.1.1: malformed.  The handler used to read
@@ -534,7 +544,7 @@ spec = do
             -- short of its content-length was checked once its END_STREAM had
             -- been delivered, one longer only at its end, and one ending with
             -- trailers not at all.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 let short = [dataFrame 1 "0123456789" True]
                     long = [dataFrame 1 "0123456789" False, dataFrame 1 "0123456789" True]
@@ -546,7 +556,7 @@ spec = do
                         _ -> False
 
         it "gives the handler a body that adds up to its content-length" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 let plain = [dataFrame 1 "0123456789" True]
                     trailers = [dataFrame 1 "0123456789" False, trailersFrame 1]
@@ -561,7 +571,7 @@ spec = do
             -- they are ignored, their field block decoded all the same: the
             -- next request refers to the entry they put in the dynamic table.
             -- In one HEADERS frame, or splitBlock with a CONTINUATION.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 let whole = [trailerBlock (setEndHeader defaultFlags) indexedTrailer]
                     (frag1, frag2) = B.splitAt 4 indexedTrailer
@@ -578,7 +588,7 @@ spec = do
             -- Not to be taken for the above: a stream closed without a reset
             -- of ours, its response over and gone from the table, is not to
             -- be reused (RFC 9113, section 5.1.1).
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 reuseClosedStream `shouldReturn` Just "GOAWAY ProtocolError"
 
@@ -587,7 +597,7 @@ spec = do
             -- sender used to wait for the connection window before taking
             -- anything off its queue, so once /endless had used it up, the
             -- response to a request with no body never went out.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 timeout 5000000 shutWindow `shouldReturn` Just (Just "HEADERS 3, then DATA 1")
 
@@ -599,7 +609,7 @@ spec = do
             -- and got 404.  One round in a few dozen did, so 200 of them --
             -- which also takes more pushes than the peer allows concurrent
             -- streams, so pushed streams that are never closed show too.
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 done <- newIORef (0 :: Int)
                 r <- timeout 30000000 $ runTCPClient host port $ \s ->
@@ -631,12 +641,12 @@ spec = do
             -- open; with none left, the file was read into no room, and a
             -- read of 0 octets is the end of the file, so the request ended
             -- with END_STREAM after the first window's worth.
-            E.bracket (forkIO runServerSmallWindow) killThread $ \_ -> do
+            withServer runServerSmallWindow $ do
                 threadDelay 10000
                 timeout 10000000 uploadIO `shouldReturn` Just 100000
 
         it "prevents attacks" $
-            E.bracket (forkIO runServer) killThread $ \_ -> do
+            withServer runServer $ do
                 threadDelay 10000
                 runAttack rapidSettings `shouldThrow` connectionError "too many settings"
                 runAttack rapidPing `shouldThrow` connectionError "too many ping"
@@ -648,8 +658,8 @@ spec = do
 ignoreHTTP2Error :: C.HTTP2Error -> IO ()
 ignoreHTTP2Error _ = pure ()
 
-runServer :: IO ()
-runServer = runTCPServer (Just host) port runHTTP2Server
+runServer :: ServerSettings -> IO ()
+runServer set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     runHTTP2Server s =
         E.bracket
@@ -687,8 +697,8 @@ withCapabilities n act =
 
 -- | Room for four concurrent streams and a small window, so that WINDOW_UPDATE
 -- frames go back and forth all the time.
-runServerSmallWindow :: IO ()
-runServerSmallWindow = runTCPServer (Just host) port runHTTP2Server
+runServerSmallWindow :: ServerSettings -> IO ()
+runServerSmallWindow set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     sconf =
         defaultServerConfig
@@ -707,8 +717,8 @@ runServerSmallWindow = runTCPServer (Just host) port runHTTP2Server
 
 -- | Like 'runServer', but with the connection window left at its initial
 -- 65535 octets.
-runServerSmallConnWindow :: IO ()
-runServerSmallConnWindow = runTCPServer (Just host) port runHTTP2Server
+runServerSmallConnWindow :: ServerSettings -> IO ()
+runServerSmallConnWindow set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     sconf = defaultServerConfig{connectionWindowSize = defaultWindowSize}
     runHTTP2Server s =
@@ -718,8 +728,8 @@ runServerSmallConnWindow = runTCPServer (Just host) port runHTTP2Server
             (\conf -> run sconf conf server)
 
 -- | Like 'runServer', but allowing a client to reset 1000 streams a second.
-runServerManyResets :: IO ()
-runServerManyResets = runTCPServer (Just host) port runHTTP2Server
+runServerManyResets :: ServerSettings -> IO ()
+runServerManyResets set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     sconf =
         defaultServerConfig
@@ -734,8 +744,8 @@ runServerManyResets = runTCPServer (Just host) port runHTTP2Server
 -- | A server whose timeout is one second.  Like Warp, it sets
 -- 'confReadNTimeout', so the receiver has no timer of its own, which would
 -- close a connection the client sends nothing on.
-runServerShortTimeout :: IO ()
-runServerShortTimeout = runTCPServer (Just host) port runHTTP2Server
+runServerShortTimeout :: ServerSettings -> IO ()
+runServerShortTimeout set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     alloc s = do
         conf <- allocSimpleConfig' s 32768 1000000
@@ -746,8 +756,8 @@ runServerShortTimeout = runTCPServer (Just host) port runHTTP2Server
             freeSimpleConfig
             (\conf -> run defaultServerConfig conf server)
 
-runServerMaxConc1 :: IO ()
-runServerMaxConc1 = runTCPServer (Just host) port runHTTP2Server
+runServerMaxConc1 :: ServerSettings -> IO ()
+runServerMaxConc1 set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     sconf =
         defaultServerConfig
@@ -761,8 +771,8 @@ runServerMaxConc1 = runTCPServer (Just host) port runHTTP2Server
 
 -- | A server whose handler waits long enough for a RST_STREAM to arrive
 -- before it responds, and then signals that 'sendResponse' returned.
-runServerCancel :: MVar () -> IO ()
-runServerCancel doneVar = runTCPServer (Just host) port runHTTP2Server
+runServerCancel :: MVar () -> ServerSettings -> IO ()
+runServerCancel doneVar set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     runHTTP2Server s =
         E.bracket
@@ -774,9 +784,9 @@ runServerCancel doneVar = runTCPServer (Just host) port runHTTP2Server
         _ <- sendResponse responseHello []
         putMVar doneVar ()
 
-runFakeServer :: MVar ByteString -> IO ()
-runFakeServer prefaceVar = do
-    runTCPServer (Just host) port $ \s -> do
+runFakeServer :: MVar ByteString -> ServerSettings -> IO ()
+runFakeServer prefaceVar set = do
+    runTCPServerWithSettings set (Just host) port $ \s -> do
         ref <- newIORef Nothing
 
         -- send settings
@@ -799,8 +809,8 @@ runFakeServer prefaceVar = do
 -- | Answering two requests with a GOAWAY that leaves out the second: the
 -- headers of the first response, GOAWAY(NO_ERROR) with last stream 1, and
 -- the rest of the first response a little later.
-runGoAwayServer :: IO ()
-runGoAwayServer = runTCPServer (Just host) port $ \s -> do
+runGoAwayServer :: ServerSettings -> IO ()
+runGoAwayServer set = runTCPServerWithSettings set (Just host) port $ \s -> do
     _ <- recvAll s (B.length connectionPreface)
     sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
     let awaitRequests :: Int -> IO ()
@@ -841,8 +851,8 @@ status (Left C.ConnectionIsClosed) = "closed"
 status (Left e) = C8.pack $ show e
 
 -- | A 'S.runIO' server answering a single request, then done.
-runServerIO :: IO ()
-runServerIO = runTCPServer (Just host) port $ \s ->
+runServerIO :: ServerSettings -> IO ()
+runServerIO set = runTCPServerWithSettings set (Just host) port $ \s ->
     E.bracket (allocSimpleConfig s 32768) freeSimpleConfig $ \conf ->
         E.handle ignoreHTTP2Error $ S.runIO defaultServerConfig conf (return . app)
   where
@@ -2371,3 +2381,17 @@ hpackEncode kvs = foldr cat "" kvs
             <> unsafePerformIO (encodeInteger 7 (B.length v))
             <> v
             <> b
+
+-- | Running a test server for the duration of the action, then telling it
+--   to stop.  'killThread' is no good here: it does not reach a thread
+--   blocked in @accept@ on Windows, where the call is a safe foreign one,
+--   so the whole suite used to hang on the first of these.
+withServer :: (ServerSettings -> IO ()) -> IO a -> IO a
+withServer runIt action = do
+    stopVar <- newEmptyMVar
+    done <- newEmptyMVar
+    let set = defaultServerSettings{settingsInstallShutdownHandler = putMVar stopVar}
+    _ <- forkIO $ runIt set `E.finally` putMVar done ()
+    action `E.finally` do
+        join $ takeMVar stopVar
+        takeMVar done

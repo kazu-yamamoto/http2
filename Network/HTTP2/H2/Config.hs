@@ -2,6 +2,7 @@
 
 module Network.HTTP2.H2.Config where
 
+import Control.Concurrent.STM
 import Data.IORef
 import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
@@ -23,11 +24,20 @@ allocSimpleConfig s bufsiz = allocSimpleConfig' s bufsiz (30 * 1000000)
 --   The third argument is microseconds to initialize WAI
 --   timeout manager.
 allocSimpleConfig' :: Socket -> BufferSize -> Int -> IO Config
-allocSimpleConfig' s bufsiz usec = do
+allocSimpleConfig' s bufsiz usec = allocSimpleConfigWith s bufsiz usec retry
+
+-- | 'allocSimpleConfig'' whose receive the caller can give up on.  The
+--   'STM' action is waited for beside each receive; when it fires, the
+--   reader ends as it does at end of input.  Nothing is closed and no
+--   thread is interrupted to make it return.
+--
+--   @since 5.4.11
+allocSimpleConfigWith :: Socket -> BufferSize -> Int -> STM a -> IO Config
+allocSimpleConfigWith s bufsiz usec giveUp = do
     confWriteBuffer <- mallocBytes bufsiz
     let confBufferSize = bufsiz
     let confSendAll = sendAll s
-    confReadN <- defaultReadN s <$> newIORef Nothing
+    confReadN <- (\ref -> defaultReadNWith s ref giveUp) <$> newIORef Nothing
     let confPositionReadMaker = defaultPositionReadMaker
     confTimeoutManager <- T.initialize usec
     confMySockAddr <- getSocketName s

@@ -34,23 +34,23 @@ spec :: Spec
 spec = do
     describe "client" $ do
         it "receives an error if scheme is missing" $
-            E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
+            withServer (runServer defaultServer) $ do
                 threadDelay 10000
                 runClient "" host (defaultClient []) `shouldThrow` streamError
 
         it "receives an error if authority is missing" $
-            E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
+            withServer (runServer defaultServer) $ do
                 threadDelay 10000
                 runClient "http" "" (defaultClient []) `shouldThrow` streamError
 
         it "receives an error if authority and host are different" $
-            E.bracket (forkIO $ runServer defaultServer) killThread $ \_ -> do
+            withServer (runServer defaultServer) $ do
                 threadDelay 10000
                 runClient "http" host (defaultClient [("Host", "foo")])
                     `shouldThrow` streamError
 
         it "does not deadlock (in concurrent setting)" $
-            E.bracket (forkIO $ runServer irresponsiveServer) killThread $ \_ -> do
+            withServer (runServer irresponsiveServer) $ do
                 threadDelay 10000
                 resultVar <- newEmptyMVar
                 runClient "http" "localhost" $ concurrentClient resultVar
@@ -62,7 +62,7 @@ spec = do
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
         it "respects max concurrent streams setting" $
-            E.bracket (forkIO $ runServer irresponsiveServer) killThread $ \_ -> do
+            withServer (runServer irresponsiveServer) $ do
                 threadDelay 10000
                 let maxConc = fromJust $ maxConcurrentStreams defaultSettings
 
@@ -87,8 +87,8 @@ spec = do
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
-runServer :: S.Server -> IO ()
-runServer server = runTCPServer (Just host) port runHTTP2Server
+runServer :: S.Server -> ServerSettings -> IO ()
+runServer server set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     runHTTP2Server s =
         E.bracket
@@ -146,3 +146,17 @@ concurrentClient resultVar sendRequest _aux = do
 streamError :: Selector HTTP2Error
 streamError StreamResetIsReceived{} = True
 streamError _ = False
+
+-- | Running a test server for the duration of the action, then telling it
+--   to stop.  'killThread' is no good here: it does not reach a thread
+--   blocked in @accept@ on Windows, where the call is a safe foreign one,
+--   so the whole suite used to hang on the first of these.
+withServer :: (ServerSettings -> IO ()) -> IO a -> IO a
+withServer runIt action = do
+    stopVar <- newEmptyMVar
+    done <- newEmptyMVar
+    let set = defaultServerSettings{settingsInstallShutdownHandler = putMVar stopVar}
+    _ <- forkIO $ runIt set `E.finally` putMVar done ()
+    action `E.finally` do
+        join $ takeMVar stopVar
+        takeMVar done
