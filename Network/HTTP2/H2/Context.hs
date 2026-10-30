@@ -37,13 +37,13 @@ data Role = Client | Server deriving (Eq, Show)
 --
 -- The wait is capped because one of the threads waited for runs the
 -- application's handler: an application which never stops would otherwise
--- keep this from ever returning.
+-- keep this from ever returning.  It is a 'E.finally' so that the threads
+-- are seen out whatever the cleanup does.
 stopAfterAndWait
     :: T.ThreadManager -> IO a -> (Maybe E.SomeException -> IO ()) -> IO a
 stopAfterAndWait mgr action cleanup =
-    T.stopAfter mgr action $ \res -> do
-        cleanup res
-        void $ timeout stopTimeout $ T.waitUntilAllGone mgr
+    T.stopAfter mgr action $ \res ->
+        cleanup res `E.finally` void (timeout stopTimeout $ T.waitUntilAllGone mgr)
 
 -- | How long the threads are given to end after they have been told to.
 --   Unwinding takes milliseconds; this is for one that does not stop.
