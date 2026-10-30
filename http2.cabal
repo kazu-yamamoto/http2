@@ -312,6 +312,7 @@ test-suite spec
         network-byte-order,
         network-run >= 0.7 && <0.8,
         random,
+        time-manager >=0.5 && <0.6,
         typed-process
 
 test-suite spec2
