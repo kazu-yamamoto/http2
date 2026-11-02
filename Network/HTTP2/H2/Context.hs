@@ -227,6 +227,17 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
 
 ----------------------------------------------------------------
 
+-- | Fires once the receiver has ended with 'ConnectionIsTimeout': a
+--   write still blocked then is given up on.
+timedOut :: Context -> STM ()
+timedOut Context{receiverDone} = do
+    done <- readTVar receiverDone
+    case done >>= E.fromException of
+        Just ConnectionIsTimeout -> return ()
+        _ -> retry
+
+----------------------------------------------------------------
+
 isClient :: Context -> Bool
 isClient ctx = role ctx == Client
 

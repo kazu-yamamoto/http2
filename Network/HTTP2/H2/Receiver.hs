@@ -23,7 +23,6 @@ import Data.IORef
 import Data.Void
 import Network.Control
 import Network.HTTP.Semantics
-import qualified System.IO.Error as E
 import qualified System.ThreadManager as T
 import qualified System.TimeManager as TM
 
@@ -941,8 +940,6 @@ goaway ctx err msg = do
     sid <- getPeerLastStreamId ctx
     return $ goawayFrame sid err msg
 
-sendGoaway :: Config -> ByteString -> IO ()
-sendGoaway Config{..} frame = confSendAll frame `E.catchIOError` \_ -> return ()
 
 ----------------------------------------------------------------
 

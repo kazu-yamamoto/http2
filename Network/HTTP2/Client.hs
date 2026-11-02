@@ -76,6 +76,7 @@ module Network.HTTP2.Client (
     confWriteBuffer,
     confBufferSize,
     confSendAll,
+    confSendAllWith,
     confReadN,
     confPositionReadMaker,
     confTimeoutManager,
