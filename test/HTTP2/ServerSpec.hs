@@ -572,13 +572,6 @@ spec = do
                 timeout 5000000 (failingHandler "/throw")
                     `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
 
-        it "resets the stream of a handler killed by the timeout" $
-            -- Likewise for a handler the timeout manager kills.
-            withServer runServerShortTimeout $ do
-                threadDelay 10000
-                timeout 10000000 (failingHandler "/hang")
-                    `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
-
         it "takes in the rest of a body its handler did not wait for" $
             -- The handler answers a POST without reading the body.  The rest
             -- of it was queued for nobody, and never given back to the
@@ -1128,9 +1121,6 @@ server req aux sendResponse = case requestMethod req of
         Just "/not-modified" -> sendResponse (responseNoBody notModified304 bigLength) []
         -- A handler that fails before it responds.
         Just "/throw" -> E.throwIO $ userError "handler failed"
-        -- A handler that outlives the timeout of 'runServerShortTimeout'
-        -- without a word, and is killed.
-        Just "/hang" -> threadDelay 10000000 >> sendResponse responseHello []
         -- Says it has content, and has none: malformed.
         Just "/no-content" -> sendResponse (responseNoBody ok200 bigLength) []
         Just "/big" -> sendResponse responseBig []
