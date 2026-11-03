@@ -262,7 +262,7 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
                         state <- onResponseHeaders ctx streamId hcl (hcEndOfStream hc) tbl
                         processState state ctx strm streamId
                     Open _ (Body q mcl bodyLength tlr) -> do
-                        state <- onTrailers ctx streamId blk q mcl bodyLength tlr
+                        state <- onTrailers ctx strm streamId blk q mcl bodyLength tlr
                         processState state ctx strm streamId
                     _otherwise ->
                         -- The block began on a stream that was open for
@@ -635,14 +635,14 @@ stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open hcl JustO
                     return s
 
 -- Transition (stream2)
-stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open _ (Body q mcl bodyLength tlr)) _ = do
+stream FrameHeaders header@FrameHeader{flags, streamId} bs ctx s@(Open _ (Body q mcl bodyLength tlr)) strm = do
     HeadersFrame _ frag <- guardIt $ decodeHeadersFrame header bs
     let endOfStream = testEndStream flags
     -- checking frag == "" is not necessary
     if endOfStream
         then do
             if testEndHeader flags
-                then onTrailers ctx streamId frag q mcl bodyLength tlr
+                then onTrailers ctx strm streamId frag q mcl bodyLength tlr
                 else do
                     startHeaderBlock ctx streamId endOfStream frag
                     return s
@@ -714,12 +714,20 @@ stream
                     ProtocolError
                     streamId
                     "actual body length is not the same as content-length"
+        -- The end goes in with the half-close: see 'halfClosedRemoteWith'.
+        let deliver
+                | endOfStream =
+                    halfClosedRemoteWith ctx strm . (<* writeTQueue q (Right (mempty, True)))
+                | otherwise = atomically
         -- Empty Frame Flooding - CVE-2019-9518
         if body == ""
-            then unless endOfStream $ do
-                rate <- getRate emptyFrameRate
-                when (rate > emptyFrameRateLimit mySettings) $ do
-                    E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty data"
+            then
+                if endOfStream
+                    then deliver $ return ()
+                    else do
+                        rate <- getRate emptyFrameRate
+                        when (rate > emptyFrameRateLimit mySettings) $ do
+                            E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many empty data"
             else do
                 writeIORef bodyLength len
                 -- Not for a stream closed since its state was read, by
@@ -732,7 +740,7 @@ stream
                 -- the stream.  Checked in the same transaction, so that
                 -- a closer that has emptied the queue finds nothing put
                 -- in after it.
-                outcome <- atomically $ do
+                outcome <- deliver $ do
                     st <- readTVar streamState
                     discard <- readTVar streamDiscardBody
                     if
@@ -748,12 +756,7 @@ stream
                         unless (connectionCreditedOnArrival streamId) $
                             giveBackConnectionWindow ctx $
                                 BS.length body
-        if endOfStream
-            then do
-                -- no trailers
-                atomically $ writeTQueue q $ Right (mempty, True)
-                return HalfClosedRemote
-            else return s
+        return $ if endOfStream then HalfClosedRemote else s
 
 -- (No state transition)
 stream FrameWindowUpdate header bs _ s strm = do
@@ -958,6 +961,7 @@ sendPing Context{..} ack bs = enqueueControl controlQ $ CFrames Nothing [frame]
 -- the block is decoded, for the dynamic table.
 onTrailers
     :: Context
+    -> Stream
     -> StreamId
     -> HeaderBlockFragment
     -> TQueue (Either E.SomeException (ByteString, Bool))
@@ -967,7 +971,7 @@ onTrailers
     -- ^ The length of the body received
     -> IORef (Maybe TokenHeaderTable)
     -> IO StreamState
-onTrailers ctx streamId blk q mcl bodyLength tlr = do
+onTrailers ctx strm streamId blk q mcl bodyLength tlr = do
     tbl <- hpackDecodeTrailer blk streamId ctx
     len <- readIORef bodyLength
     when (just mcl (/= len)) $
@@ -977,7 +981,7 @@ onTrailers ctx streamId blk q mcl bodyLength tlr = do
                 streamId
                 "actual body length is not the same as content-length"
     writeIORef tlr (Just tbl)
-    atomically $ writeTQueue q $ Right (mempty, True)
+    halfClosedRemoteWith ctx strm $ writeTQueue q $ Right (mempty, True)
     return HalfClosedRemote
 
 -- | Start accumulating a header block that does not fit in a single frame

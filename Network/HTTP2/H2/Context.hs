@@ -323,9 +323,19 @@ opened _ Stream{streamState} = atomically $ modifyTVar' streamState open
     open st = st
 
 halfClosedRemote :: Context -> Stream -> IO ()
-halfClosedRemote ctx stream@Stream{streamState} = do
-    closingCode <- atomically $ stateTVar streamState closeHalf
+halfClosedRemote ctx stream = halfClosedRemoteWith ctx stream $ return ()
+
+-- | 'halfClosedRemote' in the transaction which hands the end of the body
+--   to its reader, so that a reader which has seen the end never finds the
+--   stream open, and resets it as one it did not read to the end.
+halfClosedRemoteWith :: Context -> Stream -> STM a -> IO a
+halfClosedRemoteWith ctx stream@Stream{streamState} deliver = do
+    (a, closingCode) <- atomically $ do
+        a <- deliver
+        closingCode <- stateTVar streamState closeHalf
+        return (a, closingCode)
     traverse_ (closed ctx stream) closingCode
+    return a
   where
     closeHalf :: StreamState -> (Maybe ClosedCode, StreamState)
     closeHalf x@(Closed _) = (Nothing, x)
