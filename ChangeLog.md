@@ -1,5 +1,18 @@
 # ChangeLog for http2
 
+## 5.4.13
+
+* `Config` gains `confSendAllWith`, a send which takes an `STM` action to
+  give up on.  The sender gives up once the receiver has timed out, rather
+  than staying blocked in a write the peer does not read.
+  `allocSimpleConfigWith` fills it with network's `sendAllWith`.
+* `runWith` and `runIOWith` take an `STM` action.  When it fires, the server
+  sends GOAWAY(NO_ERROR) with the largest stream identifier and a PING, then,
+  once the PING is answered or a second has passed, GOAWAY with the last
+  stream taken.  Streams above it are refused with REFUSED_STREAM, and the
+  connection is closed when those below it are done (RFC 9113, section 6.8).
+* Requires network 3.2.12.
+
 ## 5.4.12
 
 * Close a connection's streams before waiting for its threads.
