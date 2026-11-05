@@ -16,7 +16,7 @@
   still open and reset it; enough such resets made the peer close the
   connection with "too many rst_stream".
 * Requires network 3.2.12.
-* Allows iproute 1.8.
+* Allows iproute 1.8 and unix-time 0.6.
 
 ## 5.4.12
 

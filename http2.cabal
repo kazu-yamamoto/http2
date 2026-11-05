@@ -123,7 +123,7 @@ library
         network-control >=0.1 && <0.2,
         stm >=2.5 && <2.6,
         time-manager >=0.5 && <0.6,
-        unix-time >=0.4.11 && <0.6,
+        unix-time >=0.4.11 && <0.7,
         utf8-string >=1.0 && <1.1
 
 executable h2c-client
