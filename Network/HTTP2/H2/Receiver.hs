@@ -499,8 +499,9 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
                         setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     writeIORef myFirstSettings True
                     enqueueControl controlQ setframe
-control FramePing FrameHeader{flags, streamId} bs ctx@Context{mySettings, pingRate} =
-    unless (testAck flags) $ do
+control FramePing FrameHeader{flags, streamId} bs ctx@Context{mySettings, pingRate, pingAcked}
+    | testAck flags = atomically $ writeTVar pingAcked bs
+    | otherwise = do
         rate <- getRate pingRate
         if rate > pingRateLimit mySettings
             then E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many ping"
@@ -943,7 +944,6 @@ goaway :: Context -> ErrorCode -> ByteString -> IO ByteString
 goaway ctx err msg = do
     sid <- getPeerLastStreamId ctx
     return $ goawayFrame sid err msg
-
 
 ----------------------------------------------------------------
 

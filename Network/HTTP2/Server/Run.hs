@@ -146,10 +146,24 @@ runH2 conf ctx goAway = do
     let mgr = threadManager ctx
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
-        -- The receiver is stopped as it is after the peer's GOAWAY, once
-        -- the streams below ours are done; it reads until then.
+        -- Two GOAWAYs, as RFC 9113 section 6.8 has it: the first, with
+        -- the largest identifier, stops the client opening streams; the
+        -- second fixes the last one taken once a PING has gone round, so
+        -- that the streams it opened meanwhile are not refused.  The
+        -- receiver is stopped as it is after the peer's GOAWAY, once the
+        -- streams below ours are done; it reads until then.
         sendGoAway ar = do
             atomically goAway
+            enqueueControl (controlQ ctx) $
+                CFrames
+                    Nothing
+                    [ goawayFrame maxStreamId NoError "going away"
+                    , pingFrame False goAwayPing
+                    ]
+            roundTrip <- registerDelay 1000000
+            atomically $
+                (readTVar (pingAcked ctx) >>= check . (== goAwayPing))
+                    `orElse` (readTVar roundTrip >>= check)
             mlast <- atomically $ goingAwayMine ctx
             forM_ mlast $ \lastSid ->
                 enqueueControl (controlQ ctx) $
@@ -175,6 +189,14 @@ runH2 conf ctx goAway = do
                         closureServer conf ctx e
     stopAfterAndWait mgr runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
+
+-- | The payload of the PING sent with the first GOAWAY.
+goAwayPing :: ByteString
+goAwayPing = "goaway\0\0"
+
+-- | The largest stream identifier.
+maxStreamId :: StreamId
+maxStreamId = 2147483647
 
 -- connClose must not be called here since Run:fork calls it
 goaway :: Config -> ErrorCode -> ByteString -> IO ()

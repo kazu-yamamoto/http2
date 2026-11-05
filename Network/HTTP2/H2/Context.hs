@@ -131,6 +131,8 @@ data Context = Context
     , myGoAway           :: TVar (Maybe StreamId)
     -- ^ Server only: the last stream identifier of our GOAWAY(NO_ERROR),
     --   once we have sent one: see 'admitPeerStream'.
+    , pingAcked          :: TVar ByteString
+    -- ^ The payload of the last PING the peer acknowledged.
     , activeRequests     :: TVar Int
     -- ^ Client only: requests whose 'processResponse' has not returned.
     --   A response can be complete, its stream gone from the table, and
@@ -213,6 +215,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let appDone = fromMaybe (return False) mdone
     peerGoAway      <- newTVarIO Nothing
     myGoAway        <- newTVarIO Nothing
+    pingAcked       <- newTVarIO ""
     activeRequests  <- newTVarIO 0
     resetByMe       <- newIORef IntSet.empty
     return Context{..}
