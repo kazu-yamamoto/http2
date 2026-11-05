@@ -369,9 +369,13 @@ processState s ctx strm _streamId = do
 -- that had been acted on.
 launchHandler :: Context -> Stream -> InpObj -> IO ()
 launchHandler ctx@Context{roleInfo} strm inpObj = do
-    modifyPeerLastStreamId ctx $ streamNumber strm
+    -- One above our GOAWAY is refused: the peer retries it elsewhere.
+    admitted <- admitPeerStream ctx sid
+    unless admitted $ E.throwIO $ StreamErrorIsSent RefusedStream sid "going away"
     let ServerInfo{..} = toServerInfo roleInfo
     launch ctx strm inpObj
+  where
+    sid = streamNumber strm
 
 ----------------------------------------------------------------
 

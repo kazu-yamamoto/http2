@@ -18,6 +18,7 @@ module HTTP2.ServerSpec (spec) where
 
 import Control.Concurrent
 import Control.Concurrent.Async
+import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, writeTVar)
 import qualified Control.Exception as E
 import Control.Monad
 import Crypto.Hash (Context, SHA1)
@@ -444,6 +445,21 @@ spec = do
                     Just (Right rs) -> rs `shouldBe` ("hello", "closed", "closed")
                     Just (Left e) -> expectationFailure $ show (e :: C.HTTP2Error)
                     Nothing -> expectationFailure "timed out"
+
+        it "answers the streams it has taken and refuses the rest once it goes away" $ do
+            -- RFC 9113, section 6.8: GOAWAY(NO_ERROR) with the last stream
+            -- taken; one opened after it is refused, and the connection is
+            -- closed once stream 1 is answered.
+            goVar <- newTVarIO False
+            withServer (runServerGoingAway goVar) $ do
+                threadDelay 10000
+                timeout 5000000 (goAwayFromServer goVar)
+                    `shouldReturn` Just
+                        [ "GOAWAY 1 NoError"
+                        , "RST_STREAM 3 RefusedStream"
+                        , "DATA 1 END_STREAM"
+                        , "GOAWAY 1 NoError"
+                        ]
 
         it "closes the connection once a runIO application is done" $
             -- 'sioDone' set a flag that nothing read, so the connection
@@ -929,6 +945,60 @@ requestAndCollect settings action = runTCPClient host port $ \s -> do
                     ]
     _ <- E.try (action s) :: IO (Either E.IOException ())
     collectFrames s
+
+-- | Like 'runServer', going away once the variable is set.
+runServerGoingAway :: TVar Bool -> ServerSettings -> IO ()
+runServerGoingAway goVar set = runTCPServerWithSettings set (Just host) port runHTTP2Server
+  where
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> runWith (readTVar goVar >>= check) defaultServerConfig conf server)
+
+-- | A request for /slow, then the server told to go away, and a request for
+-- / once its GOAWAY has come.  What the server sends from its GOAWAY on.
+goAwayFromServer :: TVar Bool -> IO [String]
+goAwayFromServer goVar = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    request s 1 "/slow"
+    threadDelay 50000
+    atomically $ writeTVar goVar True
+    first <- untilGoAway s
+    request s 3 "/"
+    (first ++) <$> collect s
+  where
+    request s sid path =
+        sendAll s $
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", path)
+                        , (":method", "GET")
+                        ]
+    untilGoAway s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just f@(FrameGoAway, _, _) -> return $ maybe [] pure $ frameText f
+            Just f -> maybe id (:) (frameText f) <$> untilGoAway s
+    collect s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just f -> maybe id (:) (frameText f) <$> collect s
+    frameText (FrameGoAway, fh, p)
+        | Right (GoAwayFrame sid err _) <- decodeGoAwayFrame fh p =
+            Just $ "GOAWAY " ++ show sid ++ " " ++ show err
+    frameText (FrameRSTStream, fh, p)
+        | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p =
+            Just $ "RST_STREAM " ++ show (streamId fh) ++ " " ++ show err
+    frameText (FrameData, fh, _)
+        | testEndStream (flags fh) = Just $ "DATA " ++ show (streamId fh) ++ " END_STREAM"
+    frameText _ = Nothing
 
 -- | A request for /slow, then GOAWAY(NO_ERROR) at once.  What the server
 -- sends from then on until it closes the connection.

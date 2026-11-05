@@ -95,7 +95,7 @@ data Context = Context
     , continued          :: IORef (Maybe HeaderContinuation)
     , myStreamId         :: TVar StreamId
     , peerStreamId       :: IORef StreamId
-    , peerLastStreamId   :: IORef StreamId
+    , peerLastStreamId   :: TVar StreamId
     , outputBufferLimit  :: IORef Int
     , outputQ            :: TQueue Output
     -- ^ Invariant: Each stream will only ever have at most one 'Output'
@@ -128,6 +128,9 @@ data Context = Context
     , peerGoAway         :: TVar (Maybe StreamId)
     -- ^ The last stream identifier of the peer's GOAWAY(NO_ERROR), once
     --   one has come: see 'goingAway'.
+    , myGoAway           :: TVar (Maybe StreamId)
+    -- ^ Server only: the last stream identifier of our GOAWAY(NO_ERROR),
+    --   once we have sent one: see 'admitPeerStream'.
     , activeRequests     :: TVar Int
     -- ^ Client only: requests whose 'processResponse' has not returned.
     --   A response can be complete, its stream gone from the table, and
@@ -179,7 +182,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     continued         <- newIORef Nothing
     myStreamId        <- newTVarIO sid0
     peerStreamId      <- newIORef 0
-    peerLastStreamId  <- newIORef 0
+    peerLastStreamId  <- newTVarIO 0
     outputBufferLimit <- newIORef buflim
     outputQ           <- newTQueueIO
     outputQStreamID   <- newTVarIO sid0
@@ -209,6 +212,7 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     let informationalCallback = confOnInformational
     let appDone = fromMaybe (return False) mdone
     peerGoAway      <- newTVarIO Nothing
+    myGoAway        <- newTVarIO Nothing
     activeRequests  <- newTVarIO 0
     resetByMe       <- newIORef IntSet.empty
     return Context{..}
@@ -262,10 +266,19 @@ setPeerStreamID ctx sid = writeIORef (peerStreamId ctx) sid
 ----------------------------------------------------------------
 
 getPeerLastStreamId :: Context -> IO StreamId
-getPeerLastStreamId ctx = readIORef $ peerLastStreamId ctx
+getPeerLastStreamId ctx = readTVarIO $ peerLastStreamId ctx
 
-modifyPeerLastStreamId :: Context -> StreamId -> IO ()
-modifyPeerLastStreamId ctx sid = atomicModifyIORef' (peerLastStreamId ctx) $ \n -> if sid > n then (sid, ()) else (n, ())
+-- | Counting a stream of the peer's towards the last stream identifier,
+--   unless our GOAWAY has gone out below it.  Answers whether it is
+--   admitted; one that is not must be refused, not processed.
+admitPeerStream :: Context -> StreamId -> IO Bool
+admitPeerStream Context{peerLastStreamId, myGoAway} sid = atomically $ do
+    mlast <- readTVar myGoAway
+    case mlast of
+        Just lastSid | sid > lastSid -> return False
+        _ -> do
+            modifyTVar' peerLastStreamId $ max sid
+            return True
 
 ----------------------------------------------------------------
 
@@ -609,3 +622,26 @@ drained ctx@Context{peerGoAway, oddStreamTable, evenStreamTable, activeRequests}
                     | otherwise = (evens, odds)
                 noneOfMine = maybe True ((> lastSid) . fst) $ IntMap.lookupMin mine
             check $ IntMap.null theirs && noneOfMine && active == 0
+
+----------------------------------------------------------------
+-- GOAWAY of ours
+
+-- | Fixing the last stream identifier of our GOAWAY(NO_ERROR) at the
+--   streams admitted so far.  Answers it the first time only.
+goingAwayMine :: Context -> STM (Maybe StreamId)
+goingAwayMine Context{peerLastStreamId, myGoAway} = do
+    old <- readTVar myGoAway
+    case old of
+        Just _ -> return Nothing
+        Nothing -> do
+            lastSid <- readTVar peerLastStreamId
+            writeTVar myGoAway $ Just lastSid
+            return $ Just lastSid
+
+-- | Waiting until the streams below our GOAWAY are done.  Those above it
+--   are refused, so none of the peer's is left.
+drainedMine :: Context -> STM ()
+drainedMine Context{myGoAway, oddStreamTable} = do
+    readTVar myGoAway >>= check . isJust
+    odds <- oddTable <$> readTVar oddStreamTable
+    check $ IntMap.null odds

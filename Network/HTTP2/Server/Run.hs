@@ -5,6 +5,7 @@ module Network.HTTP2.Server.Run where
 
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
@@ -45,12 +46,20 @@ defaultServerConfig =
 
 -- | Running HTTP/2 server.
 run :: ServerConfig -> Config -> Server -> IO ()
-run sconf conf server = do
+run = runWith retry
+
+-- | Like 'run', but the connection goes away once the 'STM' action fires:
+--   GOAWAY(NO_ERROR) at once, streams above it refused, and the
+--   connection closed when those below it are done.
+--
+--   @since 5.4.13
+runWith :: STM () -> ServerConfig -> Config -> Server -> IO ()
+runWith goAway sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
         let lnch = runServer conf server
         ctx <- setup sconf conf lnch Nothing
-        runH2 conf ctx
+        runH2 conf ctx goAway
 
 ----------------------------------------------------------------
 
@@ -71,7 +80,19 @@ runIO
     -> Config
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
-runIO sconf conf@Config{..} action = do
+runIO = runIOWith retry
+
+-- | Like 'runIO', but the connection goes away once the 'STM' action
+--   fires, as with 'runWith'.
+--
+--   @since 5.4.13
+runIOWith
+    :: STM ()
+    -> ServerConfig
+    -> Config
+    -> (ServerIO Stream -> IO (IO ()))
+    -> IO ()
+runIOWith goAway sconf conf@Config{..} action = do
     ok <- checkPreface conf
     when ok $ do
         inpQ <- newTQueueIO
@@ -97,7 +118,7 @@ runIO sconf conf@Config{..} action = do
                     , sioDone = atomically $ writeTVar done True
                     }
         io <- action serverIO
-        concurrently_ io $ runH2 conf ctx
+        concurrently_ io $ runH2 conf ctx goAway
 
 checkPreface :: Config -> IO Bool
 checkPreface conf@Config{..} = do
@@ -120,27 +141,38 @@ setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
         confTimeoutManager
         mIsDone
 
-runH2 :: Config -> Context -> IO ()
-runH2 conf ctx = do
+runH2 :: Config -> Context -> STM () -> IO ()
+runH2 conf ctx goAway = do
     let mgr = threadManager ctx
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
+        -- The receiver is stopped as it is after the peer's GOAWAY, once
+        -- the streams below ours are done; it reads until then.
+        sendGoAway ar = do
+            atomically goAway
+            mlast <- atomically $ goingAwayMine ctx
+            forM_ mlast $ \lastSid ->
+                enqueueControl (controlQ ctx) $
+                    CFrames Nothing [goawayFrame lastSid NoError "going away"]
+            atomically $ drainedMine ctx
+            E.throwTo (asyncThreadId ar) ConnectionIsClosed
         runBackgroundThreads =
             withAsync runReceiver $ \ar ->
-                withAsync runSender $ \as -> do
-                    r <- waitEither ar as
-                    e <- case r of
-                        -- The receiver is done; the sender finishes once it
-                        -- has flushed what is queued.
-                        Left _ -> wait as
-                        -- The sender finished first.  Either the receiver is
-                        -- done too and not yet seen to be, and this is its
-                        -- error, or the sender failed: nothing more would go
-                        -- out, and leaving the receiver to run on left the
-                        -- connection open and silent, with no GOAWAY.  Both
-                        -- are closed with it.
-                        Right e -> return e
-                    closureServer conf ctx e
+                withAsync (sendGoAway ar) $ \_ ->
+                    withAsync runSender $ \as -> do
+                        r <- waitEither ar as
+                        e <- case r of
+                            -- The receiver is done; the sender finishes once it
+                            -- has flushed what is queued.
+                            Left _ -> wait as
+                            -- The sender finished first.  Either the receiver is
+                            -- done too and not yet seen to be, and this is its
+                            -- error, or the sender failed: nothing more would go
+                            -- out, and leaving the receiver to run on left the
+                            -- connection open and silent, with no GOAWAY.  Both
+                            -- are closed with it.
+                            Right e -> return e
+                        closureServer conf ctx e
     stopAfterAndWait mgr runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 

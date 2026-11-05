@@ -26,6 +26,7 @@
 module Network.HTTP2.Server (
     -- * Runner
     run,
+    runWith,
 
     -- * Server configuration
     ServerConfig,
@@ -78,4 +79,5 @@ import Network.HTTP2.Server.Run (
     ServerConfig (..),
     defaultServerConfig,
     run,
+    runWith,
  )
