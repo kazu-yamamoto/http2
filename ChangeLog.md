@@ -11,6 +11,10 @@
   once the PING is answered or a second has passed, GOAWAY with the last
   stream taken.  Streams above it are refused with REFUSED_STREAM, and the
   connection is closed when those below it are done (RFC 9113, section 6.8).
+* A stream is half-closed in the transaction which queues the end of its
+  body.  A client which had read the whole response could find the stream
+  still open and reset it; enough such resets made the peer close the
+  connection with "too many rst_stream".
 * Requires network 3.2.12.
 
 ## 5.4.12
