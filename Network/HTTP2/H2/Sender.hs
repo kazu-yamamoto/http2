@@ -109,7 +109,7 @@ checkDone _ _ _ = return Nothing
 frameSender :: Context -> Config -> IO E.SomeException
 frameSender
     ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
-    Config{..} = do
+    conf@Config{..} = do
         labelMe "H2 sender"
         -- DATA that has to wait for the connection window, in the order it
         -- came: see 'dequeue'.
@@ -139,7 +139,11 @@ frameSender
         -- the buffer are filled.
         flushN :: Offset -> IO ()
         flushN 0 = return ()
-        flushN n = bufferIO confWriteBuffer n confSendAll
+        flushN n = bufferIO confWriteBuffer n $ \bs ->
+            -- Given up on once the connection has timed out: closed with
+            -- GOAWAY like any other timeout.
+            sendAllGivingUp conf (timedOut ctx) bs
+                >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
 
         flushIfNecessary :: Offset -> IO Offset
         flushIfNecessary off = do

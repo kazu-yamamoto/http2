@@ -9,6 +9,7 @@ module Network.HTTP2.Server.Internal (
     Stream,
     ServerIO (..),
     runIO,
+    runIOWith,
 ) where
 
 import Network.HTTP.Semantics.Server

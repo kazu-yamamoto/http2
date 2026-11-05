@@ -26,6 +26,7 @@
 module Network.HTTP2.Server (
     -- * Runner
     run,
+    runWith,
 
     -- * Server configuration
     ServerConfig,
@@ -56,6 +57,7 @@ module Network.HTTP2.Server (
     confWriteBuffer,
     confBufferSize,
     confSendAll,
+    confSendAllWith,
     confReadN,
     confPositionReadMaker,
     confTimeoutManager,
@@ -77,4 +79,5 @@ import Network.HTTP2.Server.Run (
     ServerConfig (..),
     defaultServerConfig,
     run,
+    runWith,
  )

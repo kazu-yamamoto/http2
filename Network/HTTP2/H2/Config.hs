@@ -7,7 +7,7 @@ import Data.IORef
 import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
 import Network.Socket
-import Network.Socket.ByteString (sendAll)
+import Network.Socket.ByteString (sendAll, sendAllWith)
 import qualified System.TimeManager as T
 
 import Network.HPACK
@@ -37,6 +37,7 @@ allocSimpleConfigWith s bufsiz usec giveUp = do
     confWriteBuffer <- mallocBytes bufsiz
     let confBufferSize = bufsiz
     let confSendAll = sendAll s
+        confSendAllWith = Just $ \giveUp' bs -> sendAllWith s bs giveUp'
     confReadN <- (\ref -> defaultReadNWith s ref giveUp) <$> newIORef Nothing
     let confPositionReadMaker = defaultPositionReadMaker
     confTimeoutManager <- T.initialize usec

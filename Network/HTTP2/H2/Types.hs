@@ -15,6 +15,7 @@ import Network.Control
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
 import Network.Socket hiding (Stream)
+import System.IO.Error (catchIOError)
 import System.IO.Unsafe
 import qualified System.TimeManager as T
 
@@ -266,6 +267,13 @@ data Config = Config
     --   So, this value is announced via SETTINGS_MAX_FRAME_SIZE
     --   to the peer.
     , confSendAll :: ByteString -> IO ()
+    , confSendAllWith :: Maybe (STM () -> ByteString -> IO (Either () ()))
+    -- ^ 'confSendAll' which the library can give up on: 'Left' when the
+    --   'STM' action fires first.  With it, a write which the peer does
+    --   not read is ended by the timeout rather than by killing a thread.
+    --   Part of the data may have gone, so the connection is closed after.
+    --
+    --   @since 5.4.13
     , confReadN :: Int -> IO ByteString
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: TM.Manager
@@ -290,6 +298,7 @@ defaultConfig =
         { confWriteBuffer = nullPtr
         , confBufferSize = 0
         , confSendAll = \_ -> return ()
+        , confSendAllWith = Nothing
         , confReadN = \_ -> return ""
         , confPositionReadMaker = defaultPositionReadMaker
         , confTimeoutManager = T.defaultManager
@@ -298,6 +307,24 @@ defaultConfig =
         , confReadNTimeout = False
         , confOnInformational = \_ _ -> return ()
         }
+
+-- | Sending with 'confSendAllWith' if there is one, giving up when the
+--   'STM' action fires, and with 'confSendAll' otherwise.
+sendAllGivingUp :: Config -> STM () -> ByteString -> IO (Either () ())
+sendAllGivingUp Config{..} giveUp bs = case confSendAllWith of
+    Just sendWith -> sendWith giveUp bs
+    Nothing -> Right <$> confSendAll bs
+
+-- | Sending GOAWAY, as a last word: it waits one second at most, since a
+--   peer which does not read would hold the connection open for good.
+sendGoaway :: Config -> ByteString -> IO ()
+sendGoaway conf frame = send `catchIOError` \_ -> return ()
+  where
+    send = case confSendAllWith conf of
+        Nothing -> confSendAll conf frame
+        Just _ -> do
+            late <- registerDelay 1000000
+            void $ sendAllGivingUp conf (readTVar late >>= check) frame
 
 isAsyncException :: E.Exception e => e -> Bool
 isAsyncException e =

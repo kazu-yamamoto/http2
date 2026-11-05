@@ -18,6 +18,7 @@ module HTTP2.ServerSpec (spec) where
 
 import Control.Concurrent
 import Control.Concurrent.Async
+import Control.Concurrent.STM (TVar, atomically, check, newTVarIO, readTVar, writeTVar)
 import qualified Control.Exception as E
 import Control.Monad
 import Crypto.Hash (Context, SHA1)
@@ -27,6 +28,7 @@ import qualified Data.ByteString as B
 import Data.ByteString.Builder (Builder, byteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.IORef
+import Data.List (sort)
 import Data.Maybe (isJust, isNothing)
 import Network.HTTP.Semantics
 import Network.HTTP.Types
@@ -444,6 +446,41 @@ spec = do
                     Just (Right rs) -> rs `shouldBe` ("hello", "closed", "closed")
                     Just (Left e) -> expectationFailure $ show (e :: C.HTTP2Error)
                     Nothing -> expectationFailure "timed out"
+
+        it "answers the streams it has taken and refuses the rest once it goes away" $ do
+            -- RFC 9113, section 6.8: GOAWAY with the largest identifier, a
+            -- PING, and once the PING is answered GOAWAY(NO_ERROR) with the
+            -- last stream taken; one opened after it is refused, and the
+            -- connection is closed once stream 1 is answered.
+            goVar <- newTVarIO False
+            withServer (runServerGoingAway goVar) $ do
+                threadDelay 10000
+                timeout 5000000 (goAwayFromServer False goVar)
+                    `shouldReturn` Just
+                        [ "GOAWAY 2147483647 NoError"
+                        , "GOAWAY 1 NoError"
+                        , "RST_STREAM 3 RefusedStream"
+                        , "DATA 1 END_STREAM"
+                        , "GOAWAY 1 NoError"
+                        ]
+
+        it "answers a stream opened between its two GOAWAYs" $ do
+            -- The second GOAWAY waits for the PING, so a stream already on
+            -- its way when the first came is taken, not refused.
+            goVar <- newTVarIO False
+            withServer (runServerGoingAway goVar) $ do
+                threadDelay 10000
+                r <- timeout 5000000 (goAwayFromServer True goVar)
+                sort <$> r
+                    `shouldBe` Just
+                        ( sort
+                            [ "GOAWAY 2147483647 NoError"
+                            , "GOAWAY 3 NoError"
+                            , "DATA 3 END_STREAM"
+                            , "DATA 1 END_STREAM"
+                            , "GOAWAY 3 NoError"
+                            ]
+                        )
 
         it "closes the connection once a runIO application is done" $
             -- 'sioDone' set a flag that nothing read, so the connection
@@ -929,6 +966,75 @@ requestAndCollect settings action = runTCPClient host port $ \s -> do
                     ]
     _ <- E.try (action s) :: IO (Either E.IOException ())
     collectFrames s
+
+-- | Like 'runServer', going away once the variable is set.
+runServerGoingAway :: TVar Bool -> ServerSettings -> IO ()
+runServerGoingAway goVar set = runTCPServerWithSettings set (Just host) port runHTTP2Server
+  where
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig s 32768)
+            freeSimpleConfig
+            (\conf -> runWith (readTVar goVar >>= check) defaultServerConfig conf server)
+
+-- | A request for /slow, then the server told to go away, and a request for
+-- /: before the PING that came with the first GOAWAY is answered when
+-- early, after the second GOAWAY otherwise.  What the server sends from its
+-- first GOAWAY on.
+goAwayFromServer :: Bool -> TVar Bool -> IO [String]
+goAwayFromServer early goVar = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    request s 1 "/slow"
+    threadDelay 50000
+    atomically $ writeTVar goVar True
+    first <- readUntil s isGoAway
+    when early $ request s 3 "/"
+    ping <- readUntil s isPing
+    second <-
+        if early
+            then return []
+            else readUntil s isGoAway <* request s 3 "/"
+    rest <- collect s
+    return $ first ++ ping ++ second ++ rest
+  where
+    request s sid path =
+        sendAll s $
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", path)
+                        , (":method", "GET")
+                        ]
+    isGoAway (ftyp, _, _) = ftyp == FrameGoAway
+    isPing (ftyp, fh, _) = ftyp == FramePing && not (testAck (flags fh))
+    -- Up to and including the first frame which satisfies the predicate;
+    -- a PING is answered as it comes.
+    readUntil s done = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just f -> do
+                answerPing s f
+                if done f
+                    then return $ maybe [] pure $ frameText f
+                    else maybe id (:) (frameText f) <$> readUntil s done
+    collect s = readUntil s (const False)
+    answerPing s (FramePing, fh, p)
+        | not (testAck (flags fh)) =
+            sendAll s $ encodeFrame (EncodeInfo (setAck defaultFlags) 0 Nothing) $ PingFrame p
+    answerPing _ _ = return ()
+    frameText (FrameGoAway, fh, p)
+        | Right (GoAwayFrame sid err _) <- decodeGoAwayFrame fh p =
+            Just $ "GOAWAY " ++ show sid ++ " " ++ show err
+    frameText (FrameRSTStream, fh, p)
+        | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p =
+            Just $ "RST_STREAM " ++ show (streamId fh) ++ " " ++ show err
+    frameText (FrameData, fh, _)
+        | testEndStream (flags fh) = Just $ "DATA " ++ show (streamId fh) ++ " END_STREAM"
+    frameText _ = Nothing
 
 -- | A request for /slow, then GOAWAY(NO_ERROR) at once.  What the server
 -- sends from then on until it closes the connection.

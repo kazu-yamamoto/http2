@@ -23,7 +23,6 @@ import Data.IORef
 import Data.Void
 import Network.Control
 import Network.HTTP.Semantics
-import qualified System.IO.Error as E
 import qualified System.ThreadManager as T
 import qualified System.TimeManager as TM
 
@@ -370,9 +369,13 @@ processState s ctx strm _streamId = do
 -- that had been acted on.
 launchHandler :: Context -> Stream -> InpObj -> IO ()
 launchHandler ctx@Context{roleInfo} strm inpObj = do
-    modifyPeerLastStreamId ctx $ streamNumber strm
+    -- One above our GOAWAY is refused: the peer retries it elsewhere.
+    admitted <- admitPeerStream ctx sid
+    unless admitted $ E.throwIO $ StreamErrorIsSent RefusedStream sid "going away"
     let ServerInfo{..} = toServerInfo roleInfo
     launch ctx strm inpObj
+  where
+    sid = streamNumber strm
 
 ----------------------------------------------------------------
 
@@ -496,8 +499,9 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
                         setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     writeIORef myFirstSettings True
                     enqueueControl controlQ setframe
-control FramePing FrameHeader{flags, streamId} bs ctx@Context{mySettings, pingRate} =
-    unless (testAck flags) $ do
+control FramePing FrameHeader{flags, streamId} bs ctx@Context{mySettings, pingRate, pingAcked}
+    | testAck flags = atomically $ writeTVar pingAcked bs
+    | otherwise = do
         rate <- getRate pingRate
         if rate > pingRateLimit mySettings
             then E.throwIO $ ConnectionErrorIsSent EnhanceYourCalm streamId "too many ping"
@@ -940,9 +944,6 @@ goaway :: Context -> ErrorCode -> ByteString -> IO ByteString
 goaway ctx err msg = do
     sid <- getPeerLastStreamId ctx
     return $ goawayFrame sid err msg
-
-sendGoaway :: Config -> ByteString -> IO ()
-sendGoaway Config{..} frame = confSendAll frame `E.catchIOError` \_ -> return ()
 
 ----------------------------------------------------------------
 
