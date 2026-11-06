@@ -45,7 +45,7 @@ defaultServerConfig =
 
 -- | Running HTTP/2 server.
 run :: ServerConfig -> Config -> Server -> IO ()
-run = runWith retry
+run = runMaybe Nothing
 
 -- | Like 'run', but the connection goes away once the 'STM' action fires:
 --   GOAWAY(NO_ERROR) at once, streams above it refused, and the
@@ -53,12 +53,16 @@ run = runWith retry
 --
 --   @since 5.4.13
 runWith :: STM () -> ServerConfig -> Config -> Server -> IO ()
-runWith goAway sconf conf server = do
+runWith = runMaybe . Just
+
+-- Nothing for 'run': no thread waits on an action which never fires.
+runMaybe :: Maybe (STM ()) -> ServerConfig -> Config -> Server -> IO ()
+runMaybe mGoAway sconf conf server = do
     ok <- checkPreface conf
     when ok $ do
         let lnch = runServer conf server
         ctx <- setup sconf conf lnch Nothing
-        runH2 conf ctx goAway
+        runH2 conf ctx mGoAway
 
 ----------------------------------------------------------------
 
@@ -79,7 +83,7 @@ runIO
     -> Config
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
-runIO = runIOWith retry
+runIO = runIOMaybe Nothing
 
 -- | Like 'runIO', but the connection goes away once the 'STM' action
 --   fires, as with 'runWith'.
@@ -91,7 +95,15 @@ runIOWith
     -> Config
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
-runIOWith goAway sconf conf@Config{..} action = do
+runIOWith = runIOMaybe . Just
+
+runIOMaybe
+    :: Maybe (STM ())
+    -> ServerConfig
+    -> Config
+    -> (ServerIO Stream -> IO (IO ()))
+    -> IO ()
+runIOMaybe mGoAway sconf conf@Config{..} action = do
     ok <- checkPreface conf
     when ok $ do
         inpQ <- newTQueueIO
@@ -117,7 +129,7 @@ runIOWith goAway sconf conf@Config{..} action = do
                     , sioDone = atomically $ writeTVar done True
                     }
         io <- action serverIO
-        concurrently_ io $ runH2 conf ctx goAway
+        concurrently_ io $ runH2 conf ctx mGoAway
 
 checkPreface :: Config -> IO Bool
 checkPreface conf@Config{..} = do
@@ -140,8 +152,8 @@ setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
         confTimeoutManager
         mIsDone
 
-runH2 :: Config -> Context -> STM () -> IO ()
-runH2 conf ctx goAway = do
+runH2 :: Config -> Context -> Maybe (STM ()) -> IO ()
+runH2 conf ctx mGoAway = do
     let mgr = threadManager ctx
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
@@ -151,7 +163,8 @@ runH2 conf ctx goAway = do
         -- that the streams it opened meanwhile are not refused.  The
         -- receiver is stopped as it is after the peer's GOAWAY, once the
         -- streams below ours are done; it reads until then.
-        sendGoAway ar = do
+        sendGoAway :: STM () -> Async a -> IO ()
+        sendGoAway goAway ar = do
             atomically goAway
             enqueueControl (controlQ ctx) $
                 CFrames
@@ -169,9 +182,12 @@ runH2 conf ctx goAway = do
                     CFrames Nothing [goawayFrame lastSid NoError "going away"]
             atomically $ drainedMine ctx
             stopReceiver ctx $ asyncThreadId ar
+        withGoAway ar body = case mGoAway of
+            Nothing -> body
+            Just goAway -> withAsync (sendGoAway goAway ar) $ \_ -> body
         runBackgroundThreads =
             withAsync runReceiver $ \ar ->
-                withAsync (sendGoAway ar) $ \_ ->
+                withGoAway ar $
                     withAsync runSender $ \as -> do
                         r <- waitEither ar as
                         e <- case r of
