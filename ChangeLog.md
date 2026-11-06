@@ -22,6 +22,8 @@
   [#234](https://github.com/kazu-yamamoto/http2/pull/234)
 * Start no GOAWAY thread for run and runIO.
   [#235](https://github.com/kazu-yamamoto/http2/pull/235)
+* Stop the receiver rather than cancel it when the sender fails first.
+  [#238](https://github.com/kazu-yamamoto/http2/pull/238)
 * Requires network 3.2.12.
 * Allows iproute 1.8 and unix-time 0.6.
 
