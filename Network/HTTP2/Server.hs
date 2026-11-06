@@ -59,6 +59,7 @@ module Network.HTTP2.Server (
     confSendAll,
     confSendAllWith,
     confReadN,
+    confReadNWith,
     confPositionReadMaker,
     confTimeoutManager,
     confMySockAddr,

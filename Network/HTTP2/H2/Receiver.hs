@@ -71,10 +71,19 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
             else
                 TM.withHandle (timeoutManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
 
+    -- Told to stop, the receiver ends between frames as at end of input.
+    stopped = readTVar (stopReceiving ctx) >>= check
+    waitOrStop = do
+        stop <-
+            atomically $
+                (True <$ stopped) `orElse` (False <$ waitControlQ (controlQ ctx))
+        when stop $ E.throwIO ConnectionIsClosed
+    readHeader = readNGivingUp conf stopped frameHeaderLength
+
     loop1 :: IO Void
     loop1 = do
-        atomically $ waitControlQ $ controlQ ctx
-        hd <- confReadN frameHeaderLength -- throwing an exception on timeout
+        waitOrStop
+        hd <- readHeader -- throwing an exception on timeout
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
         loop1
@@ -84,8 +93,8 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
         -- If 'confReadN' is timeouted, 'ConnectionIsTimeout' is thrown
         -- to destroy the thread trees.  So it is if the peer does not
         -- read what we send, and we wait here for ever.
-        atomically $ waitControlQ $ controlQ ctx
-        hd <- confReadN frameHeaderLength
+        waitOrStop
+        hd <- readHeader
         TM.tickle th
         when (BS.null hd) $ E.throwIO ConnectionIsClosed
         processFrame ctx conf $ decodeFrameHeader hd
@@ -518,7 +527,7 @@ control FrameGoAway header bs ctx = do
                 receiver <- myThreadId
                 T.forkManaged (threadManager ctx) "H2 draining after GOAWAY" $ do
                     atomically $ drained ctx
-                    E.throwTo receiver ConnectionIsClosed
+                    stopReceiver ctx receiver
         else E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 control FrameWindowUpdate header bs ctx = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs

@@ -4,6 +4,7 @@
 
 module Network.HTTP2.H2.Context where
 
+import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Data.IORef
@@ -118,6 +119,10 @@ data Context = Context
     -- ^ For the threads that are timed out: owning a thread and
     --   timing it out are separate, so the manager carries no timer.
     , receiverDone       :: TVar (Maybe E.SomeException)
+    , stopReceiving      :: TVar Bool
+    -- ^ Set to end the receiver at the next frame: see 'stopReceiver'.
+    , receiverStoppable  :: Bool
+    -- ^ Whether the receiver's reads give up on 'stopReceiving'.
     , appDone            :: STM Bool
     -- ^ Server only: set by 'sioDone' once a 'runIO' application has
     --   nothing more to send.  Never for 'run' and clients.
@@ -211,6 +216,8 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     threadManager   <- T.newThreadManager
     let timeoutManager = timmgr
     receiverDone    <- newTVarIO Nothing
+    stopReceiving   <- newTVarIO False
+    let receiverStoppable = isJust confReadNWith
     let informationalCallback = confOnInformational
     let appDone = fromMaybe (return False) mdone
     peerGoAway      <- newTVarIO Nothing
@@ -231,6 +238,16 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
         | confBufferSize >= dlim = dlim
         | otherwise = confBufferSize
 {- FOURMOLU_ENABLE -}
+
+----------------------------------------------------------------
+
+-- | Ending the receiver as at end of input, once the streams it reads for
+--   are done: in 'STM' when its reads can give up, by an exception to it
+--   otherwise.
+stopReceiver :: Context -> ThreadId -> IO ()
+stopReceiver Context{stopReceiving, receiverStoppable} receiver
+    | receiverStoppable = atomically $ writeTVar stopReceiving True
+    | otherwise = E.throwTo receiver ConnectionIsClosed
 
 ----------------------------------------------------------------
 

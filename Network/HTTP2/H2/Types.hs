@@ -275,6 +275,13 @@ data Config = Config
     --
     --   @since 5.4.13
     , confReadN :: Int -> IO ByteString
+    , confReadNWith :: Maybe (STM () -> Int -> IO ByteString)
+    -- ^ 'confReadN' which the library can give up on: it answers with an
+    --   empty string, as at end of input, when the 'STM' action fires
+    --   first.  With it, the reader is stopped without being interrupted.
+    --   It must share its buffer with 'confReadN'.
+    --
+    --   @since 5.4.13
     , confPositionReadMaker :: PositionReadMaker
     , confTimeoutManager :: TM.Manager
     , confMySockAddr :: SockAddr
@@ -300,6 +307,7 @@ defaultConfig =
         , confSendAll = \_ -> return ()
         , confSendAllWith = Nothing
         , confReadN = \_ -> return ""
+        , confReadNWith = Nothing
         , confPositionReadMaker = defaultPositionReadMaker
         , confTimeoutManager = T.defaultManager
         , confMySockAddr = SockAddrInet 0 0
@@ -314,6 +322,13 @@ sendAllGivingUp :: Config -> STM () -> ByteString -> IO (Either () ())
 sendAllGivingUp Config{..} giveUp bs = case confSendAllWith of
     Just sendWith -> sendWith giveUp bs
     Nothing -> Right <$> confSendAll bs
+
+-- | Reading with 'confReadNWith' if there is one, giving up when the
+--   'STM' action fires, and with 'confReadN' otherwise.
+readNGivingUp :: Config -> STM () -> Int -> IO ByteString
+readNGivingUp Config{..} giveUp n = case confReadNWith of
+    Just readWith -> readWith giveUp n
+    Nothing -> confReadN n
 
 -- | Sending GOAWAY, as a last word: it waits one second at most, since a
 --   peer which does not read would hold the connection open for good.

@@ -5,7 +5,6 @@ module Network.HTTP2.Server.Run where
 
 import Control.Concurrent.Async
 import Control.Concurrent.STM
-import qualified Control.Exception as E
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
@@ -169,7 +168,7 @@ runH2 conf ctx goAway = do
                 enqueueControl (controlQ ctx) $
                     CFrames Nothing [goawayFrame lastSid NoError "going away"]
             atomically $ drainedMine ctx
-            E.throwTo (asyncThreadId ar) ConnectionIsClosed
+            stopReceiver ctx $ asyncThreadId ar
         runBackgroundThreads =
             withAsync runReceiver $ \ar ->
                 withAsync (sendGoAway ar) $ \_ ->
