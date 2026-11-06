@@ -453,7 +453,22 @@ spec = do
             -- last stream taken; one opened after it is refused, and the
             -- connection is closed once stream 1 is answered.
             goVar <- newTVarIO False
-            withServer (runServerGoingAway goVar) $ do
+            withServer (runServerGoingAway id goVar) $ do
+                threadDelay 10000
+                timeout 5000000 (goAwayFromServer False goVar)
+                    `shouldReturn` Just
+                        [ "GOAWAY 2147483647 NoError"
+                        , "GOAWAY 1 NoError"
+                        , "RST_STREAM 3 RefusedStream"
+                        , "DATA 1 END_STREAM"
+                        , "GOAWAY 1 NoError"
+                        ]
+
+        it "goes away the same with reads which cannot give up" $ do
+            -- Without 'confReadNWith', as for warp and http2-tls, the
+            -- receiver is stopped by an exception instead.
+            goVar <- newTVarIO False
+            withServer (runServerGoingAway noReadNWith goVar) $ do
                 threadDelay 10000
                 timeout 5000000 (goAwayFromServer False goVar)
                     `shouldReturn` Just
@@ -468,7 +483,7 @@ spec = do
             -- The second GOAWAY waits for the PING, so a stream already on
             -- its way when the first came is taken, not refused.
             goVar <- newTVarIO False
-            withServer (runServerGoingAway goVar) $ do
+            withServer (runServerGoingAway id goVar) $ do
                 threadDelay 10000
                 r <- timeout 5000000 (goAwayFromServer True goVar)
                 sort <$> r
@@ -511,6 +526,12 @@ spec = do
             -- the requests it has already sent are still to be answered.
             -- The server used to close the connection on it at once.
             withServer runServer $ do
+                threadDelay 10000
+                timeout 5000000 goAwayFromClient
+                    `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
+
+        it "answers them the same with reads which cannot give up" $
+            withServer (runServerWithConfig noReadNWith) $ do
                 threadDelay 10000
                 timeout 5000000 goAwayFromClient
                     `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
@@ -707,13 +728,21 @@ ignoreHTTP2Error :: C.HTTP2Error -> IO ()
 ignoreHTTP2Error _ = pure ()
 
 runServer :: ServerSettings -> IO ()
-runServer set = runTCPServerWithSettings set (Just host) port runHTTP2Server
+runServer = runServerWithConfig id
+
+-- | Like 'runServer', with the config changed.
+runServerWithConfig :: (Config -> Config) -> ServerSettings -> IO ()
+runServerWithConfig modify set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     runHTTP2Server s =
         E.bracket
             (allocSimpleConfig s 32768)
             freeSimpleConfig
-            (\conf -> run defaultServerConfig conf server)
+            (\conf -> run defaultServerConfig (modify conf) server)
+
+-- | A config whose reads the library cannot give up on.
+noReadNWith :: Config -> Config
+noReadNWith conf = conf{confReadNWith = Nothing}
 
 -- | Like 'runServer', but announcing room for a single concurrent stream.
 -- | Uploading 100000 octets of a file through 'C.runIO', and what the server
@@ -967,15 +996,15 @@ requestAndCollect settings action = runTCPClient host port $ \s -> do
     _ <- E.try (action s) :: IO (Either E.IOException ())
     collectFrames s
 
--- | Like 'runServer', going away once the variable is set.
-runServerGoingAway :: TVar Bool -> ServerSettings -> IO ()
-runServerGoingAway goVar set = runTCPServerWithSettings set (Just host) port runHTTP2Server
+-- | Like 'runServerWithConfig', going away once the variable is set.
+runServerGoingAway :: (Config -> Config) -> TVar Bool -> ServerSettings -> IO ()
+runServerGoingAway modify goVar set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     runHTTP2Server s =
         E.bracket
             (allocSimpleConfig s 32768)
             freeSimpleConfig
-            (\conf -> runWith (readTVar goVar >>= check) defaultServerConfig conf server)
+            (\conf -> runWith (readTVar goVar >>= check) defaultServerConfig (modify conf) server)
 
 -- | A request for /slow, then the server told to go away, and a request for
 -- /: before the PING that came with the first GOAWAY is answered when
