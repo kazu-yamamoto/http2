@@ -19,6 +19,7 @@ import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
 import qualified System.ThreadManager as T
+import qualified System.TimeManager as TM
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
@@ -107,10 +108,27 @@ checkDone ctx@Context{..} parked 0 = atomically $ do
 checkDone _ _ _ = return Nothing
 
 frameSender :: Context -> Config -> IO E.SomeException
-frameSender
+frameSender ctx conf@Config{confSendAllWith} = do
+    labelMe "H2 sender"
+    case confSendAllWith of
+        Nothing -> frameSenderWith ctx conf $ sendAllGivingUp conf retry
+        -- A write is given up on once it has taken the whole timeout: the
+        -- receiver's timeout no longer covers it once the receiver has ended.
+        Just _ -> do
+            stalled <- newTVarIO False
+            TM.withHandle (timeoutManager ctx) (atomically $ writeTVar stalled True) $ \th -> do
+                TM.pause th
+                frameSenderWith ctx conf $ \bs -> do
+                    TM.resume th
+                    let giveUp = timedOut ctx `orElse` (readTVar stalled >>= check)
+                    sendAllGivingUp conf giveUp bs <* TM.pause th
+
+frameSenderWith
+    :: Context -> Config -> (ByteString -> IO (Either () ())) -> IO E.SomeException
+frameSenderWith
     ctx@Context{outputQ, controlQ, encodeDynamicTable, outputBufferLimit}
-    conf@Config{..} = do
-        labelMe "H2 sender"
+    Config{..}
+    send = do
         -- DATA that has to wait for the connection window, in the order it
         -- came: see 'dequeue'.
         parked <- newTVarIO []
@@ -142,8 +160,7 @@ frameSender
         flushN n = bufferIO confWriteBuffer n $ \bs ->
             -- Given up on once the connection has timed out: closed with
             -- GOAWAY like any other timeout.
-            sendAllGivingUp conf (timedOut ctx) bs
-                >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
+            send bs >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
 
         flushIfNecessary :: Offset -> IO Offset
         flushIfNecessary off = do
