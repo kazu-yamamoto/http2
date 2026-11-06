@@ -199,8 +199,14 @@ runH2 conf ctx mGoAway = do
                             -- error, or the sender failed: nothing more would go
                             -- out, and leaving the receiver to run on left the
                             -- connection open and silent, with no GOAWAY.  Both
-                            -- are closed with it.
-                            Right e -> return e
+                            -- are closed with it: the receiver is stopped
+                            -- rather than cancelled when its reads can give up.
+                            Right e -> do
+                                stopReceiver ctx $ asyncThreadId ar
+                                late <- registerDelay 1000000
+                                atomically $
+                                    void (waitCatchSTM ar) `orElse` (readTVar late >>= check)
+                                return e
                         closureServer conf ctx e
     stopAfterAndWait mgr runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res

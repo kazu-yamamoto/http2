@@ -251,6 +251,12 @@ stopReceiver Context{stopReceiving, receiverStoppable} receiver
 
 ----------------------------------------------------------------
 
+-- | Fires once the receiver has been told to stop.
+receiverStopped :: Context -> STM ()
+receiverStopped Context{stopReceiving} = readTVar stopReceiving >>= check
+
+----------------------------------------------------------------
+
 -- | Fires once the receiver has ended with 'ConnectionIsTimeout': a
 --   write still blocked then is given up on.
 timedOut :: Context -> STM ()

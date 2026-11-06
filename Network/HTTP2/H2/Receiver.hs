@@ -72,7 +72,7 @@ frameReceiver ctx@Context{receiverDone} conf@Config{..} =
                 TM.withHandle (timeoutManager ctx) (E.throwTo tid ConnectionIsTimeout) loop2
 
     -- Told to stop, the receiver ends between frames as at end of input.
-    stopped = readTVar (stopReceiving ctx) >>= check
+    stopped = receiverStopped ctx
     waitOrStop = do
         stop <-
             atomically $
@@ -113,13 +113,13 @@ processFrame ctx _conf (FramePushPromise, FrameHeader{streamId})
     | isServer ctx =
         E.throwIO $
             ConnectionErrorIsSent ProtocolError streamId "push promise is not allowed"
-processFrame Context{..} conf (ftyp, FrameHeader{payloadLength, streamId})
+processFrame ctx@Context{..} conf (ftyp, FrameHeader{payloadLength, streamId})
     | ftyp > maxFrameType = do
         mx <- readIORef continued
         case mx of
             Nothing -> do
                 -- ignoring unknown frame
-                void $ readPayload conf payloadLength
+                void $ readPayload ctx conf payloadLength
             Just _ -> E.throwIO $ ConnectionErrorIsSent ProtocolError streamId "unknown frame"
 processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
     -- My SETTINGS_MAX_FRAME_SIZE
@@ -144,20 +144,20 @@ processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
 -- 'confReadN' answers with an empty string at end of input, so a payload that
 -- comes back short means the peer hung up in the middle of the frame.  Saying
 -- so here keeps every decoder below from being handed fewer bytes than the
--- frame header promised it.
-readPayload :: Config -> Int -> IO ByteString
-readPayload Config{..} len = do
-    bs <- confReadN len
+-- frame header promised it.  A receiver told to stop gives it up the same.
+readPayload :: Context -> Config -> Int -> IO ByteString
+readPayload ctx conf len = do
+    bs <- readNGivingUp conf (receiverStopped ctx) len
     when (BS.length bs /= len) $ E.throwIO ConnectionIsClosed
     return bs
 
 controlOrStream :: Context -> Config -> FrameType -> FrameHeader -> IO ()
 controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, payloadLength}
     | isControl streamId = do
-        bs <- readPayload conf payloadLength
+        bs <- readPayload ctx conf payloadLength
         control ftyp header bs ctx
     | ftyp == FramePushPromise = do
-        bs <- readPayload conf payloadLength
+        bs <- readPayload ctx conf payloadLength
         -- A promised stream can be refused over concurrency too, and by the
         -- time 'push' gets that far it has decoded the field block, so the
         -- same reasoning as 'resettable' applies: reset the promised stream
@@ -167,7 +167,7 @@ controlOrStream ctx@Context{..} conf ftyp header@FrameHeader{flags, streamId, pa
     | otherwise = do
         mcont <- checkContinued
         mstrm <- getStream ctx ftyp streamId
-        bs <- readPayload conf payloadLength
+        bs <- readPayload ctx conf payloadLength
         case mcont of
             Just hc -> continuation hc bs mstrm
             Nothing ->

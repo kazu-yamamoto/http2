@@ -278,8 +278,8 @@ data Config = Config
     --
     --   @since 5.4.13
     , confReadN :: Int -> IO ByteString
-    -- ^ When 'confReadNWith' is 'Just', frame headers are read with it
-    --   and the rest with this.  When replacing it in a config which has
+    -- ^ When 'confReadNWith' is 'Just', frames are read with it and only
+    --   the connection preface with this.  When replacing it in a config which has
     --   one, e.g. from 'allocSimpleConfig', set 'confReadNWith' to
     --   'Nothing' or to a read of the same kind sharing its buffer.
     , confReadNWith :: Maybe (STM () -> Int -> IO ByteString)

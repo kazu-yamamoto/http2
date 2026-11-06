@@ -110,6 +110,28 @@ spec = describe "give-up" $ do
                 atomically $ writeTVar goVar True
                 timeout 5000000 $ takeMVar ended
             r `shouldBe` Just ()
+    it "stops a receiver which cannot be interrupted once the sender has failed" $ do
+        ended <- newEmptyMVar
+        let server _req _aux sendResponse = sendResponse (responseNoBody ok200 []) []
+            -- No exception reaches the reads, and every write fails: the
+            -- receiver used to be cancelled, which waited for good.
+            broken conf =
+                conf
+                    { confReadN = E.uninterruptibleMask_ . confReadN conf
+                    , confReadNWith = fmap (\r stop -> E.uninterruptibleMask_ . r stop) (confReadNWith conf)
+                    , confSendAllWith = Just $ \_ _ -> E.throwIO $ userError "broken"
+                    }
+            runServer = runTCPServer (Just host) port $ \s ->
+                E.bracket (allocSimpleConfig' s 32768 30000000) freeSimpleConfig $ \conf ->
+                    (run defaultServerConfig (broken conf) server `E.catch` ignore)
+                        `E.finally` putMVar ended ()
+        E.bracket (forkIO runServer) killThread $ \_ -> do
+            threadDelay 10000
+            r <- runTCPClient host port $ \s -> do
+                sendAll s connectionPreface
+                sendAll s $ frame 4 0 0 ""
+                timeout 5000000 $ takeMVar ended
+            r `shouldBe` Just ()
   where
     ignore :: E.SomeException -> IO ()
     ignore _ = return ()
