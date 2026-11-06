@@ -11,7 +11,12 @@ import Data.ByteString.Builder (byteString)
 import Data.Word (Word8)
 import Network.HTTP.Types
 import Network.Run.TCP
-import Network.Socket (SocketOption (..), setSocketOption)
+import Network.Socket (
+    ShutdownCmd (..),
+    SocketOption (..),
+    setSocketOption,
+    shutdown,
+ )
 import Network.Socket.ByteString
 import System.IO.Unsafe
 import System.Random
@@ -56,6 +61,30 @@ spec = describe "give-up" $ do
                 sendAll s $ frame 4 0 0 $ B.pack [0, 4, 0x7f, 0xff, 0xff, 0xff]
                 sendAll s $ frame 8 0 0 $ B.pack [0x7f, 0xff, 0, 0]
                 sendAll s $ frame 1 5 1 getHeaderBlock
+                timeout 6000000 $ takeMVar ended
+            r `shouldBe` Just ()
+    it "gives up on a write the peer does not read after the receiver ends" $ do
+        ended <- newEmptyMVar
+        let server _req _aux sendResponse =
+                sendResponse (responseStreaming ok200 [] endless) []
+            endless write flush = forever $ write (byteString chunk) >> flush
+            chunk = B.replicate 65536 0x41
+            runServer = runTCPServer (Just host) port $ \s ->
+                E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
+                    (run defaultServerConfig conf server `E.catch` ignore)
+                        `E.finally` putMVar ended ()
+        E.bracket (forkIO runServer) killThread $ \_ -> do
+            threadDelay 10000
+            -- As above, but the client ends its side once it has asked, so
+            -- the receiver ends on EOF rather than by its timeout.
+            r <- runTCPClient host port $ \s -> do
+                setSocketOption s RecvBuffer 4096
+                sendAll s connectionPreface
+                sendAll s $ frame 4 0 0 $ B.pack [0, 4, 0x7f, 0xff, 0xff, 0xff]
+                sendAll s $ frame 8 0 0 $ B.pack [0x7f, 0xff, 0, 0]
+                sendAll s $ frame 1 5 1 getHeaderBlock
+                threadDelay 100000
+                shutdown s ShutdownSend
                 timeout 6000000 $ takeMVar ended
             r `shouldBe` Just ()
   where
