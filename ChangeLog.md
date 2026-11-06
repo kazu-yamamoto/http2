@@ -2,10 +2,11 @@
 
 ## 5.4.13
 
-* `Config` gains `confSendAllWith`, a send which takes an `STM` action to
-  give up on.  The sender gives up once the receiver has timed out, rather
-  than staying blocked in a write the peer does not read.
-  `allocSimpleConfigWith` fills it with network's `sendAllWith`.
+* `Config` gains `confSendAllWith` and `confReadNWith`, a send and a read
+  which take an `STM` action to give up on.  `allocSimpleConfigWith` fills
+  them with network's `sendAllWith` and `recvWith`.  With them, a write the
+  peer does not read is given up on once it has taken the whole timeout,
+  and the receiver is stopped after a GOAWAY without being interrupted.
 * `runWith` and `runIOWith` take an `STM` action.  When it fires, the server
   sends GOAWAY(NO_ERROR) with the largest stream identifier and a PING, then,
   once the PING is answered or a second has passed, GOAWAY with the last

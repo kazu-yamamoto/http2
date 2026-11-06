@@ -32,6 +32,9 @@ allocSimpleConfig' s bufsiz usec = allocSimpleConfigWith s bufsiz usec retry
 --   reader ends as it does at end of input.  Nothing is closed and no
 --   thread is interrupted to make it return.
 --
+--   It also fills 'confSendAllWith' and 'confReadNWith' (since 5.4.13), so
+--   that the library can give up on a send or a read in the same way.
+--
 --   @since 5.4.11
 allocSimpleConfigWith :: Socket -> BufferSize -> Int -> STM a -> IO Config
 allocSimpleConfigWith s bufsiz usec giveUp = do
