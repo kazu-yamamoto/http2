@@ -3,6 +3,7 @@
 module Network.HTTP2.H2.Config where
 
 import Control.Concurrent.STM
+import Control.Monad (void)
 import Data.IORef
 import Foreign.Marshal.Alloc (free, mallocBytes)
 import Network.HTTP.Semantics.Client
@@ -38,7 +39,9 @@ allocSimpleConfigWith s bufsiz usec giveUp = do
     let confBufferSize = bufsiz
     let confSendAll = sendAll s
         confSendAllWith = Just $ \giveUp' bs -> sendAllWith s bs giveUp'
-    confReadN <- (\ref -> defaultReadNWith s ref giveUp) <$> newIORef Nothing
+    ref <- newIORef Nothing
+    let confReadN = defaultReadNWith s ref giveUp
+        confReadNWith = Just $ \stop -> defaultReadNWith s ref (void giveUp `orElse` stop)
     let confPositionReadMaker = defaultPositionReadMaker
     confTimeoutManager <- T.initialize usec
     confMySockAddr <- getSocketName s

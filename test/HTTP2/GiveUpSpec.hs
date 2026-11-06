@@ -3,6 +3,7 @@
 module HTTP2.GiveUpSpec (spec) where
 
 import Control.Concurrent
+import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad (forever)
 import Data.ByteString (ByteString)
@@ -86,6 +87,28 @@ spec = describe "give-up" $ do
                 threadDelay 100000
                 shutdown s ShutdownSend
                 timeout 6000000 $ takeMVar ended
+            r `shouldBe` Just ()
+    it "stops a receiver which cannot be interrupted once it has gone away" $ do
+        ended <- newEmptyMVar
+        goVar <- newTVarIO False
+        let server _req _aux sendResponse = sendResponse (responseNoBody ok200 []) []
+            -- A read no exception reaches, as on a platform where a blocked
+            -- recv cannot be interrupted; the one which gives up still can.
+            uninterruptible conf = conf{confReadN = E.uninterruptibleMask_ . confReadN conf}
+            runServer = runTCPServer (Just host) port $ \s ->
+                E.bracket (allocSimpleConfig' s 32768 30000000) freeSimpleConfig $ \conf ->
+                    (go (uninterruptible conf) `E.catch` ignore) `E.finally` putMVar ended ()
+            go conf = runWith (readTVar goVar >>= check) defaultServerConfig conf server
+        E.bracket (forkIO runServer) killThread $ \_ -> do
+            threadDelay 10000
+            -- The client says nothing after its SETTINGS and does not answer
+            -- the PING, so the receiver waits in a read when it is stopped.
+            r <- runTCPClient host port $ \s -> do
+                sendAll s connectionPreface
+                sendAll s $ frame 4 0 0 ""
+                threadDelay 100000
+                atomically $ writeTVar goVar True
+                timeout 5000000 $ takeMVar ended
             r `shouldBe` Just ()
   where
     ignore :: E.SomeException -> IO ()
