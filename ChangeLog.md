@@ -19,6 +19,8 @@
   [#233](https://github.com/kazu-yamamoto/http2/pull/233)
 * Stop the receiver in STM when its reads can give up.
   [#234](https://github.com/kazu-yamamoto/http2/pull/234)
+* Start no GOAWAY thread for run and runIO.
+  [#235](https://github.com/kazu-yamamoto/http2/pull/235)
 * Requires network 3.2.12.
 * Allows iproute 1.8 and unix-time 0.6.
 
