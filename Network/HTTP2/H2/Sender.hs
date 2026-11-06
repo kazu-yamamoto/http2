@@ -19,7 +19,6 @@ import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
 import qualified System.ThreadManager as T
-import qualified System.TimeManager as TM
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
@@ -33,6 +32,7 @@ import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
 import Network.HTTP2.H2.Window
+import Network.HTTP2.H2.Watchdog
 
 ----------------------------------------------------------------
 
@@ -40,6 +40,7 @@ data Switch
     = C Control
     | O Output
     | Flush
+    | TimedOut
 
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
@@ -71,7 +72,8 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
     connectionError e = E.throwIO e
 
 -- | Whether the sender is done: nothing left to send, and the receiver
--- done or the application done.  Otherwise it waits for something to send.
+-- done or the application done.  Otherwise it waits for something to send,
+-- or for the watchdog to give up on the connection.
 --
 -- The application is done once outputs waiting for their stream windows,
 -- each in a thread of its own, are gone too.  Workers are not waited for
@@ -84,44 +86,42 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
 -- other frame happened to come along -- and when none did, the connection
 -- stalled.
 checkDone :: Context -> TVar [Output] -> Int -> IO (Maybe E.SomeException)
-checkDone ctx@Context{..} parked 0 = atomically $ do
-    isEmptyC <- isEmptyControlQ controlQ
-    isEmptyO <- isEmptyTQueue outputQ
-    ps <- readTVar parked
-    cws <- connectionWindowSizeSTM ctx
-    if not isEmptyC || not isEmptyO || (not (null ps) && cws > 0)
-        then
-            return Nothing
-        else do
-            app <- appDone
-            gone <- T.isAllGone threadManager
-            if app && gone && null ps
-                then
-                    return $ Just $ E.toException ConnectionIsClosed
-                else do
-                    recv <- readTVar receiverDone
-                    case recv of
-                        Just done ->
-                            return $ Just done
-                        _otherwise ->
-                            retry
+checkDone ctx@Context{..} parked 0 = atomically $
+    timedOut <|> do
+        isEmptyC <- isEmptyControlQ controlQ
+        isEmptyO <- isEmptyTQueue outputQ
+        ps <- readTVar parked
+        cws <- connectionWindowSizeSTM ctx
+        if not isEmptyC || not isEmptyO || (not (null ps) && cws > 0)
+            then
+                return Nothing
+            else do
+                app <- appDone
+                gone <- T.isAllGone threadManager
+                if app && gone && null ps
+                    then
+                        return $ Just $ E.toException ConnectionIsClosed
+                    else do
+                        recv <- readTVar receiverDone
+                        case recv of
+                            Just done ->
+                                return $ Just done
+                            _otherwise ->
+                                retry
+  where
+    -- The watchdog gave up on this connection: finishing by itself,
+    -- the caller closes the connection with GOAWAY.
+    timedOut = do
+        timedOutSTM watchdog
+        return $ Just $ E.toException ConnectionIsTimeout
 checkDone _ _ _ = return Nothing
 
 frameSender :: Context -> Config -> IO E.SomeException
-frameSender ctx conf@Config{confSendAllWith} = do
+frameSender ctx conf = do
     labelMe "H2 sender"
-    case confSendAllWith of
-        Nothing -> frameSenderWith ctx conf $ sendAllGivingUp conf retry
-        -- A write is given up on once it has taken the whole timeout: the
-        -- receiver's timeout no longer covers it once the receiver has ended.
-        Just _ -> do
-            stalled <- newTVarIO False
-            TM.withHandle (timeoutManager ctx) (atomically $ writeTVar stalled True) $ \th -> do
-                TM.pause th
-                frameSenderWith ctx conf $ \bs -> do
-                    TM.resume th
-                    let giveUp = timedOut ctx `orElse` (readTVar stalled >>= check)
-                    sendAllGivingUp conf giveUp bs <* TM.pause th
+    -- A write is given up on once the watchdog has given up on the
+    -- connection: a write in progress must make progress.
+    frameSenderWith ctx conf $ sendAllGivingUp conf $ timedOutSTM (watchdog ctx)
 
 frameSenderWith
     :: Context -> Config -> (ByteString -> IO (Either () ())) -> IO E.SomeException
@@ -144,8 +144,14 @@ frameSenderWith
                 Just done ->
                     return done
                 Nothing -> do
-                    x <- atomically $ dequeue parked off
+                    x <-
+                        atomically $
+                            (timedOutSTM (watchdog ctx) >> return TimedOut)
+                                <|> dequeue parked off
                     case x of
+                        TimedOut -> do
+                            flushN off
+                            return $ E.toException ConnectionIsTimeout
                         C ctl -> flushN off >> control ctl >> loop parked 0
                         O out ->
                             outputAndSync parked out off
@@ -157,7 +163,7 @@ frameSenderWith
         -- the buffer are filled.
         flushN :: Offset -> IO ()
         flushN 0 = return ()
-        flushN n = bufferIO confWriteBuffer n $ \bs ->
+        flushN n = sending (watchdog ctx) $ bufferIO confWriteBuffer n $ \bs ->
             -- Given up on once the connection has timed out: closed with
             -- GOAWAY like any other timeout.
             send bs >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
