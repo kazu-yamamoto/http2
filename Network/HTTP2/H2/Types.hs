@@ -267,6 +267,9 @@ data Config = Config
     --   So, this value is announced via SETTINGS_MAX_FRAME_SIZE
     --   to the peer.
     , confSendAll :: ByteString -> IO ()
+    -- ^ Not used when 'confSendAllWith' is 'Just'.  When replacing it in
+    --   a config which has one, e.g. from 'allocSimpleConfig', set
+    --   'confSendAllWith' to 'Nothing' or to a send of the same kind.
     , confSendAllWith :: Maybe (STM () -> ByteString -> IO (Either () ()))
     -- ^ 'confSendAll' which the library can give up on: 'Left' when the
     --   'STM' action fires first.  With it, a write which the peer does
@@ -275,6 +278,10 @@ data Config = Config
     --
     --   @since 5.4.13
     , confReadN :: Int -> IO ByteString
+    -- ^ When 'confReadNWith' is 'Just', frame headers are read with it
+    --   and the rest with this.  When replacing it in a config which has
+    --   one, e.g. from 'allocSimpleConfig', set 'confReadNWith' to
+    --   'Nothing' or to a read of the same kind sharing its buffer.
     , confReadNWith :: Maybe (STM () -> Int -> IO ByteString)
     -- ^ 'confReadN' which the library can give up on: it answers with an
     --   empty string, as at end of input, when the 'STM' action fires
