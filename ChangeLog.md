@@ -17,6 +17,8 @@
   connection with "too many rst_stream".
 * Give up on a write which takes the whole timeout.
   [#233](https://github.com/kazu-yamamoto/http2/pull/233)
+* Stop the receiver in STM when its reads can give up.
+  [#234](https://github.com/kazu-yamamoto/http2/pull/234)
 * Requires network 3.2.12.
 * Allows iproute 1.8 and unix-time 0.6.
 
