@@ -24,6 +24,7 @@ import System.Random
 import System.Timeout (timeout)
 import Test.Hspec
 
+import Network.HTTP2.Client (HTTP2Error (..))
 import Network.HTTP2.Frame (connectionPreface)
 import Network.HTTP2.Server
 
@@ -88,6 +89,62 @@ spec = describe "give-up" $ do
                 shutdown s ShutdownSend
                 timeout 6000000 $ takeMVar ended
             r `shouldBe` Just ()
+    it "gives up on a stream whose window the peer leaves shut" $ do
+        ended <- newEmptyMVar
+        let server _req _aux sendResponse =
+                sendResponse (responseStreaming ok200 [] endless) []
+            endless write flush = forever $ write (byteString chunk) >> flush
+            chunk = B.replicate 1000 0x41
+            runServer = runTCPServer (Just host) port $ \s ->
+                E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
+                    (run defaultServerConfig conf server `E.catch` ignore)
+                        `E.finally` putMVar ended ()
+        E.bracket (forkIO runServer) killThread $ \_ -> do
+            threadDelay 10000
+            -- The client asks and then goes silent: the response fills the
+            -- windows and the application blocks, with nothing left to write
+            -- (#158).
+            r <- runTCPClient host port $ \s -> do
+                sendAll s connectionPreface
+                sendAll s $ frame 4 0 0 ""
+                sendAll s $ frame 1 5 1 getHeaderBlock
+                timeout 6000000 $ takeMVar ended
+            r `shouldBe` Just ()
+    it "gives up on a stream when the peer leaves the connection window shut" $ do
+        ended <- newEmptyMVar
+        let server _req _aux sendResponse =
+                sendResponse (responseStreaming ok200 [] endless) []
+            endless write flush = forever $ write (byteString chunk) >> flush
+            chunk = B.replicate 1000 0x41
+            runServer = runTCPServer (Just host) port $ \s ->
+                E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
+                    (run defaultServerConfig conf server `E.catch` ignore)
+                        `E.finally` putMVar ended ()
+        E.bracket (forkIO runServer) killThread $ \_ -> do
+            threadDelay 10000
+            -- As above, but the stream's window is wide open: the DATA
+            -- waits for the connection window alone.
+            r <- runTCPClient host port $ \s -> do
+                sendAll s connectionPreface
+                sendAll s $ frame 4 0 0 $ B.pack [0, 4, 0x7f, 0xff, 0xff, 0xff]
+                sendAll s $ frame 1 5 1 getHeaderBlock
+                timeout 6000000 $ takeMVar ended
+            r `shouldBe` Just ()
+    it "gives up on a peer which never sends the preface" $ do
+        ended <- newEmptyMVar
+        let server _req _aux sendResponse = sendResponse (responseNoBody ok200 []) []
+            -- Masked so that no exception can reach it: it has to finish
+            -- by itself, without the watchdog's last resort.
+            runServer = runTCPServer (Just host) port $ \s ->
+                E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
+                    E.uninterruptibleMask_ (E.try $ run defaultServerConfig conf server)
+                        >>= putMVar ended
+        E.bracket (forkIO runServer) killThread $ \_ -> do
+            threadDelay 10000
+            r <- runTCPClient host port $ \_ -> timeout 6000000 $ takeMVar ended
+            case r of
+                Just (Left ConnectionIsTimeout) -> return ()
+                _ -> expectationFailure $ "Unexpected result: " ++ show r
     it "stops a receiver which cannot be interrupted once it has gone away" $ do
         ended <- newEmptyMVar
         goVar <- newTVarIO False

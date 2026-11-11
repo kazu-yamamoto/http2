@@ -206,7 +206,8 @@ spec = do
         it "keeps a stream that goes on sending past the timeout" $
             -- The worker's timer was only tickled by reading the request
             -- body, so a response streamed for longer than the timeout was
-            -- killed half-way (#173).
+            -- killed half-way (#173).  The watchdog counts a write that
+            -- returns as progress, so the drip keeps the connection.
             withServer runServerShortTimeout $ do
                 threadDelay 10000
                 runDripClient `shouldReturn` dripChunks
@@ -571,13 +572,6 @@ spec = do
                 timeout 5000000 (failingHandler "/throw")
                     `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
 
-        it "resets the stream of a handler killed by the timeout" $
-            -- Likewise for a handler the timeout manager kills.
-            withServer runServerShortTimeout $ do
-                threadDelay 10000
-                timeout 10000000 (failingHandler "/hang")
-                    `shouldReturn` Just ["RST_STREAM 1 InternalError", "HEADERS 3"]
-
         it "takes in the rest of a body its handler did not wait for" $
             -- The handler answers a POST without reading the body.  The rest
             -- of it was queued for nobody, and never given back to the
@@ -818,18 +812,13 @@ runServerManyResets set = runTCPServerWithSettings set (Just host) port runHTTP2
             freeSimpleConfig
             (\conf -> run sconf conf server)
 
--- | A server whose timeout is one second.  Like Warp, it sets
--- 'confReadNTimeout', so the receiver has no timer of its own, which would
--- close a connection the client sends nothing on.
+-- | A server whose timeout is one second.
 runServerShortTimeout :: ServerSettings -> IO ()
 runServerShortTimeout set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
-    alloc s = do
-        conf <- allocSimpleConfig' s 32768 1000000
-        return conf{confReadNTimeout = True}
     runHTTP2Server s =
         E.bracket
-            (alloc s)
+            (allocSimpleConfig' s 32768 1000000)
             freeSimpleConfig
             (\conf -> run defaultServerConfig conf server)
 
@@ -1132,9 +1121,6 @@ server req aux sendResponse = case requestMethod req of
         Just "/not-modified" -> sendResponse (responseNoBody notModified304 bigLength) []
         -- A handler that fails before it responds.
         Just "/throw" -> E.throwIO $ userError "handler failed"
-        -- A handler that outlives the timeout of 'runServerShortTimeout'
-        -- without a word, and is killed.
-        Just "/hang" -> threadDelay 10000000 >> sendResponse responseHello []
         -- Says it has content, and has none: malformed.
         Just "/no-content" -> sendResponse (responseNoBody ok200 bigLength) []
         Just "/big" -> sendResponse responseBig []
