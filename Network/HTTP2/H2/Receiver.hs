@@ -21,8 +21,10 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Data.Void
+import GHC.IO.Exception (IOErrorType (ResourceVanished))
 import Network.Control
 import Network.HTTP.Semantics
+import System.IO.Error (ioeGetErrorType)
 import qualified System.ThreadManager as T
 import qualified System.TimeManager as TM
 
@@ -947,6 +949,10 @@ closureServer conf ctx se
         sendGoaway conf frame
         E.throwIO e
     | Just (_ :: HTTP2Error) <- E.fromException se = E.throwIO se
+    -- Nothing can be sent once the peer has reset the connection.
+    | Just ioe <- E.fromException se
+    , ioeGetErrorType ioe == ResourceVanished =
+        E.throwIO ConnectionIsReset
     | otherwise = E.throwIO $ BadThingHappen se
 
 goaway :: Context -> ErrorCode -> ByteString -> IO ByteString
