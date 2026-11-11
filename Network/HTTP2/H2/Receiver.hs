@@ -21,7 +21,10 @@ import qualified Data.ByteString.Short as Short
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.IORef
 import Data.Void
-import GHC.IO.Exception (IOErrorType (ResourceVanished))
+import GHC.IO.Exception (
+    IOErrorType (ResourceVanished),
+    IOException (ioe_errno),
+ )
 import Network.Control
 import Network.HTTP.Semantics
 import System.IO.Error (ioeGetErrorType)
@@ -951,9 +954,17 @@ closureServer conf ctx se
     | Just (_ :: HTTP2Error) <- E.fromException se = E.throwIO se
     -- Nothing can be sent once the peer has reset the connection.
     | Just ioe <- E.fromException se
-    , ioeGetErrorType ioe == ResourceVanished =
+    , isReset ioe =
         E.throwIO ConnectionIsReset
     | otherwise = E.throwIO $ BadThingHappen se
+
+-- | A reset is 'ResourceVanished', except on Windows: there network
+--   reports every error as another, WSAECONNRESET and WSAECONNABORTED
+--   among them, and keeps the Winsock code in 'ioe_errno'.
+isReset :: E.IOException -> Bool
+isReset ioe =
+    ioeGetErrorType ioe == ResourceVanished
+        || ioe_errno ioe `elem` [Just 10053, Just 10054]
 
 goaway :: Context -> ErrorCode -> ByteString -> IO ByteString
 goaway ctx err msg = do
