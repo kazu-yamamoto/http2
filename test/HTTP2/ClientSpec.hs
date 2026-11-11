@@ -14,6 +14,8 @@ import Data.Traversable (for)
 import Network.HTTP.Semantics
 import Network.HTTP.Types
 import Network.Run.TCP hiding (defaultSettings)
+import qualified Network.Socket as NS
+import qualified Network.Socket.ByteString as NSB
 import System.IO.Unsafe (unsafePerformIO)
 import System.Random
 import System.Timeout (timeout)
@@ -60,6 +62,13 @@ spec = do
                     Just (Left ConnectionIsClosed) -> return ()
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
+
+        it "reports a connection the server resets as ConnectionIsReset" $
+            withResettingServer $ \p -> do
+                r <- E.try $ runClientTo p (defaultClient [])
+                case r of
+                    Left ConnectionIsReset -> return ()
+                    _ -> expectationFailure $ "Unexpected result: " ++ show r
 
         it "respects max concurrent streams setting" $
             withServer (runServer irresponsiveServer) $ do
@@ -110,7 +119,13 @@ responseHello = S.responseBuilder ok200 header body
     body = byteString "Hello, world!\n"
 
 runClient :: Scheme -> Authority -> Client a -> IO a
-runClient sc au client = runTCPClient host port runHTTP2Client
+runClient = runClientWith port
+
+runClientTo :: String -> Client a -> IO a
+runClientTo p = runClientWith p "http" "localhost"
+
+runClientWith :: String -> Scheme -> Authority -> Client a -> IO a
+runClientWith p sc au client = runTCPClient host p runHTTP2Client
   where
     cliconf = defaultClientConfig{scheme = sc, authority = au}
     runHTTP2Client s =
@@ -146,6 +161,27 @@ concurrentClient resultVar sendRequest _aux = do
 streamError :: Selector HTTP2Error
 streamError StreamResetIsReceived{} = True
 streamError _ = False
+
+-- | A server which answers the client's SETTINGS and then resets the
+--   connection, as one killed in the middle of a request does.
+withResettingServer :: (String -> IO a) -> IO a
+withResettingServer action =
+    E.bracket listenLocal NS.close $ \ls -> do
+        p <- NS.socketPort ls
+        _ <- forkIO $ do
+            (s, _) <- NS.accept ls
+            _ <- NSB.recv s 4096
+            NSB.sendAll s "\0\0\0\4\0\0\0\0\0" -- an empty SETTINGS
+            threadDelay 100000
+            NS.setSockOpt s NS.Linger (NS.StructLinger 1 0)
+            NS.close s
+        action $ show p
+  where
+    listenLocal = do
+        ls <- NS.socket NS.AF_INET NS.Stream NS.defaultProtocol
+        NS.bind ls $ NS.SockAddrInet 0 $ NS.tupleToHostAddress (127, 0, 0, 1)
+        NS.listen ls 1
+        return ls
 
 -- | Running a test server for the duration of the action, then telling it
 --   to stop.  'killThread' is no good here: it does not reach a thread

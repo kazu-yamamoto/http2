@@ -213,6 +213,7 @@ type ReasonPhrase = ShortByteString
 data HTTP2Error
     = ConnectionIsClosed -- NoError
     | ConnectionIsTimeout
+    | ConnectionIsReset -- The peer reset the connection.
     | ConnectionErrorIsReceived ErrorCode StreamId ReasonPhrase
     | ConnectionErrorIsSent ErrorCode StreamId ReasonPhrase
     | StreamErrorIsReceived ErrorCode StreamId
