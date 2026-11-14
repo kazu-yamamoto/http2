@@ -562,6 +562,12 @@ spec = do
                 timeout 5000000 (malformedRequestWith req)
                     `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
 
+        it "answers a CONNECT request without the push its handler asks for" $
+            withServer runServer $ do
+                threadDelay 10000
+                let req = [(":method", "CONNECT"), (":authority", "127.0.0.1:443")]
+                timeout 5000000 (connectWithPush req) `shouldReturn` Just "HEADERS"
+
         it "resets a request whose decoded headers are too large and goes on" $
             -- The HTTP/2 Bomb (CVE-2026-49975): a field inserted into the
             -- dynamic table once and referred to again and again is cheap
@@ -1163,6 +1169,10 @@ server req aux sendResponse = case requestMethod req of
             let pp = pushPromise "/push-big-pp" responsePushBig 0
             sendResponse responseHello [pp]
         _ -> sendResponse response404 []
+    -- A handler pushing whatever it is asked: nothing to promise with.
+    Just "CONNECT" -> do
+        let pp = pushPromise "/push-pp" responsePP 0
+        sendResponse responseHello [pp]
     Just "POST" -> case requestPath req of
         Just "/echo" -> sendResponse (responseEcho req) []
         -- How many octets of body arrived.
@@ -1820,6 +1830,24 @@ refusedData = runTCPClient host port $ \s -> do
 -- | A request for /push, which comes with a push, from a peer that has
 -- announced room for no streams of the server's.  What the server answers
 -- it with first.
+-- | The first frame the server sends on stream 1 or a PUSH_PROMISE.
+connectWithPush :: [(ByteString, ByteString)] -> IO String
+connectWithPush hdr = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let einfo = EncodeInfo (setEndStream $ setEndHeader defaultFlags) 1 Nothing
+    sendAll s $ encodeFrame einfo $ HeadersFrame Nothing $ hpackEncode hdr
+    answer s
+  where
+    answer s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return "closed"
+            Just (FrameHeaders, fh, _) | streamId fh == 1 -> return "HEADERS"
+            Just (FramePushPromise, _, _) -> return "PUSH_PROMISE"
+            Just (FrameRSTStream, fh, _) | streamId fh == 1 -> return "RST_STREAM"
+            Just _ -> answer s
+
 pushNoRoom :: IO (Maybe String)
 pushNoRoom = runTCPClient host port $ \s -> do
     sendAll s connectionPreface

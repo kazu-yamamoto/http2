@@ -164,6 +164,8 @@ pushStream
 pushStream _ _ _ _ [] = return Nothing
 pushStream conf ctx@Context{..} pstrm reqvt pps0
     | len == 0 = return Nothing
+    -- Nothing to promise with, as for CONNECT which has no :scheme.
+    | isNothing mScheme || isNothing mAuth = return Nothing
     | otherwise = do
         pushable <- enablePush <$> readIORef peerSettings
         if pushable
@@ -176,6 +178,8 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
             else return Nothing
   where
     len = length pps0
+    mScheme = getFieldValue tokenScheme reqvt
+    mAuth = getFieldValue tokenAuthority reqvt <|> getFieldValue tokenHost reqvt
     increment tvar = atomically $ modifyTVar' tvar (+ 1)
     -- Checking if all push are done.
     waiter lim tvar = atomically $ do
@@ -203,13 +207,8 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
         mstrm <- makePushStream ctx pstrm
         forM mstrm $ \(pid, newstrm) -> promiseOn pp pid newstrm
     promiseOn pp pid newstrm = do
-        let scheme = fromJust $ getFieldValue tokenScheme reqvt
-            -- fixme: this value can be Nothing
-            auth =
-                fromJust
-                    ( getFieldValue tokenAuthority reqvt
-                        <|> getFieldValue tokenHost reqvt
-                    )
+        let scheme = fromJust mScheme
+            auth = fromJust mAuth
             path = promiseRequestPath pp
             promiseRequest =
                 [ (tokenMethod, methodGet)
