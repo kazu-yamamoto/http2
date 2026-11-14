@@ -163,14 +163,19 @@ hpackDecode illegal hdrblk sid Context{..} =
 {-# INLINE checkRequestHeader #-}
 checkRequestHeader :: ValueTable -> Bool
 checkRequestHeader reqvt
-    | just mMethod (== "CONNECT") = isNothing mPath && isNothing mScheme
     | isJust mStatus = False
     | isNothing mMethod = False
+    | isJust mConnection = False
+    | just mTE (/= "trailers") = False
+    -- RFC 9113 Section 8.5: :authority only, no :scheme nor :path.
+    | mMethod == Just "CONNECT" =
+        isNothing mPath
+            && isNothing mScheme
+            && isJust mAuthority
+            && checkAuth mAuthority mHost
     | isNothing mScheme = False
     | isNothing mPath = False
     | mPath == Just "" = False
-    | isJust mConnection = False
-    | just mTE (/= "trailers") = False
     | otherwise = checkAuth mAuthority mHost
   where
     mStatus = getFieldValue tokenStatus reqvt

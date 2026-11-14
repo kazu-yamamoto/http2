@@ -545,6 +545,23 @@ spec = do
                 timeout 5000000 malformedRequest
                     `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
 
+        it "resets a CONNECT request without :authority" $
+            withServer runServer $ do
+                threadDelay 10000
+                timeout 5000000 (malformedRequestWith [(":method", "CONNECT")])
+                    `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
+
+        it "resets a CONNECT request whose host differs from its :authority" $
+            withServer runServer $ do
+                threadDelay 10000
+                let req =
+                        [ (":method", "CONNECT")
+                        , (":authority", "a.example:443")
+                        , ("host", "b.example:443")
+                        ]
+                timeout 5000000 (malformedRequestWith req)
+                    `shouldReturn` Just ["RST_STREAM 1 ProtocolError", "HEADERS 3"]
+
         it "resets a request whose decoded headers are too large and goes on" $
             -- The HTTP/2 Bomb (CVE-2026-49975): a field inserted into the
             -- dynamic table once and referred to again and again is cheap
@@ -1881,21 +1898,27 @@ goAwayLastStream = runTCPClient host port $ \s -> do
 -- | A request with an upper-case field name on stream 1, then a good one
 -- on stream 3.  What the server sends on them, up to the answer on 3.
 malformedRequest :: IO [String]
-malformedRequest = runTCPClient host port $ \s -> do
+malformedRequest = malformedRequestWith $ getRequest ++ [("X-Upper", "1")]
+
+getRequest :: [(ByteString, ByteString)]
+getRequest =
+    [ (":scheme", "http")
+    , (":authority", "127.0.0.1")
+    , (":path", "/")
+    , (":method", "GET")
+    ]
+
+-- | Stream 1 with the given fields, then a valid request on stream 3.
+malformedRequestWith :: [(ByteString, ByteString)] -> IO [String]
+malformedRequestWith bad = runTCPClient host port $ \s -> do
     sendAll s connectionPreface
     sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
-    let request sid extra =
+    let request sid hdr =
             encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
                 HeadersFrame Nothing $
-                    hpackEncode $
-                        [ (":scheme", "http")
-                        , (":authority", "127.0.0.1")
-                        , (":path", "/")
-                        , (":method", "GET")
-                        ]
-                            ++ extra
-    sendAll s $ request 1 [("X-Upper", "1")]
-    sendAll s $ request 3 []
+                    hpackEncode hdr
+    sendAll s $ request 1 bad
+    sendAll s $ request 3 getRequest
     collect s
   where
     collect s = do
