@@ -1,5 +1,10 @@
 # ChangeLog for http2
 
+## 5.4.14
+
+* Validate CONNECT requests like the others.
+* Do not push on a request with no :scheme or authority.
+
 ## 5.4.13
 
 * `Config` gains `confSendAllWith` and `confReadNWith`, a send and a read
