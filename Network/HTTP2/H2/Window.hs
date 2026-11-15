@@ -19,11 +19,11 @@ import Network.HTTP2.H2.Types
 
 getStreamWindowSize :: Stream -> IO WindowSize
 getStreamWindowSize Stream{streamTxFlow} =
-    txWindowSize <$> readTVarIO streamTxFlow
+    fromIntegral . txWindowSize <$> readTVarIO streamTxFlow
 
 getConnectionWindowSize :: Context -> IO WindowSize
 getConnectionWindowSize Context{txFlow} =
-    txWindowSize <$> readTVarIO txFlow
+    fromIntegral . txWindowSize <$> readTVarIO txFlow
 
 waitStreamWindowSize :: Stream -> IO ()
 waitStreamWindowSize Stream{streamTxFlow} = atomically $ do
@@ -31,7 +31,7 @@ waitStreamWindowSize Stream{streamTxFlow} = atomically $ do
     check (w > 0)
 
 connectionWindowSizeSTM :: Context -> STM WindowSize
-connectionWindowSizeSTM Context{txFlow} = txWindowSize <$> readTVar txFlow
+connectionWindowSizeSTM Context{txFlow} = fromIntegral . txWindowSize <$> readTVar txFlow
 
 waitConnectionWindowSize :: Context -> STM ()
 waitConnectionWindowSize Context{txFlow} = do
@@ -43,9 +43,10 @@ waitConnectionWindowSize Context{txFlow} = do
 
 increaseWindowSize :: StreamId -> TVar TxFlow -> WindowSize -> IO ()
 increaseWindowSize sid tvar n = do
-    atomically $ modifyTVar' tvar $ \flow -> flow{txfLimit = txfLimit flow + n}
+    atomically $ modifyTVar' tvar $ \flow -> flow{txfLimit = txfLimit flow + fromIntegral n}
     w <- txWindowSize <$> readTVarIO tvar
-    when (isWindowOverflow w) $ do
+    -- Compared as the Int64 it is: cut to a 32-bit Int, an overflow wraps.
+    when (w > fromIntegral maxWindowSize) $ do
         let msg = fromString ("window update for stream " ++ show sid ++ " is overflow")
             err =
                 if isControl sid
@@ -66,7 +67,7 @@ decreaseWindowSize Context{txFlow} Stream{streamTxFlow} siz = do
     dec txFlow
     dec streamTxFlow
   where
-    dec tvar = atomically $ modifyTVar' tvar $ \flow -> flow{txfSent = txfSent flow + siz}
+    dec tvar = atomically $ modifyTVar' tvar $ \flow -> flow{txfSent = txfSent flow + fromIntegral siz}
 
 ----------------------------------------------------------------
 -- Sending window update
@@ -87,9 +88,11 @@ informWindowUpdate _ _ 0 = return ()
 informWindowUpdate ctx@Context{controlQ} Stream{streamNumber, streamRxFlow} len = do
     unless (connectionCreditedOnArrival streamNumber) $
         giveBackConnectionWindow ctx len
-    mxs <- atomicModifyIORef streamRxFlow $ maybeOpenRxWindow len FCTWindowUpdate
+    mxs <-
+        atomicModifyIORef streamRxFlow $
+            maybeOpenRxWindow (fromIntegral len) FCTWindowUpdate
     forM_ mxs $ \ws -> do
-        let frame = windowUpdateFrame streamNumber ws
+        let frame = windowUpdateFrame streamNumber $ fromIntegral ws
             cframe = CFrames Nothing [frame]
         enqueueControl controlQ cframe
 
@@ -104,7 +107,7 @@ informWindowUpdate ctx@Context{controlQ} Stream{streamNumber, streamRxFlow} len 
 informIgnoredData :: Context -> StreamId -> Int -> IO ()
 informIgnoredData _ _ 0 = return ()
 informIgnoredData ctx@Context{rxFlow} sid len = do
-    ok <- atomicModifyIORef' rxFlow $ checkRxLimit len
+    ok <- atomicModifyIORef' rxFlow $ checkRxLimit $ fromIntegral len
     unless ok $
         E.throwIO $
             ConnectionErrorIsSent
@@ -119,9 +122,11 @@ informIgnoredData ctx@Context{rxFlow} sid len = do
 giveBackConnectionWindow :: Context -> Int -> IO ()
 giveBackConnectionWindow _ 0 = return ()
 giveBackConnectionWindow Context{controlQ, rxFlow} len = do
-    mxc <- atomicModifyIORef rxFlow $ maybeOpenRxWindow len FCTWindowUpdate
+    mxc <-
+        atomicModifyIORef rxFlow $ maybeOpenRxWindow (fromIntegral len) FCTWindowUpdate
     forM_ mxc $ \ws ->
-        enqueueControl controlQ $ CFrames Nothing [windowUpdateFrame 0 ws]
+        enqueueControl controlQ $
+            CFrames Nothing [windowUpdateFrame 0 $ fromIntegral ws]
 
 -- This must be called after an application is finished
 -- to adjust RX window.

@@ -50,8 +50,8 @@ newOddStream sid txwin rxwin =
     Stream sid
         <$> newTVarIO Idle
         <*> newEmptyMVar
-        <*> newTVarIO (newTxFlow txwin)
-        <*> newIORef (newRxFlow rxwin)
+        <*> newTVarIO (newTxFlow $ fromIntegral txwin)
+        <*> newIORef (newRxFlow $ fromIntegral rxwin)
         <*> newIORef Nothing
         <*> newIORef Nothing
         <*> newTVarIO False
@@ -61,8 +61,8 @@ newEvenStream sid txwin rxwin =
     Stream sid
         <$> newTVarIO Reserved
         <*> newEmptyMVar
-        <*> newTVarIO (newTxFlow txwin)
-        <*> newIORef (newRxFlow rxwin)
+        <*> newTVarIO (newTxFlow $ fromIntegral txwin)
+        <*> newIORef (newRxFlow $ fromIntegral rxwin)
         <*> newIORef Nothing
         <*> newIORef Nothing
         <*> newTVarIO False
