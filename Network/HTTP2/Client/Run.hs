@@ -349,7 +349,7 @@ sendStreaming ctx@Context{..} strm strmbdy = do
 
 exchangeSettings :: Context -> IO ()
 exchangeSettings Context{..} = do
-    connRxWS <- rxfBufSize <$> readIORef rxFlow
+    connRxWS <- fromIntegral . rxfBufSize <$> readIORef rxFlow
     let frames = makeNegotiationFrames mySettings connRxWS
         setframe = CFrames Nothing (connectionPreface : frames)
     writeIORef myFirstSettings True

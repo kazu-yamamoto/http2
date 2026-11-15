@@ -508,7 +508,7 @@ control FrameSettings header@FrameHeader{flags, streamId} bs Context{myFirstSett
                     enqueueControl controlQ setframe
                 else do
                     -- Server side only
-                    connRxWS <- rxfBufSize <$> readIORef rxFlow
+                    connRxWS <- fromIntegral . rxfBufSize <$> readIORef rxFlow
                     let frames = makeNegotiationFrames mySettings connRxWS
                         setframe = CFrames (Just peerAlist) (frames ++ [ack])
                     writeIORef myFirstSettings True
@@ -681,7 +681,7 @@ stream
     strm@Stream{..} = do
         DataFrame body <- guardIt $ decodeDataFrame header bs
         -- FLOW CONTROL: WINDOW_UPDATE 0: recv: rejecting if over my limit
-        okc <- atomicModifyIORef' rxFlow $ checkRxLimit payloadLength
+        okc <- atomicModifyIORef' rxFlow $ checkRxLimit $ fromIntegral payloadLength
         unless okc $
             E.throwIO $
                 ConnectionErrorIsSent
@@ -689,7 +689,8 @@ stream
                     streamId
                     "exceeds connection flow-control limit"
         -- FLOW CONTROL: WINDOW_UPDATE: recv: rejecting if over my limit
-        oks <- atomicModifyIORef' streamRxFlow $ checkRxLimit payloadLength
+        oks <-
+            atomicModifyIORef' streamRxFlow $ checkRxLimit $ fromIntegral payloadLength
         unless oks $
             E.throwIO $
                 ConnectionErrorIsSent

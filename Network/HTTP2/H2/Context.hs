@@ -205,8 +205,8 @@ newContext roleInfo Config{..} cacheSiz connRxWS mySettings timmgr mdone = do
     setHeaderListSizeLimit
         (Just (fromMaybe defaultHeaderListSizeLimit (maxHeaderListSize mySettings)))
         decodeDynamicTable
-    txFlow          <- newTVarIO (newTxFlow defaultWindowSize) -- 64K
-    rxFlow          <- newIORef (newRxFlow connRxWS)
+    txFlow          <- newTVarIO (newTxFlow $ fromIntegral defaultWindowSize) -- 64K
+    rxFlow          <- newIORef (newRxFlow $ fromIntegral connRxWS)
     pingRate        <- newRate
     settingsRate    <- newRate
     emptyFrameRate  <- newRate
