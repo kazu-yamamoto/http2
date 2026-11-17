@@ -3,14 +3,17 @@
 
 module Network.HTTP2.Server.Run where
 
+import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.Socket (SockAddr)
+import Network.HTTP2.H2.Watchdog
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -57,12 +60,27 @@ runWith = runMaybe . Just
 
 -- Nothing for 'run': no thread waits on an action which never fires.
 runMaybe :: Maybe (STM ()) -> ServerConfig -> Config -> Server -> IO ()
-runMaybe mGoAway sconf conf server = do
-    ok <- checkPreface conf
+runMaybe mGoAway sconf conf server = supervising conf $ \wd -> do
+    ok <- checkPreface conf wd
     when ok $ do
         let lnch = runServer conf server
-        ctx <- setup sconf conf lnch Nothing
+        ctx <- setup sconf conf wd lnch Nothing
         runH2 conf ctx mGoAway
+
+-- | Running an action with the watchdog of this connection.
+--
+--   The preface is the first thing read from the peer, and a peer which
+--   does not send it is a peer this connection waits for.  So the
+--   watchdog starts here, before 'checkPreface', rather than in 'runH2'.
+--
+--   The connection finishes by itself once it times out, when 'Config'
+--   can give up on its reads and writes.  Throwing to it is the last
+--   resort, for one whose 'confReadN' or 'confSendAll' cannot give up.
+supervising :: Config -> (H2Watchdog -> IO a) -> IO a
+supervising Config{..} action = do
+    wd <- newH2Watchdog confTimeout
+    tid <- myThreadId
+    withWatchdog wd (E.throwTo tid ConnectionIsTimeout) $ action wd
 
 ----------------------------------------------------------------
 
@@ -103,13 +121,13 @@ runIOMaybe
     -> Config
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
-runIOMaybe mGoAway sconf conf@Config{..} action = do
-    ok <- checkPreface conf
+runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
+    ok <- checkPreface conf wd
     when ok $ do
         inpQ <- newTQueueIO
         let lnch _ strm inpObj = atomically $ writeTQueue inpQ (strm, inpObj)
         done <- newTVarIO False
-        ctx <- setup sconf conf lnch $ Just $ readTVar done
+        ctx <- setup sconf conf wd lnch $ Just $ readTVar done
         let get = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
                 return (strm, Request inpObj)
@@ -131,29 +149,40 @@ runIOMaybe mGoAway sconf conf@Config{..} action = do
         io <- action serverIO
         concurrently_ io $ runH2 conf ctx mGoAway
 
-checkPreface :: Config -> IO Bool
-checkPreface conf@Config{..} = do
-    preface <- confReadN connectionPrefaceLength
+checkPreface :: Config -> H2Watchdog -> IO Bool
+checkPreface conf wd = do
+    -- A peer which never sends the preface is given up on like any other.
+    preface <- readNGivingUp conf (timedOutSTM wd) connectionPrefaceLength
+    when (preface == "") $ do
+        out <- isTimedOut wd
+        when out $ E.throwIO ConnectionIsTimeout
     if connectionPreface /= preface
         then do
             goaway conf ProtocolError "Preface mismatch"
             return False
         else return True
 
-setup :: ServerConfig -> Config -> Launch -> Maybe (STM Bool) -> IO Context
-setup ServerConfig{..} conf@Config{..} lnch mIsDone = do
+setup
+    :: ServerConfig
+    -> Config
+    -> H2Watchdog
+    -> Launch
+    -> Maybe (STM Bool)
+    -> IO Context
+setup ServerConfig{..} conf wd lnch mIsDone = do
     let serverInfo = newServerInfo lnch
     newContext
         serverInfo
         conf
+        wd
         0
         connectionWindowSize
         settings
-        confTimeoutManager
         mIsDone
 
 runH2 :: Config -> Context -> Maybe (STM ()) -> IO ()
 runH2 conf ctx mGoAway = do
+    -- Supervised by 'supervising', which 'run' and 'runIO' wrap this in.
     let mgr = threadManager ctx
         runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
