@@ -144,8 +144,11 @@ doneWithStream ctx strm = do
     idle <- isIdle <$> readTVarIO (streamState strm)
     if idle
         then T.forkManaged (threadManager ctx) label $ do
-            atomically $ readTVar (streamState strm) >>= check . not . isIdle
-            doneWithOpenStream ctx strm
+            nowOpen <-
+                atomically $
+                    (True <$ (readTVar (streamState strm) >>= check . not . isIdle))
+                        `orElse` (False <$ T.waitStoppingSTM (threadManager ctx))
+            when nowOpen $ doneWithOpenStream ctx strm
         else doneWithOpenStream ctx strm
   where
     label = "H2 done with stream " ++ show (streamNumber strm)
@@ -194,10 +197,9 @@ runH2 conf ctx runClient = do
     let supervised =
             withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
                 E.try runAll >>= closureClient conf ctx
-    stopAfterAndWait mgr supervised $ \res ->
+    stopAfterAndWait ctx supervised $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
-    mgr = threadManager ctx
     runReceiver = frameReceiver ctx conf
     runSender = frameSender ctx conf
     runClientReceiver = do
@@ -339,7 +341,7 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
     abandon sid = do
         closed ctx strm Killed
         T.forkManaged threadManager ("H2 skipping stream " ++ show sid) $
-            atomically $ do
+            atomically $ T.waitStoppingSTM threadManager `orElse` do
                 sidOK <- readTVar outputQStreamID
                 check (sidOK == sid)
                 writeTVar outputQStreamID (sid + 2)
@@ -351,7 +353,7 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming ctx@Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    T.forkManagedUnmask threadManager label $ \unmask ->
+    T.forkManagedUnmask appThreadManager label $ \unmask ->
         withOutBodyIface ctx strm tbq unmask strmbdy
     return tbq
   where

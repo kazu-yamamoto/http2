@@ -33,7 +33,7 @@ runServer :: Config -> Server -> Launch
 runServer conf server ctx@Context{..} strm req =
     -- No timer per stream: the application may take as long as it likes,
     -- and the connection is supervised by its watchdog.
-    T.forkManaged threadManager label $ runningApp watchdog $ do
+    T.forkManaged appThreadManager label $ runningApp watchdog $ do
         let req' = watchRequestBody
             aux =
                 defaultAux
@@ -183,7 +183,7 @@ pushStream conf ctx@Context{..} pstrm reqvt pps0
         check (n >= lim)
     push _ [] n = return (n :: Int)
     push tvar (pp : pps) n = do
-        T.forkManaged threadManager "H2 server push" $ do
+        T.forkManaged appThreadManager "H2 server push" $ do
             mpushed <- promise pp `E.finally` increment tvar
             forM_ mpushed $ \(newstrm, lc) -> do
                 let Response rsp = promiseResponse pp
@@ -274,7 +274,7 @@ sendStreaming
     -> IO (TBQueue StreamingChunk)
 sendStreaming ctx@Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
-    T.forkManaged threadManager label $
+    T.forkManaged appThreadManager label $
         withOutBodyIface ctx strm tbq id strmbdy
     return tbq
   where

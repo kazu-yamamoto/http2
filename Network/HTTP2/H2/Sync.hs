@@ -11,7 +11,6 @@ module Network.HTTP2.H2.Sync (
     enqueueOutputSIO,
 ) where
 
-import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
 import Network.Control
@@ -34,13 +33,13 @@ syncWithSender ctx@Context{..} strm otyp lc = do
     enqueueOutput outputQ out
     syncWithSender' ctx pop lc
 
-makeOutput :: Stream -> OutputType -> IO (IO Sync, Output)
+makeOutput :: Stream -> OutputType -> IO (STM Sync, Output)
 makeOutput strm otyp = do
-    var <- newEmptyMVar
+    var <- newEmptyTMVarIO
     let push mout = case mout of
-            Nothing -> putMVar var Done
-            Just ot -> putMVar var $ Cont ot
-        pop = takeMVar var
+            Nothing -> atomically $ putTMVar var Done
+            Just ot -> atomically $ putTMVar var $ Cont ot
+        pop = takeTMVar var
         out =
             Output
                 { outputStream = strm
@@ -114,11 +113,12 @@ enqueueOutputSIO ctx@Context{..} strm otyp = do
     let out = makeOutputIO ctx strm Nothing otyp
     enqueueOutput outputQ out
 
-syncWithSender' :: Context -> IO Sync -> LoopCheck -> IO ()
+-- | Ending with 'Done' as well once the library's threads are stopped.
+syncWithSender' :: Context -> STM Sync -> LoopCheck -> IO ()
 syncWithSender' Context{..} pop lc = loop
   where
     loop = do
-        s <- pop
+        s <- atomically $ pop `orElse` (Done <$ T.waitStoppingSTM threadManager)
         case s of
             Done -> return ()
             Cont newout -> do

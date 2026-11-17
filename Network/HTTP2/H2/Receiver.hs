@@ -519,8 +519,11 @@ control FrameGoAway header bs ctx = do
             when first $ do
                 receiver <- myThreadId
                 T.forkManaged (threadManager ctx) "H2 draining after GOAWAY" $ do
-                    atomically $ drained ctx
-                    stopReceiver ctx receiver
+                    done <-
+                        atomically $
+                            (True <$ drained ctx)
+                                `orElse` (False <$ T.waitStoppingSTM (threadManager ctx))
+                    when done $ stopReceiver ctx receiver
         else E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 control FrameWindowUpdate header bs ctx = do
     WindowUpdateFrame n <- guardIt $ decodeWindowUpdateFrame header bs

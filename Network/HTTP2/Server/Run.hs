@@ -183,8 +183,7 @@ setup ServerConfig{..} conf wd lnch mIsDone = do
 runH2 :: Config -> Context -> Maybe (STM ()) -> IO ()
 runH2 conf ctx mGoAway = do
     -- Supervised by 'supervising', which 'run' and 'runIO' wrap this in.
-    let mgr = threadManager ctx
-        runReceiver = frameReceiver ctx conf
+    let runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
         -- Two GOAWAYs, as RFC 9113 section 6.8 has it: the first, with
         -- the largest identifier, stops the client opening streams; the
@@ -237,7 +236,7 @@ runH2 conf ctx mGoAway = do
                                     void (waitCatchSTM ar) `orElse` (readTVar late >>= check)
                                 return e
                         closureServer conf ctx e
-    stopAfterAndWait mgr runBackgroundThreads $ \res ->
+    stopAfterAndWait ctx runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 
 -- | The payload of the PING sent with the first GOAWAY.

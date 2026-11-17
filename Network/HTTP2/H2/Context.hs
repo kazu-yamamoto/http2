@@ -13,7 +13,6 @@ import qualified Data.IntSet as IntSet
 import Network.Control
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
-import System.Timeout (timeout)
 
 import Imports hiding (insert)
 import Network.HPACK
@@ -32,19 +31,24 @@ data Role = Client | Server deriving (Eq, Show)
 -- | Telling a connection's threads to stop, and seeing them out before
 --   returning to a caller which tears the connection down under them.
 --
--- The cleanup comes first: it closes the streams, which is how a thread
--- blocked on a request body is told the peer is gone.  Waiting for the
--- threads before it would be waiting for what the cleanup has to say.
+-- The application's threads are killed, as user code is.  The cleanup
+-- comes next: it closes the streams, which is how a thread blocked on a
+-- request body is told the peer is gone.  The library's threads are then
+-- told, and return by themselves; one which has not after 'stopTimeout' is
+-- killed as the last resort.
 --
--- The wait is capped because one of the threads waited for runs the
--- application's handler: an application which never stops would otherwise
--- keep this from ever returning.  It is a 'E.finally' so that the threads
--- are seen out whatever the cleanup does.
+-- The waits are capped because an application which never stops would
+-- otherwise keep this from ever returning.  The cleanup is followed by the
+-- wait whatever it does.
 stopAfterAndWait
-    :: T.ThreadManager -> IO a -> (Maybe E.SomeException -> IO ()) -> IO a
-stopAfterAndWait mgr action cleanup =
-    T.stopAfter mgr action $ \res ->
-        cleanup res `E.finally` void (timeout stopTimeout $ T.waitUntilAllGone mgr)
+    :: Context -> IO a -> (Maybe E.SomeException -> IO ()) -> IO a
+stopAfterAndWait Context{threadManager, appThreadManager} action cleanup =
+    T.stopAfterWithGrace threadManager stopTimeout app $ \_ ->
+        waitFor threadManager
+  where
+    app = T.stopAfter appThreadManager action $ \res ->
+        cleanup res `E.finally` waitFor appThreadManager
+    waitFor mgr = void $ T.waitUntilAllGoneFor mgr stopTimeout
 
 -- | How long the threads are given to end after they have been told to.
 --   Unwinding takes milliseconds; this is for one that does not stop.
@@ -115,6 +119,11 @@ data Context = Context
     , mySockAddr         :: SockAddr
     , peerSockAddr       :: SockAddr
     , threadManager      :: T.ThreadManager
+    -- ^ The library's own threads, which end by themselves once the
+    --   manager is stopped ('T.waitStoppingSTM').
+    , appThreadManager   :: T.ThreadManager
+    -- ^ The threads which run the application's code, which knows
+    --   nothing of that: they are killed.
     , receiverDone       :: TVar (Maybe E.SomeException)
     , stopReceiving      :: TVar Bool
     -- ^ Set to end the receiver at the next frame: see 'stopReceiver'.
@@ -213,6 +222,7 @@ newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings mdone = do
     let mySockAddr   = confMySockAddr
     let peerSockAddr = confPeerSockAddr
     threadManager   <- T.newThreadManager
+    appThreadManager <- T.newThreadManager
     receiverDone    <- newTVarIO Nothing
     stopReceiving   <- newTVarIO False
     let receiverStoppable = isJust confReadNWith
