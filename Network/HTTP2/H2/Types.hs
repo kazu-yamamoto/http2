@@ -5,7 +5,6 @@
 
 module Network.HTTP2.H2.Types where
 
-import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import qualified System.TimeManager as TM
@@ -150,7 +149,7 @@ type RxQ = TQueue (Either E.SomeException (ByteString, Bool))
 data Stream = Stream
     { streamNumber :: StreamId
     , streamState :: TVar StreamState
-    , streamInput :: MVar (Either E.SomeException InpObj) -- Client only
+    , streamInput :: TMVar (Either E.SomeException InpObj) -- Client only
     , streamTxFlow :: TVar TxFlow
     , streamRxFlow :: IORef RxFlow
     , streamRxQ :: IORef (Maybe RxQ)
@@ -161,6 +160,8 @@ data Stream = Stream
     -- ^ Server only: the handler has returned, and nobody will read the
     --   rest of the request body.  It is taken in and thrown away, both
     --   windows given back as it comes, until the peer ends it.
+    , streamGiveUp :: IORef (STM ())
+    -- ^ Client only: what the request gives up on ('outObjGiveUp').
     }
 
 instance Show Stream where
@@ -223,6 +224,14 @@ data HTTP2Error
     deriving (Show)
 
 instance E.Exception HTTP2Error
+
+-- | What a client's request throws once it gives up ('streamGiveUp').
+givenUp :: StreamId -> HTTP2Error
+givenUp sid = StreamErrorIsSent Cancel sid "given up"
+
+-- | What a client connection throws once it gives up ('runGivingUp').
+givenUpConnection :: HTTP2Error
+givenUpConnection = ConnectionErrorIsSent NoError 0 "given up"
 
 ----------------------------------------------------------------
 

@@ -5,9 +5,10 @@
 module HTTP2.ClientSpec (spec) where
 
 import Control.Concurrent
+import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad
-import Data.ByteString.Builder (byteString)
+import Data.ByteString.Builder (Builder, byteString)
 import Data.Foldable (for_)
 import Data.Maybe
 import Data.Traversable (for)
@@ -63,6 +64,42 @@ spec = do
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
+        it "gives up a request waiting for the response" $
+            withServer (runServer givingUpServer) $ do
+                threadDelay 10000
+                runClient "http" "localhost" $ \sendRequest _aux -> do
+                    giveUp <- deadline 200000
+                    let req = requestNoBody methodGet "/never" []
+                    r <- E.try $ sendRequest (setRequestGiveUp req giveUp) $ \_ -> return ()
+                    either (show :: HTTP2Error -> String) (const "answered") r
+                        `shouldStartWith` "StreamErrorIsSent Cancel"
+                    -- The connection goes on.
+                    sendRequest (requestNoBody methodGet "/" []) $ \rsp ->
+                        responseStatus rsp `shouldBe` Just ok200
+
+        it "gives up a request reading the body" $
+            withServer (runServer givingUpServer) $ do
+                threadDelay 10000
+                runClient "http" "localhost" $ \sendRequest _aux -> do
+                    giveUp <- deadline 200000
+                    let req = requestNoBody methodGet "/stall" []
+                    r <- E.try $ sendRequest (setRequestGiveUp req giveUp) $ \rsp -> do
+                        _ <- getResponseBodyChunk rsp
+                        getResponseBodyChunk rsp
+                    either (show :: HTTP2Error -> String) show r
+                        `shouldStartWith` "StreamErrorIsSent Cancel"
+
+        it "gives up a connection with runGivingUp" $
+            withServer (runServer givingUpServer) $ do
+                threadDelay 10000
+                giveUp <- deadline 200000
+                r <- timeout 3000000 $ E.try $ runTCPClient host port $ \s ->
+                    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+                        runGivingUp giveUp defaultClientConfig conf $ \sendRequest _aux ->
+                            sendRequest (requestNoBody methodGet "/never" []) $ \_ -> return ()
+                fmap (either (show :: HTTP2Error -> String) (const "answered")) r
+                    `shouldBe` Just (show $ ConnectionErrorIsSent NoError 0 "given up")
+
         it "reports a connection the server resets as ConnectionIsReset" $
             withResettingServer $ \p -> do
                 r <- E.try $ runClientTo p (defaultClient [])
@@ -111,6 +148,25 @@ defaultServer _req _aux sendResponse = sendResponse responseHello []
 irresponsiveServer :: S.Server
 irresponsiveServer _req _aux _sendResponse = do
     forever $ threadDelay 10000000
+
+-- | Never answering @/never@, stalling the body of @/stall@ after a chunk.
+givingUpServer :: S.Server
+givingUpServer req _aux sendResponse = case S.requestPath req of
+    Just "/never" -> forever $ threadDelay 10000000
+    Just "/stall" -> do
+        sendResponse (S.responseStreaming ok200 [] stall) []
+        forever $ threadDelay 10000000
+    _ -> sendResponse responseHello []
+  where
+    stall :: (Builder -> IO ()) -> IO () -> IO ()
+    stall write flush = do
+        write (byteString "x")
+        flush
+        threadDelay 100000000
+
+-- | Succeeding once the microseconds have passed.
+deadline :: Int -> IO (STM ())
+deadline us = (\late -> readTVar late >>= check) <$> registerDelay us
 
 responseHello :: S.Response
 responseHello = S.responseBuilder ok200 header body

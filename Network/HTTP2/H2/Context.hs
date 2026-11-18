@@ -526,13 +526,19 @@ checkMyConcurrency sid settings conc = do
 
 -- Clinet
 openOddStreamWait :: Context -> IO (StreamId, Stream)
-openOddStreamWait ctx@Context{oddStreamTable, mySettings, peerSettings} = do
+openOddStreamWait ctx = openOddStreamWaitWith ctx retry
+
+-- | 'openOddStreamWait' which throws 'givenUp' once the 'STM' action
+--   succeeds.
+openOddStreamWaitWith :: Context -> STM () -> IO (StreamId, Stream)
+openOddStreamWaitWith ctx@Context{oddStreamTable, mySettings, peerSettings} giveUp = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
     let rxws = initialWindowSize mySettings
+        orGiveUp = (`orElse` (giveUp >> throwSTM (givenUp 0)))
     case mMaxConc of
         Nothing -> do
-            sid <- atomically $ do
+            sid <- atomically $ orGiveUp $ do
                 refuseIfGoingAway ctx
                 getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
@@ -540,7 +546,7 @@ openOddStreamWait ctx@Context{oddStreamTable, mySettings, peerSettings} = do
             insertOdd oddStreamTable sid newstrm
             return (sid, newstrm)
         Just maxConc -> do
-            sid <- atomically $ do
+            sid <- atomically $ orGiveUp $ do
                 refuseIfGoingAway ctx
                 waitIncOdd oddStreamTable maxConc
                 getMyNewStreamId ctx

@@ -44,6 +44,7 @@
 module Network.HTTP2.Client (
     -- * Runner
     run,
+    runGivingUp,
 
     -- * Client configuration
     ClientConfig,
