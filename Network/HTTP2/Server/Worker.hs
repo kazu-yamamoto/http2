@@ -15,7 +15,6 @@ import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
 import Network.HTTP.Types
 import qualified System.ThreadManager as T
-import qualified System.TimeManager as TM
 import Network.HTTP2.H2.Watchdog
 
 import Imports hiding (insert)
@@ -37,8 +36,7 @@ runServer conf server ctx@Context{..} strm req =
         let req' = watchRequestBody
             aux =
                 defaultAux
-                    { auxTimeHandle = TM.emptyHandle
-                    , auxMySockAddr = mySockAddr
+                    { auxMySockAddr = mySockAddr
                     , auxPeerSockAddr = peerSockAddr
 #if MIN_VERSION_http_semantics(0,4,1)
                     , auxSendInformational = sendInformational ctx strm

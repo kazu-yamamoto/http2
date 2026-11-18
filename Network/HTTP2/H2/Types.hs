@@ -1,22 +1,26 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Network.HTTP2.H2.Types where
 
 import Control.Concurrent.STM
 import qualified Control.Exception as E
-import qualified System.TimeManager as TM
 import Data.IORef
 import Foreign.Ptr (nullPtr)
 import Network.Control
 import Network.HTTP.Semantics.Client
+import Network.HTTP.Semantics.Client.Internal (RequestGivenUp (..))
+import qualified Network.HTTP.Semantics.Error as HE
 import Network.HTTP.Semantics.IO
 import Network.Socket hiding (Stream)
 import System.IO.Error (catchIOError)
 import System.IO.Unsafe
 import qualified System.TimeManager as T
+import qualified System.TimeManager as TM
 
 import Imports
 import Network.HPACK
@@ -117,6 +121,13 @@ data ClosedCode
 data CancelledStream = CancelledStream
     deriving (Show, E.Exception)
 
+-- | What a wait on a closed stream throws: a request given up on says
+--   so, to be returned as 'Left' by 'sendRequestWith'.
+closedCodeToException :: StreamId -> ClosedCode -> E.SomeException
+closedCodeToException _ (ResetByMe e)
+    | Just RequestGivenUp <- E.fromException e = e
+closedCodeToException sid cc = E.toException $ closedCodeToError sid cc
+
 closedCodeToError :: StreamId -> ClosedCode -> HTTP2Error
 closedCodeToError sid cc =
     case cc of
@@ -201,35 +212,98 @@ data ControlQ = ControlQ (TQueue Control) (TVar Int)
 
 type ReasonPhrase = ShortByteString
 
--- | The connection error or the stream error.
+-- | The connection error or the stream error: http-semantics'
+--   'HE.HTTPError', the same as HTTP\/3's.  The constructors of the type
+--   this used to be remain as pattern synonyms.
+--
 --   A stream error resets that stream and the connection carries on, as
 --   RFC 9113 section 5.4.2 asks. One kind of trouble is a connection error
 --   even though the spec calls it a stream error, because this
 --   implementation cannot carry on through it: a field block abandoned
 --   part-way leaves the HPACK tables disagreeing with the peer's, and
 --   nothing sent afterwards would decode.
---   `ErrorCode` in connection errors should be the highest stream identifier
---   but in this implementation it identifies the stream that
---   caused this error.
-data HTTP2Error
-    = ConnectionIsClosed -- NoError
-    | ConnectionIsTimeout
-    | ConnectionIsReset -- The peer reset the connection.
-    | ConnectionErrorIsReceived ErrorCode StreamId ReasonPhrase
-    | ConnectionErrorIsSent ErrorCode StreamId ReasonPhrase
-    | StreamErrorIsReceived ErrorCode StreamId
-    | StreamResetIsReceived ErrorCode StreamId
-    | StreamErrorIsSent ErrorCode StreamId ReasonPhrase
-    | BadThingHappen E.SomeException
-    deriving (Show)
+--   The 'StreamId' of a connection error is not kept: it is 0 when matched.
+type HTTP2Error = HE.HTTPError
 
-instance E.Exception HTTP2Error
+pattern ConnectionIsClosed :: HTTP2Error
+pattern ConnectionIsClosed = HE.ConnectionIsClosed
 
--- | What a client's request throws once it gives up ('streamGiveUp').
-givenUp :: StreamId -> HTTP2Error
-givenUp sid = StreamErrorIsSent Cancel sid "given up"
+pattern ConnectionIsTimeout :: HTTP2Error
+pattern ConnectionIsTimeout = HE.ConnectionIsTimeout
 
--- | What a client connection throws once it gives up ('runGivingUp').
+-- | The peer reset the connection.
+pattern ConnectionIsReset :: HTTP2Error
+pattern ConnectionIsReset = HE.ConnectionIsReset
+
+-- | The connection closed before the peer took the request on this
+--   stream: it may be sent again.
+pattern RequestIsUnprocessed :: StreamId -> HTTP2Error
+pattern RequestIsUnprocessed sid <- HE.RequestIsUnprocessed (fromIntegral -> sid)
+    where
+        RequestIsUnprocessed sid = HE.RequestIsUnprocessed $ fromIntegral sid
+
+pattern ConnectionErrorIsReceived
+    :: ErrorCode -> StreamId -> ReasonPhrase -> HTTP2Error
+pattern ConnectionErrorIsReceived e sid msg <-
+    (connectionErrorIsReceived -> Just (e, sid, msg))
+    where
+        ConnectionErrorIsReceived e _ msg = HE.ConnectionErrorIsReceived (toHE e) msg
+
+pattern ConnectionErrorIsSent
+    :: ErrorCode -> StreamId -> ReasonPhrase -> HTTP2Error
+pattern ConnectionErrorIsSent e sid msg <-
+    (connectionErrorIsSent -> Just (e, sid, msg))
+    where
+        ConnectionErrorIsSent e _ msg = HE.ConnectionErrorIsSent (toHE e) msg
+
+pattern StreamErrorIsReceived :: ErrorCode -> StreamId -> HTTP2Error
+pattern StreamErrorIsReceived e sid <-
+    HE.StreamErrorIsReceived (fromHE -> e) (fromIntegral -> sid)
+    where
+        StreamErrorIsReceived e sid = HE.StreamErrorIsReceived (toHE e) (fromIntegral sid)
+
+-- | The same as 'StreamErrorIsReceived'.
+pattern StreamResetIsReceived :: ErrorCode -> StreamId -> HTTP2Error
+pattern StreamResetIsReceived e sid = StreamErrorIsReceived e sid
+
+pattern StreamErrorIsSent :: ErrorCode -> StreamId -> ReasonPhrase -> HTTP2Error
+pattern StreamErrorIsSent e sid msg <-
+    HE.StreamErrorIsSent (fromHE -> e) (fromIntegral -> sid) msg
+    where
+        StreamErrorIsSent e sid msg = HE.StreamErrorIsSent (toHE e) (fromIntegral sid) msg
+
+pattern BadThingHappen :: E.SomeException -> HTTP2Error
+pattern BadThingHappen e = HE.BadThingHappen e
+
+{-# COMPLETE
+    ConnectionIsClosed
+    , ConnectionIsTimeout
+    , ConnectionIsReset
+    , RequestIsUnprocessed
+    , ConnectionErrorIsReceived
+    , ConnectionErrorIsSent
+    , StreamErrorIsReceived
+    , StreamErrorIsSent
+    , BadThingHappen
+    #-}
+
+connectionErrorIsReceived
+    :: HTTP2Error -> Maybe (ErrorCode, StreamId, ReasonPhrase)
+connectionErrorIsReceived (HE.ConnectionErrorIsReceived c msg) = Just (fromHE c, 0, msg)
+connectionErrorIsReceived _ = Nothing
+
+connectionErrorIsSent :: HTTP2Error -> Maybe (ErrorCode, StreamId, ReasonPhrase)
+connectionErrorIsSent (HE.ConnectionErrorIsSent c msg) = Just (fromHE c, 0, msg)
+connectionErrorIsSent _ = Nothing
+
+toHE :: ErrorCode -> HE.HTTPErrorCode
+toHE = HE.http2ErrorCode . fromIntegral . fromErrorCode
+
+fromHE :: HE.HTTPErrorCode -> ErrorCode
+fromHE = toErrorCode . fromIntegral . HE.errorValue
+
+-- | What a client connection throws inside once it gives up
+--   ('Network.HTTP2.Client.runGivingUp' returns 'Left').
 givenUpConnection :: HTTP2Error
 givenUpConnection = ConnectionErrorIsSent NoError 0 "given up"
 
@@ -238,7 +312,7 @@ givenUpConnection = ConnectionErrorIsSent NoError 0 "given up"
 -- | Checking 'SettingsList' and reporting an error if any.
 --
 -- >>> checkSettingsList [(SettingsEnablePush,2)]
--- Just (ConnectionErrorIsSent ProtocolError 0 "enable push must be 0 or 1")
+-- Just (ConnectionErrorIsSent (HTTPErrorCode {errorKind = ProtocolViolation, errorSpace = HTTP2, errorValue = 1}) "enable push must be 0 or 1")
 checkSettingsList :: SettingsList -> Maybe HTTP2Error
 checkSettingsList settings = case mapMaybe checkSettingsValue settings of
     [] -> Nothing

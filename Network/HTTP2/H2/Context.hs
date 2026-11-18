@@ -11,6 +11,7 @@ import Data.IORef
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
 import Network.Control
+import Network.HTTP.Semantics.Client.Internal (RequestGivenUp (..))
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
 
@@ -346,7 +347,7 @@ informReplaced streamNumber oldState newState =
                 -- The stream stays open with the same body; nothing to do
                 return ()
         (Open _ (Body q _ _ _), Closed cc) ->
-            writeTQueue q $ Left $ E.toException $ closedCodeToError streamNumber cc
+            writeTQueue q $ Left $ closedCodeToException streamNumber cc
         (Open _ (Body q _ _ _), _) ->
             -- The stream is opened with a /new/ body
             writeTQueue q $ Left $ E.toException ConnectionIsClosed
@@ -439,7 +440,7 @@ closed ctx@Context{oddStreamTable, evenStreamTable} strm@Stream{streamNumber} cc
         _otherwise -> return ()
   where
     err :: E.SomeException
-    err = E.toException (closedCodeToError streamNumber cc)
+    err = closedCodeToException streamNumber cc
 
 -- | Remember that we reset a stream of the peer's.
 --
@@ -528,14 +529,14 @@ checkMyConcurrency sid settings conc = do
 openOddStreamWait :: Context -> IO (StreamId, Stream)
 openOddStreamWait ctx = openOddStreamWaitWith ctx retry
 
--- | 'openOddStreamWait' which throws 'givenUp' once the 'STM' action
+-- | 'openOddStreamWait' which throws 'RequestGivenUp' once the 'STM' action
 --   succeeds.
 openOddStreamWaitWith :: Context -> STM () -> IO (StreamId, Stream)
 openOddStreamWaitWith ctx@Context{oddStreamTable, mySettings, peerSettings} giveUp = do
     -- Peer SETTINGS_MAX_CONCURRENT_STREAMS
     mMaxConc <- maxConcurrentStreams <$> readIORef peerSettings
     let rxws = initialWindowSize mySettings
-        orGiveUp = (`orElse` (giveUp >> throwSTM (givenUp 0)))
+        orGiveUp = (`orElse` (giveUp >> throwSTM RequestGivenUp))
     case mMaxConc of
         Nothing -> do
             sid <- atomically $ orGiveUp $ do

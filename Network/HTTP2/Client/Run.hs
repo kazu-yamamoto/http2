@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Network.HTTP2.Client.Run where
 
@@ -15,9 +16,9 @@ import Network.Control (RxFlow (..), defaultMaxData)
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.Client.Internal
 import Network.HTTP.Semantics.IO
+import Network.HTTP2.H2.Watchdog
 import Network.Socket (SockAddr)
 import qualified System.ThreadManager as T
-import Network.HTTP2.H2.Watchdog
 import Text.Read (readMaybe)
 
 import Imports
@@ -68,15 +69,27 @@ defaultClientConfig =
 
 -- | Running HTTP/2 client.
 run :: ClientConfig -> Config -> Client a -> IO a
-run = runGivingUp retry
+run cconf conf client = runWith cconf conf client retry
 
--- | 'run' which gives up on the connection once the 'STM' action
---   succeeds: it is closed, and 'ConnectionErrorIsSent' with 'NoError'
---   is thrown.
+-- | 'run', giving up once the 'STM' action succeeds: the connection is
+--   closed with a GOAWAY of NO_ERROR, and what the action gave is returned
+--   as 'Left'.  A client already done by then is not given up on.  The
+--   action is run wherever the connection waits, and once more for what it
+--   gave: it should go on succeeding once it has, as a deadline does.
 --
 -- @since 5.5.0
-runGivingUp :: STM () -> ClientConfig -> Config -> Client a -> IO a
-runGivingUp giveUp cconf@ClientConfig{..} conf client = do
+runGivingUp :: ClientConfig -> Config -> Client a -> STM g -> IO (Either g a)
+runGivingUp cconf conf client giveUp = do
+    r <- E.try $ runWith cconf conf client $ void giveUp
+    case r of
+        Right x -> return $ Right x
+        -- Whatever the connection ended with, it was given up on.
+        Left (e :: E.SomeException) -> do
+            mg <- atomically $ (Just <$> giveUp) `orElse` return Nothing
+            maybe (E.throwIO e) (return . Left) mg
+
+runWith :: ClientConfig -> Config -> Client a -> STM () -> IO a
+runWith cconf@ClientConfig{..} conf client giveUp = do
     ctx <- setup cconf conf
     runH2 giveUp conf ctx $ runClient ctx
   where
@@ -178,7 +191,7 @@ getResponse strm = do
     mRsp <-
         atomically $
             takeTMVar (streamInput strm)
-                `orElse` (giveUp >> throwSTM (givenUp $ streamNumber strm))
+                `orElse` (giveUp >> throwSTM RequestGivenUp)
     case mRsp of
         Left err -> E.throwIO err
         Right rsp -> return $ Response rsp
@@ -339,7 +352,7 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
             T.forkManaged threadManager label $ syncWithSender' ctx pop lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)
-    pushOutput sid out = atomically $ (`orElse` (outObjGiveUp >> throwSTM (givenUp sid))) $ do
+    pushOutput sid out = atomically $ (`orElse` (outObjGiveUp >> throwSTM RequestGivenUp)) $ do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
@@ -356,10 +369,11 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
     abandon sid = do
         closed ctx strm Killed
         T.forkManaged threadManager ("H2 skipping stream " ++ show sid) $
-            atomically $ T.waitStoppingSTM threadManager `orElse` do
-                sidOK <- readTVar outputQStreamID
-                check (sidOK == sid)
-                writeTVar outputQStreamID (sid + 2)
+            atomically $
+                T.waitStoppingSTM threadManager `orElse` do
+                    sidOK <- readTVar outputQStreamID
+                    check (sidOK == sid)
+                    writeTVar outputQStreamID (sid + 2)
 
 sendStreaming
     :: Context

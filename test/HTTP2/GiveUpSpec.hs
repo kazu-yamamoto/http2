@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module HTTP2.GiveUpSpec (spec) where
 
@@ -24,7 +25,7 @@ import System.Random
 import System.Timeout (timeout)
 import Test.Hspec
 
-import Network.HTTP2.Client (HTTP2Error (..))
+import Network.HTTP2.Client (pattern ConnectionIsTimeout)
 import Network.HTTP2.Frame (connectionPreface)
 import Network.HTTP2.Server
 
@@ -175,7 +176,8 @@ spec = describe "give-up" $ do
             broken conf =
                 conf
                     { confReadN = E.uninterruptibleMask_ . confReadN conf
-                    , confReadNWith = fmap (\r stop -> E.uninterruptibleMask_ . r stop) (confReadNWith conf)
+                    , confReadNWith =
+                        fmap (\r stop -> E.uninterruptibleMask_ . r stop) (confReadNWith conf)
                     , confSendAllWith = Just $ \_ _ -> E.throwIO $ userError "broken"
                     }
             runServer = runTCPServer (Just host) port $ \s ->
@@ -196,7 +198,17 @@ spec = describe "give-up" $ do
 -- | A frame of this type, flags and stream with this payload.
 frame :: Word8 -> Word8 -> Word8 -> ByteString -> ByteString
 frame typ flags sid payload =
-    B.pack [0, fromIntegral (len `div` 256), fromIntegral (len `mod` 256), typ, flags, 0, 0, 0, sid]
+    B.pack
+        [ 0
+        , fromIntegral (len `div` 256)
+        , fromIntegral (len `mod` 256)
+        , typ
+        , flags
+        , 0
+        , 0
+        , 0
+        , sid
+        ]
         <> payload
   where
     len = B.length payload
