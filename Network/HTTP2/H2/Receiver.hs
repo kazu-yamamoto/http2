@@ -318,7 +318,7 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx strm@Stream{streamInput} strea
     if isServer ctx
         then do
             launchHandler ctx strm inpObj
-        else putMVar streamInput $ Right inpObj
+        else atomically $ putTMVar streamInput $ Right inpObj
     halfClosedRemote ctx strm
 
 -- Transition (process2)
@@ -337,12 +337,14 @@ processState (Open _ (HasBody tbl@(_, reqvt))) ctx strm@Stream{streamInput, stre
     setOpenState ctx strm $ Body q mcl bodyLength tlr
     -- FLOW CONTROL: WINDOW_UPDATE 0: recv: announcing my limit properly
     -- FLOW CONTROL: WINDOW_UPDATE: recv: announcing my limit properly
-    bodySource <- mkSource q $ informWindowUpdate ctx strm
+    giveUp <- readIORef $ streamGiveUp strm
+    let gaveUp = E.toException (givenUp $ streamNumber strm) <$ giveUp
+    bodySource <- mkSource q (informWindowUpdate ctx strm) gaveUp
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx
         then do
             launchHandler ctx strm inpObj
-        else putMVar streamInput $ Right inpObj
+        else atomically $ putTMVar streamInput $ Right inpObj
 
 -- Transition (process4)
 processState HalfClosedRemote ctx strm _streamId = do
@@ -881,18 +883,19 @@ data DataOutcome
 ----------------------------------------------------------------
 
 -- | Type for input streaming.
-data Source = Source RxQ (Int -> IO ()) (IORef Bool)
+data Source = Source RxQ (Int -> IO ()) (IORef Bool) (STM E.SomeException)
 
-mkSource :: RxQ -> (Int -> IO ()) -> IO Source
-mkSource q inform = Source q inform <$> newIORef False
+-- | The last is what a client's request gives up on.
+mkSource :: RxQ -> (Int -> IO ()) -> STM E.SomeException -> IO Source
+mkSource q inform giveUp = (\ref -> Source q inform ref giveUp) <$> newIORef False
 
 readSource :: Source -> IO (ByteString, Bool)
-readSource (Source q inform refEOF) = do
+readSource (Source q inform refEOF giveUp) = do
     eof <- readIORef refEOF
     if eof
         then return (mempty, True)
         else do
-            mBS <- atomically $ readTQueue q
+            mBS <- atomically $ readTQueue q `orElse` (Left <$> giveUp)
             case mBS of
                 Left err -> do
                     writeIORef refEOF True

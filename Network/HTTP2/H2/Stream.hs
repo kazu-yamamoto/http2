@@ -2,7 +2,6 @@
 
 module Network.HTTP2.H2.Stream where
 
-import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad
@@ -49,23 +48,25 @@ newOddStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
 newOddStream sid txwin rxwin =
     Stream sid
         <$> newTVarIO Idle
-        <*> newEmptyMVar
+        <*> newEmptyTMVarIO
         <*> newTVarIO (newTxFlow $ fromIntegral txwin)
         <*> newIORef (newRxFlow $ fromIntegral rxwin)
         <*> newIORef Nothing
         <*> newIORef Nothing
         <*> newTVarIO False
+        <*> newIORef retry
 
 newEvenStream :: StreamId -> WindowSize -> WindowSize -> IO Stream
 newEvenStream sid txwin rxwin =
     Stream sid
         <$> newTVarIO Reserved
-        <*> newEmptyMVar
+        <*> newEmptyTMVarIO
         <*> newTVarIO (newTxFlow $ fromIntegral txwin)
         <*> newIORef (newRxFlow $ fromIntegral rxwin)
         <*> newIORef Nothing
         <*> newIORef Nothing
         <*> newTVarIO False
+        <*> newIORef retry
 
 ----------------------------------------------------------------
 
@@ -88,7 +89,7 @@ closeAllStreams ovar evar mErr = do
     -- explicit @END_STREAM@ frame.
     finalize strm = do
         st <- readStreamState strm
-        void $ tryPutMVar (streamInput strm) err
+        void $ atomically $ tryPutTMVar (streamInput strm) err
         case st of
             Open _ (Body q _ _ _) ->
                 atomically $ writeTQueue q $ maybe (Right (mempty, True)) Left mErr

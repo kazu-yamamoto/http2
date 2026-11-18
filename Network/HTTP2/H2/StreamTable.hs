@@ -31,7 +31,6 @@ module Network.HTTP2.H2.StreamTable (
     getEvenStreams,
 ) where
 
-import Control.Concurrent
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Data.IntMap.Strict (IntMap)
@@ -89,7 +88,7 @@ deleteOdd var k err = do
     mv <- atomically deleteStream
     case mv of
         Nothing -> return () -- Stream was already removed
-        Just v -> void . tryPutMVar (streamInput v) $ Left err
+        Just v -> void . atomically . tryPutTMVar (streamInput v) $ Left err
   where
     deleteStream :: STM (Maybe Stream)
     deleteStream = do
@@ -144,7 +143,7 @@ deleteEven var k err = do
     mv <- atomically deleteStream
     case mv of
         Nothing -> return () -- Stream was already removed
-        Just v -> void . tryPutMVar (streamInput v) $ Left err
+        Just v -> void . atomically . tryPutTMVar (streamInput v) $ Left err
   where
     deleteStream :: STM (Maybe Stream)
     deleteStream = do

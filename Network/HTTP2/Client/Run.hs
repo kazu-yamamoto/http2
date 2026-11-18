@@ -68,9 +68,17 @@ defaultClientConfig =
 
 -- | Running HTTP/2 client.
 run :: ClientConfig -> Config -> Client a -> IO a
-run cconf@ClientConfig{..} conf client = do
+run = runGivingUp retry
+
+-- | 'run' which gives up on the connection once the 'STM' action
+--   succeeds: it is closed, and 'ConnectionErrorIsSent' with 'NoError'
+--   is thrown.
+--
+-- @since 5.5.0
+runGivingUp :: STM () -> ClientConfig -> Config -> Client a -> IO a
+runGivingUp giveUp cconf@ClientConfig{..} conf client = do
     ctx <- setup cconf conf
-    runH2 conf ctx $ runClient ctx
+    runH2 giveUp conf ctx $ runClient ctx
   where
     serverMaxStreams ctx = do
         mx <- maxConcurrentStreams <$> readIORef (peerSettings ctx)
@@ -121,7 +129,7 @@ runIO cconf@ClientConfig{..} conf@Config{..} action = do
         create = openOddStreamWait ctx
     runClient <-
         action $ ClientIO confMySockAddr confPeerSockAddr putR get putB create
-    runH2 conf ctx runClient
+    runH2 retry conf ctx runClient
 
 -- | Called once a request is done with its stream, however it ended: once
 -- 'processResponse' is, or once waiting for the response was interrupted.
@@ -166,7 +174,11 @@ doneWithOpenStream ctx strm = do
 
 getResponse :: Stream -> IO Response
 getResponse strm = do
-    mRsp <- takeMVar $ streamInput strm
+    giveUp <- readIORef $ streamGiveUp strm
+    mRsp <-
+        atomically $
+            takeTMVar (streamInput strm)
+                `orElse` (giveUp >> throwSTM (givenUp $ streamNumber strm))
     case mRsp of
         Left err -> E.throwIO err
         Right rsp -> return $ Response rsp
@@ -189,8 +201,8 @@ setup ClientConfig{..} conf = do
     exchangeSettings ctx
     return ctx
 
-runH2 :: Config -> Context -> IO a -> IO a
-runH2 conf ctx runClient = do
+runH2 :: STM () -> Config -> Context -> IO a -> IO a
+runH2 giveUp conf ctx runClient = do
     tid <- myThreadId
     -- The last resort, if the connection does not finish by itself after
     -- it timed out: only when 'confReadN' or 'confSendAll' cannot give up.
@@ -240,7 +252,9 @@ runH2 conf ctx runClient = do
     runAll =
         withAsync runSender $ \as ->
             withAsync runClientReceiver $ \ac -> do
-                r <- waitEither as ac
+                r <-
+                    atomically $
+                        waitEitherSTM as ac `orElse` (giveUp >> throwSTM givenUpConnection)
                 case r of
                     Right x -> wait as >> return x
                     Left e -> do
@@ -287,8 +301,9 @@ makeStream ctx@Context{..} scheme auth (Request req) = do
                     | otherwise = hdr1
                 req' = req{outObjHeaders = hdr2}
             -- FLOW CONTROL: SETTINGS_MAX_CONCURRENT_STREAMS: send: respecting peer's limit
-            (_sid, newstrm) <- openOddStreamWait ctx
+            (_sid, newstrm) <- openOddStreamWaitWith ctx $ outObjGiveUp req
             writeIORef (streamRequestMethod newstrm) $ Just method
+            writeIORef (streamGiveUp newstrm) $ outObjGiveUp req
             return (newstrm, Just req')
 
 sendRequest :: Config -> Context -> Stream -> OutObj -> Bool -> IO ()
@@ -324,7 +339,7 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
             T.forkManaged threadManager label $ syncWithSender' ctx pop lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)
-    pushOutput sid out = atomically $ do
+    pushOutput sid out = atomically $ (`orElse` (outObjGiveUp >> throwSTM (givenUp sid))) $ do
         sidOK <- readTVar outputQStreamID
         check (sidOK == sid)
         writeTVar outputQStreamID (sid + 2)
