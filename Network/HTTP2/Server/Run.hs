@@ -12,8 +12,8 @@ import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
 import Network.HTTP.Semantics.Server
 import Network.HTTP.Semantics.Server.Internal
-import Network.Socket (SockAddr)
 import Network.HTTP2.H2.Watchdog
+import Network.Socket (SockAddr)
 
 import Network.HTTP2.Frame
 import Network.HTTP2.H2
@@ -235,7 +235,7 @@ runH2 conf ctx mGoAway = do
                                 atomically $
                                     void (waitCatchSTM ar) `orElse` (readTVar late >>= check)
                                 return e
-                        closureServer conf ctx e
+                        endServer conf ctx e
     stopAfterAndWait ctx runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 

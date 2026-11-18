@@ -9,6 +9,7 @@ module Network.HTTP2.H2.Receiver (
     frameReceiver,
     closureClient,
     closureServer,
+    endServer,
     sendPing,
 ) where
 
@@ -915,6 +916,20 @@ closureClient conf ctx (Right x) = do
     sendGoaway conf frame
     return x
 closureClient conf ctx (Left se) = closureServer conf ctx se
+
+-- | Ending a server connection: one which ran its course -- the client
+--   closed it, or it went unused for the timeout -- ends normally, with
+--   GOAWAY(NO_ERROR).  Any other ending is thrown, as 'closureServer'
+--   does.
+endServer :: Config -> Context -> E.SomeException -> IO ()
+endServer conf ctx se = do
+    normal <- case E.fromException se of
+        Just ConnectionIsClosed -> return True
+        Just ConnectionIsTimeout -> isIdling $ watchdog ctx
+        _ -> return False
+    if normal
+        then goaway ctx NoError "no error" >>= sendGoaway conf
+        else closureServer conf ctx se
 
 closureServer :: Config -> Context -> E.SomeException -> IO a
 closureServer conf ctx se

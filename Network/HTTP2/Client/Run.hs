@@ -111,7 +111,10 @@ runWith cconf@ClientConfig{..} conf client giveUp = do
                     False
                     "Haskell!" -- 8 bytes
             }
-    clientCore ctx req processResponse = counted ctx $ do
+    -- The server answering is an application running (rule 3 of
+    -- "Network.HTTP2.H2.Watchdog"): it may take its time, and the server
+    -- is asked whether it is still there meanwhile.
+    clientCore ctx req processResponse = runningApp (watchdog ctx) $ counted ctx $ do
         (strm, moutobj) <- makeStream ctx scheme authority req
         case moutobj of
             Nothing -> return ()
@@ -235,6 +238,12 @@ runH2 giveUp conf ctx runClient = do
                 case er of
                     Right r -> return r
                     Left err -> do
+                        -- Unused for the timeout: the connection goes away
+                        -- as if the server had said so.
+                        unused <- case E.fromException err of
+                            Just ConnectionIsTimeout -> isIdling $ watchdog ctx
+                            _ -> return False
+                        when unused $ void $ goingAway ctx 0
                         goingaway <- isJust <$> readTVarIO (peerGoAway ctx)
                         case E.fromException err of
                             -- The connection has run its course after the
@@ -242,14 +251,18 @@ runH2 giveUp conf ctx runClient = do
                             -- finish, rather than killed with it: every
                             -- request it makes from here is refused, and
                             -- one still waiting is failed now.
-                            Just ConnectionIsClosed
-                                | goingaway -> do
+                            Just e
+                                | goingaway
+                                , closedNormally e || unused -> do
                                     closeAllStreams
                                         (oddStreamTable ctx)
                                         (evenStreamTable ctx)
                                         (Just err)
                                     wait ac
                             _ -> E.throwIO err
+                      where
+                        closedNormally ConnectionIsClosed = True
+                        closedNormally _ = False
 
     -- When 'runClientReceiver' terminates, it is important we give the sender
     -- a chance to terminate cleanly also (it's possible the client terminated
