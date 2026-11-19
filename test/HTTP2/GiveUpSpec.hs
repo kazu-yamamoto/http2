@@ -177,7 +177,7 @@ spec = describe "give-up" $ do
                 conf
                     { confReadN = E.uninterruptibleMask_ . confReadN conf
                     , confReadNWith =
-                        fmap (\r stop -> E.uninterruptibleMask_ . r stop) (confReadNWith conf)
+                        fmap (\r n -> E.uninterruptibleMask_ . r n) (confReadNWith conf)
                     , confSendAllWith = Just $ \_ _ -> E.throwIO $ userError "broken"
                     }
             runServer = runTCPServer (Just host) port $ \s ->

@@ -73,7 +73,7 @@ frameReceiver ctx@Context{receiverDone} conf =
         labelMe "H2 receiver"
         loop
 
-    -- Told to stop, the receiver ends between frames as at end of input.
+    -- Told to stop, the receiver ends as the waits above do.
     stopped = receiverStopped ctx
     -- Stop reading a peer that does not read what we send, rather than
     -- queue control frames for a sender that cannot send.
@@ -82,7 +82,9 @@ frameReceiver ctx@Context{receiverDone} conf =
             atomically $
                 (True <$ stopped) `orElse` (False <$ waitControlQ (controlQ ctx))
         when stop $ E.throwIO ConnectionIsClosed
-    readHeader = readNGivingUp conf stopped frameHeaderLength
+    readHeader =
+        readNGivingUp conf frameHeaderLength stopped
+            >>= either (\_ -> E.throwIO ConnectionIsClosed) return
 
     -- Timeouts are decided by the watchdog of the connection. It is told
     -- of every frame which arrives.
@@ -139,10 +141,12 @@ processFrame ctx@Context{..} conf typhdr@(ftyp, header) = do
 -- 'confReadN' answers with an empty string at end of input, so a payload that
 -- comes back short means the peer hung up in the middle of the frame.  Saying
 -- so here keeps every decoder below from being handed fewer bytes than the
--- frame header promised it.  A receiver told to stop gives it up the same.
+-- frame header promised it.  A receiver told to stop ends as it does there.
 readPayload :: Context -> Config -> Int -> IO ByteString
 readPayload ctx conf len = do
-    bs <- readNGivingUp conf (receiverStopped ctx) len
+    bs <-
+        readNGivingUp conf len (receiverStopped ctx)
+            >>= either (\_ -> E.throwIO ConnectionIsClosed) return
     when (BS.length bs /= len) $ E.throwIO ConnectionIsClosed
     return bs
 

@@ -40,10 +40,10 @@ allocSimpleConfigWith s bufsiz usec giveUp = do
     confWriteBuffer <- mallocBytes bufsiz
     let confBufferSize = bufsiz
     let confSendAll = sendAll s
-        confSendAllWith = Just $ \giveUp' bs -> sendAllWith s bs giveUp'
+        confSendAllWith = Just $ sendAllWith s
     ref <- newIORef Nothing
-    let confReadN = defaultReadNWith s ref giveUp
-        confReadNWith = Just $ \stop -> defaultReadNWith s ref (void giveUp `orElse` stop)
+    let confReadN n = either (const mempty) id <$> defaultReadNWith s ref n giveUp
+        confReadNWith = Just $ \n stop -> defaultReadNWith s ref n (void giveUp `orElse` stop)
     let confPositionReadMaker = defaultPositionReadMaker
     let confTimeout = usec
     confMySockAddr <- getSocketName s
