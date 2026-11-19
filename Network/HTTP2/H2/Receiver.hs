@@ -27,6 +27,7 @@ import GHC.IO.Exception (
  )
 import Network.Control
 import Network.HTTP.Semantics
+import Network.HTTP.Semantics.Client.Internal (RequestGivenUp (..))
 import System.IO.Error (ioeGetErrorType)
 import qualified System.ThreadManager as T
 
@@ -40,8 +41,8 @@ import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
 import Network.HTTP2.H2.StreamTable
 import Network.HTTP2.H2.Types
-import Network.HTTP2.H2.Window
 import Network.HTTP2.H2.Watchdog
+import Network.HTTP2.H2.Window
 
 ----------------------------------------------------------------
 
@@ -338,7 +339,7 @@ processState (Open _ (HasBody tbl@(_, reqvt))) ctx strm@Stream{streamInput, stre
     -- FLOW CONTROL: WINDOW_UPDATE 0: recv: announcing my limit properly
     -- FLOW CONTROL: WINDOW_UPDATE: recv: announcing my limit properly
     giveUp <- readIORef $ streamGiveUp strm
-    let gaveUp = E.toException (givenUp $ streamNumber strm) <$ giveUp
+    let gaveUp = E.toException RequestGivenUp <$ giveUp
     bodySource <- mkSource q (informWindowUpdate ctx strm) gaveUp
     let inpObj = InpObj tbl mcl (readSource bodySource) tlr
     if isServer ctx

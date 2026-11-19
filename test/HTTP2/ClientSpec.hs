@@ -70,9 +70,8 @@ spec = do
                 runClient "http" "localhost" $ \sendRequest _aux -> do
                     giveUp <- deadline 200000
                     let req = requestNoBody methodGet "/never" []
-                    r <- E.try $ sendRequest (setRequestGiveUp req giveUp) $ \_ -> return ()
-                    either (show :: HTTP2Error -> String) (const "answered") r
-                        `shouldStartWith` "StreamErrorIsSent Cancel"
+                    r <- sendRequestWith sendRequest req giveUp $ \_ -> return ()
+                    r `shouldBe` Left ()
                     -- The connection goes on.
                     sendRequest (requestNoBody methodGet "/" []) $ \rsp ->
                         responseStatus rsp `shouldBe` Just ok200
@@ -83,22 +82,25 @@ spec = do
                 runClient "http" "localhost" $ \sendRequest _aux -> do
                     giveUp <- deadline 200000
                     let req = requestNoBody methodGet "/stall" []
-                    r <- E.try $ sendRequest (setRequestGiveUp req giveUp) $ \rsp -> do
+                    r <- sendRequestWith sendRequest req giveUp $ \rsp -> do
                         _ <- getResponseBodyChunk rsp
                         getResponseBodyChunk rsp
-                    either (show :: HTTP2Error -> String) show r
-                        `shouldStartWith` "StreamErrorIsSent Cancel"
+                    r `shouldBe` Left ()
 
         it "gives up a connection with runGivingUp" $
             withServer (runServer givingUpServer) $ do
                 threadDelay 10000
                 giveUp <- deadline 200000
-                r <- timeout 3000000 $ E.try $ runTCPClient host port $ \s ->
+                r <- timeout 3000000 $ runTCPClient host port $ \s ->
                     E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
-                        runGivingUp giveUp defaultClientConfig conf $ \sendRequest _aux ->
-                            sendRequest (requestNoBody methodGet "/never" []) $ \_ -> return ()
-                fmap (either (show :: HTTP2Error -> String) (const "answered")) r
-                    `shouldBe` Just (show $ ConnectionErrorIsSent NoError 0 "given up")
+                        runGivingUp
+                            defaultClientConfig
+                            conf
+                            ( \sendRequest _aux ->
+                                sendRequest (requestNoBody methodGet "/never" []) $ \_ -> return ()
+                            )
+                            giveUp
+                r `shouldBe` Just (Left ())
 
         it "reports a connection the server resets as ConnectionIsReset" $
             withResettingServer $ \p -> do

@@ -4,7 +4,6 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Network.HTTP2.H2.OutBodyIface (
-    StreamTerminated (..),
     withOutBodyIface,
 ) where
 
@@ -15,16 +14,6 @@ import Network.HTTP.Semantics.IO
 import Network.HTTP2.H2.Context
 import Network.HTTP2.H2.Sync
 import Network.HTTP2.H2.Types
-
-----------------------------------------------------------------
-
-data StreamTerminated
-    = StreamPushedFinal
-    | StreamCancelled
-    | StreamOutOfScope
-    | StreamRemoteReset ClosedCode
-    deriving (Show)
-    deriving anyclass (Exception)
 
 ----------------------------------------------------------------
 
@@ -58,7 +47,7 @@ withOutBodyIface ctx@Context{outputQ} strm tbq unmask k = do
                     -- 'checkNotTerminated' would have thrown an exception), it
                     -- must mean that our peer send us a RST_STREAM, indicating
                     -- that they do not want to receive any further messages.
-                    throwSTM $ StreamRemoteReset code
+                    throwSTM $ closedCodeToError (streamNumber strm) code
                 _otherwise ->
                     return ()
 

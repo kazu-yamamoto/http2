@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RankNTypes #-}
 
 -- | HTTP\/2 client library.
@@ -94,7 +95,17 @@ module Network.HTTP2.Client (
     module Network.HTTP.Semantics.Client,
 
     -- * Error
-    HTTP2Error (..),
+    HTTP2Error,
+    pattern ConnectionIsClosed,
+    pattern ConnectionIsTimeout,
+    pattern ConnectionIsReset,
+    pattern RequestIsUnprocessed,
+    pattern ConnectionErrorIsReceived,
+    pattern ConnectionErrorIsSent,
+    pattern StreamErrorIsReceived,
+    pattern StreamResetIsReceived,
+    pattern StreamErrorIsSent,
+    pattern BadThingHappen,
     StreamTerminated (..),
     ReasonPhrase,
     ErrorCode (
@@ -121,4 +132,3 @@ import Network.HTTP.Semantics.Client
 import Network.HTTP2.Client.Run
 import Network.HTTP2.Frame
 import Network.HTTP2.H2 hiding (authority, scheme)
-import Network.HTTP2.H2.OutBodyIface
