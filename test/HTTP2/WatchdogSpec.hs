@@ -46,15 +46,28 @@ spec = describe "watchdog" $ do
             -- GOAWAY on yet.
             r `shouldBe` Just ""
 
-    it "closes an idle connection with GOAWAY" $
+    it "closes an unused connection with GOAWAY(NO_ERROR)" $
         withServer (\_ _ _ -> return ()) $ do
             r <- timeout 3000000 $ runTCPClient host port $ \s -> do
                 sendAll s connectionPreface
                 sendAll s emptySettingsFrame
                 recvAll s
-            -- The sender finished by itself and the connection was closed
-            -- as usual, with GOAWAY whose debug data is "timeout".
-            fmap ("timeout" `B.isSuffixOf`) r `shouldBe` Just True
+            -- Unused, it ran its course: closed as one the client closed
+            -- is, with GOAWAY whose debug data is "no error".
+            fmap ("no error" `B.isSuffixOf`) r `shouldBe` Just True
+
+    it "returns from run once the client is done" $ do
+        result <- newEmptyMVar
+        let server _req _aux sendResponse = sendResponse (responseNoBody ok200 []) []
+            runServer = runTCPServer (Just host) port $ \s ->
+                E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
+                    E.try (run defaultServerConfig conf server) >>= putMVar result
+        E.bracket (forkIO runServer) killThread $ \_ -> do
+            threadDelay 10000
+            _ <- get "/"
+            r <- timeout 3000000 $ takeMVar result
+            fmap (either (show :: E.SomeException -> String) (const "returned")) r
+                `shouldBe` Just "returned"
 
     it "does not limit a slow application" $
         withServer slowServer $ do

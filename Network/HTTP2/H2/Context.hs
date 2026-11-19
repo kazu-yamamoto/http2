@@ -18,6 +18,7 @@ import qualified System.ThreadManager as T
 import Imports hiding (insert)
 import Network.HPACK
 import Network.HTTP2.Frame
+import Network.HTTP2.H2.EncodeFrame (pingFrame)
 import Network.HTTP2.H2.Queue
 import Network.HTTP2.H2.Settings
 import Network.HTTP2.H2.Stream
@@ -234,6 +235,9 @@ newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings mdone = do
     pingAcked       <- newTVarIO ""
     activeRequests  <- newTVarIO 0
     resetByMe       <- newIORef IntSet.empty
+    -- A PING, for the watchdog to ask a quiet peer if it is there.
+    setProbe watchdog $
+        enqueueControl controlQ $ CFrames Nothing [pingFrame False keepAlivePing]
     return Context{..}
   where
     role = case roleInfo of
@@ -675,3 +679,7 @@ drainedMine Context{myGoAway, oddStreamTable} = do
     readTVar myGoAway >>= check . isJust
     odds <- oddTable <$> readTVar oddStreamTable
     check $ IntMap.null odds
+
+-- | The payload of the PING asking a quiet peer if it is there.
+keepAlivePing :: ByteString
+keepAlivePing = "keepaliv"
