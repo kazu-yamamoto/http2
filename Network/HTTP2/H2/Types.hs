@@ -354,7 +354,7 @@ data Config = Config
     -- ^ Not used when 'confSendAllWith' is 'Just'.  When replacing it in
     --   a config which has one, e.g. from 'allocSimpleConfig', set
     --   'confSendAllWith' to 'Nothing' or to a send of the same kind.
-    , confSendAllWith :: Maybe (STM () -> ByteString -> IO (Either () ()))
+    , confSendAllWith :: Maybe (ByteString -> STM () -> IO (Either () ()))
     -- ^ 'confSendAll' which the library can give up on: 'Left' when the
     --   'STM' action fires first.  With it, a write which the peer does
     --   not read is ended by the timeout rather than by killing a thread.
@@ -366,10 +366,10 @@ data Config = Config
     --   the connection preface with this.  When replacing it in a config
     --   which has one, e.g. from 'allocSimpleConfig', set 'confReadNWith'
     --   to 'Nothing' or to a read of the same kind sharing its buffer.
-    , confReadNWith :: Maybe (STM () -> Int -> IO ByteString)
-    -- ^ 'confReadN' which the library can give up on: it answers with an
-    --   empty string, as at end of input, when the 'STM' action fires
-    --   first.  With it, the reader is stopped without being interrupted.
+    , confReadNWith :: Maybe (Int -> STM () -> IO (Either () ByteString))
+    -- ^ 'confReadN' which the library can give up on: 'Left' when the
+    --   'STM' action fires first, and 'Right' with the empty string at end
+    --   of input.  With it, the reader is stopped without being interrupted.
     --   It must share its buffer with 'confReadN'.
     --
     --   @since 5.4.13
@@ -444,17 +444,17 @@ defaultConfig =
 
 -- | Sending with 'confSendAllWith' if there is one, giving up when the
 --   'STM' action fires, and with 'confSendAll' otherwise.
-sendAllGivingUp :: Config -> STM () -> ByteString -> IO (Either () ())
-sendAllGivingUp Config{..} giveUp bs = case confSendAllWith of
-    Just sendWith -> sendWith giveUp bs
+sendAllGivingUp :: Config -> ByteString -> STM () -> IO (Either () ())
+sendAllGivingUp Config{..} bs giveUp = case confSendAllWith of
+    Just sendWith -> sendWith bs giveUp
     Nothing -> Right <$> confSendAll bs
 
 -- | Reading with 'confReadNWith' if there is one, giving up when the
 --   'STM' action fires, and with 'confReadN' otherwise.
-readNGivingUp :: Config -> STM () -> Int -> IO ByteString
-readNGivingUp Config{..} giveUp n = case confReadNWith of
-    Just readWith -> readWith giveUp n
-    Nothing -> confReadN n
+readNGivingUp :: Config -> Int -> STM () -> IO (Either () ByteString)
+readNGivingUp Config{..} n giveUp = case confReadNWith of
+    Just readWith -> readWith n giveUp
+    Nothing -> Right <$> confReadN n
 
 -- | Sending GOAWAY, as a last word: it waits one second at most, since a
 --   peer which does not read would hold the connection open for good.
@@ -465,7 +465,7 @@ sendGoaway conf frame = send `catchIOError` \_ -> return ()
         Nothing -> confSendAll conf frame
         Just _ -> do
             late <- registerDelay 1000000
-            void $ sendAllGivingUp conf (readTVar late >>= check) frame
+            void $ sendAllGivingUp conf frame (readTVar late >>= check)
 
 isAsyncException :: E.Exception e => e -> Bool
 isAsyncException e =

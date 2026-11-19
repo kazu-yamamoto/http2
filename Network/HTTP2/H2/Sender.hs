@@ -121,7 +121,7 @@ frameSender ctx conf = do
     labelMe "H2 sender"
     -- A write is given up on once the watchdog has given up on the
     -- connection: a write in progress must make progress.
-    frameSenderWith ctx conf $ sendAllGivingUp conf $ timedOutSTM (watchdog ctx)
+    frameSenderWith ctx conf $ \bs -> sendAllGivingUp conf bs $ timedOutSTM (watchdog ctx)
 
 frameSenderWith
     :: Context -> Config -> (ByteString -> IO (Either () ())) -> IO E.SomeException

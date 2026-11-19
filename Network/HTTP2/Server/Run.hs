@@ -152,10 +152,9 @@ runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
 checkPreface :: Config -> H2Watchdog -> IO Bool
 checkPreface conf wd = do
     -- A peer which never sends the preface is given up on like any other.
-    preface <- readNGivingUp conf (timedOutSTM wd) connectionPrefaceLength
-    when (preface == "") $ do
-        out <- isTimedOut wd
-        when out $ E.throwIO ConnectionIsTimeout
+    preface <-
+        readNGivingUp conf connectionPrefaceLength (timedOutSTM wd)
+            >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
     if connectionPreface /= preface
         then do
             goaway conf ProtocolError "Preface mismatch"
