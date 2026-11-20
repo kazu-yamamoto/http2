@@ -149,6 +149,9 @@ executable h2c-client
     else
         buildable: False
 
+    if os(windows)
+        ghc-options: -with-rtsopts=--io-manager=native
+
 executable h2c-server
     main-is:            h2c-server.hs
     hs-source-dirs:     util
@@ -168,6 +171,9 @@ executable h2c-server
 
     else
         buildable: False
+
+    if os(windows)
+        ghc-options: -with-rtsopts=--io-manager=native
 
 executable hpack-encode
     main-is:            hpack-encode.hs
@@ -319,6 +325,9 @@ test-suite spec
         time-manager >=0.5 && <0.6,
         typed-process
 
+    if os(windows)
+        ghc-options: -with-rtsopts=--io-manager=native
+
 test-suite spec2
     type:               exitcode-stdio-1.0
     main-is:            Spec.hs
@@ -341,6 +350,9 @@ test-suite spec2
 
     else
         buildable: False
+
+    if os(windows)
+        ghc-options: -with-rtsopts=--io-manager=native
 
 test-suite hpack
     type:               exitcode-stdio-1.0
