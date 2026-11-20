@@ -149,7 +149,7 @@ executable h2c-client
     else
         buildable: False
 
-    if os(windows)
+    if os(windows) && (impl(ghc >= 9.12.5 && < 9.14) || impl(ghc >= 9.14.2))
         ghc-options: -with-rtsopts=--io-manager=native
 
 executable h2c-server
@@ -172,7 +172,7 @@ executable h2c-server
     else
         buildable: False
 
-    if os(windows)
+    if os(windows) && (impl(ghc >= 9.12.5 && < 9.14) || impl(ghc >= 9.14.2))
         ghc-options: -with-rtsopts=--io-manager=native
 
 executable hpack-encode
@@ -325,7 +325,7 @@ test-suite spec
         time-manager >=0.5 && <0.6,
         typed-process
 
-    if os(windows)
+    if os(windows) && (impl(ghc >= 9.12.5 && < 9.14) || impl(ghc >= 9.14.2))
         ghc-options: -with-rtsopts=--io-manager=native
 
 test-suite spec2
@@ -351,7 +351,7 @@ test-suite spec2
     else
         buildable: False
 
-    if os(windows)
+    if os(windows) && (impl(ghc >= 9.12.5 && < 9.14) || impl(ghc >= 9.14.2))
         ghc-options: -with-rtsopts=--io-manager=native
 
 test-suite hpack
