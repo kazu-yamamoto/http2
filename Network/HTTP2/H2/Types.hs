@@ -111,6 +111,8 @@ data PartialHeaderBlock = PartialHeaderBlock
 
 data ClosedCode
     = Finished
+    | -- | Above the last stream identifier of the peer's GOAWAY.
+      Unprocessed
     | Killed
     | Reset ErrorCode
     | ResetByMe E.SomeException
@@ -132,6 +134,7 @@ closedCodeToError :: StreamId -> ClosedCode -> HTTP2Error
 closedCodeToError sid cc =
     case cc of
         Finished -> ConnectionIsClosed
+        Unprocessed -> RequestIsUnprocessed $ Just sid
         Killed -> ConnectionIsTimeout
         Reset err -> StreamResetIsReceived err sid
         ResetByMe err -> BadThingHappen err
@@ -235,12 +238,12 @@ pattern ConnectionIsTimeout = HE.ConnectionIsTimeout
 pattern ConnectionIsReset :: HTTP2Error
 pattern ConnectionIsReset = HE.ConnectionIsReset
 
--- | The connection closed before the peer took the request on this
---   stream: it may be sent again.
-pattern RequestIsUnprocessed :: StreamId -> HTTP2Error
-pattern RequestIsUnprocessed sid <- HE.RequestIsUnprocessed (fromIntegral -> sid)
+-- | The peer will not process this request, after its GOAWAY: it may be
+--   sent again.  The stream, if the request had got one.
+pattern RequestIsUnprocessed :: Maybe StreamId -> HTTP2Error
+pattern RequestIsUnprocessed msid <- HE.RequestIsUnprocessed (fmap fromIntegral -> msid)
     where
-        RequestIsUnprocessed sid = HE.RequestIsUnprocessed $ fromIntegral sid
+        RequestIsUnprocessed msid = HE.RequestIsUnprocessed $ fromIntegral <$> msid
 
 pattern ConnectionErrorIsReceived
     :: ErrorCode -> StreamId -> ReasonPhrase -> HTTP2Error
