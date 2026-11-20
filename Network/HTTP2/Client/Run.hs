@@ -225,7 +225,8 @@ runH2 giveUp conf ctx runClient = do
     let supervised =
             withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
                 E.try runAll >>= closureClient conf ctx
-    stopAfterAndWait ctx supervised $ \res ->
+    stopAfterAndWait ctx supervised $ \res -> do
+        closeUnprocessed ctx
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where
     runReceiver = frameReceiver ctx conf
@@ -254,6 +255,7 @@ runH2 giveUp conf ctx runClient = do
                             Just e
                                 | goingaway
                                 , closedNormally e || unused -> do
+                                    closeUnprocessed ctx
                                     closeAllStreams
                                         (oddStreamTable ctx)
                                         (evenStreamTable ctx)

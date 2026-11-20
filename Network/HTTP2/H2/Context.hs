@@ -604,18 +604,18 @@ openEvenStreamTry' ctx@Context{..} = do
 -- | No new stream once the peer has sent GOAWAY: "Receivers of a GOAWAY
 -- frame MUST NOT open additional streams on the connection" (RFC 9113,
 -- section 6.8).  A request that has not got a stream yet is answered as
--- one on a stream above the last stream identifier would be.
+-- one on a stream above the last stream identifier is.
 refuseIfGoingAway :: Context -> STM ()
 refuseIfGoingAway Context{peerGoAway} = do
     goingaway <- isJust <$> readTVar peerGoAway
-    when goingaway $ throwSTM ConnectionIsClosed
+    when goingaway $ throwSTM $ RequestIsUnprocessed Nothing
 
 -- | Taking the peer's GOAWAY(NO_ERROR) on board.
 --
 -- The peer has said it will go no further than the last stream identifier,
 -- not that it is going at once.  Streams of ours above it will not be
--- processed, and are closed with 'ConnectionIsClosed', which a client may
--- retry elsewhere; no stream is opened from now on.  The others go on
+-- processed, and are closed with 'RequestIsUnprocessed', which a client
+-- may retry elsewhere; no stream is opened from now on.  The others go on
 -- until they are done, and then so is the connection: 'drained' tells
 -- when.  It used to be closed right away, cutting off every stream in
 -- flight, even those the peer had promised to finish.
@@ -633,15 +633,26 @@ goingAway ctx@Context{peerGoAway, oddStreamTable, evenStreamTable} lastSid = do
             then getOddStreams oddStreamTable
             else getEvenStreams evenStreamTable
     let (_, above) = IntMap.split lastSid mine
-    forM_ above $ \strm -> closed ctx strm Finished
+    forM_ above $ \strm -> closed ctx strm Unprocessed
     return first
+
+-- | Closing the streams of ours above the peer's GOAWAY which got their
+--   identifier too late for 'goingAway', before the rest go with the
+--   connection.
+closeUnprocessed :: Context -> IO ()
+closeUnprocessed ctx@Context{peerGoAway, oddStreamTable} = do
+    mlast <- readTVarIO peerGoAway
+    forM_ mlast $ \lastSid -> when (isClient ctx) $ do
+        odds <- getOddStreams oddStreamTable
+        let (_, above) = IntMap.split lastSid odds
+        forM_ above $ \strm -> closed ctx strm Unprocessed
 
 -- | Waiting until nothing is left in flight after the peer's GOAWAY:
 -- neither a stream of the peer's, nor one of ours the peer is to process,
 -- nor -- on a client -- a response still being read.  Streams of ours above
 -- the last stream identifier are not waited for; those that got their
--- identifier too late to be closed by 'goingAway' are closed with the
--- connection.
+-- identifier too late to be closed by 'goingAway' are closed by
+-- 'closeUnprocessed' with the connection.
 drained :: Context -> STM ()
 drained ctx@Context{peerGoAway, oddStreamTable, evenStreamTable, activeRequests} = do
     mlast <- readTVar peerGoAway

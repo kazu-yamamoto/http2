@@ -5,7 +5,7 @@ packages: .
 source-repository-package
   type: git
   location: https://github.com/kazu-yamamoto/http-semantics.git
-  tag: 0a3c58ba4a94a352f1a74bd1e28e4f21fad267de
+  tag: c62ff2ac488025697fa1e7aee3d3202be6e8385b
 
 source-repository-package
   type: git

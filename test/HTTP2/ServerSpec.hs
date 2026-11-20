@@ -444,7 +444,9 @@ spec = do
                             r5 <- get
                             return (status r1, status r3, status r5)
                 case r of
-                    Just (Right rs) -> rs `shouldBe` ("hello", "closed", "closed")
+                    -- Stream 3 is above the GOAWAY, and the last request has
+                    -- no stream: neither is processed, and both may be retried.
+                    Just (Right rs) -> rs `shouldBe` ("hello", "unprocessed 3", "unprocessed")
                     Just (Left e) -> expectationFailure $ show (e :: C.HTTP2Error)
                     Nothing -> expectationFailure "timed out"
 
@@ -967,11 +969,13 @@ runGoAwayServer set = runTCPServerWithSettings set (Just host) port $ \s -> do
     let drain = recvFrame s >>= maybe (return ()) (const drain)
     drain
 
--- | How a request through the client ended: the body, or "closed" for
--- 'ConnectionIsClosed'.
+-- | How a request through the client ended: the body, "closed" for
+-- 'ConnectionIsClosed', or "unprocessed" for 'RequestIsUnprocessed'.
 status :: Either C.HTTP2Error ByteString -> ByteString
 status (Right bs) = bs
 status (Left C.ConnectionIsClosed) = "closed"
+status (Left (C.RequestIsUnprocessed msid)) =
+    "unprocessed" <> maybe "" (C8.pack . (' ' :) . show) msid
 status (Left e) = C8.pack $ show e
 
 -- | A 'S.runIO' server answering a single request, then done.
