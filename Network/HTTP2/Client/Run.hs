@@ -6,7 +6,6 @@
 module Network.HTTP2.Client.Run where
 
 import Control.Concurrent
-import Control.Concurrent.Async
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import qualified Data.ByteString.UTF8 as UTF8
@@ -239,38 +238,45 @@ runH2 giveUp conf ctx runClient = do
     runSender = frameSender ctx conf
     runClientReceiver = do
         labelMe "H2 ClientReceiver"
-        withAsync runReceiver $ \ar ->
-            withAsync runClient $ \ac -> do
-                er <- waitEither ar ac
-                case er of
-                    Right r -> return r
-                    Left err -> do
-                        -- Unused for the timeout: the connection goes away
-                        -- as if the server had said so.
-                        unused <- case E.fromException err of
-                            Just ConnectionIsTimeout -> isIdling $ watchdog ctx
-                            _ -> return False
-                        when unused $ void $ goingAway ctx 0
-                        goingaway <- isJust <$> readTVarIO (peerGoAway ctx)
-                        case E.fromException err of
-                            -- The connection has run its course after the
-                            -- server's GOAWAY.  The client function is let
-                            -- finish, rather than killed with it: every
-                            -- request it makes from here is refused, and
-                            -- one still waiting is failed now.
-                            Just e
-                                | goingaway
-                                , closedNormally e || unused -> do
-                                    closeUnprocessed ctx
-                                    closeAllStreams
-                                        (oddStreamTable ctx)
-                                        (evenStreamTable ctx)
-                                        (Just err)
-                                    wait ac
-                            _ -> E.throwIO err
-                      where
-                        closedNormally ConnectionIsClosed = True
-                        closedNormally _ = False
+        -- The receiver is a library thread, stopped with a grace; the
+        -- client is the user's, killed when the connection ends.  They were
+        -- async's, which no manager saw, and killed at once on leaving.
+        ar <- forkCore ctx "H2 receiver" runReceiver
+        ac <- T.forkManagedWithResult (appThreadManager ctx) "H2 client" runClient
+        er <- T.waitEitherManaged ar ac
+        case er of
+            -- Stopped rather than killed, so that what it was reading
+            -- is not cut short; the sender ends once it has.
+            Right r -> do
+                stopReceiver ctx $ T.managedThreadId ar
+                return r
+            Left err -> do
+                -- Unused for the timeout: the connection goes away
+                -- as if the server had said so.
+                unused <- case E.fromException err of
+                    Just ConnectionIsTimeout -> isIdling $ watchdog ctx
+                    _ -> return False
+                when unused $ void $ goingAway ctx 0
+                goingaway <- isJust <$> readTVarIO (peerGoAway ctx)
+                case E.fromException err of
+                    -- The connection has run its course after the
+                    -- server's GOAWAY.  The client function is let
+                    -- finish, rather than killed with it: every
+                    -- request it makes from here is refused, and
+                    -- one still waiting is failed now.
+                    Just e
+                        | goingaway
+                        , closedNormally e || unused -> do
+                            closeUnprocessed ctx
+                            closeAllStreams
+                                (oddStreamTable ctx)
+                                (evenStreamTable ctx)
+                                (Just err)
+                            T.waitManaged ac
+                    _ -> E.throwIO err
+              where
+                closedNormally ConnectionIsClosed = True
+                closedNormally _ = False
 
     -- When 'runClientReceiver' terminates, it is important we give the sender
     -- a chance to terminate cleanly also (it's possible the client terminated
@@ -283,23 +289,23 @@ runH2 giveUp conf ctx runClient = do
     -- If the sender terminates first, it failed, and no request can go out
     -- any more: the client is stopped and the sender's error reported, rather
     -- than the client left waiting on a connection nothing sends on.
-    runAll =
-        withAsync runSender $ \as ->
-            withAsync runClientReceiver $ \ac -> do
-                r <-
-                    atomically $
-                        waitEitherSTM as ac `orElse` (giveUp >> throwSTM givenUpConnection)
-                case r of
-                    Right x -> wait as >> return x
-                    Left e -> do
-                        -- The sender also finishes, normally, as soon as the
-                        -- receiver is done and the queues are empty, and may
-                        -- get there before the client side is seen to.  Only
-                        -- with the receiver still running did it fail.
-                        done <- readTVarIO $ receiverDone ctx
-                        case done of
-                            Just _ -> wait ac
-                            Nothing -> E.throwIO e
+    runAll = do
+        as <- forkCore ctx "H2 sender" runSender
+        ac <- forkCore ctx "H2 client receiver" runClientReceiver
+        r <-
+            atomically $
+                T.waitEitherManagedSTM as ac `orElse` (giveUp >> throwSTM givenUpConnection)
+        case r of
+            Right x -> T.waitManaged as >> return x
+            Left e -> do
+                -- The sender also finishes, normally, as soon as the
+                -- receiver is done and the queues are empty, and may
+                -- get there before the client side is seen to.  Only
+                -- with the receiver still running did it fail.
+                done <- readTVarIO $ receiverDone ctx
+                case done of
+                    Just _ -> T.waitManaged ac
+                    Nothing -> E.throwIO e
 
 makeStream
     :: Context

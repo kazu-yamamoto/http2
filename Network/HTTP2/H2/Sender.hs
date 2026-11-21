@@ -18,7 +18,6 @@ import Foreign.Ptr (castPtr, minusPtr, plusPtr)
 import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
-import qualified System.ThreadManager as T
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
@@ -97,7 +96,7 @@ checkDone ctx@Context{..} parked 0 = atomically $
                 return Nothing
             else do
                 app <- appDone
-                gone <- T.isAllGone threadManager
+                gone <- otherThreadsGone ctx
                 if app && gone && null ps
                     then
                         return $ Just $ E.toException ConnectionIsClosed

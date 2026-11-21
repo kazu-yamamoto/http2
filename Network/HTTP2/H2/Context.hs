@@ -52,6 +52,22 @@ stopAfterAndWait Context{threadManager, appThreadManager} action cleanup =
         cleanup res `E.finally` waitFor appThreadManager
     waitFor mgr = void $ T.waitUntilAllGoneFor mgr stopTimeout
 
+-- | Forking one of the connection's own threads: of 'threadManager', so
+--   that it is stopped with a grace, but not counted as one of the
+--   threads the sender waits for before it closes ('otherThreadsGone').
+forkCore :: Context -> String -> IO a -> IO (T.Managed a)
+forkCore Context{..} label io = do
+    atomically $ modifyTVar' coreThreads (+ 1)
+    T.forkManagedWithResult threadManager label $
+        io `E.finally` atomically (modifyTVar' coreThreads (subtract 1))
+
+-- | Whether the threads of 'threadManager' other than 'forkCore''s are gone.
+otherThreadsGone :: Context -> STM Bool
+otherThreadsGone Context{..} = do
+    n <- T.countManaged threadManager
+    core <- readTVar coreThreads
+    return $ n <= core
+
 -- | How long the threads are given to end after they have been told to.
 --   Unwinding takes milliseconds; this is for one that does not stop.
 stopTimeout :: Int
@@ -126,6 +142,9 @@ data Context = Context
     , appThreadManager   :: T.ThreadManager
     -- ^ The threads which run the application's code, which knows
     --   nothing of that: they are killed.
+    , coreThreads        :: TVar Int
+    -- ^ How many of 'threadManager''s are the connection's own: the
+    --   receiver, the sender and the like ('forkCore').
     , receiverDone       :: TVar (Maybe E.SomeException)
     , stopReceiving      :: TVar Bool
     -- ^ Set to end the receiver at the next frame: see 'stopReceiver'.
@@ -225,6 +244,7 @@ newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings mdone = do
     let peerSockAddr = confPeerSockAddr
     threadManager   <- T.newThreadManager
     appThreadManager <- T.newThreadManager
+    coreThreads     <- newTVarIO 0
     receiverDone    <- newTVarIO Nothing
     stopReceiving   <- newTVarIO False
     let receiverStoppable = isJust confReadNWith
