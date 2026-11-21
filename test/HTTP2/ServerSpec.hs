@@ -1183,11 +1183,12 @@ server req aux sendResponse = case requestMethod req of
             sendResponse (responseBuilder ok200 [] (byteString (C8.pack (show n)))) []
         Just "/both" -> do
             -- Read the body on the side, so that the response does not
-            -- wait for it.
+            -- wait for it.  Once the response is out, the rest of the
+            -- body is cancelled under it.
             _ <-
                 forkIO $
                     let d = getRequestBodyChunk req >>= \bs -> unless (B.null bs) d
-                     in d
+                     in void (E.try d :: IO (Either E.SomeException ()))
             sendResponse responseBoth []
         -- 60000 octets, once the whole of the request body is in.
         Just "/big-after-body" -> do
