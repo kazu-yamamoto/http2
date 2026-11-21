@@ -148,7 +148,10 @@ isStreamEnd se = isJust (E.fromException se :: Maybe HTTP2Error)
 
 -- | Running a thread's action, letting the end of its stream go quietly.
 quietOnEnd :: IO () -> IO ()
-quietOnEnd io = io `E.catch` \e -> unless (isStreamEnd e) $ E.throwIO e
+quietOnEnd io = io `E.catch` ignore
+  where
+    ignore :: HTTP2Error -> IO ()
+    ignore _ = return ()
 
 ----------------------------------------------------------------
 
