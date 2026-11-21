@@ -117,14 +117,17 @@ runWith cconf@ClientConfig{..} conf client giveUp = do
     -- The server answering is an application running (rule 3 of
     -- "Network.HTTP2.H2.Watchdog"): it may take its time, and the server
     -- is asked whether it is still there meanwhile.
-    clientCore ctx req processResponse = runningApp (watchdog ctx) $ counted ctx $ do
+    -- Masked until the stream's cleanup is in place: an asynchronous
+    -- exception in between leaked its slot and the turn of its id, which
+    -- every later request waits for.
+    clientCore ctx req processResponse = runningApp (watchdog ctx) $ counted ctx $ E.mask $ \restore -> do
         (strm, moutobj) <- makeStream ctx scheme authority req
         case moutobj of
             Nothing -> return ()
             Just outobj -> sendRequest conf ctx strm outobj False
         -- Waiting for the response is in it too: a request interrupted
         -- there -- by 'timeout', say -- left its stream open just the same.
-        (getResponse strm >>= processResponse) `E.finally` doneWithStream ctx strm
+        restore (getResponse strm >>= processResponse) `E.finally` doneWithStream ctx strm
     -- After a GOAWAY, the connection lasts as long as a request is in
     -- 'activeRequests' ('drained').
     counted ctx =
@@ -367,7 +370,8 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
             (pop, out) <- makeOutput strm ot
             pushOutput sid out `E.onException` abandon sid
             lc <- newLoopCheck strm mtbq
-            T.forkManaged threadManager label $ syncWithSender' ctx pop lc
+            T.forkManagedUnmask threadManager label $ \unmask ->
+                unmask $ syncWithSender' ctx pop lc
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)
     pushOutput sid out = atomically $ (`orElse` (outObjGiveUp >> throwSTM RequestGivenUp)) $ do
