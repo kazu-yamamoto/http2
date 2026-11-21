@@ -44,11 +44,12 @@ runServer conf server ctx@Context{..} strm req =
                     }
             request = Request req'
         lc <- newLoopCheck strm Nothing
-        server request aux (sendResponse conf ctx lc strm request)
-            `E.catch` \e -> do
+        r <- E.try $ server request aux (sendResponse conf ctx lc strm request)
+        case r of
+            Right () -> doneWithRequestBody ctx strm
+            Left e -> do
                 resetFailedStream ctx strm e
-                E.throwIO (e :: E.SomeException)
-        doneWithRequestBody ctx strm
+                unless (causedByPeer e) $ E.throwIO e
   where
     label = "H2 response sender for stream " ++ show (streamNumber strm)
     watchRequestBody = req{inpObjBody = waitingForPeer watchdog $ inpObjBody req}
@@ -273,7 +274,7 @@ sendStreaming
 sendStreaming ctx@Context{..} strm strmbdy = do
     tbq <- newTBQueueIO 10 -- fixme: hard coding: 10
     T.forkManaged appThreadManager label $
-        withOutBodyIface ctx strm tbq id strmbdy
+        quietOnPeer $ withOutBodyIface ctx strm tbq id strmbdy
     return tbq
   where
     label = "H2 response streaming sender for " ++ show (streamNumber strm)
