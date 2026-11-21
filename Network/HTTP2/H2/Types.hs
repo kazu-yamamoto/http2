@@ -206,6 +206,8 @@ data Output = Output
     { outputStream :: Stream
     , outputType :: OutputType
     , outputSync :: Maybe Output -> IO ()
+    , outputFail :: E.SomeException -> IO ()
+    -- ^ Telling whoever waits on 'outputSync' that the output failed.
     }
 
 data OutputType
@@ -215,7 +217,7 @@ data OutputType
     | OInformational [Header]
     | OReset (Maybe E.SomeException)
 
-data Sync = Done | Cont Output
+data Sync = Done | Cont Output | Failed E.SomeException
 
 ----------------------------------------------------------------
 

@@ -134,7 +134,7 @@ frameSenderWith
         parked <- newTVarIO []
         -- This catches an asynchronous exception.
         -- It is re-thrown by "runH2"
-        loop parked 0 `E.catch` return
+        loop parked 0 `E.catch` (return . unwrapSendFailed)
       where
         ----------------------------------------------------------------
         loop :: TVar [Output] -> Offset -> IO E.SomeException
@@ -173,8 +173,9 @@ frameSenderWith
         flushN 0 = return ()
         flushN n = sending (watchdog ctx) $ bufferIO confWriteBuffer n $ \bs ->
             -- Given up on once the connection has timed out: closed with
-            -- GOAWAY like any other timeout.
-            send bs >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
+            -- GOAWAY like any other timeout.  A failure here ends the
+            -- connection, not a stream: 'handler' lets it through.
+            sendFailed (send bs) >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
 
         flushIfNecessary :: Offset -> IO Offset
         flushIfNecessary off = do
@@ -249,7 +250,7 @@ frameSenderWith
         outputAndSync :: TVar [Output] -> Output -> Offset -> IO Offset
         -- "handler" catches an asynchronous exception and
         -- re-throws it.
-        outputAndSync parked out@(Output strm otyp sync) off = E.handle (handler strm off) $ do
+        outputAndSync parked out@Output{outputStream = strm, outputType = otyp, outputSync = sync} off = E.handle (handler out off) $ do
             state <- readStreamState strm
             if isHalfClosedLocal state
                 then do
@@ -271,7 +272,7 @@ frameSenderWith
                     return off
                 else case otyp of
                     OHeader hdr mnext tlrmkr -> do
-                        (off', mout') <- outputHeader strm hdr mnext tlrmkr sync off
+                        (off', mout') <- outputHeader out hdr mnext tlrmkr off
                         sync mout'
                         return off'
                     OInformational hdr -> do
@@ -310,10 +311,13 @@ frameSenderWith
                                 return off'
 
         ----------------------------------------------------------------
-        handler strm off e
+        -- The waiter is told, or it waits for the connection's end.
+        handler out off e
             | isAsyncException e = E.throwIO e
+            | Just (SendFailed _) <- E.fromException e = E.throwIO e
             | otherwise = do
-                resetStream strm InternalError e
+                resetStream (outputStream out) InternalError e
+                outputFail out e
                 return off
 
         -- 'e' is the reason for the reset, not something thrown to the
@@ -336,14 +340,13 @@ frameSenderWith
 
         ----------------------------------------------------------------
         outputHeader
-            :: Stream
+            :: Output
             -> [Header]
             -> Maybe DynaNext
             -> TrailersMaker
-            -> (Maybe Output -> IO ())
             -> Offset
             -> IO (Offset, Maybe Output)
-        outputHeader strm hdr mnext tlrmkr sync off0 = do
+        outputHeader out0@Output{outputStream = strm} hdr mnext tlrmkr off0 = do
             -- Header frame and Continuation frame
             let sid = streamNumber strm
                 endOfStream = isNothing mnext
@@ -358,7 +361,7 @@ frameSenderWith
                     halfClosedLocal ctx strm Finished
                     return (off, Nothing)
                 Just next -> do
-                    let out' = Output strm (ONext next tlrmkr) sync
+                    let out' = out0{outputType = ONext next tlrmkr}
                     return (off, Just out')
 
         ----------------------------------------------------------------
@@ -378,7 +381,7 @@ frameSenderWith
 
         ----------------------------------------------------------------
         output :: Output -> Offset -> WindowSize -> IO (Offset, Maybe Output)
-        output out@(Output strm (ONext curr tlrmkr) _) off0 lim = do
+        output out@Output{outputStream = strm, outputType = ONext curr tlrmkr} off0 lim = do
             -- Data frame payload
             buflim <- readIORef outputBufferLimit
             let payloadOff = off0 + frameHeaderLength
@@ -411,7 +414,7 @@ frameSenderWith
                     -- more data frames on this stream.
                     resetStreamWith strm mErr
                     return (off0, Nothing)
-        output (Output strm (OPush ths pid) _) off0 _lim = do
+        output Output{outputStream = strm, outputType = OPush ths pid} off0 _lim = do
             -- Creating a push promise header
             -- Frame id should be associated stream id from the client.
             let sid = streamNumber strm
@@ -584,3 +587,20 @@ frameSenderWith
                     , flags = flag
                     , streamId = sid
                     }
+
+----------------------------------------------------------------
+
+-- | A failure to write to the connection, kept apart from a failure to
+--   make an output, which resets only its stream.
+newtype SendFailed = SendFailed E.SomeException deriving (Show)
+
+instance E.Exception SendFailed
+
+sendFailed :: IO a -> IO a
+sendFailed io = io `E.catch` \e ->
+    if isAsyncException e then E.throwIO e else E.throwIO (SendFailed e)
+
+unwrapSendFailed :: E.SomeException -> E.SomeException
+unwrapSendFailed e = case E.fromException e of
+    Just (SendFailed e') -> e'
+    Nothing -> e
