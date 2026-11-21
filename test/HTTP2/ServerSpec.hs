@@ -176,6 +176,13 @@ spec = do
                 threadDelay 10000
                 runStreamThrowClient
 
+        it "resets a stream whose response builder throws, and tells the handler" $
+            -- The sender reset the stream but did not tell the handler, which
+            -- waited in 'sendResponse' until the connection ended.
+            withServer runServer $ do
+                threadDelay 10000
+                runBuilderThrowClient
+
         it "resets a stream whose request body throws" $
             -- Likewise the other way round: the server took a truncated
             -- request body for a complete one, and answered it.
@@ -1139,6 +1146,9 @@ server req aux sendResponse = case requestMethod req of
         Just "/cancel-async" -> sendResponse responseCancelAsync []
         -- Some of the body, then the body throws.
         Just "/stream-throw" -> sendResponse responseStreamThrow []
+        Just "/builder-throw" -> do
+            r <- E.try $ sendResponse responseBuilderThrow []
+            putMVar builderThrew $ either (const True) (const False) (r :: Either E.SomeException ())
         -- 60000 octets, a moment later.
         Just "/late-big" -> threadDelay 200000 >> sendResponse response60k []
         -- Longer than the timeout of 'runServerShortTimeout', a chunk at a time.
@@ -1286,6 +1296,16 @@ responseStreamThrow = responseStreaming ok200 [] $ \write flush -> do
     write "partial-"
     flush
     E.throwIO $ userError "body failed"
+
+-- | A response whose builder fails as the sender runs it.
+responseBuilderThrow :: Response
+responseBuilderThrow =
+    responseBuilder ok200 [] $ byteString "partial-" <> byteString (error "builder failed")
+
+-- | Whether 'sendResponse' of /builder-throw threw.
+builderThrew :: MVar Bool
+builderThrew = unsafePerformIO newEmptyMVar
+{-# NOINLINE builderThrew #-}
 
 responseInfinite :: Response
 responseInfinite = responseStreaming ok200 header body
@@ -2489,6 +2509,19 @@ runStreamThrowClient = runTCPClient host port $ \s ->
             let good = C.requestNoBody methodGet "/" []
             sendRequest good $ \rsp ->
                 C.responseStatus rsp `shouldBe` Just ok200
+  where
+    cliconf = C.defaultClientConfig{C.authority = host}
+
+runBuilderThrowClient :: IO ()
+runBuilderThrowClient = runTCPClient host port $ \s ->
+    E.bracket (allocSimpleConfig s 4096) freeSimpleConfig $ \conf ->
+        C.run cliconf conf $ \sendRequest _aux -> do
+            let req = C.requestNoBody methodGet "/builder-throw" []
+                drain rsp = do
+                    bs <- C.getResponseBodyChunk rsp
+                    unless (B.null bs) $ drain rsp
+            sendRequest req drain `shouldThrow` resetWith C.InternalError
+            timeout 1000000 (takeMVar builderThrew) `shouldReturn` Just True
   where
     cliconf = C.defaultClientConfig{C.authority = host}
 

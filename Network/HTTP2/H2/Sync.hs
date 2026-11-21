@@ -12,6 +12,7 @@ module Network.HTTP2.H2.Sync (
 ) where
 
 import Control.Concurrent.STM
+import qualified Control.Exception as E
 import Control.Monad
 import Network.Control
 import Network.HTTP.Semantics.IO
@@ -39,12 +40,15 @@ makeOutput strm otyp = do
     let push mout = case mout of
             Nothing -> atomically $ putTMVar var Done
             Just ot -> atomically $ putTMVar var $ Cont ot
+        -- Not blocking the sender, should the result be there already.
+        failed e = atomically $ void $ tryPutTMVar var $ Failed e
         pop = takeTMVar var
         out =
             Output
                 { outputStream = strm
                 , outputType = otyp
                 , outputSync = push
+                , outputFail = failed
                 }
     return (pop, out)
 
@@ -79,6 +83,7 @@ makeOutputIO Context{..} strm mtbq otyp = out
             { outputStream = strm
             , outputType = otyp
             , outputSync = push
+            , outputFail = \_ -> return ()
             }
 
 -- | Whether the rest of a stream's body can go on: waiting while a
@@ -121,6 +126,8 @@ syncWithSender' Context{..} pop lc = loop
         s <- atomically $ pop `orElse` (Done <$ T.waitStoppingSTM threadManager)
         case s of
             Done -> return ()
+            -- The stream has been reset for it.
+            Failed e -> E.throwIO e
             Cont newout -> do
                 cont <- checkLoop watchdog lc
                 when cont $ do
