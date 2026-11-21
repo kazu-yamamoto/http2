@@ -137,7 +137,21 @@ closedCodeToError sid cc =
         Unprocessed -> RequestIsUnprocessed $ Just sid
         Killed -> ConnectionIsTimeout
         Reset err -> StreamResetIsReceived err sid
-        ResetByMe err -> BadThingHappen err
+        -- A reset we sent for an error of our own kind is told as it is.
+        ResetByMe err -> fromMaybe (BadThingHappen err) $ E.fromException err
+
+-- | Whether an exception is an 'HTTP2Error': the stream or the connection
+--   ended, by the peer, the connection, or a reset of ours whose reason is
+--   told where it arose.  Not the application's failure, so not printed.
+isStreamEnd :: E.SomeException -> Bool
+isStreamEnd se = isJust (E.fromException se :: Maybe HTTP2Error)
+
+-- | Running a thread's action, letting the end of its stream go quietly.
+quietOnEnd :: IO () -> IO ()
+quietOnEnd io = io `E.catch` ignore
+  where
+    ignore :: HTTP2Error -> IO ()
+    ignore _ = return ()
 
 ----------------------------------------------------------------
 
