@@ -137,20 +137,18 @@ closedCodeToError sid cc =
         Unprocessed -> RequestIsUnprocessed $ Just sid
         Killed -> ConnectionIsTimeout
         Reset err -> StreamResetIsReceived err sid
-        ResetByMe err -> BadThingHappen err
+        -- A reset we sent for an error of our own kind is told as it is.
+        ResetByMe err -> fromMaybe (BadThingHappen err) $ E.fromException err
 
--- | Whether an exception is what the peer or the connection did: a reset,
---   a protocol violation, a closed connection.  Nothing for the
---   application to fix, so a thread ending on it does not print it.
-causedByPeer :: E.SomeException -> Bool
-causedByPeer se = maybe False peer $ E.fromException se
-  where
-    peer (HE.BadThingHappen e) = causedByPeer e
-    peer _ = True
+-- | Whether an exception is an 'HTTP2Error': the stream or the connection
+--   ended, by the peer, the connection, or a reset of ours whose reason is
+--   told where it arose.  Not the application's failure, so not printed.
+isStreamEnd :: E.SomeException -> Bool
+isStreamEnd se = isJust (E.fromException se :: Maybe HTTP2Error)
 
--- | Running a thread's action, letting an end the peer caused go quietly.
-quietOnPeer :: IO () -> IO ()
-quietOnPeer io = io `E.catch` \e -> unless (causedByPeer e) $ E.throwIO e
+-- | Running a thread's action, letting the end of its stream go quietly.
+quietOnEnd :: IO () -> IO ()
+quietOnEnd io = io `E.catch` \e -> unless (isStreamEnd e) $ E.throwIO e
 
 ----------------------------------------------------------------
 
