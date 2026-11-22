@@ -62,7 +62,7 @@ runWith = runMaybe . Just
 -- Nothing for 'run': no thread waits on an action which never fires.
 runMaybe :: Maybe (STM ()) -> ServerConfig -> Config -> Server -> IO ()
 runMaybe mGoAway sconf conf server = supervising conf $ \wd -> do
-    ok <- checkPreface conf wd
+    ok <- checkPreface conf wd mGoAway
     when ok $ do
         let lnch = runServer conf server
         ctx <- setup sconf conf wd lnch Nothing
@@ -123,7 +123,7 @@ runIOMaybe
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
 runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
-    ok <- checkPreface conf wd
+    ok <- checkPreface conf wd mGoAway
     when ok $ do
         inpQ <- newTQueueIO
         -- Set by 'sioDone': first 'closing', so that nothing more is taken,
@@ -195,17 +195,22 @@ runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
         io <- action serverIO
         runH2 conf ctx mGoAway $ Just io
 
-checkPreface :: Config -> H2Watchdog -> IO Bool
-checkPreface conf wd = do
-    -- A peer which never sends the preface is given up on like any other.
-    preface <-
-        readNGivingUp conf connectionPrefaceLength (timedOutSTM wd)
-            >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
-    if connectionPreface /= preface
-        then do
-            goaway conf ProtocolError "Preface mismatch"
-            return False
-        else return True
+-- | Reading the preface.  A peer which never sends it is given up on like
+--   any other, and is not waited for once the server is going away: the
+--   connection then ends normally, as one unused does.
+checkPreface :: Config -> H2Watchdog -> Maybe (STM ()) -> IO Bool
+checkPreface conf wd mGoAway = do
+    r <- readNGivingUp conf connectionPrefaceLength $
+        timedOutSTM wd `orElse` fromMaybe retry mGoAway
+    case r of
+        Left () -> do
+            timedOut <- isTimedOut wd
+            if timedOut then E.throwIO ConnectionIsTimeout else return False
+        Right preface
+            | connectionPreface /= preface -> do
+                goaway conf ProtocolError "Preface mismatch"
+                return False
+            | otherwise -> return True
 
 setup
     :: ServerConfig
