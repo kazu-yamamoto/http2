@@ -18,7 +18,6 @@ import Foreign.Ptr (castPtr, minusPtr, plusPtr)
 import Network.ByteOrder
 import Network.HTTP.Semantics.Client
 import Network.HTTP.Semantics.IO
-import qualified System.ThreadManager as T
 
 import Imports
 import Network.HPACK (setLimitForEncoding, toTokenHeaderTable)
@@ -41,6 +40,7 @@ data Switch
     | O Output
     | Flush
     | TimedOut
+    | Abandoned
 
 -- Peer SETTINGS_INITIAL_WINDOW_SIZE
 -- Adjusting initial window size for streams
@@ -87,7 +87,7 @@ updatePeerSettings Context{peerSettings, oddStreamTable, evenStreamTable} peerAl
 -- stalled.
 checkDone :: Context -> TVar [Output] -> Int -> IO (Maybe E.SomeException)
 checkDone ctx@Context{..} parked 0 = atomically $
-    timedOut <|> do
+    timedOut <|> (Just (E.toException ConnectionIsClosed) <$ abandonedSTM ctx) <|> do
         isEmptyC <- isEmptyControlQ controlQ
         isEmptyO <- isEmptyTQueue outputQ
         ps <- readTVar parked
@@ -97,7 +97,7 @@ checkDone ctx@Context{..} parked 0 = atomically $
                 return Nothing
             else do
                 app <- appDone
-                gone <- T.isAllGone threadManager
+                gone <- otherThreadsGone ctx
                 if app && gone && null ps
                     then
                         return $ Just $ E.toException ConnectionIsClosed
@@ -121,7 +121,8 @@ frameSender ctx conf = do
     labelMe "H2 sender"
     -- A write is given up on once the watchdog has given up on the
     -- connection: a write in progress must make progress.
-    frameSenderWith ctx conf $ \bs -> sendAllGivingUp conf bs $ timedOutSTM (watchdog ctx)
+    frameSenderWith ctx conf $ \bs ->
+        sendAllGivingUp conf bs $ timedOutSTM (watchdog ctx) `orElse` abandonedSTM ctx
 
 frameSenderWith
     :: Context -> Config -> (ByteString -> IO (Either () ())) -> IO E.SomeException
@@ -155,11 +156,13 @@ frameSenderWith
                     x <-
                         atomically $
                             (timedOutSTM (watchdog ctx) >> return TimedOut)
+                                <|> (abandonedSTM ctx >> return Abandoned)
                                 <|> dequeue parked off
                     case x of
                         TimedOut -> do
                             flushN off
                             return $ E.toException ConnectionIsTimeout
+                        Abandoned -> return $ E.toException ConnectionIsClosed
                         C ctl -> flushN off >> control ctl >> loop parked 0
                         O out ->
                             outputAndSync parked out off
@@ -175,7 +178,8 @@ frameSenderWith
             -- Given up on once the connection has timed out: closed with
             -- GOAWAY like any other timeout.  A failure here ends the
             -- connection, not a stream: 'handler' lets it through.
-            sendFailed (send bs) >>= either (\_ -> E.throwIO ConnectionIsTimeout) return
+            sendFailed (send bs)
+                >>= either (\_ -> E.throwIO $ SendFailed $ E.toException ConnectionIsTimeout) return
 
         flushIfNecessary :: Offset -> IO Offset
         flushIfNecessary off = do

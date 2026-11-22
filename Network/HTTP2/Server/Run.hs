@@ -4,9 +4,10 @@
 module Network.HTTP2.Server.Run where
 
 import Control.Concurrent (myThreadId)
-import Control.Concurrent.Async
 import Control.Concurrent.STM
 import qualified Control.Exception as E
+import qualified Data.IntMap.Strict as IntMap
+import qualified System.ThreadManager as T
 import Imports
 import Network.Control (defaultMaxData)
 import Network.HTTP.Semantics.IO
@@ -65,7 +66,7 @@ runMaybe mGoAway sconf conf server = supervising conf $ \wd -> do
     when ok $ do
         let lnch = runServer conf server
         ctx <- setup sconf conf wd lnch Nothing
-        runH2 conf ctx mGoAway
+        runH2 conf ctx mGoAway Nothing
 
 -- | Running an action with the watchdog of this connection.
 --
@@ -125,13 +126,58 @@ runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
     ok <- checkPreface conf wd
     when ok $ do
         inpQ <- newTQueueIO
-        let lnch _ strm inpObj = atomically $ writeTQueue inpQ (strm, inpObj)
+        -- Set by 'sioDone': first 'closing', so that nothing more is taken,
+        -- then 'done', once the refusals are queued for the sender, which
+        -- ends on 'done'.
+        closing <- newTVarIO False
         done <- newTVarIO False
+        -- Requests handed over and not answered yet, each an application
+        -- running for the watchdog, as a handler of 'run' is.  One whose
+        -- stream closed unanswered is let go when next looked at.
+        pending <- newTVarIO IntMap.empty
+        let refuse ctx strm =
+                resetStreamWith RefusedStream ctx strm $
+                    E.toException $
+                        StreamErrorIsSent RefusedStream (streamNumber strm) "runIO is done"
+            -- Once the application is done, what it would never read is
+            -- refused, so that the client can retry it elsewhere.
+            lnch ctx strm inpObj = do
+                appStarted wd
+                taken <- atomically $ do
+                    c <- readTVar closing
+                    unless c $ do
+                        writeTQueue inpQ (strm, inpObj)
+                        modifyTVar' pending $ IntMap.insert (streamNumber strm) strm
+                    return $ not c
+                unless taken $ do
+                    appEnded wd
+                    refuse ctx strm
+            -- Letting go of the streams answered, or closed meanwhile.
+            letGo strm = do
+                n <- atomically $ do
+                    ps <- IntMap.delete (streamNumber strm) <$> readTVar pending
+                    open <- filterM (fmap (not . isClosed) . readTVar . streamState . snd) $ IntMap.toList ps
+                    old <- IntMap.size <$> readTVar pending
+                    writeTVar pending $ IntMap.fromList open
+                    return $ old - length open
+                replicateM_ n $ appEnded wd
         ctx <- setup sconf conf wd lnch $ Just $ readTVar done
         let get = do
                 (strm, inpObj) <- atomically $ readTQueue inpQ
-                return (strm, Request inpObj)
+                let body = waitingForPeer wd $ inpObjBody inpObj
+                return (strm, Request inpObj{inpObjBody = body})
+            finish = do
+                (left, ps) <- atomically $ do
+                    writeTVar closing True
+                    left <- flushTQueue inpQ
+                    ps <- readTVar pending
+                    writeTVar pending IntMap.empty
+                    return (left, ps)
+                replicateM_ (IntMap.size ps) $ appEnded wd
+                forM_ left $ refuse ctx . fst
+                atomically $ writeTVar done True
             putR strm (Response OutObj{..}) = do
+                letGo strm
                 case outObjBody of
                     OutBodyBuilder builder -> do
                         let next = fillBuilderBodyGetNext builder
@@ -144,10 +190,10 @@ runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
                     , sioPeerSockAddr = confPeerSockAddr
                     , sioReadRequest = get
                     , sioWriteResponse = putR
-                    , sioDone = atomically $ writeTVar done True
+                    , sioDone = finish
                     }
         io <- action serverIO
-        concurrently_ io $ runH2 conf ctx mGoAway
+        runH2 conf ctx mGoAway $ Just io
 
 checkPreface :: Config -> H2Watchdog -> IO Bool
 checkPreface conf wd = do
@@ -179,8 +225,8 @@ setup ServerConfig{..} conf wd lnch mIsDone = do
         settings
         mIsDone
 
-runH2 :: Config -> Context -> Maybe (STM ()) -> IO ()
-runH2 conf ctx mGoAway = do
+runH2 :: Config -> Context -> Maybe (STM ()) -> Maybe (IO ()) -> IO ()
+runH2 conf ctx mGoAway mIO = do
     -- Supervised by 'supervising', which 'run' and 'runIO' wrap this in.
     let runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
@@ -190,9 +236,11 @@ runH2 conf ctx mGoAway = do
         -- that the streams it opened meanwhile are not refused.  The
         -- receiver is stopped as it is after the peer's GOAWAY, once the
         -- streams below ours are done; it reads until then.
-        sendGoAway :: STM () -> Async a -> IO ()
+        sendGoAway :: STM () -> T.Managed a -> IO ()
         sendGoAway goAway ar = do
-            atomically goAway
+            told <- atomically $ (True <$ goAway) `orElse` (False <$ stopping)
+            when told $ goingAwayTold ar
+        goingAwayTold ar = do
             enqueueControl (controlQ ctx) $
                 CFrames
                     Nothing
@@ -207,34 +255,53 @@ runH2 conf ctx mGoAway = do
             forM_ mlast $ \lastSid ->
                 enqueueControl (controlQ ctx) $
                     CFrames Nothing [goawayFrame lastSid NoError "going away"]
-            atomically $ drainedMine ctx
-            stopReceiver ctx $ asyncThreadId ar
-        withGoAway ar body = case mGoAway of
-            Nothing -> body
-            Just goAway -> withAsync (sendGoAway goAway ar) $ \_ -> body
-        runBackgroundThreads =
-            withAsync runReceiver $ \ar ->
-                withGoAway ar $
-                    withAsync runSender $ \as -> do
-                        r <- waitEither ar as
-                        e <- case r of
-                            -- The receiver is done; the sender finishes once it
-                            -- has flushed what is queued.
-                            Left _ -> wait as
-                            -- The sender finished first.  Either the receiver is
-                            -- done too and not yet seen to be, and this is its
-                            -- error, or the sender failed: nothing more would go
-                            -- out, and leaving the receiver to run on left the
-                            -- connection open and silent, with no GOAWAY.  Both
-                            -- are closed with it: the receiver is stopped
-                            -- rather than cancelled when its reads can give up.
-                            Right e -> do
-                                stopReceiver ctx $ asyncThreadId ar
-                                late <- registerDelay 1000000
-                                atomically $
-                                    void (waitCatchSTM ar) `orElse` (readTVar late >>= check)
-                                return e
-                        endServer conf ctx e
+            isDrained <- atomically $ (True <$ drainedMine ctx) `orElse` (False <$ stopping)
+            when isDrained $ stopReceiver ctx $ T.managedThreadId ar
+        stopping = T.waitStoppingSTM $ threadManager ctx
+        -- Library threads of the context's manager, told to stop with a
+        -- grace by 'stopAfterAndWait'.  They were async's, which no manager
+        -- saw, and were killed at once on leaving.
+        runBackgroundThreads = do
+            -- The application is user code: killed when the connection
+            -- ends, and its failure ends the connection.
+            mApp <- forM mIO $ T.forkManagedWithResult (appThreadManager ctx) "H2 runIO application"
+            ar <- forkCore ctx "H2 receiver" runReceiver
+            forM_ mGoAway $ \goAway ->
+                forkCore ctx "H2 going away" $ sendGoAway goAway ar
+            as <- forkCore ctx "H2 sender" runSender
+            let appFailed = case mApp of
+                    Nothing -> retry
+                    Just app -> T.waitManagedSTM app >>= either return (const retry)
+            ra <-
+                (`E.onException` abandonConnection ctx as) $
+                    atomically $
+                        (Right <$> T.waitEitherManagedSTM ar as) `orElse` (Left <$> appFailed)
+            r <- case ra of
+                Right r -> return r
+                -- The sender is stopped first, so that GOAWAY is written
+                -- alone.
+                Left err -> do
+                    abandonConnection ctx as
+                    goawayWith conf ctx InternalError "application failed"
+                    E.throwIO err
+            e <- case r of
+                -- The receiver is done; the sender finishes once it
+                -- has flushed what is queued.
+                Left _ -> T.waitManaged as
+                -- The sender finished first.  Either the receiver is
+                -- done too and not yet seen to be, and this is its
+                -- error, or the sender failed: nothing more would go
+                -- out, and leaving the receiver to run on left the
+                -- connection open and silent, with no GOAWAY.  Both
+                -- are closed with it: the receiver is stopped
+                -- rather than cancelled when its reads can give up.
+                Right e -> do
+                    stopReceiver ctx $ T.managedThreadId ar
+                    late <- registerDelay 1000000
+                    atomically $
+                        void (T.waitManagedSTM ar) `orElse` (readTVar late >>= check)
+                    return e
+            endServer conf ctx e
     stopAfterAndWait ctx runBackgroundThreads $ \res ->
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
 

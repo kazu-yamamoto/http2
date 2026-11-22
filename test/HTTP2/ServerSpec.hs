@@ -515,6 +515,27 @@ spec = do
                 timeout 5000000 (requestAndCollect [] (\_ -> return ()))
                     `shouldReturn` Just ["HEADERS 1", "DATA 1 END_STREAM", "GOAWAY NoError"]
 
+        it "refuses the requests a runIO application leaves unread" $
+            -- They were dropped without a word, covered by the GOAWAY's
+            -- last stream as if processed: the client could not retry them.
+            withServer runServerIO $ do
+                threadDelay 10000
+                fs <- timeout 5000000 twoRequestsAndCollect
+                fmap (elem "RST_STREAM 3 RefusedStream") fs `shouldBe` Just True
+
+        it "ends a runIO application still reading once the connection ends" $
+            -- It waited for a request that would never come: the
+            -- connection was over, and runIO did not return.
+            withServer runServerIOReading $ do
+                threadDelay 10000
+                _ <- tryTakeMVar runIOReturned
+                runTCPClient host port $ \s -> do
+                    sendAll s connectionPreface
+                    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+                    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ GoAwayFrame 0 NoError ""
+                    threadDelay 100000
+                timeout 8000000 (takeMVar runIOReturned) `shouldReturn` Just ()
+
         it "sends a runIO body waiting for its window before closing" $
             -- The rest of the body waits in a thread of the thread manager.
             -- The queues are empty meanwhile, but the application is not
@@ -999,6 +1020,20 @@ runServerIO set = runTCPServerWithSettings set (Just host) port $ \s ->
                     B.replicate 30000 0x61
         sioDone
 
+-- | A runIO server whose application only ever reads requests.
+runServerIOReading :: ServerSettings -> IO ()
+runServerIOReading set = runTCPServerWithSettings set (Just host) port $ \s ->
+    E.bracket (allocSimpleConfig s 32768) freeSimpleConfig $ \conf ->
+        ( E.handle ignoreHTTP2Error $
+            S.runIO defaultServerConfig conf $ \sio -> return $ forever $ S.sioReadRequest sio
+        )
+            `E.finally` putMVar runIOReturned ()
+
+-- | Filled when runIO of 'runServerIOReading' has returned.
+runIOReturned :: MVar ()
+runIOReturned = unsafePerformIO newEmptyMVar
+{-# NOINLINE runIOReturned #-}
+
 -- | A request for / with these settings, then the action, and what the
 -- server sends until it closes the connection.
 requestAndCollect :: SettingsList -> (Socket -> IO ()) -> IO [String]
@@ -1107,6 +1142,33 @@ goAwayFromClient = runTCPClient host port $ \s -> do
         encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
             GoAwayFrame 0 NoError "going"
     collectFrames s
+
+-- | Requests on streams 1 and 3 at once, and what the server sends until
+-- it closes the connection, resets included.
+twoRequestsAndCollect :: IO [String]
+twoRequestsAndCollect = runTCPClient host port $ \s -> do
+    sendAll s connectionPreface
+    sendAll s $ encodeFrame (EncodeInfo defaultFlags 0 Nothing) $ SettingsFrame []
+    let request sid =
+            encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) sid Nothing) $
+                HeadersFrame Nothing $
+                    hpackEncode
+                        [ (":scheme", "http")
+                        , (":authority", "127.0.0.1")
+                        , (":path", "/")
+                        , (":method", "GET")
+                        ]
+    sendAll s $ request 1 <> request 3
+    collect s
+  where
+    collect s = do
+        mf <- recvFrame s
+        case mf of
+            Nothing -> return []
+            Just (FrameRSTStream, fh, p)
+                | Right (RSTStreamFrame err) <- decodeRSTStreamFrame fh p ->
+                    (("RST_STREAM " ++ show (streamId fh) ++ " " ++ show err) :) <$> collect s
+            Just _ -> collect s
 
 -- | What the server sends until it closes the connection.
 collectFrames :: Socket -> IO [String]

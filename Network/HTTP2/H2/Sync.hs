@@ -64,7 +64,7 @@ makeOutput strm otyp = do
 -- only when it has to wait is a thread used for it.
 makeOutputIO
     :: Context -> Stream -> Maybe (TBQueue StreamingChunk) -> OutputType -> Output
-makeOutputIO Context{..} strm mtbq otyp = out
+makeOutputIO ctx@Context{..} strm mtbq otyp = out
   where
     push mout = case mout of
         Nothing -> return ()
@@ -77,7 +77,7 @@ makeOutputIO Context{..} strm mtbq otyp = out
                     T.forkManaged threadManager "H2 output waiting for its window" $ do
                         ok <- waitToContinue watchdog ready
                         when ok $ enqueueOutput outputQ ot
-    ready = readyToContinue strm mtbq
+    ready = readyToContinue (abandonedSTM ctx) strm mtbq
     out =
         Output
             { outputStream = strm
@@ -90,11 +90,12 @@ makeOutputIO Context{..} strm mtbq otyp = out
 -- streaming body has nothing queued, and 'False' once the stream is closed.
 -- While the stream's window is shut, it is the third argument.
 readyToContinue
-    :: Stream
+    :: STM ()
+    -> Stream
     -> Maybe (TBQueue StreamingChunk)
     -> STM (Maybe Bool)
     -> STM (Maybe Bool)
-readyToContinue Stream{streamState, streamTxFlow} mtbq shut = do
+readyToContinue stopping Stream{streamState, streamTxFlow} mtbq shut = (Just False <$ stopping) `orElse` do
     state <- readTVar streamState
     case state of
         Closed{} -> return $ Just False
@@ -118,18 +119,18 @@ enqueueOutputSIO ctx@Context{..} strm otyp = do
     let out = makeOutputIO ctx strm Nothing otyp
     enqueueOutput outputQ out
 
--- | Ending with 'Done' as well once the library's threads are stopped.
+-- | Ending with 'Done' as well once the connection is abandoned or stopped.
 syncWithSender' :: Context -> STM Sync -> LoopCheck -> IO ()
-syncWithSender' Context{..} pop lc = loop
+syncWithSender' ctx@Context{..} pop lc = loop
   where
     loop = do
-        s <- atomically $ pop `orElse` (Done <$ T.waitStoppingSTM threadManager)
+        s <- atomically $ pop `orElse` (Done <$ abandonedSTM ctx)
         case s of
             Done -> return ()
             -- The stream has been reset for it.
             Failed e -> E.throwIO e
             Cont newout -> do
-                cont <- checkLoop watchdog lc
+                cont <- checkLoop watchdog (abandonedSTM ctx) lc
                 when cont $ do
                     enqueueOutput outputQ newout
                     loop
@@ -149,8 +150,11 @@ data LoopCheck = LoopCheck
     , lcWindow :: TVar TxFlow
     }
 
-checkLoop :: H2Watchdog -> LoopCheck -> IO Bool
-checkLoop wd LoopCheck{..} = waitToContinue wd $ \shut -> do
+-- | Whether the rest of a body can go on, as 'readyToContinue': 'False'
+--   as well once the library's threads are stopped, rather than waiting
+--   out their grace for a window or a body that will not come.
+checkLoop :: H2Watchdog -> STM () -> LoopCheck -> IO Bool
+checkLoop wd stopping LoopCheck{..} = waitToContinue wd $ \shut -> (Just False <$ stopping) `orElse` do
     state <- readTVar lcState
     case state of
         Closed{} -> return $ Just False

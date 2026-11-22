@@ -52,6 +52,40 @@ stopAfterAndWait Context{threadManager, appThreadManager} action cleanup =
         cleanup res `E.finally` waitFor appThreadManager
     waitFor mgr = void $ T.waitUntilAllGoneFor mgr stopTimeout
 
+-- | Forking one of the connection's own threads: of 'threadManager', so
+--   that it is stopped with a grace, but not counted as one of the
+--   threads the sender waits for before it closes ('otherThreadsGone').
+forkCore :: Context -> String -> IO a -> IO (T.Managed a)
+forkCore Context{..} label io =
+    -- Counted from inside, so that a thread the stopped manager never
+    -- runs is not counted for ever.
+    T.forkManagedWithResult threadManager label $
+        E.bracket_
+            (atomically $ modifyTVar' coreThreads (+ 1))
+            (atomically $ modifyTVar' coreThreads (subtract 1))
+            io
+
+-- | Telling the receiver and the sender to stop at once, as the connection
+--   ends abnormally, and waiting a second at most for the sender, whose
+--   writes give up on it: a last GOAWAY is not to be written alongside it.
+abandonConnection :: Context -> T.Managed a -> IO ()
+abandonConnection Context{abandoned} sender = do
+    atomically $ writeTVar abandoned True
+    late <- registerDelay 1000000
+    atomically $ void (T.waitManagedSTM sender) `orElse` (readTVar late >>= check)
+
+-- | Fires once the connection is abandoned or its manager stopped.
+abandonedSTM :: Context -> STM ()
+abandonedSTM Context{abandoned, threadManager} =
+    (readTVar abandoned >>= check) `orElse` T.waitStoppingSTM threadManager
+
+-- | Whether the threads of 'threadManager' other than 'forkCore''s are gone.
+otherThreadsGone :: Context -> STM Bool
+otherThreadsGone Context{..} = do
+    n <- T.countManaged threadManager
+    core <- readTVar coreThreads
+    return $ n <= core
+
 -- | How long the threads are given to end after they have been told to.
 --   Unwinding takes milliseconds; this is for one that does not stop.
 stopTimeout :: Int
@@ -126,9 +160,14 @@ data Context = Context
     , appThreadManager   :: T.ThreadManager
     -- ^ The threads which run the application's code, which knows
     --   nothing of that: they are killed.
+    , coreThreads        :: TVar Int
+    -- ^ How many of 'threadManager''s are the connection's own: the
+    --   receiver, the sender and the like ('forkCore').
     , receiverDone       :: TVar (Maybe E.SomeException)
     , stopReceiving      :: TVar Bool
     -- ^ Set to end the receiver at the next frame: see 'stopReceiver'.
+    , abandoned          :: TVar Bool
+    -- ^ Set to end the receiver and the sender at once: see 'abandonConnection'.
     , receiverStoppable  :: Bool
     -- ^ Whether the receiver's reads give up on 'stopReceiving'.
     , appDone            :: STM Bool
@@ -225,8 +264,10 @@ newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings mdone = do
     let peerSockAddr = confPeerSockAddr
     threadManager   <- T.newThreadManager
     appThreadManager <- T.newThreadManager
+    coreThreads     <- newTVarIO 0
     receiverDone    <- newTVarIO Nothing
     stopReceiving   <- newTVarIO False
+    abandoned       <- newTVarIO False
     let receiverStoppable = isJust confReadNWith
     let informationalCallback = confOnInformational
     let appDone = fromMaybe (return False) mdone
@@ -264,9 +305,11 @@ stopReceiver Context{stopReceiving, receiverStoppable} receiver
 
 ----------------------------------------------------------------
 
--- | Fires once the receiver has been told to stop.
+-- | Fires once the receiver has been told to stop, or the connection is
+--   abandoned.
 receiverStopped :: Context -> STM ()
-receiverStopped Context{stopReceiving} = readTVar stopReceiving >>= check
+receiverStopped ctx@Context{stopReceiving} =
+    (readTVar stopReceiving >>= check) `orElse` abandonedSTM ctx
 
 ----------------------------------------------------------------
 
