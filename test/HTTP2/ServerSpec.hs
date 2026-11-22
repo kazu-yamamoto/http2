@@ -474,6 +474,18 @@ spec = do
                         , "GOAWAY 1 NoError"
                         ]
 
+        it "goes away from a peer which has not sent the preface" $ do
+            -- The preface was waited for until the timeout, the server
+            -- going away or not.
+            goVar <- newTVarIO False
+            withServer (runServerGoingAway id goVar) $ do
+                threadDelay 10000
+                r <- timeout 3000000 $ runTCPClient host port $ \s -> do
+                    threadDelay 100000
+                    atomically $ writeTVar goVar True
+                    recv s 4096
+                r `shouldBe` Just ""
+
         it "goes away the same with reads which cannot give up" $ do
             -- Without 'confReadNWith', as for warp and http2-tls, the
             -- receiver is stopped by an exception instead.
