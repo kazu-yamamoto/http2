@@ -17,7 +17,6 @@ import Network.HTTP.Semantics.Client.Internal (RequestGivenUp (..))
 import qualified Network.HTTP.Semantics.Error as HE
 import Network.HTTP.Semantics.IO
 import Network.Socket hiding (Stream)
-import System.IO.Error (catchIOError)
 import System.IO.Unsafe
 import qualified System.TimeManager as T
 import qualified System.TimeManager as TM
@@ -477,14 +476,19 @@ readNGivingUp Config{..} n giveUp = case confReadNWith of
 
 -- | Sending GOAWAY, as a last word: it waits one second at most, since a
 --   peer which does not read would hold the connection open for good.
+--   Any failure but an asynchronous one is ignored, e.g. TLS refusing to
+--   send after a failed send.
 sendGoaway :: Config -> ByteString -> IO ()
-sendGoaway conf frame = send `catchIOError` \_ -> return ()
+sendGoaway conf frame = send `E.catch` ignore
   where
     send = case confSendAllWith conf of
         Nothing -> confSendAll conf frame
         Just _ -> do
             late <- registerDelay 1000000
             void $ sendAllGivingUp conf frame (readTVar late >>= check)
+    ignore e
+        | isAsyncException (e :: E.SomeException) = E.throwIO e
+        | otherwise = return ()
 
 isAsyncException :: E.Exception e => e -> Bool
 isAsyncException e =
