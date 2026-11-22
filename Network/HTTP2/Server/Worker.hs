@@ -4,6 +4,7 @@
 
 module Network.HTTP2.Server.Worker (
     runServer,
+    resetStreamWith,
 ) where
 
 import Control.Concurrent.STM
@@ -92,7 +93,11 @@ doneWithRequestBody ctx strm@Stream{..} = do
 -- sends nothing more on a closed stream.  What was left unread goes back
 -- to the connection window.
 resetFailedStream :: Context -> Stream -> E.SomeException -> IO ()
-resetFailedStream ctx strm@Stream{..} e = do
+resetFailedStream = resetStreamWith InternalError
+
+-- | 'resetFailedStream' with this error code.
+resetStreamWith :: ErrorCode -> Context -> Stream -> E.SomeException -> IO ()
+resetStreamWith err ctx strm@Stream{..} e = do
     open <- atomically $ do
         st <- readTVar streamState
         if isClosed st
@@ -104,7 +109,7 @@ resetFailedStream ctx strm@Stream{..} e = do
     when open $ do
         closed ctx strm cc
         enqueueControl (controlQ ctx) $
-            CFrames Nothing [resetFrame InternalError streamNumber]
+            CFrames Nothing [resetFrame err streamNumber]
         giveBackUnread ctx strm
   where
     cc = ResetByMe e

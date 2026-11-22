@@ -10,6 +10,7 @@ module Network.HTTP2.H2.Receiver (
     closureClient,
     closureServer,
     endServer,
+    goawayWith,
     sendPing,
 ) where
 
@@ -30,7 +31,6 @@ import Network.Control
 import Network.HTTP.Semantics
 import Network.HTTP.Semantics.Client.Internal (RequestGivenUp (..))
 import System.IO.Error (ioeGetErrorType)
-import qualified System.ThreadManager as T
 
 import Imports hiding (delete, insert)
 import Network.HTTP2.Frame
@@ -526,11 +526,13 @@ control FrameGoAway header bs ctx = do
             -- they are done.
             when first $ do
                 receiver <- myThreadId
-                T.forkManaged (threadManager ctx) "H2 draining after GOAWAY" $ do
+                -- One of the connection's own, which the sender does not
+                -- wait for: it waits for the streams the sender serves.
+                void $ forkCore ctx "H2 draining after GOAWAY" $ do
                     done <-
                         atomically $
                             (True <$ drained ctx)
-                                `orElse` (False <$ T.waitStoppingSTM (threadManager ctx))
+                                `orElse` (False <$ abandonedSTM ctx)
                     when done $ stopReceiver ctx receiver
         else E.throwIO $ ConnectionErrorIsReceived err sid $ Short.toShort msg
 control FrameWindowUpdate header bs ctx = do
@@ -980,6 +982,10 @@ isReset :: E.IOException -> Bool
 isReset ioe =
     ioeGetErrorType ioe == ResourceVanished
         || ioe_errno ioe `elem` [Just 10053, Just 10054]
+
+-- | Sending GOAWAY with the peer's last stream, as a last word.
+goawayWith :: Config -> Context -> ErrorCode -> ByteString -> IO ()
+goawayWith conf ctx err msg = goaway ctx err msg >>= sendGoaway conf
 
 goaway :: Context -> ErrorCode -> ByteString -> IO ByteString
 goaway ctx err msg = do

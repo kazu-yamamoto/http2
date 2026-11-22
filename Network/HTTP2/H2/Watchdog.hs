@@ -31,6 +31,8 @@ module Network.HTTP2.H2.Watchdog (
     sending,
     waitingForPeer,
     runningApp,
+    appStarted,
+    appEnded,
 
     -- * The rest of the watchdog
     setProbe,
@@ -206,7 +208,13 @@ waitingForPeer =
 
 -- | Running an application.
 runningApp :: H2Watchdog -> IO a -> IO a
-runningApp =
-    during
-        (\a -> a{actApps = actApps a + 1})
-        (\a -> a{actApps = actApps a - 1})
+runningApp wd = E.bracket_ (appStarted wd) (appEnded wd)
+
+-- | An application started, for one with no scope to run in: a request
+--   'runIO' hands over is answered elsewhere.  Each is ended by 'appEnded'.
+appStarted :: H2Watchdog -> IO ()
+appStarted wd = modifyActivity wd $ \a -> a{actApps = actApps a + 1}
+
+-- | An application started with 'appStarted' ended.
+appEnded :: H2Watchdog -> IO ()
+appEnded wd = modifyActivity wd $ \a -> a{actApps = actApps a - 1}
