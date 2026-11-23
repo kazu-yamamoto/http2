@@ -228,9 +228,9 @@ runH2 giveUp conf ctx runClient = do
     -- The last resort, if the connection does not finish by itself after
     -- it timed out: only when 'confReadN' or 'confSendAll' cannot give up.
     let supervised =
-            withWatchdog (watchdog ctx) (E.throwTo tid ConnectionIsTimeout) $
+            withWatchdog (watchdog ctx) (E.throwTo tid $ LastResort ConnectionIsTimeout) $
                 E.try runAll >>= closureClient conf ctx
-    stopAfterAndWait ctx supervised $ \res -> do
+    lastResortAsError $ stopAfterAndWait ctx supervised $ \res -> do
         closeUnprocessed ctx
         closeAllStreams (oddStreamTable ctx) (evenStreamTable ctx) res
   where

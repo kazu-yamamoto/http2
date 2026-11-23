@@ -58,11 +58,12 @@ headerFragmentLimit = 51200 -- 50K
 frameReceiver :: Context -> Config -> IO E.SomeException
 frameReceiver ctx@Context{receiverDone} conf =
     E.mask $ \unmask -> do
-        -- This catches an asynchronous exception.
-        -- It is re-thrown by "runH2"
+        -- Ending here, told to the sender and to 'runH2', which rethrow
+        -- it: so not as an asynchronous exception.
         mErr <- E.try $ unmask switch
         case mErr of
-            Left err -> do
+            Left err0 -> do
+                let err = forOthers err0
                 atomically $ writeTVar receiverDone $ Just err
                 return err
             Right x -> do
@@ -939,6 +940,8 @@ endServer conf ctx se = do
 
 closureServer :: Config -> Context -> E.SomeException -> IO a
 closureServer conf ctx se
+    -- Arrived here, in the thread it was thrown for.
+    | Just (LastResort e) <- E.fromException se = closureServer conf ctx $ E.toException e
     | isAsyncException se = do
         frame <- goaway ctx NoError "maybe timeout by manager"
         sendGoaway conf frame

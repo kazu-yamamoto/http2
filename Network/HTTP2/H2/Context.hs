@@ -301,7 +301,7 @@ newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings mdone = do
 stopReceiver :: Context -> ThreadId -> IO ()
 stopReceiver Context{stopReceiving, receiverStoppable} receiver
     | receiverStoppable = atomically $ writeTVar stopReceiving True
-    | otherwise = E.throwTo receiver ConnectionIsClosed
+    | otherwise = E.throwTo receiver $ LastResort ConnectionIsClosed
 
 ----------------------------------------------------------------
 

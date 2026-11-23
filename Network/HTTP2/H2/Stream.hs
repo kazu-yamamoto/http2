@@ -78,12 +78,15 @@ readStreamState Stream{streamState} = readTVarIO streamState
 
 closeAllStreams
     :: TVar OddStreamTable -> TVar EvenStreamTable -> Maybe E.SomeException -> IO ()
-closeAllStreams ovar evar mErr = do
+closeAllStreams ovar evar mErr0 = do
     ostrms <- clearOddStreamTable ovar
     mapM_ finalize ostrms
     estrms <- clearEvenStreamTable evar
     mapM_ finalize estrms
   where
+    -- Thrown by the threads reading the streams: not as an asynchronous
+    -- exception, which was the caller's.
+    mErr = forOthers <$> mErr0
     -- We treat /every/ exception, including 'ConectionIsClosed', as abnormal
     -- termination: we should only report a clean termination when we receive an
     -- explicit @END_STREAM@ frame.
