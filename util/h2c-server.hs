@@ -7,6 +7,7 @@ import qualified Control.Exception as E
 import Control.Monad
 import Network.HTTP2.Server
 import Network.Run.TCP
+import Network.Socket (unsafeGracefulClose)
 import System.Console.GetOpt
 import System.Environment
 import System.Exit
@@ -58,7 +59,9 @@ main = do
         [h, p] -> return (h, p)
         _ -> showUsageAndExit usage
     when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
-    runTCPServer (Just host) port $ \s -> do
+    -- Closing gracefully, or a reset can wipe out GOAWAY.
+    let tcpSettings = defaultServerSettings{settingsClose = \s -> unsafeGracefulClose s 5000}
+    runTCPServerWithSettings tcpSettings (Just host) port $ \s -> do
         E.bracket
             (allocSimpleConfig' s 4096 5000000)
             freeSimpleConfig

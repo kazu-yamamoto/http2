@@ -164,6 +164,7 @@ executable h2c-server
         crypton,
         http2,
         http-types,
+        network,
         network-run
 
     if flag(devel)
