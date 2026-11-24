@@ -27,6 +27,7 @@ import System.Timeout (timeout)
 import Test.Hspec
 
 import Network.HTTP2.Client (pattern ConnectionIsTimeout)
+import qualified Network.HTTP2.Client as C
 import Network.HTTP2.Frame (connectionPreface)
 import Network.HTTP2.Server
 
@@ -67,6 +68,32 @@ spec = describe "give-up" $ do
                 sendAll s $ frame 1 5 1 getHeaderBlock
                 timeout 6000000 $ takeMVar ended
             r `shouldBe` Just ()
+    it "gives up on the client's last writes a server does not read" $ do
+        hold <- newEmptyMVar
+        let fakeServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s -> do
+                -- Windows wide open, and never a byte read.
+                sendAll s $ frame 4 0 0 $ B.pack [0, 4, 0x7f, 0xff, 0xff, 0xff]
+                sendAll s $ frame 8 0 0 $ B.pack [0x7f, 0xff, 0, 0]
+                takeMVar hold
+            req = C.requestStreaming methodPost "/" [] $ \write flush ->
+                forever $ write (byteString chunk) >> flush
+            chunk = B.replicate 65536 0x41
+        E.bracket (forkIO fakeServer) killThread $ \_ -> do
+            threadDelay 10000
+            late <- registerDelay 1000000
+            -- The client returns while the sender is stuck in a write.
+            r <- timeout 4000000 $ runTCPClient host port $ \s ->
+                E.bracket (C.allocSimpleConfig s 4096) C.freeSimpleConfig $ \conf ->
+                    C.runGivingUp
+                        C.defaultClientConfig
+                        conf
+                        ( \sendRequest _aux -> do
+                            _ <- forkIO $ sendRequest req (\_ -> return ()) `E.catch` \(E.SomeException _) -> return ()
+                            threadDelay 500000
+                        )
+                        (readTVar late >>= check)
+            putMVar hold ()
+            r `shouldBe` Just (Left ())
     it "gives up on a write the peer does not read after the receiver ends" $ do
         ended <- newEmptyMVar
         let server _req _aux sendResponse =

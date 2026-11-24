@@ -106,8 +106,10 @@ withOutBodyIface ctx@Context{outputQ} strm tbq unmask k = do
         -- not: ending the stream all the same delivered a truncated body to
         -- the peer as if it were complete.  So it is cancelled instead, and
         -- the peer gets RST_STREAM (INTERNAL_ERROR).
+        -- An abandoned connection's sender drains the queue no more, so a
+        -- full one is given up on rather than waited for after the kill.
         finished :: Maybe SomeException -> IO ()
-        finished mErr = atomically $ do
+        finished mErr = atomically $ (`orElse` abandonedSTM ctx) $ do
             mTerminated <- readTVar terminated
             mClosed <- getIsClosed
             case (mClosed, mTerminated) of
