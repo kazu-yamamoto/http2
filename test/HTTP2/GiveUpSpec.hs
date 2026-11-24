@@ -18,6 +18,7 @@ import Network.Socket (
     SocketOption (..),
     setSocketOption,
     shutdown,
+    unsafeGracefulClose,
  )
 import Network.Socket.ByteString
 import System.IO.Unsafe
@@ -49,7 +50,7 @@ spec = describe "give-up" $ do
                 sendResponse (responseStreaming ok200 [] endless) []
             endless write flush = forever $ write (byteString chunk) >> flush
             chunk = B.replicate 65536 0x41
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
                     (run defaultServerConfig conf server `E.catch` ignore)
                         `E.finally` putMVar ended ()
@@ -72,7 +73,7 @@ spec = describe "give-up" $ do
                 sendResponse (responseStreaming ok200 [] endless) []
             endless write flush = forever $ write (byteString chunk) >> flush
             chunk = B.replicate 65536 0x41
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
                     (run defaultServerConfig conf server `E.catch` ignore)
                         `E.finally` putMVar ended ()
@@ -96,7 +97,7 @@ spec = describe "give-up" $ do
                 sendResponse (responseStreaming ok200 [] endless) []
             endless write flush = forever $ write (byteString chunk) >> flush
             chunk = B.replicate 1000 0x41
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
                     (run defaultServerConfig conf server `E.catch` ignore)
                         `E.finally` putMVar ended ()
@@ -117,7 +118,7 @@ spec = describe "give-up" $ do
                 sendResponse (responseStreaming ok200 [] endless) []
             endless write flush = forever $ write (byteString chunk) >> flush
             chunk = B.replicate 1000 0x41
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
                     (run defaultServerConfig conf server `E.catch` ignore)
                         `E.finally` putMVar ended ()
@@ -136,7 +137,7 @@ spec = describe "give-up" $ do
         let server _req _aux sendResponse = sendResponse (responseNoBody ok200 []) []
             -- Masked so that no exception can reach it: it has to finish
             -- by itself, without the watchdog's last resort.
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
                     E.uninterruptibleMask_ (E.try $ run defaultServerConfig conf server)
                         >>= putMVar ended
@@ -153,7 +154,7 @@ spec = describe "give-up" $ do
             -- A read no exception reaches, as on a platform where a blocked
             -- recv cannot be interrupted; the one which gives up still can.
             uninterruptible conf = conf{confReadN = E.uninterruptibleMask_ . confReadN conf}
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 30000000) freeSimpleConfig $ \conf ->
                     (go (uninterruptible conf) `E.catch` ignore) `E.finally` putMVar ended ()
             go conf = runWith (readTVar goVar >>= check) defaultServerConfig conf server
@@ -180,7 +181,7 @@ spec = describe "give-up" $ do
                         fmap (\r n -> E.uninterruptibleMask_ . r n) (confReadNWith conf)
                     , confSendAllWith = Just $ \_ _ -> E.throwIO $ userError "broken"
                     }
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 30000000) freeSimpleConfig $ \conf ->
                     (run defaultServerConfig (broken conf) server `E.catch` ignore)
                         `E.finally` putMVar ended ()
@@ -216,3 +217,7 @@ frame typ flags sid payload =
 -- | GET / for 127.0.0.1, from the static table and one literal.
 getHeaderBlock :: ByteString
 getHeaderBlock = B.pack [0x82, 0x86, 0x84, 0x01, 0x09] <> "127.0.0.1"
+
+-- | Closing gracefully, as an HTTP/2 server should.
+gracefulSettings :: ServerSettings
+gracefulSettings = defaultServerSettings{settingsClose = \s -> unsafeGracefulClose s 5000}

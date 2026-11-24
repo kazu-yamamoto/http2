@@ -59,7 +59,7 @@ spec = describe "watchdog" $ do
     it "returns from run once the client is done" $ do
         result <- newEmptyMVar
         let server _req _aux sendResponse = sendResponse (responseNoBody ok200 []) []
-            runServer = runTCPServer (Just host) port $ \s ->
+            runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 serverTimeout) freeSimpleConfig $ \conf ->
                     E.try (run defaultServerConfig conf server) >>= putMVar result
         E.bracket (forkIO runServer) killThread $ \_ -> do
@@ -108,7 +108,7 @@ withServer server body =
         threadDelay 10000
         body
   where
-    runServer = runTCPServer (Just host) port $ \s ->
+    runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
         E.bracket
             (allocSimpleConfig' s 32768 serverTimeout)
             freeSimpleConfig
@@ -160,3 +160,7 @@ recvAll s = B.concat <$> loop
 -- | A SETTINGS frame with no parameters.
 emptySettingsFrame :: ByteString
 emptySettingsFrame = B.pack [0, 0, 0, 4, 0, 0, 0, 0, 0]
+
+-- | Closing gracefully, as an HTTP/2 server should.
+gracefulSettings :: ServerSettings
+gracefulSettings = defaultServerSettings{settingsClose = \s -> unsafeGracefulClose s 5000}
