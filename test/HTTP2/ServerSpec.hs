@@ -935,7 +935,8 @@ runServerWaitingHandler doneVar set =
             wasTold :: Either E.SomeException Bool -> Bool
             wasTold = either (const True) id
         _ <- forkIO $ E.try readAll >>= putMVar told . wasTold
-        takeMVarIgnoringKill told >>= putMVar doneVar
+        -- Masked, or a kill landing just after the take loses what it took.
+        E.mask_ $ takeMVarIgnoringKill told >>= putMVar doneVar
 
 -- | Taking an 'MVar', ignoring the manager's kill as grapesy's handler does.
 takeMVarIgnoringKill :: MVar a -> IO a

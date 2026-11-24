@@ -490,6 +490,28 @@ sendGoaway conf frame = send `E.catch` ignore
         | isAsyncException (e :: E.SomeException) = E.throwIO e
         | otherwise = return ()
 
+-- | Thrown to a thread of the connection's as the last resort, with the
+--   error it is told as.  Asynchronous, so that nothing on the way takes
+--   it for that error; whoever it was thrown for turns it into the error.
+newtype LastResort = LastResort HTTP2Error deriving (Show)
+
+instance E.Exception LastResort where
+    toException = E.asyncExceptionToException
+    fromException = E.asyncExceptionFromException
+
+-- | Throwing what the last resort carries, once it has arrived.
+lastResortAsError :: IO a -> IO a
+lastResortAsError = E.handle $ \(LastResort e) -> E.throwIO e
+
+-- | An exception which ended a thread, as another thread is told it: the
+--   error of a last resort, and any other asynchronous one wrapped, since
+--   the thread told was not the one killed.
+forOthers :: E.SomeException -> E.SomeException
+forOthers se
+    | Just (LastResort e) <- E.fromException se = E.toException e
+    | isAsyncException se = E.toException $ BadThingHappen se
+    | otherwise = se
+
 isAsyncException :: E.Exception e => e -> Bool
 isAsyncException e =
     case E.fromException (E.toException e) of

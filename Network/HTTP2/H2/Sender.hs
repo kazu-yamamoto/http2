@@ -133,9 +133,9 @@ frameSenderWith
         -- DATA that has to wait for the connection window, in the order it
         -- came: see 'dequeue'.
         parked <- newTVarIO []
-        -- This catches an asynchronous exception.
-        -- It is re-thrown by "runH2"
-        loop parked 0 `E.catch` (return . unwrapSendFailed)
+        -- Ending here, told to 'runH2', which rethrows it: so not as an
+        -- asynchronous exception.
+        loop parked 0 `E.catch` (return . forOthers . unwrapSendFailed)
       where
         ----------------------------------------------------------------
         loop :: TVar [Output] -> Offset -> IO E.SomeException

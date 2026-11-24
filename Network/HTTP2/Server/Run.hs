@@ -81,7 +81,9 @@ supervising :: Config -> (H2Watchdog -> IO a) -> IO a
 supervising Config{..} action = do
     wd <- newH2Watchdog confTimeout
     tid <- myThreadId
-    withWatchdog wd (E.throwTo tid ConnectionIsTimeout) $ action wd
+    lastResortAsError $
+        withWatchdog wd (E.throwTo tid $ LastResort ConnectionIsTimeout) $
+            action wd
 
 ----------------------------------------------------------------
 
