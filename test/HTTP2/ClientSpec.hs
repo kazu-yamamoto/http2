@@ -249,7 +249,7 @@ withServer :: (ServerSettings -> IO ()) -> IO a -> IO a
 withServer runIt action = do
     stopVar <- newEmptyMVar
     done <- newEmptyMVar
-    let set = defaultServerSettings{settingsInstallShutdownHandler = putMVar stopVar}
+    let set = defaultServerSettings{settingsInstallShutdownHandler = putMVar stopVar, settingsClose = \s -> NS.unsafeGracefulClose s 5000}
     _ <- forkIO $ runIt set `E.finally` putMVar done ()
     action `E.finally` do
         join $ takeMVar stopVar

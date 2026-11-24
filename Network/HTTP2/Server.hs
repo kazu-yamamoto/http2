@@ -8,13 +8,16 @@
 -- > import qualified Control.Exception as E
 -- > import Data.ByteString.Builder (byteString)
 -- > import Network.HTTP.Types (ok200)
--- > import Network.Run.TCP (runTCPServer) -- network-run
+-- > import Network.Run.TCP -- network-run
+-- > import Network.Socket (unsafeGracefulClose)
 -- >
 -- > import Network.HTTP2.Server
 -- >
 -- > main :: IO ()
--- > main = runTCPServer Nothing "80" runHTTP2Server
+-- > main = runTCPServerWithSettings tcpSettings Nothing "80" runHTTP2Server
 -- >   where
+-- >     -- Closing gracefully, or a reset can wipe out GOAWAY.
+-- >     tcpSettings = defaultServerSettings{settingsClose = \s -> unsafeGracefulClose s 5000}
 -- >     runHTTP2Server s = E.bracket (allocSimpleConfig s 4096)
 -- >                                  freeSimpleConfig
 -- >                                  (\config -> run defaultServerConfig config server)

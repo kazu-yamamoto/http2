@@ -164,6 +164,7 @@ executable h2c-server
         crypton,
         http2,
         http-types,
+        network,
         network-run
 
     if flag(devel)
@@ -342,6 +343,7 @@ test-suite spec2
         hspec >=1.3,
         http-types,
         http2,
+        network,
         network-run >= 0.7 && <0.9,
         typed-process
 

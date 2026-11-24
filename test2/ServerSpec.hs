@@ -7,6 +7,7 @@ import qualified Control.Exception as E
 import Data.ByteString.Builder (byteString)
 import Network.HTTP.Types
 import Network.Run.TCP
+import Network.Socket (unsafeGracefulClose)
 import System.Exit
 import System.Process.Typed
 import Test.Hspec
@@ -27,7 +28,7 @@ spec = do
                 runProcess (proc "h2spec" ["-h", host, "-p", port]) `shouldReturn` ExitSuccess
 
 runServer :: IO ()
-runServer = runTCPServer (Just host) port runHTTP2Server
+runServer = runTCPServerWithSettings gracefulSettings (Just host) port runHTTP2Server
   where
     runHTTP2Server s =
         E.bracket
@@ -53,3 +54,7 @@ response404 = responseNoBody notFound404 []
 
 response405 :: Response
 response405 = responseNoBody methodNotAllowed405 []
+
+-- | Closing gracefully, as an HTTP/2 server should.
+gracefulSettings :: ServerSettings
+gracefulSettings = defaultServerSettings{settingsClose = \s -> unsafeGracefulClose s 5000}

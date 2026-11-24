@@ -2717,11 +2717,16 @@ hpackEncode kvs = foldr cat "" kvs
 --   to stop.  'killThread' is no good here: it does not reach a thread
 --   blocked in @accept@ on Windows, where the call is a safe foreign one,
 --   so the whole suite used to hang on the first of these.
+-- | Closing gracefully, as an HTTP/2 server should: a reset for what
+--   the peer sends after GOAWAY can wipe GOAWAY out.
+gracefulSettings :: ServerSettings
+gracefulSettings = defaultServerSettings{settingsClose = \s -> unsafeGracefulClose s 5000}
+
 withServer :: (ServerSettings -> IO ()) -> IO a -> IO a
 withServer runIt action = do
     stopVar <- newEmptyMVar
     done <- newEmptyMVar
-    let set = defaultServerSettings{settingsInstallShutdownHandler = putMVar stopVar}
+    let set = gracefulSettings{settingsInstallShutdownHandler = putMVar stopVar}
     _ <- forkIO $ runIt set `E.finally` putMVar done ()
     action `E.finally` do
         join $ takeMVar stopVar
