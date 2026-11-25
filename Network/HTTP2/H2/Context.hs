@@ -4,7 +4,7 @@
 
 module Network.HTTP2.H2.Context where
 
-import Control.Concurrent (ThreadId)
+import Control.Concurrent (ThreadId, forkIO)
 import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Data.IORef
@@ -301,7 +301,9 @@ newContext roleInfo Config{..} watchdog cacheSiz connRxWS mySettings mdone = do
 stopReceiver :: Context -> ThreadId -> IO ()
 stopReceiver Context{stopReceiving, receiverStoppable} receiver
     | receiverStoppable = atomically $ writeTVar stopReceiving True
-    | otherwise = E.throwTo receiver $ LastResort ConnectionIsClosed
+    -- Thrown from a thread of its own: a receiver in a foreign call would
+    -- hold the caller until it returned.
+    | otherwise = void $ forkIO $ E.throwTo receiver $ LastResort ConnectionIsClosed
 
 ----------------------------------------------------------------
 

@@ -87,15 +87,16 @@ closeAllStreams ovar evar mErr0 = do
     -- Thrown by the threads reading the streams: not as an asynchronous
     -- exception, which was the caller's.
     mErr = forOthers <$> mErr0
-    -- We treat /every/ exception, including 'ConectionIsClosed', as abnormal
+    -- We treat /every/ ending, including 'ConnectionIsClosed', as abnormal
     -- termination: we should only report a clean termination when we receive an
     -- explicit @END_STREAM@ frame.
     finalize strm = do
         st <- readStreamState strm
         void $ atomically $ tryPutTMVar (streamInput strm) err
         case st of
-            Open _ (Body q _ _ _) ->
-                atomically $ writeTQueue q $ maybe (Right (mempty, True)) Left mErr
+            -- Without END_STREAM the body is cut short, even when the
+            -- connection ended normally: not to be read as complete.
+            Open _ (Body q _ _ _) -> atomically $ writeTQueue q err
             _otherwise ->
                 return ()
 
