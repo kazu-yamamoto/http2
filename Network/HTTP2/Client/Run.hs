@@ -227,8 +227,11 @@ runH2 giveUp conf ctx runClient = do
     tid <- myThreadId
     -- The last resort, if the connection does not finish by itself after
     -- it timed out: only when 'confReadN' or 'confSendAll' cannot give up.
-    let supervised =
-            withWatchdog (watchdog ctx) (E.throwTo tid $ LastResort ConnectionIsTimeout) $
+    let lastResort
+            | isJust (confReadNWith conf) && isJust (confSendAllWith conf) = return ()
+            | otherwise = E.throwTo tid $ LastResort ConnectionIsTimeout
+        supervised =
+            withWatchdog (watchdog ctx) lastResort $
                 E.try runAll >>= closureClient conf ctx
     lastResortAsError $ stopAfterAndWait ctx supervised $ \res -> do
         closeUnprocessed ctx

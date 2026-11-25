@@ -81,9 +81,10 @@ supervising :: Config -> (H2Watchdog -> IO a) -> IO a
 supervising Config{..} action = do
     wd <- newH2Watchdog confTimeout
     tid <- myThreadId
-    lastResortAsError $
-        withWatchdog wd (E.throwTo tid $ LastResort ConnectionIsTimeout) $
-            action wd
+    let lastResort
+            | isJust confReadNWith && isJust confSendAllWith = return ()
+            | otherwise = E.throwTo tid $ LastResort ConnectionIsTimeout
+    lastResortAsError $ withWatchdog wd lastResort $ action wd
 
 ----------------------------------------------------------------
 
