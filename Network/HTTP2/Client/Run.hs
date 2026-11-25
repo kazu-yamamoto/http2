@@ -304,7 +304,9 @@ runH2 giveUp conf ctx runClient = do
                 atomically $
                     T.waitEitherManagedSTM as ac `orElse` (giveUp >> throwSTM givenUpConnection)
             case r of
-                Right x -> T.waitManaged as >> return x
+                -- The sender's last writes still give up: a server which
+                -- stops reading would otherwise hold the client for ever.
+                Right x -> givingUpOn as >> return x
                 Left e -> do
                     -- The sender also finishes, normally, as soon as the
                     -- receiver is done and the queues are empty, and may
