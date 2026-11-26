@@ -174,7 +174,7 @@ frameSenderWith
         -- the buffer are filled.
         flushN :: Offset -> IO ()
         flushN 0 = return ()
-        flushN n = sending (watchdog ctx) $ bufferIO confWriteBuffer n $ \bs ->
+        flushN n = sending (watchdog ctx) $ unsafeBufferIO confWriteBuffer n $ \bs ->
             -- Given up on once the connection has timed out: closed with
             -- GOAWAY like any other timeout.  A failure here ends the
             -- connection, not a stream: 'handler' lets it through.
