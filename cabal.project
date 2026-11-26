@@ -1,12 +1,7 @@
 packages: .
 
--- http-semantics 0.5 (outObjGiveUp), time-manager 0.5.3 (System.Watchdog) and
--- network-run (settingsClose) are not released yet.
-source-repository-package
-  type: git
-  location: https://github.com/kazu-yamamoto/http-semantics.git
-  tag: c62ff2ac488025697fa1e7aee3d3202be6e8385b
-
+-- time-manager 0.5.3 (System.Watchdog) and network-run (settingsClose) are
+-- not released yet.
 source-repository-package
   type: git
   location: https://github.com/kazu-yamamoto/wai.git

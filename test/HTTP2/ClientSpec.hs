@@ -70,7 +70,7 @@ spec = do
                 runClient "http" "localhost" $ \sendRequest _aux -> do
                     giveUp <- deadline 200000
                     let req = requestNoBody methodGet "/never" []
-                    r <- sendRequestWith sendRequest req giveUp $ \_ -> return ()
+                    r <- sendRequestWith sendRequest req (\_ -> return ()) giveUp
                     r `shouldBe` Left ()
                     -- The connection goes on.
                     sendRequest (requestNoBody methodGet "/" []) $ \rsp ->
@@ -82,9 +82,10 @@ spec = do
                 runClient "http" "localhost" $ \sendRequest _aux -> do
                     giveUp <- deadline 200000
                     let req = requestNoBody methodGet "/stall" []
-                    r <- sendRequestWith sendRequest req giveUp $ \rsp -> do
-                        _ <- getResponseBodyChunk rsp
-                        getResponseBodyChunk rsp
+                    let readTwice rsp = do
+                            _ <- getResponseBodyChunk rsp
+                            getResponseBodyChunk rsp
+                    r <- sendRequestWith sendRequest req readTwice giveUp
                     r `shouldBe` Left ()
 
         it "gives up a connection with runGivingUp" $
