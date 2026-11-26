@@ -325,7 +325,9 @@ processState (Open _ (NoBody tbl@(_, reqvt))) ctx strm@Stream{streamInput} strea
     if isServer ctx
         then do
             launchHandler ctx strm inpObj
-        else atomically $ putTMVar streamInput $ Right inpObj
+        -- A request given up while its headers were decoded has its
+        -- input filled already; the response is dropped then.
+        else void $ atomically $ tryPutTMVar streamInput $ Right inpObj
     halfClosedRemote ctx strm
 
 -- Transition (process2)
@@ -351,7 +353,9 @@ processState (Open _ (HasBody tbl@(_, reqvt))) ctx strm@Stream{streamInput, stre
     if isServer ctx
         then do
             launchHandler ctx strm inpObj
-        else atomically $ putTMVar streamInput $ Right inpObj
+        -- A request given up while its headers were decoded has its
+        -- input filled already; the response is dropped then.
+        else void $ atomically $ tryPutTMVar streamInput $ Right inpObj
 
 -- Transition (process4)
 processState HalfClosedRemote ctx strm _streamId = do
