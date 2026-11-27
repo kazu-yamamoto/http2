@@ -590,6 +590,7 @@ openOddStreamWaitWith ctx@Context{oddStreamTable, mySettings, peerSettings} give
         Nothing -> do
             sid <- atomically $ orGiveUp $ do
                 refuseIfGoingAway ctx
+                refuseIfOddClosed oddStreamTable
                 getMyNewStreamId ctx
             txws <- initialWindowSize <$> readIORef peerSettings
             newstrm <- newOddStream sid txws rxws
@@ -617,7 +618,8 @@ openOddStreamWaitWith ctx@Context{oddStreamTable, mySettings, peerSettings} give
 openEvenStreamTry :: Context -> IO (Maybe (StreamId, Stream))
 openEvenStreamTry ctx@Context{..} = do
     goingaway <- isJust <$> readTVarIO peerGoAway
-    if goingaway then return Nothing else openEvenStreamTry' ctx
+    ended <- atomically $ isEvenClosed evenStreamTable
+    if goingaway || ended then return Nothing else openEvenStreamTry' ctx
 
 openEvenStreamTry' :: Context -> IO (Maybe (StreamId, Stream))
 openEvenStreamTry' ctx@Context{..} = do

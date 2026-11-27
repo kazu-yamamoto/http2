@@ -64,6 +64,46 @@ spec = do
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
+        it "fails a request made after the connection has ended" $
+            withServer (runServer defaultServer) $ do
+                threadDelay 10000
+                go <- newEmptyMVar
+                result <- newEmptyMVar
+                -- A thread of the user's own, which the connection does not kill.
+                runClient "http" "localhost" $ \sendRequest _aux ->
+                    void $ forkIO $ do
+                        takeMVar go
+                        r <- E.try $ sendRequest (requestNoBody methodGet "/" []) $ \_ -> return ()
+                        putMVar result r
+                putMVar go ()
+                r <- timeout 2000000 $ takeMVar result
+                case r of
+                    Nothing -> expectationFailure "The request waited for ever"
+                    Just (Left ConnectionIsClosed) -> return ()
+                    Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
+                    Just (Right ()) -> expectationFailure "Answered on an ended connection"
+
+        it "fails a request waiting for a stream when the connection ends" $
+            withServer oneStreamServer $ do
+                threadDelay 10000
+                result <- newEmptyMVar
+                runClient "http" "localhost" $ \sendRequest _aux -> do
+                    -- The only stream is taken, so the second request waits.
+                    _ <- forkIO $
+                        sendRequest (requestNoBody methodGet "/never" []) (\_ -> return ())
+                            `E.catch` \(E.SomeException _) -> return ()
+                    threadDelay 100000
+                    void $ forkIO $ do
+                        r <- E.try $ sendRequest (requestNoBody methodGet "/" []) $ \_ -> return ()
+                        putMVar result r
+                    threadDelay 100000
+                r <- timeout 2000000 $ takeMVar result
+                case r of
+                    Nothing -> expectationFailure "The request waited for ever"
+                    Just (Left ConnectionIsClosed) -> return ()
+                    Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
+                    Just (Right ()) -> expectationFailure "Answered on an ended connection"
+
         it "gives up a request waiting for the response" $
             withServer (runServer givingUpServer) $ do
                 threadDelay 10000
@@ -129,21 +169,36 @@ spec = do
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
+                -- The one over the limit waited for a stream until the
+                -- connection ended, and is failed then rather than left waiting.
                 let waitingRequestVars = drop maxConc resultVars
                 waitingResults <- for waitingRequestVars (timeout 1000000 . takeMVar)
                 for_ waitingResults $ \case
-                    Nothing -> pure ()
+                    Nothing -> expectationFailure "The request waited for ever"
+                    Just (Left ConnectionIsClosed) -> return ()
                     Just (Left err) -> expectationFailure $ "Raise unexpected exception " ++ show err
                     Just (Right ()) -> expectationFailure "Unexpected client termination"
 
 runServer :: S.Server -> ServerSettings -> IO ()
-runServer server set = runTCPServerWithSettings set (Just host) port runHTTP2Server
+runServer = runServerWith S.defaultServerConfig
+
+runServerWith :: S.ServerConfig -> S.Server -> ServerSettings -> IO ()
+runServerWith sconf server set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
     runHTTP2Server s =
         E.bracket
             (allocSimpleConfig s 4096)
             freeSimpleConfig
-            (\conf -> S.run S.defaultServerConfig conf server)
+            (\conf -> S.run sconf conf server)
+
+-- | 'givingUpServer' allowing one stream at a time.
+oneStreamServer :: ServerSettings -> IO ()
+oneStreamServer = runServerWith sconf givingUpServer
+  where
+    sconf =
+        S.defaultServerConfig
+            { S.settings = (S.settings S.defaultServerConfig){maxConcurrentStreams = Just 1}
+            }
 
 defaultServer :: S.Server
 defaultServer _req _aux sendResponse = sendResponse responseHello []
