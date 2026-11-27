@@ -79,9 +79,10 @@ readStreamState Stream{streamState} = readTVarIO streamState
 closeAllStreams
     :: TVar OddStreamTable -> TVar EvenStreamTable -> Maybe E.SomeException -> IO ()
 closeAllStreams ovar evar mErr0 = do
-    ostrms <- clearOddStreamTable ovar
+    -- The tables refuse new streams from here, which nothing would end.
+    ostrms <- clearOddStreamTable ovar cause
     mapM_ finalize ostrms
-    estrms <- clearEvenStreamTable evar
+    estrms <- clearEvenStreamTable evar cause
     mapM_ finalize estrms
   where
     -- Thrown by the threads reading the streams: not as an asynchronous
@@ -100,8 +101,9 @@ closeAllStreams ovar evar mErr0 = do
             _otherwise ->
                 return ()
 
+    cause = fromMaybe (E.toException ConnectionIsClosed) mErr
     err :: Either E.SomeException a
-    err = Left $ fromMaybe (E.toException ConnectionIsClosed) mErr
+    err = Left cause
 
 ----------------------------------------------------------------
 

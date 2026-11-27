@@ -16,6 +16,8 @@ module Network.HTTP2.H2.StreamTable (
     getOddStreams,
     clearOddStreamTable,
     waitIncOdd,
+    refuseIfOddClosed,
+    waitOddClosed,
 
     -- * Even
     insertEven,
@@ -25,6 +27,7 @@ module Network.HTTP2.H2.StreamTable (
     getEvenConcurrency,
     clearEvenStreamTable,
     waitIncEven,
+    isEvenClosed,
     insertEvenCache,
     deleteEvenCache,
     lookupEvenCache,
@@ -46,10 +49,13 @@ import Network.HTTP2.H2.Types (Stream (..))
 data OddStreamTable = OddStreamTable
     { oddConc :: Int
     , oddTable :: IntMap Stream
+    , oddClosed :: Maybe E.SomeException
+    -- ^ Why the connection ended, once it has: no stream is added then,
+    --   as nothing would ever finish it.
     }
 
 emptyOddStreamTable :: OddStreamTable
-emptyOddStreamTable = OddStreamTable 0 IntMap.empty
+emptyOddStreamTable = OddStreamTable 0 IntMap.empty Nothing
 
 data EvenStreamTable = EvenStreamTable
     { evenConc :: Int
@@ -59,23 +65,36 @@ data EvenStreamTable = EvenStreamTable
       -- After that, cache is looked up.
       -- LRUCache is not used as LRU but as fixed-size map.
       evenCache :: LRUCache (Method, ByteString) Stream
+    , evenClosed :: Maybe E.SomeException
+    -- ^ As 'oddClosed'.
     }
 
 emptyEvenStreamTable :: Int -> EvenStreamTable
-emptyEvenStreamTable lim = EvenStreamTable 0 IntMap.empty $ LRUCache.empty lim
+emptyEvenStreamTable lim = EvenStreamTable 0 IntMap.empty (LRUCache.empty lim) Nothing
 
 ----------------------------------------------------------------
 
+-- | Throwing why the connection ended, once it has.
 insertOdd :: TVar OddStreamTable -> IntMap.Key -> Stream -> IO ()
-insertOdd var k v = atomically $ modifyTVar var $ \OddStreamTable{..} ->
-    let oddConc' = oddConc + 1
-        oddTable' = IntMap.insert k v oddTable
-     in OddStreamTable oddConc' oddTable'
+insertOdd var k v = atomically $ do
+    refuseIfOddClosed var
+    modifyTVar var $ \st@OddStreamTable{..} ->
+        st{oddConc = oddConc + 1, oddTable = IntMap.insert k v oddTable}
 
+-- | 'insertOdd' for a stream already counted by 'waitIncOdd'.
 insertOdd' :: TVar OddStreamTable -> IntMap.Key -> Stream -> IO ()
-insertOdd' var k v = atomically $ modifyTVar var $ \OddStreamTable{..} ->
-    let oddTable' = IntMap.insert k v oddTable
-     in OddStreamTable oddConc oddTable'
+insertOdd' var k v = atomically $ do
+    refuseIfOddClosed var
+    modifyTVar var $ \st@OddStreamTable{..} ->
+        st{oddTable = IntMap.insert k v oddTable}
+
+-- | Throwing why the connection ended, once it has; nothing otherwise.
+refuseIfOddClosed :: TVar OddStreamTable -> STM ()
+refuseIfOddClosed var = readTVar var >>= mapM_ throwSTM . oddClosed
+
+-- | Waiting until the connection has ended, and throwing why.
+waitOddClosed :: TVar OddStreamTable -> STM a
+waitOddClosed var = readTVar var >>= maybe retry throwSTM . oddClosed
 
 -- | Remove a stream and give its concurrency slot back.
 --
@@ -96,9 +115,8 @@ deleteOdd var k err = do
         case IntMap.lookup k oddTable of
             Nothing -> return Nothing
             Just v -> do
-                let oddConc' = oddConc - 1
-                    oddTable' = IntMap.delete k oddTable
-                writeTVar var $ OddStreamTable oddConc' oddTable'
+                writeTVar var $
+                    OddStreamTable (oddConc - 1) (IntMap.delete k oddTable) oddClosed
                 return $ Just v
 
 lookupOdd :: TVar OddStreamTable -> IntMap.Key -> IO (Maybe Stream)
@@ -110,31 +128,43 @@ getOddConcurrency var = oddConc <$> readTVarIO var
 getOddStreams :: TVar OddStreamTable -> IO (IntMap Stream)
 getOddStreams var = oddTable <$> readTVarIO var
 
-clearOddStreamTable :: TVar OddStreamTable -> IO (IntMap Stream)
-clearOddStreamTable var = atomically $ do
+-- | Emptying the table for good: the first reason given is kept.
+clearOddStreamTable
+    :: TVar OddStreamTable -> E.SomeException -> IO (IntMap Stream)
+clearOddStreamTable var err = atomically $ do
     OddStreamTable{..} <- readTVar var
-    writeTVar var emptyOddStreamTable
+    writeTVar var $ OddStreamTable 0 IntMap.empty (oddClosed <|> Just err)
     return oddTable
 
+-- | Throwing why the connection ended, once it has, rather than waiting.
 waitIncOdd :: TVar OddStreamTable -> Int -> STM ()
 waitIncOdd var maxConc = do
-    OddStreamTable{..} <- readTVar var
+    refuseIfOddClosed var
+    st@OddStreamTable{..} <- readTVar var
     check (oddConc < maxConc)
-    let oddConc' = oddConc + 1
-    writeTVar var $ OddStreamTable oddConc' oddTable
+    writeTVar var st{oddConc = oddConc + 1}
 
 ----------------------------------------------------------------
 
+-- | Throwing why the connection ended, once it has.
 insertEven :: TVar EvenStreamTable -> IntMap.Key -> Stream -> IO ()
-insertEven var k v = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
-    let evenConc' = evenConc + 1
-        evenTable' = IntMap.insert k v evenTable
-     in EvenStreamTable evenConc' evenTable' evenCache
+insertEven var k v = atomically $ do
+    refuseIfEvenClosed var
+    modifyTVar var $ \st@EvenStreamTable{..} ->
+        st{evenConc = evenConc + 1, evenTable = IntMap.insert k v evenTable}
 
+-- | 'insertEven' for a stream already counted by 'waitIncEven'.
 insertEven' :: TVar EvenStreamTable -> IntMap.Key -> Stream -> IO ()
-insertEven' var k v = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
-    let evenTable' = IntMap.insert k v evenTable
-     in EvenStreamTable evenConc evenTable' evenCache
+insertEven' var k v = atomically $ do
+    refuseIfEvenClosed var
+    modifyTVar var $ \st@EvenStreamTable{..} ->
+        st{evenTable = IntMap.insert k v evenTable}
+
+refuseIfEvenClosed :: TVar EvenStreamTable -> STM ()
+refuseIfEvenClosed var = readTVar var >>= mapM_ throwSTM . evenClosed
+
+isEvenClosed :: TVar EvenStreamTable -> STM Bool
+isEvenClosed var = isJust . evenClosed <$> readTVar var
 
 -- | Remove a stream and give its concurrency slot back.
 -- Idempotent, for the same reason as 'deleteOdd'.
@@ -151,9 +181,8 @@ deleteEven var k err = do
         case IntMap.lookup k evenTable of
             Nothing -> return Nothing
             Just v -> do
-                let evenConc' = evenConc - 1
-                    evenTable' = IntMap.delete k evenTable
-                writeTVar var $ EvenStreamTable evenConc' evenTable' evenCache
+                writeTVar var $
+                    EvenStreamTable (evenConc - 1) (IntMap.delete k evenTable) evenCache evenClosed
                 return $ Just v
 
 lookupEven :: TVar EvenStreamTable -> IntMap.Key -> IO (Maybe Stream)
@@ -162,31 +191,37 @@ lookupEven var k = IntMap.lookup k . evenTable <$> readTVarIO var
 getEvenConcurrency :: TVar EvenStreamTable -> IO Int
 getEvenConcurrency var = evenConc <$> readTVarIO var
 
-clearEvenStreamTable :: TVar EvenStreamTable -> IO (IntMap Stream)
-clearEvenStreamTable var = atomically $ do
+-- | As 'clearOddStreamTable'.
+clearEvenStreamTable
+    :: TVar EvenStreamTable -> E.SomeException -> IO (IntMap Stream)
+clearEvenStreamTable var err = atomically $ do
     EvenStreamTable{..} <- readTVar var
-    writeTVar var $ emptyEvenStreamTable 0
+    writeTVar var $
+        EvenStreamTable 0 IntMap.empty (LRUCache.empty 0) (evenClosed <|> Just err)
     return evenTable
 
+-- | As 'waitIncOdd'.
 waitIncEven :: TVar EvenStreamTable -> Int -> STM ()
 waitIncEven var maxConc = do
-    EvenStreamTable{..} <- readTVar var
+    refuseIfEvenClosed var
+    st@EvenStreamTable{..} <- readTVar var
     check (evenConc < maxConc)
-    let evenConc' = evenConc + 1
-    writeTVar var $ EvenStreamTable evenConc' evenTable evenCache
+    writeTVar var st{evenConc = evenConc + 1}
 
 insertEvenCache
     :: TVar EvenStreamTable -> Method -> ByteString -> Stream -> IO ()
-insertEvenCache var method path strm@Stream{..} = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
-    let evenConc' = evenConc + 1
-        evenTable' = IntMap.insert streamNumber strm evenTable
-        evenCache' = LRUCache.insert (method, path) strm evenCache
-     in EvenStreamTable evenConc' evenTable' evenCache'
+insertEvenCache var method path strm@Stream{..} = atomically $ do
+    refuseIfEvenClosed var
+    modifyTVar var $ \st@EvenStreamTable{..} ->
+        st
+            { evenConc = evenConc + 1
+            , evenTable = IntMap.insert streamNumber strm evenTable
+            , evenCache = LRUCache.insert (method, path) strm evenCache
+            }
 
 deleteEvenCache :: TVar EvenStreamTable -> Method -> ByteString -> IO ()
-deleteEvenCache var m path = atomically $ modifyTVar var $ \EvenStreamTable{..} ->
-    let evenCache' = LRUCache.delete (m, path) evenCache
-     in EvenStreamTable evenConc evenTable evenCache'
+deleteEvenCache var m path = atomically $ modifyTVar var $ \st@EvenStreamTable{..} ->
+    st{evenCache = LRUCache.delete (m, path) evenCache}
 
 lookupEvenCache
     :: TVar EvenStreamTable -> Method -> ByteString -> IO (Maybe Stream)

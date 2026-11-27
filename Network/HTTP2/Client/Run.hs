@@ -396,11 +396,16 @@ sendRequest Config{..} ctx@Context{..} strm OutObj{..} io = do
                     when (isAsyncException e) $ E.throwIO e
   where
     label = "H2 request sender for stream " ++ show (streamNumber strm)
-    pushOutput sid out = atomically $ (`orElse` (outObjGiveUp >> throwSTM RequestGivenUp)) $ do
-        sidOK <- readTVar outputQStreamID
-        check (sidOK == sid)
-        writeTVar outputQStreamID (sid + 2)
-        enqueueOutputSTM outputQ out
+    -- The turn of a stream skipped by 'abandon' never comes once the
+    -- connection has ended, so that ends the wait as well.
+    pushOutput sid out = atomically $ turn `orElse` giveUp `orElse` waitOddClosed oddStreamTable
+      where
+        turn = do
+            sidOK <- readTVar outputQStreamID
+            check (sidOK == sid)
+            writeTVar outputQStreamID (sid + 2)
+            enqueueOutputSTM outputQ out
+        giveUp = outObjGiveUp >> throwSTM RequestGivenUp
     -- The request failed before it was queued -- the file of a
     -- 'requestFile' could not be opened, say, or the thread was killed while
     -- waiting for its turn.  Its stream id was taken but nothing went out on
