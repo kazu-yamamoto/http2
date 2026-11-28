@@ -1105,10 +1105,10 @@ runServerGoingAway modify goVar set = runTCPServerWithSettings set (Just host) p
         E.bracket
             (allocSimpleConfig s 32768)
             freeSimpleConfig
-            (\conf -> runWith (readTVar goVar >>= check) defaultServerConfig (modify conf) server)
+            (\conf -> runGracefully defaultServerConfig (modify conf) server (readTVar goVar >>= check))
 
 -- | Like 'runServerGoingAway', with no timeout, a short 'drainTimeout',
---   and the variable filled once 'runWith' returns.
+--   and the variable filled once 'runGracefully' returns.
 runServerDraining :: TVar Bool -> MVar () -> ServerSettings -> IO ()
 runServerDraining goVar ended set = runTCPServerWithSettings set (Just host) port runHTTP2Server
   where
@@ -1117,7 +1117,7 @@ runServerDraining goVar ended set = runTCPServerWithSettings set (Just host) por
         E.bracket
             (allocSimpleConfig' s 32768 0)
             freeSimpleConfig
-            (\conf -> runWith (readTVar goVar >>= check) sconf conf server)
+            (\conf -> runGracefully sconf conf server (readTVar goVar >>= check))
             `E.finally` putMVar ended ()
 
 -- | A request for /slow, then the server told to go away, and a request for

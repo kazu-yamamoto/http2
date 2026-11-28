@@ -29,8 +29,8 @@ data ServerConfig = ServerConfig
     , settings :: Settings
     -- ^ Settings
     , drainTimeout :: Int
-    -- ^ How long a connection told to go away by 'runWith' or
-    --   'runIOWith' may make no progress, in microseconds, when
+    -- ^ How long a connection told to go away by 'runGracefully' or
+    --   'runIOGracefully' may make no progress, in microseconds, when
     --   'confTimeout' is zero or less.  Zero or less means for ever.
     --
     --   @since 5.4.14
@@ -58,13 +58,20 @@ defaultServerConfig =
 run :: ServerConfig -> Config -> Server -> IO ()
 run = runMaybe Nothing
 
--- | Like 'run', but the connection goes away once the 'STM' action fires:
---   GOAWAY(NO_ERROR) at once, streams above it refused, and the
---   connection closed when those below it are done.
+-- | Like 'run', but the connection shuts down gracefully once the
+--   'STM' action fires: GOAWAY(NO_ERROR) at once, streams above it
+--   refused, and the connection closed when those below it are done.
+--
+--   @since 5.4.15
+runGracefully :: ServerConfig -> Config -> Server -> STM () -> IO ()
+runGracefully sconf conf server shutdown = runMaybe (Just shutdown) sconf conf server
+
+-- | The old form of 'runGracefully'.
 --
 --   @since 5.4.13
 runWith :: STM () -> ServerConfig -> Config -> Server -> IO ()
-runWith = runMaybe . Just
+runWith shutdown sconf conf server = runGracefully sconf conf server shutdown
+{-# DEPRECATED runWith "Use runGracefully" #-}
 
 -- Nothing for 'run': no thread waits on an action which never fires.
 runMaybe :: Maybe (STM ()) -> ServerConfig -> Config -> Server -> IO ()
@@ -117,8 +124,19 @@ runIO
     -> IO ()
 runIO = runIOMaybe Nothing
 
--- | Like 'runIO', but the connection goes away once the 'STM' action
---   fires, as with 'runWith'.
+-- | Like 'runIO', but the connection shuts down gracefully once the
+--   'STM' action fires, as with 'runGracefully'.
+--
+--   @since 5.4.15
+runIOGracefully
+    :: ServerConfig
+    -> Config
+    -> (ServerIO Stream -> IO (IO ()))
+    -> STM ()
+    -> IO ()
+runIOGracefully sconf conf action shutdown = runIOMaybe (Just shutdown) sconf conf action
+
+-- | The old form of 'runIOGracefully'.
 --
 --   @since 5.4.13
 runIOWith
@@ -127,7 +145,8 @@ runIOWith
     -> Config
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
-runIOWith = runIOMaybe . Just
+runIOWith shutdown sconf conf action = runIOGracefully sconf conf action shutdown
+{-# DEPRECATED runIOWith "Use runIOGracefully" #-}
 
 runIOMaybe
     :: Maybe (STM ())
