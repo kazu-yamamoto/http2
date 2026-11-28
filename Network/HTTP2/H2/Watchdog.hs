@@ -25,6 +25,8 @@ module Network.HTTP2.H2.Watchdog (
     H2,
     H2Watchdog,
     newH2Watchdog,
+    newDrainH2Watchdog,
+    limitDrain,
 
     -- * Recording activity
     rxTick,
@@ -83,6 +85,31 @@ newH2Watchdog us
   where
     activity0 = Activity 0 0 False 0 0
 
+-- | Like 'newH2Watchdog', but with no timeout at all while the timeout
+--   is zero or less, until 'limitDrain'.  For a connection which is told
+--   to go away: draining, it must still make progress.
+newDrainH2Watchdog :: Int -> IO H2Watchdog
+newDrainH2Watchdog us
+    | us > 0 = newH2Watchdog us
+    | otherwise = do
+        wd <- W.newWatchdog $ H2Context 0 (return ()) activity0
+        mirror <- newTVarIO activity0
+        return $ H2Watchdog $ Just (wd, mirror)
+  where
+    activity0 = Activity 0 0 False 0 0
+
+-- | Giving a watchdog with no timeout one, in microseconds, once the
+--   connection goes away; one with a timeout keeps its own.
+limitDrain :: H2Watchdog -> Int -> IO ()
+limitDrain (H2Watchdog Nothing) _ = return ()
+limitDrain (H2Watchdog (Just (wd, _))) us
+    | us <= 0 = return ()
+    | otherwise = update limit wd
+  where
+    limit c
+        | h2Timeout c == 0 = c{h2Timeout = fromIntegral us}
+        | otherwise = c
+
 -- | A write is a flag and the other two are counts, because there is one
 --   sender on a connection -- 'Network.HTTP2.H2.Sender.frameSender', run
 --   once by 'Network.HTTP2.Server.run' -- and as many applications and
@@ -129,11 +156,14 @@ instance WatchdogFor H2 where
         -- and what it is not doing is already on the clock.
         Nothing -> action
         Just old
-            | rule (h2Activity old) == r' -> ignore
+            | rule (h2Activity old) == r'
+            , h2Timeout old == h2Timeout new ->
+                ignore
             | otherwise -> action
       where
         r' = rule $ h2Activity new
         action
+            | h2Timeout new == 0 = unlimited
             | RunningApp _ <- r' = setTimeoutProbing (h2Timeout new) (h2Probe new)
             | otherwise = setTimeout $ h2Timeout new
 

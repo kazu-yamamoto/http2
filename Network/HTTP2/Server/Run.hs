@@ -28,6 +28,12 @@ data ServerConfig = ServerConfig
     -- ^ The window size of incoming streams
     , settings :: Settings
     -- ^ Settings
+    , drainTimeout :: Int
+    -- ^ How long a connection told to go away by 'runWith' or
+    --   'runIOWith' may make no progress, in microseconds, when
+    --   'confTimeout' is zero or less.  Zero or less means for ever.
+    --
+    --   @since 5.4.14
     }
     deriving (Eq, Show)
 
@@ -36,13 +42,14 @@ data ServerConfig = ServerConfig
 -- | The default server config.
 --
 -- >>> defaultServerConfig
--- ServerConfig {numberOfWorkers = 8, connectionWindowSize = 16777216, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 65536, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}}
+-- ServerConfig {numberOfWorkers = 8, connectionWindowSize = 16777216, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Just 65536, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}, drainTimeout = 30000000}
 defaultServerConfig :: ServerConfig
 defaultServerConfig =
     ServerConfig
         { numberOfWorkers = 8
         , connectionWindowSize = defaultMaxData
         , settings = defaultSettings
+        , drainTimeout = 30000000
         }
 
 ----------------------------------------------------------------
@@ -61,12 +68,12 @@ runWith = runMaybe . Just
 
 -- Nothing for 'run': no thread waits on an action which never fires.
 runMaybe :: Maybe (STM ()) -> ServerConfig -> Config -> Server -> IO ()
-runMaybe mGoAway sconf conf server = supervising conf $ \wd -> do
+runMaybe mGoAway sconf conf server = supervising mGoAway conf $ \wd -> do
     ok <- checkPreface conf wd mGoAway
     when ok $ do
         let lnch = runServer conf server
         ctx <- setup sconf conf wd lnch Nothing
-        runH2 conf ctx mGoAway Nothing
+        runH2 sconf conf ctx mGoAway Nothing
 
 -- | Running an action with the watchdog of this connection.
 --
@@ -77,9 +84,12 @@ runMaybe mGoAway sconf conf server = supervising conf $ \wd -> do
 --   The connection finishes by itself once it times out, when 'Config'
 --   can give up on its reads and writes.  Throwing to it is the last
 --   resort, for one whose 'confReadN' or 'confSendAll' cannot give up.
-supervising :: Config -> (H2Watchdog -> IO a) -> IO a
-supervising Config{..} action = do
-    wd <- newH2Watchdog confTimeout
+--
+--   Told to go away, a connection with no timeout gets 'drainTimeout':
+--   draining, it must still make progress.
+supervising :: Maybe (STM ()) -> Config -> (H2Watchdog -> IO a) -> IO a
+supervising mGoAway Config{..} action = do
+    wd <- maybe newH2Watchdog (const newDrainH2Watchdog) mGoAway confTimeout
     tid <- myThreadId
     let lastResort
             | isJust confReadNWith && isJust confSendAllWith = return ()
@@ -125,7 +135,7 @@ runIOMaybe
     -> Config
     -> (ServerIO Stream -> IO (IO ()))
     -> IO ()
-runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
+runIOMaybe mGoAway sconf conf@Config{..} action = supervising mGoAway conf $ \wd -> do
     ok <- checkPreface conf wd mGoAway
     when ok $ do
         inpQ <- newTQueueIO
@@ -196,7 +206,7 @@ runIOMaybe mGoAway sconf conf@Config{..} action = supervising conf $ \wd -> do
                     , sioDone = finish
                     }
         io <- action serverIO
-        runH2 conf ctx mGoAway $ Just io
+        runH2 sconf conf ctx mGoAway $ Just io
 
 -- | Reading the preface.  A peer which never sends it is given up on like
 --   any other, and is not waited for once the server is going away: the
@@ -233,8 +243,9 @@ setup ServerConfig{..} conf wd lnch mIsDone = do
         settings
         mIsDone
 
-runH2 :: Config -> Context -> Maybe (STM ()) -> Maybe (IO ()) -> IO ()
-runH2 conf ctx mGoAway mIO = do
+runH2
+    :: ServerConfig -> Config -> Context -> Maybe (STM ()) -> Maybe (IO ()) -> IO ()
+runH2 sconf conf ctx mGoAway mIO = do
     -- Supervised by 'supervising', which 'run' and 'runIO' wrap this in.
     let runReceiver = frameReceiver ctx conf
         runSender = frameSender ctx conf
@@ -247,7 +258,9 @@ runH2 conf ctx mGoAway mIO = do
         sendGoAway :: STM () -> T.Managed a -> IO ()
         sendGoAway goAway ar = do
             told <- atomically $ (True <$ goAway) `orElse` (False <$ stopping)
-            when told $ goingAwayTold ar
+            when told $ do
+                limitDrain (watchdog ctx) $ drainTimeout sconf
+                goingAwayTold ar
         goingAwayTold ar = do
             enqueueControl (controlQ ctx) $
                 CFrames
@@ -272,7 +285,8 @@ runH2 conf ctx mGoAway mIO = do
         runBackgroundThreads = do
             -- The application is user code: killed when the connection
             -- ends, and its failure ends the connection.
-            mApp <- forM mIO $ T.forkManagedWithResult (appThreadManager ctx) "H2 runIO application"
+            mApp <-
+                forM mIO $ T.forkManagedWithResult (appThreadManager ctx) "H2 runIO application"
             ar <- forkCore ctx "H2 receiver" runReceiver
             forM_ mGoAway $ \goAway ->
                 forkCore ctx "H2 going away" $ sendGoAway goAway ar

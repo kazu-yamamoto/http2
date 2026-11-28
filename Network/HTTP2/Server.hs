@@ -37,6 +37,7 @@ module Network.HTTP2.Server (
     numberOfWorkers,
     connectionWindowSize,
     settings,
+    drainTimeout,
 
     -- * HTTP\/2 setting
     Settings,
