@@ -519,6 +519,36 @@ spec = do
                             ]
                         )
 
+        it "ends a draining connection whose peer stops reading, with no timeout" $ do
+            -- With 'confTimeout' 0 nothing gave up on the sender: told to
+            -- go away, the server waited for ever on a peer which did not
+            -- read.  Draining, a connection must still make progress.
+            goVar <- newTVarIO False
+            ended <- newEmptyMVar
+            withServer (runServerDraining goVar ended) $ do
+                threadDelay 10000
+                runTCPClient host port $ \s -> do
+                    sendAll s connectionPreface
+                    sendAll s $
+                        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+                            SettingsFrame [(SettingsInitialWindowSize, 2147483647)]
+                    sendAll s $
+                        encodeFrame (EncodeInfo defaultFlags 0 Nothing) $
+                            WindowUpdateFrame 2147418112
+                    sendAll s $
+                        encodeFrame (EncodeInfo (setEndStream $ setEndHeader defaultFlags) 1 Nothing) $
+                            HeadersFrame Nothing $
+                                hpackEncode
+                                    [ (":scheme", "http")
+                                    , (":authority", "127.0.0.1")
+                                    , (":path", "/endless")
+                                    , (":method", "GET")
+                                    ]
+                    -- Never reading: the response fills the socket.
+                    threadDelay 200000
+                    atomically $ writeTVar goVar True
+                    timeout 5000000 (takeMVar ended) `shouldReturn` Just ()
+
         it "closes the connection once a runIO application is done" $
             -- 'sioDone' set a flag that nothing read, so the connection
             -- stayed open until the client closed it.
@@ -1076,6 +1106,19 @@ runServerGoingAway modify goVar set = runTCPServerWithSettings set (Just host) p
             (allocSimpleConfig s 32768)
             freeSimpleConfig
             (\conf -> runWith (readTVar goVar >>= check) defaultServerConfig (modify conf) server)
+
+-- | Like 'runServerGoingAway', with no timeout, a short 'drainTimeout',
+--   and the variable filled once 'runWith' returns.
+runServerDraining :: TVar Bool -> MVar () -> ServerSettings -> IO ()
+runServerDraining goVar ended set = runTCPServerWithSettings set (Just host) port runHTTP2Server
+  where
+    sconf = defaultServerConfig{drainTimeout = 300000}
+    runHTTP2Server s =
+        E.bracket
+            (allocSimpleConfig' s 32768 0)
+            freeSimpleConfig
+            (\conf -> runWith (readTVar goVar >>= check) sconf conf server)
+            `E.finally` putMVar ended ()
 
 -- | A request for /slow, then the server told to go away, and a request for
 -- /: before the PING that came with the first GOAWAY is answered when
