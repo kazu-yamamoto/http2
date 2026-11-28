@@ -81,10 +81,11 @@ spec = describe "watchdog" $ do
 
     it "times out a stalled request body" $ do
         result <- newEmptyMVar
+        -- The read fails once the connection times out, and the handler
+        -- is killed just after: what it says has to be said on the way out.
         let server req _aux sendResponse = do
-                r <- E.try $ consume $ getRequestBodyChunk req
-                putMVar result $
-                    either (const False) (const True) (r :: Either E.SomeException ByteString)
+                _ <- consume (getRequestBodyChunk req) `E.onException` tryPutMVar result False
+                _ <- tryPutMVar result True
                 sendResponse (responseNoBody ok200 []) []
         withServer server $ do
             _ <- forkIO $ E.handle ignore $ runTCPClient host port $ \s ->
