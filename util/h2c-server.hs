@@ -66,7 +66,7 @@ main = do
     let stop accepting = onInterrupt $ do
             atomically $ writeTVar stopping True
             accepting
-        goAway = readTVar stopping >>= check
+        shutdown = readTVar stopping >>= check
         -- Closing gracefully, or a reset can wipe out GOAWAY.
         tcpSettings =
             defaultServerSettings
@@ -78,4 +78,4 @@ main = do
         E.bracket
             (allocSimpleConfig' s 4096 5000000)
             freeSimpleConfig
-            (\conf -> runWith goAway defaultServerConfig conf server)
+            (\conf -> runGracefully defaultServerConfig conf server shutdown)

@@ -184,7 +184,7 @@ spec = describe "give-up" $ do
             runServer = runTCPServerWithSettings gracefulSettings (Just host) port $ \s ->
                 E.bracket (allocSimpleConfig' s 32768 30000000) freeSimpleConfig $ \conf ->
                     (go (uninterruptible conf) `E.catch` ignore) `E.finally` putMVar ended ()
-            go conf = runWith (readTVar goVar >>= check) defaultServerConfig conf server
+            go conf = runGracefully defaultServerConfig conf server (readTVar goVar >>= check)
         E.bracket (forkIO runServer) killThread $ \_ -> do
             threadDelay 10000
             -- The client says nothing after its SETTINGS and does not answer

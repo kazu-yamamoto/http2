@@ -9,6 +9,7 @@ module Network.HTTP2.Server.Internal (
     Stream,
     ServerIO (..),
     runIO,
+    runIOGracefully,
     runIOWith,
 ) where
 
