@@ -130,7 +130,7 @@ executable h2c-client
     main-is:            h2c-client.hs
     hs-source-dirs:     util
     default-language:   Haskell2010
-    other-modules:      Client Monitor
+    other-modules:      Client Monitor Signal
     default-extensions: Strict StrictData
     ghc-options:        -Wall -threaded -rtsopts
     build-depends:
@@ -140,8 +140,12 @@ executable h2c-client
         http-types,
         http2,
         network,
-        network-run >= 0.7 && <0.9,
+        network-run,
+        stm,
         unix-time
+
+    if !os(windows)
+        build-depends: unix
 
     if flag(devel)
 
@@ -154,7 +158,7 @@ executable h2c-client
 executable h2c-server
     main-is:            h2c-server.hs
     hs-source-dirs:     util
-    other-modules:      Server Monitor
+    other-modules:      Server Monitor Signal
     default-language:   Haskell2010
     default-extensions: Strict StrictData
     ghc-options:        -Wall -threaded
@@ -165,7 +169,11 @@ executable h2c-server
         http2,
         http-types,
         network,
-        network-run
+        network-run,
+        stm
+
+    if !os(windows)
+        build-depends: unix
 
     if flag(devel)
 

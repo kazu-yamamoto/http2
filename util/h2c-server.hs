@@ -3,6 +3,7 @@
 module Main (main) where
 
 import Control.Concurrent
+import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad
 import Network.HTTP2.Server
@@ -14,6 +15,7 @@ import System.Exit
 
 import Monitor
 import Server
+import Signal
 
 options :: [OptDescr (Options -> Options)]
 options =
@@ -59,10 +61,21 @@ main = do
         [h, p] -> return (h, p)
         _ -> showUsageAndExit usage
     when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
-    -- Closing gracefully, or a reset can wipe out GOAWAY.
-    let tcpSettings = defaultServerSettings{settingsClose = \s -> unsafeGracefulClose s 5000}
+    -- On Ctrl-C, connections are sent GOAWAY and drained.
+    stopping <- newTVarIO False
+    let stop accepting = onInterrupt $ do
+            atomically $ writeTVar stopping True
+            accepting
+        goAway = readTVar stopping >>= check
+        -- Closing gracefully, or a reset can wipe out GOAWAY.
+        tcpSettings =
+            defaultServerSettings
+                { settingsClose = \s -> unsafeGracefulClose s 5000
+                , settingsInstallShutdownHandler = stop
+                , settingsGracefulShutdownTimeout = Just 30
+                }
     runTCPServerWithSettings tcpSettings (Just host) port $ \s -> do
         E.bracket
             (allocSimpleConfig' s 4096 5000000)
             freeSimpleConfig
-            (\conf -> run defaultServerConfig conf server)
+            (\conf -> runWith goAway defaultServerConfig conf server)

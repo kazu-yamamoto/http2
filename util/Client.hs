@@ -4,7 +4,6 @@
 
 module Client where
 
-import Control.Concurrent
 import Control.Concurrent.Async
 import qualified Control.Exception as E
 import Control.Monad
@@ -14,6 +13,7 @@ import Data.UnixTime
 import Foreign.C.Types
 import Network.HTTP.Types
 import System.IO
+import System.IO.Error (isEOFError)
 import Text.Printf
 
 import Network.HTTP2.Client
@@ -41,7 +41,7 @@ client Options{..} paths sendRequest _aux = do
 
 clientNReqs :: Int -> SendRequest -> Path -> IO ()
 clientNReqs n0 sendRequest path = do
-    labelMe "h2c clinet N requests"
+    labelMe "h2c client N requests"
     loop n0
   where
     req = requestNoBody methodGet path []
@@ -55,7 +55,7 @@ clientNReqs n0 sendRequest path = do
 -- Path is dummy
 clientPF :: Int -> SendRequest -> Path -> IO ()
 clientPF n sendRequest _ = do
-    labelMe "h2c clinet performance"
+    labelMe "h2c client performance"
     t1 <- getUnixTime
     sendRequest req loop
     t2 <- getUnixTime
@@ -93,10 +93,10 @@ console _opt paths cli aux = do
     putStrLn "q -- quit"
     putStrLn "g -- get"
     putStrLn "p -- ping"
-    mvar <- newEmptyMVar
-    loop mvar `E.catch` \(E.SomeException _) -> return ()
+    -- Ctrl-D ends the console as "q" does.
+    loop `E.catch` \e -> unless (isEOFError e) $ E.throwIO e
   where
-    loop mvar = do
+    loop = do
         hSetBuffering stdout NoBuffering
         putStr "> "
         hSetBuffering stdout LineBuffering
@@ -105,13 +105,12 @@ console _opt paths cli aux = do
             "q" -> putStrLn "bye"
             "g" -> do
                 mapM_ (\p -> putStrLn $ "GET " ++ C8.unpack p) paths
-                _ <- forkIO $ cli >> putMVar mvar ()
-                takeMVar mvar
-                loop mvar
+                cli
+                loop
             "p" -> do
                 putStrLn "Ping"
                 auxSendPing aux
-                loop mvar
+                loop
             _ -> do
                 putStrLn "No such command"
-                loop mvar
+                loop

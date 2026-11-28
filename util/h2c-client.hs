@@ -4,6 +4,7 @@
 module Main where
 
 import Control.Concurrent
+import Control.Concurrent.STM
 import qualified Control.Exception as E
 import Control.Monad
 import qualified Data.ByteString.Char8 as C8
@@ -16,6 +17,7 @@ import System.Exit
 
 import Client
 import Monitor
+import Signal
 
 defaultOptions :: Options
 defaultOptions =
@@ -77,14 +79,27 @@ main = do
         h : p : ps -> return (h, p, C8.pack <$> ps)
     when (optMonitor opts) $ void $ forkIO $ monitor $ threadDelay 1000000
     let cliconf = defaultClientConfig{authority = host}
-    run' cliconf host port $ client' opts paths
+    -- On Ctrl-C, the connection is closed with GOAWAY.
+    interrupted <- newTVarIO False
+    onInterrupt $ atomically $ writeTVar interrupted True
+    r <-
+        run' cliconf host port (client' opts paths) $ readTVar interrupted >>= check
+    case r of
+        Left () -> putStrLn "interrupted" >> exitFailure
+        Right () -> return ()
 
-run' :: ClientConfig -> HostName -> ServiceName -> Client a -> IO a
-run' cliconf host port f = runTCPClient host port $ \s ->
+run'
+    :: ClientConfig
+    -> HostName
+    -> ServiceName
+    -> Client a
+    -> STM ()
+    -> IO (Either () a)
+run' cliconf host port f giveUp = runTCPClient host port $ \s ->
     E.bracket
         (allocSimpleConfig' s 4096 10000000)
         freeSimpleConfig
-        (\conf -> run cliconf conf f)
+        (\conf -> runGivingUp cliconf conf f giveUp)
 
 client' :: Options -> [Path] -> Client ()
 client' opts paths sendRequest _aux
